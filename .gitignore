@@ -1,0 +1,38 @@
+# Dependencies
+node_modules/
+client/node_modules/
+mobile-apps/node_modules/
+
+# Build output
+dist/
+client/dist/
+
+# Environment files (never commit real secrets)
+.env
+
+# Uploads (user-generated files)
+uploads/
+!uploads/.gitkeep
+
+# TypeScript build cache
+*.tsbuildinfo
+node_modules/typescript/tsbuildinfo
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/
+!.vscode/settings.json
+!.vscode/extensions.json
+
+# Logs
+*.log
+npm-debug.log*
+
+# Drizzle migrations (commit these)
+# drizzle/
+
+# PM2
+ecosystem.config.js

@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SmartProp — Offline</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: #f8fafc; color: #1e293b;
+      min-height: 100vh; display: flex; flex-direction: column;
+      align-items: center; justify-content: center; padding: 1.5rem;
+    }
+    .card {
+      background: #fff; border-radius: 1.25rem; padding: 2rem 1.75rem;
+      text-align: center; max-width: 360px; width: 100%;
+      box-shadow: 0 4px 24px rgba(0,0,0,0.08);
+    }
+    .icon {
+      width: 64px; height: 64px; background: #fef3c7; border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      margin: 0 auto 1.25rem;
+    }
+    h1  { font-size: 1.2rem; font-weight: 700; margin-bottom: .4rem; }
+    p   { font-size: .875rem; color: #64748b; line-height: 1.6; }
+    .queue-info {
+      margin: 1.25rem 0;
+      background: #f1f5f9; border-radius: .75rem; padding: .875rem;
+      font-size: .875rem; text-align: left;
+    }
+    .queue-row { display: flex; justify-content: space-between; align-items: center; }
+    .badge {
+      display: inline-flex; align-items: center; gap: .25rem;
+      background: #dbeafe; color: #1d4ed8; border-radius: 9999px;
+      padding: .15rem .6rem; font-size: .75rem; font-weight: 600;
+    }
+    .badge.green { background: #dcfce7; color: #166534; }
+    .badge.amber { background: #fef9c3; color: #854d0e; }
+    .actions { margin-top: 1.25rem; display: flex; flex-direction: column; gap: .75rem; }
+    button {
+      border: none; padding: .7rem 1.25rem; border-radius: .75rem;
+      font-size: .9rem; font-weight: 500; cursor: pointer; width: 100%;
+      transition: opacity .15s;
+    }
+    button:active { opacity: .85; }
+    .btn-primary { background: #2563eb; color: #fff; }
+    .btn-secondary { background: #e2e8f0; color: #1e293b; }
+    .note { margin-top: 1.25rem; font-size: .78rem; color: #94a3b8; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="icon">
+      <!-- wifi-off icon -->
+      <svg width="28" height="28" fill="none" viewBox="0 0 24 24" stroke="#d97706" stroke-width="2">
+        <line x1="1" y1="1" x2="23" y2="23"/>
+        <path stroke-linecap="round" stroke-linejoin="round"
+          d="M16.72 11.06A10.94 10.94 0 0119 12.55M5 12.55a10.94 10.94 0 015.17-2.39M10.71 5.05A16 16 0 0122.56 9M1.42 9a15.91 15.91 0 014.7-2.88M12 20h.01"/>
+      </svg>
+    </div>
+
+    <h1>You're offline</h1>
+    <p>SmartProp can't reach the server right now. Any actions you take are saved and will sync automatically when you reconnect.</p>
+
+    <div class="queue-info" id="queue-info" style="display:none">
+      <div class="queue-row">
+        <span>Actions saved offline</span>
+        <span class="badge amber" id="queue-count">0</span>
+      </div>
+      <p style="margin-top:.5rem;font-size:.78rem;color:#64748b">
+        These will be submitted automatically when your connection returns. You don't need to do anything.
+      </p>
+    </div>
+
+    <div class="actions">
+      <button class="btn-primary" onclick="tryReload()">Try again</button>
+      <button class="btn-secondary" onclick="goHome()">Go to dashboard</button>
+    </div>
+
+    <p class="note" id="status-note">Waiting for connection…</p>
+  </div>
+
+  <script>
+    // Read queue count from IndexedDB and display it
+    function showQueueCount() {
+      if (!('indexedDB' in window)) return;
+      const req = indexedDB.open('smartprop-offline', 1);
+      req.onsuccess = function(e) {
+        try {
+          const db    = e.target.result;
+          if (!db.objectStoreNames.contains('sync-queue')) return;
+          const tx    = db.transaction('sync-queue', 'readonly');
+          const store = tx.objectStore('sync-queue');
+          const count = store.count();
+          count.onsuccess = function() {
+            const n = count.result;
+            if (n > 0) {
+              document.getElementById('queue-count').textContent = n;
+              document.getElementById('queue-info').style.display = 'block';
+            }
+          };
+        } catch (err) { /* ignore */ }
+      };
+    }
+
+    function tryReload() { location.reload(); }
+    function goHome()    { location.href = '/'; }
+
+    // Check if we have connectivity and redirect to app shell
+    function checkOnline() {
+      if (navigator.onLine) {
+        document.getElementById('status-note').textContent = 'Connection detected — reloading…';
+        setTimeout(() => { location.href = '/'; }, 800);
+      }
+    }
+
+    window.addEventListener('online', checkOnline);
+    showQueueCount();
+    checkOnline();
+  </script>
+</body>
+</html>

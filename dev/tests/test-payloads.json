@@ -1,0 +1,175 @@
+{
+  "properties": {
+    "create": {
+      "name": "Sunset Apartments",
+      "address": "123 Sunset Boulevard, Nairobi",
+      "type": "apartment",
+      "units": 24,
+      "yearBuilt": 2020,
+      "amenities": ["parking", "security", "gym"],
+      "description": "Modern apartment complex with all amenities"
+    },
+    "edit": {
+      "name": "Sunset Luxury Apartments",
+      "amenities": ["parking", "security", "gym", "pool"],
+      "description": "Updated luxury apartment complex with pool"
+    }
+  },
+  "tenants": {
+    "create": {
+      "firstName": "John",
+      "lastName": "Doe",
+      "email": "john.doe@example.com",
+      "phone": "+254724406054",
+      "idNumber": "12345678",
+      "dateOfBirth": "1990-01-01",
+      "occupation": "Software Engineer",
+      "emergencyContact": {
+        "name": "Jane Doe",
+        "phone": "+254712345679",
+        "relationship": "Spouse"
+      }
+    },
+    "edit": {
+      "phone": "+254712345680",
+      "occupation": "Senior Software Engineer",
+      "emergencyContact": {
+        "name": "Jane Doe",
+        "phone": "+254712345681",
+        "relationship": "Spouse"
+      }
+    }
+  },
+  "maintenance": {
+    "create": {
+      "title": "Leaking Faucet",
+      "description": "Kitchen faucet is leaking and needs repair",
+      "category": "plumbing",
+      "priority": "medium",
+      "propertyId": 1,
+      "unitId": 1,
+      "tenantId": 1,
+      "reportedDate": "2025-01-23"
+    },
+    "edit": {
+      "status": "in_progress",
+      "priority": "high",
+      "technicianNotes": "Parts ordered, will complete repair tomorrow",
+      "estimatedCompletion": "2025-01-24"
+    }
+  },
+  "rentPayments": {
+    "create": {
+      "tenantId": 1,
+      "amount": 45000,
+      "currency": "KES",
+      "paymentMethod": "mpesa",
+      "transactionRef": "TEST123456",
+      "paymentDate": "2025-01-23",
+      "dueDate": "2025-01-05",
+      "status": "completed"
+    },
+    "edit": {
+      "status": "verified",
+      "verificationNotes": "Payment confirmed via M-PESA statement"
+    }
+  },
+  "workforce": {
+    "create": {
+      "firstName": "Mary",
+      "lastName": "Johnson",
+      "email": "mary.johnson@company.com",
+      "phone": "+254712345682",
+      "position": "Property Manager",
+      "department": "Operations",
+      "hireDate": "2025-01-15",
+      "salary": 75000,
+      "employmentType": "full_time"
+    },
+    "edit": {
+      "position": "Senior Property Manager",
+      "salary": 85000,
+      "department": "Operations"
+    }
+  },
+  "serviceProviders": {
+    "create": {
+      "companyName": "QuickFix Plumbing",
+      "contactPerson": "Peter Smith",
+      "email": "peter@quickfix.com",
+      "phone": "+254712345683",
+      "services": ["plumbing", "electrical"],
+      "rating": 4.5,
+      "businessLicense": "BL123456",
+      "insurance": true
+    },
+    "edit": {
+      "rating": 4.8,
+      "services": ["plumbing", "electrical", "hvac"],
+      "insurance": true,
+      "lastServiceDate": "2025-01-23"
+    }
+  },
+  "visitors": {
+    "create": {
+      "visitorName": "Alice Wilson",
+      "idNumber": "87654321",
+      "phone": "+254712345684",
+      "purpose": "Business Meeting",
+      "hostName": "John Doe",
+      "hostUnit": "A101",
+      "vehicleReg": "KCA 123A",
+      "expectedDuration": "2 hours"
+    },
+    "edit": {
+      "status": "checked_out",
+      "actualCheckout": "2025-01-23T16:30:00Z",
+      "notes": "Meeting completed successfully"
+    }
+  },
+  "broadcastMessages": {
+    "create": {
+      "title": "Monthly Maintenance Notice",
+      "content": "Scheduled maintenance will occur this weekend",
+      "audience": "all_tenants",
+      "channels": ["email", "sms"],
+      "scheduledSendTime": "2025-01-25T09:00:00Z"
+    },
+    "edit": {
+      "status": "sent",
+      "sentCount": 156,
+      "failedCount": 2
+    }
+  },
+  "documents": {
+    "create": {
+      "title": "Lease Agreement - John Doe",
+      "type": "lease",
+      "propertyId": 1,
+      "tenantId": 1,
+      "uploadDate": "2025-01-23",
+      "fileSize": 2048576,
+      "mimeType": "application/pdf"
+    },
+    "edit": {
+      "status": "signed",
+      "signedDate": "2025-01-23",
+      "notes": "Both parties have signed the agreement"
+    }
+  },
+  "reports": {
+    "generate": {
+      "reportType": "rental_income",
+      "dateRange": {
+        "start": "2025-01-01",
+        "end": "2025-01-31"
+      },
+      "format": "pdf",
+      "includeGraphs": true,
+      "filterBy": {
+        "propertyId": null,
+        "status": "all"
+      }
+    }
+  }
+}

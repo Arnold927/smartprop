@@ -1,0 +1,783 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ── SmartProp design system globals ─────────────────────────────────────── */
+
+/* Smooth page transitions */
+* { -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
+
+/* Consistent scrollbar */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+
+/* Table global defaults */
+table { border-collapse: collapse; }
+thead th { background: hsl(var(--muted)); }
+
+/* Brand selection colour */
+::selection { background: #d1fae5; color: #065f46; }
+
+/* Focus rings use emerald */
+:focus-visible { outline: 2px solid #10b981; outline-offset: 2px; }
+
+/* Smooth transitions on interactive elements */
+button, a, input, select, textarea {
+  transition-property: color, background-color, border-color, box-shadow;
+  transition-duration: 150ms;
+  transition-timing-function: ease;
+}
+
+/* Card hover lift */
+.sp-card-hover:hover {
+  box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+  transform: translateY(-1px);
+  transition: box-shadow 200ms ease, transform 200ms ease;
+}
+
+/* Sidebar nav transition */
+.sidebar-link {
+  transition: background-color 150ms ease, color 150ms ease;
+}
+
+/* Badge base */
+.sp-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 10px;
+  border-radius: 9999px;
+  font-size: 11px;
+  font-weight: 500;
+  border: 1px solid;
+}
+
+/* Number font feature */
+.tabular-nums { font-variant-numeric: tabular-nums; }
+
+
+* {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+}
+
+:root {
+  --background: 0 0% 100%;
+  --foreground: 222 47% 11%;
+  --muted: 210 40% 96%;
+  --muted-foreground: 215 16% 47%;
+  --popover: 0 0% 100%;
+  --popover-foreground: 222 47% 11%;
+  --card: 0 0% 100%;
+  --card-foreground: 222 47% 11%;
+  --border: 214 32% 91%;
+  --input: 214 32% 91%;
+  --primary: 160 84% 39%;
+  --primary-foreground: 0 0% 100%;
+  --secondary: 210 40% 96%;
+  --secondary-foreground: 222 47% 11%;
+  --accent: 210 40% 96%;
+  --accent-foreground: 222 47% 11%;
+  --destructive: 0 84% 60%;
+  --destructive-foreground: 0 0% 100%;
+  --ring: 160 84% 39%;
+  --radius: 0.625rem;
+
+  --status-success-bg: hsl(152, 60%, 92%);
+  --status-success-fg: hsl(152, 70%, 22%);
+  --status-warning-bg: hsl(40, 90%, 92%);
+  --status-warning-fg: hsl(40, 80%, 22%);
+  --status-error-bg:   hsl(0, 70%, 93%);
+  --status-error-fg:   hsl(0, 65%, 28%);
+  --status-info-bg:    hsl(217, 70%, 92%);
+  --status-info-fg:    hsl(217, 65%, 25%);
+
+  --card-border:  hsl(214, 32%, 91%);
+  --card-shadow:  0 1px 2px rgba(0,0,0,0.04), 0 1px 1px rgba(0,0,0,0.02);
+
+  --surface:          hsl(0, 0%, 100%);
+  --surface-fg:       hsl(222, 47%, 11%);
+  --surface-fg-muted: hsl(215, 16%, 47%);
+  --surface-border:   hsl(214, 32%, 91%);
+  --surface-hover:    hsl(210, 40%, 97%);
+}
+
+.gray {
+  --background: 220 16% 22%;
+  --foreground: 220 15% 92%;
+  --muted: 220 13% 28%;
+  --muted-foreground: 220 10% 65%;
+  --popover: 220 16% 20%;
+  --popover-foreground: 220 15% 92%;
+  --card: 220 14% 26%;
+  --card-foreground: 220 15% 92%;
+  --border: 220 12% 32%;
+  --input: 220 12% 30%;
+  --primary: 213 90% 58%;
+  --primary-foreground: 211 100% 99%;
+  --secondary: 220 13% 30%;
+  --secondary-foreground: 220 15% 92%;
+  --accent: 220 13% 30%;
+  --accent-foreground: 220 15% 92%;
+  --destructive: 0 72% 50%;
+  --destructive-foreground: 0 0% 98%;
+  --ring: 220 13% 70%;
+  --card-border: hsl(220, 12%, 32%);
+  --card-shadow: 0 2px 8px rgba(0,0,0,0.3);
+
+  --status-success-bg: hsl(140, 35%, 14%);
+  --status-success-fg: hsl(140, 65%, 68%);
+  --status-warning-bg: hsl(38, 45%, 15%);
+  --status-warning-fg: hsl(38, 85%, 70%);
+  --status-error-bg: hsl(0, 45%, 16%);
+  --status-error-fg: hsl(0, 80%, 72%);
+  --status-info-bg: hsl(215, 55%, 16%);
+  --status-info-fg: hsl(215, 85%, 72%);
+
+  --surface: hsl(220, 16%, 24%);
+  --surface-fg: hsl(220, 15%, 92%);
+  --surface-fg-muted: hsl(220, 10%, 60%);
+  --surface-border: hsl(220, 12%, 34%);
+  --surface-hover: hsl(220, 13%, 30%);
+}
+
+.dark {
+  --background: 240 10% 3.9%;
+  --foreground: 0 0% 98%;
+  --muted: 240 3.7% 15.9%;
+  --muted-foreground: 240 5% 64.9%;
+  --popover: 240 10% 3.9%;
+  --popover-foreground: 0 0% 98%;
+  --card: 240 10% 3.9%;
+  --card-foreground: 0 0% 98%;
+  --border: 240 3.7% 15.9%;
+  --input: 240 3.7% 15.9%;
+  --primary: 213 90% 54%;
+  --primary-foreground: 211 100% 99%;
+  --secondary: 240 3.7% 15.9%;
+  --secondary-foreground: 0 0% 98%;
+  --accent: 240 3.7% 15.9%;
+  --accent-foreground: 0 0% 98%;
+  --destructive: 0 62.8% 30.6%;
+  --destructive-foreground: 0 0% 98%;
+  --ring: 240 4.9% 83.9%;
+  --card-border: hsl(240, 6%, 16%);
+  --card-shadow: 0 2px 8px rgba(0,0,0,0.5);
+
+  --status-success-bg: hsl(140, 35%, 14%);
+  --status-success-fg: hsl(140, 65%, 68%);
+  --status-warning-bg: hsl(38, 45%, 15%);
+  --status-warning-fg: hsl(38, 85%, 70%);
+  --status-error-bg: hsl(0, 45%, 16%);
+  --status-error-fg: hsl(0, 80%, 72%);
+  --status-info-bg: hsl(215, 55%, 16%);
+  --status-info-fg: hsl(215, 85%, 72%);
+
+  --surface: hsl(240, 10%, 8%);
+  --surface-fg: hsl(0, 0%, 90%);
+  --surface-fg-muted: hsl(240, 5%, 55%);
+  --surface-border: hsl(240, 6%, 18%);
+  --surface-hover: hsl(240, 7%, 14%);
+}
+
+@layer base {
+  * { border-color: hsl(var(--border)); }
+  html {
+    background-color: hsl(var(--background));
+    overscroll-behavior: none;
+  }
+  body {
+    @apply font-sans antialiased bg-background text-foreground;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+    overscroll-behavior: none;
+  }
+}
+
+@layer components {
+  .sidebar-transition { transition: all 0.3s ease-in-out; }
+
+  .card-hover:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1);
+  }
+
+  .table-row:hover { background-color: hsl(var(--muted)); }
+
+  .metric-card {
+    background-color: hsl(var(--card));
+    color: hsl(var(--card-foreground));
+    @apply p-6 rounded-xl shadow-sm card-hover transition-all duration-200;
+  }
+
+  .status-badge {
+    @apply inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium;
+  }
+
+  .status-active, .status-paid {
+    background-color: var(--status-success-bg);
+    color: var(--status-success-fg);
+  }
+  .status-pending, .status-maintenance {
+    background-color: var(--status-warning-bg);
+    color: var(--status-warning-fg);
+  }
+  .status-overdue {
+    background-color: var(--status-error-bg);
+    color: var(--status-error-fg);
+  }
+  .priority-high, .priority-urgent {
+    background-color: var(--status-error-bg);
+    color: var(--status-error-fg);
+  }
+  .priority-medium {
+    background-color: var(--status-warning-bg);
+    color: var(--status-warning-fg);
+  }
+  .priority-low {
+    background-color: var(--status-info-bg);
+    color: var(--status-info-fg);
+  }
+
+  .bg-stripes {
+    background-image: repeating-linear-gradient(
+      45deg, transparent, transparent 2px,
+      rgba(255, 255, 255, 0.1) 2px, rgba(255, 255, 255, 0.1) 4px
+    );
+  }
+}
+
+
+
+/* ── Dark/Gray mode text fixes ────────────────────────────────────────────────
+   Override hardcoded Tailwind gray/slate/zinc color utilities so they adapt
+   to the active theme. This fixes headings, labels and body copy that use
+   concrete color scales instead of semantic tokens like text-foreground.     */
+
+/* Near-black → foreground (fully readable on dark backgrounds) */
+.dark .text-gray-900, .gray .text-gray-900,
+.dark .text-slate-900, .gray .text-slate-900,
+.dark .text-zinc-900,  .gray .text-zinc-900,
+.dark .text-neutral-900, .gray .text-neutral-900,
+.dark .text-gray-800, .gray .text-gray-800,
+.dark .text-slate-800, .gray .text-slate-800,
+.dark .text-zinc-800,  .gray .text-zinc-800,
+.dark .text-black, .gray .text-black { color: hsl(var(--foreground)); }
+
+/* Dark grays → muted foreground */
+.dark .text-gray-700, .gray .text-gray-700,
+.dark .text-slate-700, .gray .text-slate-700,
+.dark .text-zinc-700,  .gray .text-zinc-700,
+.dark .text-gray-600, .gray .text-gray-600,
+.dark .text-slate-600, .gray .text-slate-600,
+.dark .text-zinc-600,  .gray .text-zinc-600,
+.dark .text-gray-500, .gray .text-gray-500,
+.dark .text-slate-500, .gray .text-slate-500,
+.dark .text-zinc-500,  .gray .text-zinc-500 { color: hsl(var(--muted-foreground)); }
+
+/* Elements with no explicit color inherit from their themed ancestor */
+h1, h2, h3, h4, h5, h6, p, span, div, td, th, li, label { color: inherit; }
+
+/* Radix UI Overrides - Using higher specificity instead of !important */
+[data-radix-dialog-overlay] {
+  position: fixed;
+  inset: 0;
+  background-color: rgba(0, 0, 0, 0.5);
+  z-index: 9999;
+}
+
+[data-radix-dialog-content] {
+  position: fixed;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  background-color: hsl(var(--background));
+  color: hsl(var(--foreground));
+  z-index: 10000;
+  border-radius: var(--radius);
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+  max-height: 85vh;
+  overflow-y: auto;
+  width: 90vw;
+  max-width: 32rem;
+}
+
+[data-radix-dialog-content] input,
+[data-radix-dialog-content] textarea,
+[data-radix-dialog-content] select {
+  background-color: hsl(var(--input));
+  color: hsl(var(--foreground));
+  border-color: hsl(var(--border));
+}
+
+[data-radix-toast-root] {
+  background-color: var(--surface);
+  border: 1px solid var(--surface-border);
+  border-radius: var(--radius);
+  color: var(--surface-fg);
+  box-shadow: var(--card-shadow);
+}
+
+/* Error/destructive toast — soft tint instead of harsh solid red */
+[data-radix-toast-root][class*="destructive"] {
+  background-color: var(--status-error-bg);
+  border-color: color-mix(in srgb, var(--status-error-fg) 30%, transparent);
+  border-left: 4px solid var(--status-error-fg);
+  color: var(--status-error-fg);
+  box-shadow: 0 2px 8px color-mix(in srgb, var(--status-error-fg) 12%, transparent);
+}
+/* QR scanner scanline animation */
+@keyframes scanline {
+  0%   { top: 10%; }
+  50%  { top: 90%; }
+  100% { top: 10%; }
+}
+/* ── Structural bg/border overrides for dark & gray modes ────────────────────
+   Many components use hardcoded Tailwind static classes (bg-white, bg-slate-50,
+   border-slate-100, border-slate-200) instead of semantic tokens. Rather than
+   patching every file, we override the most common surface-level classes here
+   so cards, table wrappers, and inline panels inherit the active theme.
+   
+   We only override the "light" spectrum (white → slate-100/200) — the darker
+   palette classes (slate-700+, gray-700+) are used intentionally in the dark
+   portals and must stay as-is.                                                */
+
+/* ── Backgrounds ─────────────────────────────────────────────────────────────*/
+.dark .bg-white,
+.gray .bg-white { background-color: hsl(var(--card)); }
+
+.dark .bg-slate-50,
+.gray .bg-slate-50 { background-color: hsl(var(--muted)); }
+
+.dark .bg-slate-100,
+.gray .bg-slate-100 { background-color: hsl(var(--muted)); }
+
+.dark .bg-gray-50,
+.gray .bg-gray-50 { background-color: hsl(var(--muted)); }
+
+.dark .bg-gray-100,
+.gray .bg-gray-100 { background-color: hsl(var(--muted)); }
+
+/* ── Borders ─────────────────────────────────────────────────────────────────*/
+.dark .border-slate-50,
+.gray .border-slate-50 { border-color: hsl(var(--border)); }
+
+.dark .border-slate-100,
+.gray .border-slate-100 { border-color: hsl(var(--border)); }
+
+.dark .border-slate-200,
+.gray .border-slate-200 { border-color: hsl(var(--border)); }
+
+.dark .border-gray-100,
+.gray .border-gray-100 { border-color: hsl(var(--border)); }
+
+.dark .border-gray-200,
+.gray .border-gray-200 { border-color: hsl(var(--border)); }
+
+/* ── Hover states ─────────────────────────────────────────────────────────────
+   hover:bg-white and hover:bg-slate-50 used on table rows and buttons        */
+.dark .hover\:bg-slate-50:hover,
+.gray .hover\:bg-slate-50:hover { background-color: hsl(var(--muted)); }
+
+.dark .hover\:bg-slate-100:hover,
+.gray .hover\:bg-slate-100:hover { background-color: hsl(var(--muted)); }
+
+.dark .hover\:bg-gray-50:hover,
+.gray .hover\:bg-gray-50:hover { background-color: hsl(var(--muted)); }
+
+.dark .hover\:bg-white:hover,
+.gray .hover\:bg-white:hover { background-color: hsl(var(--card)); }
+
+/* ── Divide colours ──────────────────────────────────────────────────────────*/
+.dark .divide-slate-100 > :not([hidden]) ~ :not([hidden]),
+.gray .divide-slate-100 > :not([hidden]) ~ :not([hidden]) { border-color: hsl(var(--border)); }
+
+.dark .divide-slate-200 > :not([hidden]) ~ :not([hidden]),
+.gray .divide-slate-200 > :not([hidden]) ~ :not([hidden]) { border-color: hsl(var(--border)); }
+
+.dark .divide-gray-100 > :not([hidden]) ~ :not([hidden]),
+.gray .divide-gray-100 > :not([hidden]) ~ :not([hidden]) { border-color: hsl(var(--border)); }
+
+/* ── Ring/outline ────────────────────────────────────────────────────────────*/
+.dark .ring-slate-100,
+.gray .ring-slate-100 { --tw-ring-color: hsl(var(--border)); }
+
+/* ── Dashboard KPI icon tints & stat rows — dark/gray mode overrides ─────────
+   These -50 tints are light-only; in dark/gray mode swap to the /20 equivalent
+   so icon backgrounds and inline stat rows don't stay white.                  */
+
+.dark .bg-blue-50,    .gray .bg-blue-50    { background-color: rgb(59  147 246 / 0.15); }
+.dark .bg-green-50,   .gray .bg-green-50   { background-color: rgb(34  197 94  / 0.15); }
+.dark .bg-emerald-50, .gray .bg-emerald-50 { background-color: rgb(16  185 129 / 0.15); }
+.dark .bg-orange-50,  .gray .bg-orange-50  { background-color: rgb(249 115 22  / 0.15); }
+.dark .bg-red-50,     .gray .bg-red-50     { background-color: rgb(239 68  68  / 0.15); }
+.dark .bg-purple-50,  .gray .bg-purple-50  { background-color: rgb(168 85  247 / 0.15); }
+.dark .bg-amber-50,   .gray .bg-amber-50   { background-color: rgb(245 158 11  / 0.15); }
+.dark .bg-yellow-50,  .gray .bg-yellow-50  { background-color: rgb(234 179 8   / 0.15); }
+.dark .bg-indigo-50,  .gray .bg-indigo-50  { background-color: rgb(99  102 241 / 0.15); }
+.dark .bg-teal-50,    .gray .bg-teal-50    { background-color: rgb(20  184 166 / 0.15); }
+.dark .bg-cyan-50,    .gray .bg-cyan-50    { background-color: rgb(6   182 212 / 0.15); }
+.dark .bg-pink-50,    .gray .bg-pink-50    { background-color: rgb(236 72  153 / 0.15); }
+.dark .bg-rose-50,    .gray .bg-rose-50    { background-color: rgb(244 63  94  / 0.15); }
+.dark .bg-sky-50,     .gray .bg-sky-50     { background-color: rgb(14  165 233 / 0.15); }
+.dark .bg-lime-50,    .gray .bg-lime-50    { background-color: rgb(132 204 22  / 0.15); }
+.dark .bg-violet-50,  .gray .bg-violet-50  { background-color: rgb(139 92  246 / 0.15); }
+.dark .bg-fuchsia-50, .gray .bg-fuchsia-50 { background-color: rgb(217 70  239 / 0.15); }
+
+/* ── Recharts chart area background ─────────────────────────────────────────── */
+.dark .recharts-wrapper .recharts-surface,
+.gray .recharts-wrapper .recharts-surface { background: transparent; }
+
+.dark svg.recharts-surface text,
+.gray svg.recharts-surface text { fill: hsl(var(--muted-foreground)); }
+
+/* ── bg-100 shades used by progress bars and skeleton ────────────────────────*/
+.dark .bg-blue-100,    .gray .bg-blue-100    { background-color: rgb(59  147 246 / 0.2); }
+.dark .bg-green-100,   .gray .bg-green-100   { background-color: rgb(34  197 94  / 0.2); }
+.dark .bg-emerald-100, .gray .bg-emerald-100 { background-color: rgb(16  185 129 / 0.2); }
+.dark .bg-orange-100,  .gray .bg-orange-100  { background-color: rgb(249 115 22  / 0.2); }
+.dark .bg-red-100,     .gray .bg-red-100     { background-color: rgb(239 68  68  / 0.2); }
+.dark .bg-purple-100,  .gray .bg-purple-100  { background-color: rgb(168 85  247 / 0.2); }
+.dark .bg-amber-100,   .gray .bg-amber-100   { background-color: rgb(245 158 11  / 0.2); }
+.dark .bg-yellow-100,  .gray .bg-yellow-100  { background-color: rgb(234 179 8   / 0.2); }
+.dark .bg-slate-100,   .gray .bg-slate-100   { background-color: hsl(var(--muted)); }
+.dark .bg-gray-100,    .gray .bg-gray-100    { background-color: hsl(var(--muted)); }
+
+/* ══════════════════════════════════════════════════════════════════════════════
+   DARK / GRAY MODE — COLORED TEXT LEGIBILITY
+   ──────────────────────────────────────────────────────────────────────────────
+   Problem: the app uses hardcoded Tailwind color scales for status badges,
+   role badges, KPI numbers and inline labels (e.g. text-red-700, text-blue-700).
+   The CSS above already converts -50/-100 badge backgrounds to translucent
+   equivalents on dark/gray themes. But the paired -700/-800 text colors
+   remain their original dark values → near-invisible on dark surfaces.
+
+   Fix: remap every -700/-800/-900 text color that appears in the codebase
+   to the corresponding *light* shade (-300/-400) for dark/gray themes,
+   keeping hue identity so badges still look red, blue, green, etc.
+
+   Also covers:
+   • -600 text used on white/light backgrounds for icon tints
+   • -500 / -400 text already readable on dark but remapped here for
+     consistency when used INSIDE a colored -50/-100 badge container.
+   ══════════════════════════════════════════════════════════════════════════════ */
+
+/* ── Red ──────────────────────────────────────────────────────────────────── */
+.dark .text-red-900, .gray .text-red-900,
+.dark .text-red-800, .gray .text-red-800,
+.dark .text-red-700, .gray .text-red-700 { color: rgb(252 165 165); }   /* red-300 */
+.dark .text-red-600, .gray .text-red-600 { color: rgb(248 113 113); }   /* red-400 */
+
+/* ── Blue ─────────────────────────────────────────────────────────────────── */
+.dark .text-blue-900, .gray .text-blue-900,
+.dark .text-blue-800, .gray .text-blue-800,
+.dark .text-blue-700, .gray .text-blue-700 { color: rgb(147 197 253); } /* blue-300 */
+.dark .text-blue-600, .gray .text-blue-600 { color: rgb(96  165 250); } /* blue-400 */
+
+/* ── Green ────────────────────────────────────────────────────────────────── */
+.dark .text-green-900, .gray .text-green-900,
+.dark .text-green-800, .gray .text-green-800,
+.dark .text-green-700, .gray .text-green-700 { color: rgb(134 239 172); } /* green-300 */
+.dark .text-green-600, .gray .text-green-600 { color: rgb(74  222 128); } /* green-400 */
+
+/* ── Emerald ──────────────────────────────────────────────────────────────── */
+.dark .text-emerald-900, .gray .text-emerald-900,
+.dark .text-emerald-800, .gray .text-emerald-800,
+.dark .text-emerald-700, .gray .text-emerald-700 { color: rgb(110 231 183); } /* emerald-300 */
+.dark .text-emerald-600, .gray .text-emerald-600 { color: rgb(52  211 153); } /* emerald-400 */
+
+/* ── Amber ────────────────────────────────────────────────────────────────── */
+.dark .text-amber-900, .gray .text-amber-900,
+.dark .text-amber-800, .gray .text-amber-800,
+.dark .text-amber-700, .gray .text-amber-700 { color: rgb(252 211 77); }  /* amber-300 */
+.dark .text-amber-600, .gray .text-amber-600 { color: rgb(251 191 36); }  /* amber-400 */
+
+/* ── Yellow ───────────────────────────────────────────────────────────────── */
+.dark .text-yellow-900, .gray .text-yellow-900,
+.dark .text-yellow-800, .gray .text-yellow-800,
+.dark .text-yellow-700, .gray .text-yellow-700 { color: rgb(253 224 71); } /* yellow-300 */
+.dark .text-yellow-600, .gray .text-yellow-600 { color: rgb(250 204 21); } /* yellow-400 */
+
+/* ── Orange ───────────────────────────────────────────────────────────────── */
+.dark .text-orange-900, .gray .text-orange-900,
+.dark .text-orange-800, .gray .text-orange-800,
+.dark .text-orange-700, .gray .text-orange-700 { color: rgb(253 186 116); } /* orange-300 */
+.dark .text-orange-600, .gray .text-orange-600 { color: rgb(251 146 60); }  /* orange-400 */
+
+/* ── Purple ───────────────────────────────────────────────────────────────── */
+.dark .text-purple-900, .gray .text-purple-900,
+.dark .text-purple-800, .gray .text-purple-800,
+.dark .text-purple-700, .gray .text-purple-700 { color: rgb(216 180 254); } /* purple-300 */
+.dark .text-purple-600, .gray .text-purple-600 { color: rgb(192 132 252); } /* purple-400 */
+
+/* ── Violet ───────────────────────────────────────────────────────────────── */
+.dark .text-violet-900, .gray .text-violet-900,
+.dark .text-violet-800, .gray .text-violet-800,
+.dark .text-violet-700, .gray .text-violet-700 { color: rgb(196 181 253); } /* violet-300 */
+.dark .text-violet-600, .gray .text-violet-600 { color: rgb(167 139 250); } /* violet-400 */
+
+/* ── Indigo ───────────────────────────────────────────────────────────────── */
+.dark .text-indigo-900, .gray .text-indigo-900,
+.dark .text-indigo-800, .gray .text-indigo-800,
+.dark .text-indigo-700, .gray .text-indigo-700 { color: rgb(165 180 252); } /* indigo-300 */
+.dark .text-indigo-600, .gray .text-indigo-600 { color: rgb(129 140 248); } /* indigo-400 */
+
+/* ── Teal ─────────────────────────────────────────────────────────────────── */
+.dark .text-teal-900, .gray .text-teal-900,
+.dark .text-teal-800, .gray .text-teal-800,
+.dark .text-teal-700, .gray .text-teal-700 { color: rgb(94  234 212); } /* teal-300 */
+.dark .text-teal-600, .gray .text-teal-600 { color: rgb(45  212 191); } /* teal-400 */
+
+/* ── Cyan ─────────────────────────────────────────────────────────────────── */
+.dark .text-cyan-900, .gray .text-cyan-900,
+.dark .text-cyan-800, .gray .text-cyan-800,
+.dark .text-cyan-700, .gray .text-cyan-700 { color: rgb(103 232 249); } /* cyan-300 */
+.dark .text-cyan-600, .gray .text-cyan-600 { color: rgb(34  211 238); } /* cyan-400 */
+
+/* ── Sky ──────────────────────────────────────────────────────────────────── */
+.dark .text-sky-900, .gray .text-sky-900,
+.dark .text-sky-800, .gray .text-sky-800,
+.dark .text-sky-700, .gray .text-sky-700 { color: rgb(125 211 252); } /* sky-300 */
+.dark .text-sky-600, .gray .text-sky-600 { color: rgb(56  189 248); } /* sky-400 */
+
+/* ── Pink ─────────────────────────────────────────────────────────────────── */
+.dark .text-pink-900, .gray .text-pink-900,
+.dark .text-pink-800, .gray .text-pink-800,
+.dark .text-pink-700, .gray .text-pink-700 { color: rgb(249 168 212); } /* pink-300 */
+.dark .text-pink-600, .gray .text-pink-600 { color: rgb(244 114 182); } /* pink-400 */
+
+/* ── Rose ─────────────────────────────────────────────────────────────────── */
+.dark .text-rose-900, .gray .text-rose-900,
+.dark .text-rose-800, .gray .text-rose-800,
+.dark .text-rose-700, .gray .text-rose-700 { color: rgb(253 164 175); } /* rose-300 */
+.dark .text-rose-600, .gray .text-rose-600 { color: rgb(251 113 133); } /* rose-400 */
+
+/* ── Lime ─────────────────────────────────────────────────────────────────── */
+.dark .text-lime-900, .gray .text-lime-900,
+.dark .text-lime-800, .gray .text-lime-800,
+.dark .text-lime-700, .gray .text-lime-700 { color: rgb(190 242 100); } /* lime-300 */
+.dark .text-lime-600, .gray .text-lime-600 { color: rgb(163 230 53); }  /* lime-400 */
+
+/* ── Fuchsia ──────────────────────────────────────────────────────────────── */
+.dark .text-fuchsia-900, .gray .text-fuchsia-900,
+.dark .text-fuchsia-800, .gray .text-fuchsia-800,
+.dark .text-fuchsia-700, .gray .text-fuchsia-700 { color: rgb(240 171 252); } /* fuchsia-300 */
+.dark .text-fuchsia-600, .gray .text-fuchsia-600 { color: rgb(232 121 249); } /* fuchsia-400 */
+
+/* ── Slate / Gray / Zinc / Neutral / Stone mid-tones ─────────────────────────
+   These sit between muted-foreground and foreground.
+   The very dark shades (900/800) are already handled above in the earlier
+   block. This covers the mid-tones used for secondary labels.               */
+.dark .text-slate-600, .gray .text-slate-600,
+.dark .text-gray-600,  .gray .text-gray-600,
+.dark .text-zinc-600,  .gray .text-zinc-600  { color: hsl(var(--muted-foreground)); }
+
+.dark .text-slate-400, .gray .text-slate-400,
+.dark .text-gray-400,  .gray .text-gray-400,
+.dark .text-zinc-400,  .gray .text-zinc-400  { color: hsl(var(--muted-foreground) / 0.75); }
+
+.dark .text-slate-300, .gray .text-slate-300,
+.dark .text-gray-300,  .gray .text-gray-300,
+.dark .text-zinc-300,  .gray .text-zinc-300  { color: hsl(var(--muted-foreground) / 0.6); }
+
+/* ── Border colors for colored badges with explicit border ────────────────── */
+/* e.g. tenant badge: bg-emerald-50 text-emerald-700 border border-emerald-200 */
+.dark .border-emerald-200, .gray .border-emerald-200 { border-color: rgb(52 211 153 / 0.35); }
+.dark .border-blue-200,    .gray .border-blue-200    { border-color: rgb(96 165 250 / 0.35); }
+.dark .border-red-200,     .gray .border-red-200     { border-color: rgb(248 113 113 / 0.35); }
+.dark .border-amber-200,   .gray .border-amber-200   { border-color: rgb(251 191 36 / 0.35); }
+.dark .border-orange-200,  .gray .border-orange-200  { border-color: rgb(251 146 60 / 0.35); }
+.dark .border-purple-200,  .gray .border-purple-200  { border-color: rgb(192 132 252 / 0.35); }
+.dark .border-indigo-200,  .gray .border-indigo-200  { border-color: rgb(129 140 248 / 0.35); }
+.dark .border-green-200,   .gray .border-green-200   { border-color: rgb(74 222 128 / 0.35); }
+.dark .border-teal-200,    .gray .border-teal-200    { border-color: rgb(45 212 191 / 0.35); }
+.dark .border-pink-200,    .gray .border-pink-200    { border-color: rgb(244 114 182 / 0.35); }
+
+/* ── Additional bg-200 and bg-300 shades for progress tracks and skeletons ── */
+.dark .bg-blue-200,    .gray .bg-blue-200    { background-color: rgb(59  147 246 / 0.25); }
+.dark .bg-green-200,   .gray .bg-green-200   { background-color: rgb(34  197 94  / 0.25); }
+.dark .bg-emerald-200, .gray .bg-emerald-200 { background-color: rgb(16  185 129 / 0.25); }
+.dark .bg-red-200,     .gray .bg-red-200     { background-color: rgb(239 68  68  / 0.25); }
+.dark .bg-amber-200,   .gray .bg-amber-200   { background-color: rgb(245 158 11  / 0.25); }
+.dark .bg-orange-200,  .gray .bg-orange-200  { background-color: rgb(249 115 22  / 0.25); }
+.dark .bg-purple-200,  .gray .bg-purple-200  { background-color: rgb(168 85  247 / 0.25); }
+.dark .bg-indigo-200,  .gray .bg-indigo-200  { background-color: rgb(99  102 241 / 0.25); }
+
+/* ── Inputs, selects, textareas — ensure legible text in all modes ──────────*/
+.dark input, .dark select, .dark textarea,
+.gray input, .gray select, .gray textarea {
+  color: hsl(var(--foreground));
+  background-color: hsl(var(--input));
+}
+.dark input::placeholder, .gray input::placeholder,
+.dark textarea::placeholder, .gray textarea::placeholder {
+  color: hsl(var(--muted-foreground));
+}
+
+/* ── Table cells — prevent inherited light bg leaking through td/th ─────────*/
+.dark table thead th, .gray table thead th {
+  background-color: hsl(var(--muted));
+  color: hsl(var(--muted-foreground));
+}
+
+
+/* ══════════════════════════════════════════════════════════════════════════════
+   PORTAL SHARED HEADER — emerald brand bar consistent across all portals
+   ══════════════════════════════════════════════════════════════════════════════
+   All five portals (tenant, landlord, staff, gate, contractor) use the same
+   emerald gradient header. In gray/dark modes the gradient is softened so it
+   doesn't fight the muted palette, but stays clearly emerald.                 */
+
+/* Shared emerald tab-bar pill: active tab gets white bg + emerald text */
+.portal-tab-active {
+  background-color: white;
+  color: #059669;   /* emerald-600 */
+  font-weight: 600;
+}
+.dark .portal-tab-active,
+.gray .portal-tab-active {
+  background-color: rgba(255,255,255,0.15);
+  color: white;
+}
+
+/* In gray/dark modes slightly desaturate the emerald header so it doesn't
+   clash with the cooler palette — but keep it clearly green */
+.dark  .from-emerald-700 { --tw-gradient-from: #065f46; }
+.dark  .via-emerald-600  { --tw-gradient-via:  #047857; }
+.dark  .to-emerald-700   { --tw-gradient-to:   #065f46; }
+.gray  .from-emerald-700 { --tw-gradient-from: #064e3b; }
+.gray  .via-emerald-600  { --tw-gradient-via:  #065f46; }
+.gray  .to-emerald-700   { --tw-gradient-to:   #064e3b; }
+
+/* Text inside portal headers is always white regardless of mode */
+.from-emerald-700.via-emerald-600.to-emerald-700,
+[class*="from-emerald-7"][class*="via-emerald-6"][class*="to-emerald-7"] {
+  color: white;
+}
+
+
+/* ── Mobile-first utilities ─────────────────────────────────────────────────── */
+
+/* Prevent horizontal scroll at the body level */
+html, body {
+  overflow-x: hidden;
+  -webkit-text-size-adjust: 100%;
+}
+
+/* scrollbar-hide utility (not in base Tailwind) */
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+
+/* Safe area inset for iPhone home indicator */
+.pb-safe {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+/* Pill tab bar — consistent across all portals */
+.portal-pill-nav {
+  display: flex;
+  gap: 0.25rem;
+  overflow-x: auto;
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+  background: hsl(var(--muted) / 0.4);
+  padding: 0.25rem;
+  border-radius: 0.75rem;
+  border: 1px solid hsl(var(--border));
+}
+.portal-pill-nav::-webkit-scrollbar { display: none; }
+
+.portal-pill-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0.375rem 0.75rem;
+  border-radius: 0.5rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  white-space: nowrap;
+  flex-shrink: 0;
+  transition: all 0.15s;
+  color: hsl(var(--muted-foreground));
+}
+.portal-pill-btn:hover { color: hsl(var(--foreground)); }
+.portal-pill-btn.active {
+  background: white;
+  color: #059669;
+  box-shadow: 0 1px 3px rgb(0 0 0 / 0.1);
+}
+.dark .portal-pill-btn.active {
+  background: hsl(var(--slate-800, 30 41% 15%));
+  color: #34d399;
+}
+
+/* ── Pill tab bar fade edges — indicates more content to scroll ─────────── */
+.pill-bar-fade {
+  position: relative;
+}
+.pill-bar-fade::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 2.5rem;
+  background: linear-gradient(to right, transparent, hsl(var(--background)));
+  pointer-events: none;
+  border-radius: 0 0.75rem 0.75rem 0;
+}
+.dark .pill-bar-fade::after {
+  background: linear-gradient(to right, transparent, hsl(var(--background)));
+}
+
+/* ── Active nav item left-border accent ──────────────────────────────────── */
+.nav-item-active::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 20%;
+  bottom: 20%;
+  width: 3px;
+  background: #059669;
+  border-radius: 0 3px 3px 0;
+}
+
+/* ── Card hover lift ─────────────────────────────────────────────────────── */
+.card-lift {
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+.card-lift:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px -4px rgb(0 0 0 / 0.12);
+}
+
+/* ── Table improvements ──────────────────────────────────────────────────── */
+.data-table th {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: hsl(var(--muted-foreground));
+}
+.data-table tr:hover td {
+  background: hsl(var(--muted) / 0.4);
+}
+
+/* ── Dialog improvements ─────────────────────────────────────────────────── */
+[data-radix-popper-content-wrapper] [role="dialog"] {
+  max-height: 90vh;
+  overflow-y: auto;
+}
+
+/* ── Focus improvements for keyboard users ──────────────────────────────── */
+button:focus-visible,
+a:focus-visible {
+  outline: 2px solid #059669;
+  outline-offset: 2px;
+  border-radius: 4px;
+}

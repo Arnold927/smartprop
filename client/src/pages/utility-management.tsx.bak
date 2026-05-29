@@ -1,0 +1,560 @@
+import { useState } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Badge } from "@/components/ui/badge";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
+import { Textarea } from "@/components/ui/textarea";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { 
+ Plus, 
+ Search, 
+ Zap, 
+ Droplets, 
+ Flame, 
+ Trash2,
+ Wifi,
+ AlertTriangle,
+ CheckCircle,
+ Calendar,
+ DollarSign,
+ TrendingUp,
+ FileText,
+ Eye,
+ Edit,
+ Clock
+} from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
+import { apiRequest, ensureArray } from "@/lib/queryClient";
+import { format } from "date-fns";
+import DataTable from "@/components/ui/data-table";
+import StatusBadge from "@/components/ui/status-badge";
+
+interface UtilityBill {
+ id: number;
+ accountId: number;
+ billDate: string;
+ dueDate: string;
+ amount: number;
+ currency: string;
+ consumptionUnits?: number;
+ ratePerUnit?: number;
+ lateFee?: number;
+ status: string;
+ account?: {
+ accountNumber: string;
+ property: {
+ name: string;
+ };
+ provider: {
+ name: string;
+ type: string;
+ };
+ };
+}
+
+interface UtilityProvider {
+ id: number;
+ name: string;
+ type: string;
+ contactEmail: string;
+ contactPhone: string;
+ billingCycle: string;
+ averageRate: number;
+ currency: string;
+ isActive: boolean;
+}
+
+interface PropertyExpense {
+ id: number;
+ expenseNumber: string;
+ propertyId: number;
+ vendorName: string;
+ description: string;
+ amount: number;
+ currency: string;
+ category: string;
+ expenseDate: string;
+ status: string;
+ property?: {
+ name: string;
+ };
+}
+
+const utilityTypeIcons = {
+ electricity: Zap,
+ water: Droplets,
+ gas: Flame,
+ waste: Trash2,
+ internet: Wifi,
+ generator: Zap,
+};
+
+const getStatusColor = (status: string) => {
+ switch (status) {
+ case 'paid': return 'bg-green-100 text-green-800';
+ case 'pending': return 'bg-yellow-100 text-yellow-800';
+ case 'overdue': return 'bg-red-100 text-red-800';
+ default: return 'bg-muted text-foreground';
+ }
+};
+
+export default function UtilityManagement() {
+ const [activeTab, setActiveTab] = useState<'bills' | 'providers' | 'expenses'>('bills');
+ const [searchTerm, setSearchTerm] = useState("");
+ const [statusFilter, setStatusFilter] = useState("all");
+ const [typeFilter, setTypeFilter] = useState("all");
+
+ const queryClient = useQueryClient();
+ const { toast } = useToast();
+
+ // Fetch utility bills
+ const { data: bills = [], isLoading: billsLoading , isError } = useQuery<UtilityBill[]>({
+ queryKey: ["/api/utility-bills"],
+ queryFn: async () => { const r = await apiRequest("/api/utility-bills"); return ensureArray(await r.json()); },
+ enabled: activeTab === 'bills',
+ });
+
+ // Fetch utility providers
+ const { data: providers = [], isLoading: providersLoading } = useQuery<UtilityProvider[]>({
+ queryKey: ["/api/utility-providers"],
+ queryFn: async () => { const r = await apiRequest("/api/utility-providers"); return ensureArray(await r.json()); },
+ enabled: activeTab === 'providers',
+ });
+
+ // Fetch utility-related expenses
+ const { data: expenses = [], isLoading: expensesLoading } = useQuery<PropertyExpense[]>({
+ queryKey: ["/api/property-expenses", "utility"],
+ enabled: activeTab === 'expenses',
+ });
+
+ // Calculate metrics
+ const totalMonthlyBills = bills.reduce((sum, bill) => sum + bill.amount, 0);
+ const overdueBills = (Array.isArray(bills) ? bills : []).filter(bill => bill.status === 'overdue');
+ const pendingBills = (Array.isArray(bills) ? bills : []).filter(bill => bill.status === 'pending');
+ const activeProviders = (Array.isArray(providers) ? providers : []).filter(provider => provider.isActive);
+
+ // Filter functions
+ const filteredBills = (Array.isArray(bills) ? bills : []).filter(bill => {
+ const matchesSearch = bill.account?.provider.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+ bill.account?.property.name.toLowerCase().includes(searchTerm.toLowerCase());
+ const matchesStatus = statusFilter === 'all' || bill.status === statusFilter;
+ const matchesType = typeFilter === 'all' || bill.account?.provider.type === typeFilter;
+ return matchesSearch && matchesStatus && matchesType;
+ });
+
+ const filteredProviders = (Array.isArray(providers) ? providers : []).filter(provider => {
+ const matchesSearch = provider.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+ provider.type.toLowerCase().includes(searchTerm.toLowerCase());
+ const matchesType = typeFilter === 'all' || provider.type === typeFilter;
+ return matchesSearch && matchesType;
+ });
+
+ const filteredExpenses = (Array.isArray(expenses) ? expenses : []).filter(expense => {
+ const matchesSearch = expense.vendorName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+ expense.description.toLowerCase().includes(searchTerm.toLowerCase());
+ return matchesSearch;
+ });
+
+ const billColumns = [
+ {
+ header: "Provider",
+ accessorKey: "provider",
+ cell: (bill: UtilityBill) => {
+ const Icon = utilityTypeIcons[bill.account?.provider.type as keyof typeof utilityTypeIcons] || Zap;
+ return (
+ <div className="flex items-center space-x-3">
+ <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center">
+ <Icon className="w-5 h-5 text-blue-600" />
+ </div>
+ <div>
+ <p className="font-medium text-foreground">{bill.account?.provider.name}</p>
+ <p className="text-sm text-muted-foreground capitalize">{bill.account?.provider.type}</p>
+ </div>
+ </div>
+ );
+ },
+ },
+ {
+ header: "Property",
+ accessorKey: "property",
+ cell: (bill: UtilityBill) => bill.account?.property.name || "N/A",
+ },
+ {
+ header: "Bill Date",
+ accessorKey: "billDate",
+ cell: (bill: UtilityBill) => format(new Date(bill.billDate), 'MMM dd, yyyy'),
+ },
+ {
+ header: "Due Date",
+ accessorKey: "dueDate",
+ cell: (bill: UtilityBill) => format(new Date(bill.dueDate), 'MMM dd, yyyy'),
+ },
+ {
+ header: "Amount",
+ accessorKey: "amount",
+ cell: (bill: UtilityBill) => (
+ <span className="font-medium">
+ {bill.currency} {bill.amount.toLocaleString()}
+ </span>
+ ),
+ },
+ {
+ header: "Consumption",
+ accessorKey: "consumption",
+ cell: (bill: UtilityBill) => {
+ if (!bill.consumptionUnits) return "N/A";
+ const unit = bill.account?.provider.type === 'electricity' ? 'kWh' :
+ bill.account?.provider.type === 'water' ? 'L' :
+ bill.account?.provider.type === 'gas' ? 'm³' : 'units';
+ return `${bill.consumptionUnits.toLocaleString()} ${unit}`;
+ },
+ },
+ {
+ header: "Status",
+ accessorKey: "status",
+ cell: (bill: UtilityBill) => (
+ <Badge className={getStatusColor(bill.status)}>
+ {bill.status.charAt(0).toUpperCase() + bill.status.slice(1)}
+ </Badge>
+ ),
+ },
+ {
+ header: "Actions",
+ accessorKey: "actions",
+ cell: (bill: UtilityBill) => (
+ <div className="flex space-x-2">
+ <Button size="sm" variant="outline">
+ <Eye className="w-4 h-4" />
+ </Button>
+ <Button size="sm" variant="outline">
+ <Edit className="w-4 h-4" />
+ </Button>
+ </div>
+ ),
+ },
+ ];
+
+ const providerColumns = [
+ {
+ header: "Provider",
+ accessorKey: "name",
+ cell: (provider: UtilityProvider) => {
+ const Icon = utilityTypeIcons[provider.type as keyof typeof utilityTypeIcons] || Zap;
+ return (
+ <div className="flex items-center space-x-3">
+ <div className="w-10 h-10 rounded-full bg-green-100 flex items-center justify-center">
+ <Icon className="w-5 h-5 text-green-600" />
+ </div>
+ <div>
+ <p className="font-medium text-foreground">{provider.name}</p>
+ <p className="text-sm text-muted-foreground capitalize">{provider.type}</p>
+ </div>
+ </div>
+ );
+ },
+ },
+ {
+ header: "Contact",
+ accessorKey: "contact",
+ cell: (provider: UtilityProvider) => (
+ <div>
+ <p className="text-sm text-foreground">{provider.contactEmail}</p>
+ <p className="text-sm text-muted-foreground">{provider.contactPhone}</p>
+ </div>
+ ),
+ },
+ {
+ header: "Billing Cycle",
+ accessorKey: "billingCycle",
+ cell: (provider: UtilityProvider) => (
+ <Badge variant="outline" className="capitalize">
+ {provider.billingCycle}
+ </Badge>
+ ),
+ },
+ {
+ header: "Average Rate",
+ accessorKey: "averageRate",
+ cell: (provider: UtilityProvider) => (
+ <span className="font-medium">
+ {provider.currency} {provider.averageRate.toFixed(2)}
+ </span>
+ ),
+ },
+ {
+ header: "Status",
+ accessorKey: "isActive",
+ cell: (provider: UtilityProvider) => (
+ <Badge className={provider.isActive ? 'bg-green-100 text-green-800' : 'bg-muted text-foreground'}>
+ {provider.isActive ? 'Active' : 'Inactive'}
+ </Badge>
+ ),
+ },
+ {
+ header: "Actions",
+ accessorKey: "actions",
+ cell: (provider: UtilityProvider) => (
+ <div className="flex space-x-2">
+ <Button size="sm" variant="outline">
+ <Edit className="w-4 h-4" />
+ </Button>
+ </div>
+ ),
+ },
+ ];
+
+ const expenseColumns = [
+ {
+ header: "Expense #",
+ accessorKey: "expenseNumber",
+ cell: (expense: PropertyExpense) => (
+ <span className="font-mono text-sm">{expense.expenseNumber}</span>
+ ),
+ },
+ {
+ header: "Vendor",
+ accessorKey: "vendorName",
+ cell: (expense: PropertyExpense) => expense.vendorName,
+ },
+ {
+ header: "Description",
+ accessorKey: "description",
+ cell: (expense: PropertyExpense) => (
+ <div className="max-w-xs truncate" title={expense.description}>
+ {expense.description}
+ </div>
+ ),
+ },
+ {
+ header: "Property",
+ accessorKey: "property",
+ cell: (expense: PropertyExpense) => expense.property?.name || "N/A",
+ },
+ {
+ header: "Amount",
+ accessorKey: "amount",
+ cell: (expense: PropertyExpense) => (
+ <span className="font-medium">
+ {expense.currency} {expense.amount.toLocaleString()}
+ </span>
+ ),
+ },
+ {
+ header: "Category",
+ accessorKey: "category",
+ cell: (expense: PropertyExpense) => (
+ <Badge variant="outline" className="capitalize">
+ {expense.category}
+ </Badge>
+ ),
+ },
+ {
+ header: "Date",
+ accessorKey: "expenseDate",
+ cell: (expense: PropertyExpense) => format(new Date(expense.expenseDate), 'MMM dd, yyyy'),
+ },
+ {
+ header: "Status",
+ accessorKey: "status",
+ cell: (expense: PropertyExpense) => (
+ <StatusBadge status={expense.status} />
+ ),
+ },
+ ];
+
+ return (
+ <div className="space-y-8">
+ {/* Header */}
+ <div className="flex justify-between items-center">
+ <div>
+ <h1 className="text-3xl font-bold text-foreground">Utility Management</h1>
+ <p className="text-muted-foreground mt-1">Manage utility bills, providers, and expenses</p>
+ </div>
+ <Button>
+ <Plus className="w-4 h-4 mr-2" />
+ Add Utility Bill
+ </Button>
+ </div>
+
+ {/* Metrics Cards */}
+ <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+ <Card>
+ <CardContent className="p-6">
+ <div className="flex items-center space-x-4">
+ <div className="p-3 bg-blue-100 rounded-lg">
+ <DollarSign className="w-6 h-6 text-blue-600" />
+ </div>
+ <div>
+ <p className="text-sm font-medium text-muted-foreground">Monthly Bills Total</p>
+ <p className="text-2xl font-bold text-foreground">
+ KES {totalMonthlyBills.toLocaleString()}
+ </p>
+ </div>
+ </div>
+ </CardContent>
+ </Card>
+
+ <Card>
+ <CardContent className="p-6">
+ <div className="flex items-center space-x-4">
+ <div className="p-3 bg-red-100 rounded-lg">
+ <AlertTriangle className="w-6 h-6 text-red-600" />
+ </div>
+ <div>
+ <p className="text-sm font-medium text-muted-foreground">Overdue Bills</p>
+ <p className="text-2xl font-bold text-red-600">{overdueBills.length}</p>
+ </div>
+ </div>
+ </CardContent>
+ </Card>
+
+ <Card>
+ <CardContent className="p-6">
+ <div className="flex items-center space-x-4">
+ <div className="p-3 bg-yellow-100 rounded-lg">
+ <Clock className="w-6 h-6 text-yellow-600" />
+ </div>
+ <div>
+ <p className="text-sm font-medium text-muted-foreground">Pending Bills</p>
+ <p className="text-2xl font-bold text-yellow-600">{pendingBills.length}</p>
+ </div>
+ </div>
+ </CardContent>
+ </Card>
+
+ <Card>
+ <CardContent className="p-6">
+ <div className="flex items-center space-x-4">
+ <div className="p-3 bg-green-100 rounded-lg">
+ <CheckCircle className="w-6 h-6 text-green-600" />
+ </div>
+ <div>
+ <p className="text-sm font-medium text-muted-foreground">Active Providers</p>
+ <p className="text-2xl font-bold text-green-600">{activeProviders.length}</p>
+ </div>
+ </div>
+ </CardContent>
+ </Card>
+ </div>
+
+ {/* Navigation Tabs */}
+ <div className="border-b border-border">
+ <nav className="-mb-px flex space-x-8">
+ <button
+ onClick={() => setActiveTab('bills')}
+ className={`py-2 px-1 border-b-2 font-medium text-sm ${
+ activeTab === 'bills'
+ ? 'border-blue-500 text-blue-600'
+ : 'border-transparent text-muted-foreground hover:text-foreground'
+ }`}
+ >
+ Utility Bills
+ </button>
+ <button
+ onClick={() => setActiveTab('providers')}
+ className={`py-2 px-1 border-b-2 font-medium text-sm ${
+ activeTab === 'providers'
+ ? 'border-blue-500 text-blue-600'
+ : 'border-transparent text-muted-foreground hover:text-foreground'
+ }`}
+ >
+ Service Providers
+ </button>
+ <button
+ onClick={() => setActiveTab('expenses')}
+ className={`py-2 px-1 border-b-2 font-medium text-sm ${
+ activeTab === 'expenses'
+ ? 'border-blue-500 text-blue-600'
+ : 'border-transparent text-muted-foreground hover:text-foreground'
+ }`}
+ >
+ Utility Expenses
+ </button>
+ </nav>
+ </div>
+
+ {/* Filters */}
+ <Card>
+ <CardContent className="p-6">
+ <div className="flex flex-col sm:flex-row gap-4">
+ <div className="flex-1">
+ <div className="relative">
+ <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-4 h-4" />
+ <Input
+ placeholder={`Search ${activeTab}...`}
+ value={searchTerm}
+ onChange={(e) => setSearchTerm(e.target.value)}
+ className="pl-10"
+ />
+ </div>
+ </div>
+ <Select value={statusFilter} onValueChange={setStatusFilter}>
+ <SelectTrigger className="w-full sm:w-40">
+ <SelectValue placeholder="Status" />
+ </SelectTrigger>
+ <SelectContent>
+ <SelectItem value="all">All Status</SelectItem>
+ <SelectItem value="paid">Paid</SelectItem>
+ <SelectItem value="pending">Pending</SelectItem>
+ <SelectItem value="overdue">Overdue</SelectItem>
+ </SelectContent>
+ </Select>
+ <Select value={typeFilter} onValueChange={setTypeFilter}>
+ <SelectTrigger className="w-full sm:w-40">
+ <SelectValue placeholder="Type" />
+ </SelectTrigger>
+ <SelectContent>
+ <SelectItem value="all">All Types</SelectItem>
+ <SelectItem value="electricity">Electricity</SelectItem>
+ <SelectItem value="water">Water</SelectItem>
+ <SelectItem value="gas">Gas</SelectItem>
+ <SelectItem value="waste">Waste</SelectItem>
+ <SelectItem value="internet">Internet</SelectItem>
+ <SelectItem value="generator">Generator</SelectItem>
+ </SelectContent>
+ </Select>
+ </div>
+ </CardContent>
+ </Card>
+
+ {/* Content based on active tab */}
+ <Card>
+ <CardHeader>
+ <CardTitle>
+ {activeTab === 'bills' && 'Utility Bills'}
+ {activeTab === 'providers' && 'Service Providers'}
+ {activeTab === 'expenses' && 'Utility Expenses'}
+ </CardTitle>
+ </CardHeader>
+ <CardContent>
+ {activeTab === 'bills' && (
+ <DataTable
+ data={filteredBills}
+ columns={billColumns}
+ emptyMessage="No utility bills found"
+ />
+ )}
+ {activeTab === 'providers' && (
+ <DataTable
+ data={filteredProviders}
+ columns={providerColumns}
+ emptyMessage="No utility providers found"
+ />
+ )}
+ {activeTab === 'expenses' && (
+ <DataTable
+ data={filteredExpenses}
+ columns={expenseColumns}
+ emptyMessage="No utility expenses found"
+ />
+ )}
+ </CardContent>
+ </Card>
+ </div>
+ );
+}

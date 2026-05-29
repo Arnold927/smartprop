@@ -1,0 +1,1997 @@
+import { useState } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Badge } from "@/components/ui/badge";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { useToast } from "@/hooks/use-toast";
+import { 
+ Plus, 
+ Search, 
+ Zap,
+ Droplets,
+ Trash2,
+ DollarSign,
+ Calendar,
+ Clock,
+ FileText,
+ Settings,
+ CreditCard,
+ Receipt,
+ Repeat,
+ AlertCircle,
+ CheckCircle,
+ Loader2,
+ PlayCircle,
+ Users,
+ Home,
+ Building
+} from "lucide-react";
+import DataTable from "@/components/ui/data-table";
+import StatusBadge from "@/components/ui/status-badge";
+import { format } from "date-fns";
+import { apiRequest, ensureArray } from "@/lib/queryClient";
+import { PageShell, PageHeader, SectionCard, SPBadge, EmptyState, PrimaryButton, SecondaryButton, FilterBar, SPTable, SPAvatar, StatTile, StatsGrid, KESAmount, ActionMenu, ConfirmDialog } from "@/components/ui/sp-ui";
+import { useAuth } from "@/hooks/useAuth";
+
+interface UtilityProvider {
+ id: number;
+ name: string;
+ type: string;
+ contactEmail?: string;
+ contactPhone?: string;
+ billingCycle: string;
+ averageRate?: string;
+ currency: string;
+ isActive: boolean;
+ createdAt: string;
+}
+
+interface UtilityAccount {
+ id: number;
+ propertyId: number;
+ unitId?: number;
+ providerId: number;
+ providerName?: string;
+ accountNumber: string;
+ meterNumber?: string;
+ isActive: boolean;
+ notes?: string;
+ createdAt: string;
+}
+
+interface UtilityBill {
+ id: number;
+ accountId: number;
+ billNumber?: string;
+ billingPeriodStart: string;
+ billingPeriodEnd: string;
+ dueDate: string;
+ amount: string;
+ currency: string;
+ unitsConsumed?: string;
+ unitRate?: string;
+ previousReading?: string;
+ currentReading?: string;
+ status: string;
+ paidDate?: string;
+ paymentMethod?: string;
+ notes?: string;
+ createdAt: string;
+}
+
+interface RecurringCharge {
+ id: number;
+ propertyId: number;
+ unitId?: number;
+ name: string;
+ chargeName: string;
+ type: string;
+ chargeType: string;
+ amount: number;
+ currency: string;
+ frequency: string;
+ startDate: string;
+ endDate?: string;
+ nextBillDate?: string;
+ nextChargeDate?: string;
+ isActive: boolean;
+ autoGenerate?: boolean;
+ description?: string;
+ createdAt: string;
+}
+
+interface Invoice {
+ id: number;
+ invoiceNumber: string;
+ tenantId: string;
+ propertyId: number;
+ unitId?: number;
+ amount: number;
+ currency: string;
+ dueDate: string;
+ status: string;
+ description?: string;
+ lineItems?: any[];
+ createdAt: string;
+}
+
+interface BillingCycle {
+ id: number;
+ propertyId: number;
+ cycleName: string;
+ startDate: string;
+ endDate: string;
+ status: string;
+ createdAt: string;
+}
+
+
+export default function Billing() {
+ const [searchTerm, setSearchTerm] = useState("");
+ const [selectedProperty, setSelectedProperty] = useState<number | null>(null);
+ const [selectedStatus, setSelectedStatus] = useState<string>("all");
+ const [activeTab, setActiveTab] = useState("overview");
+
+ // Page-size state per tab
+ const [billsPageSize,    setBillsPageSize]    = useState(10);
+ const [chargesPageSize,  setChargesPageSize]  = useState(10);
+ const [invoicesPageSize, setInvoicesPageSize] = useState(10);
+ const [billsPage,    setBillsPage]    = useState(1);
+ const [chargesPage,  setChargesPage]  = useState(1);
+ const [invoicesPage, setInvoicesPage] = useState(1);
+
+ // Date filter state — independent per tab
+ const [billsDateFrom,    setBillsDateFrom]    = useState("");
+ const [billsDateTo,      setBillsDateTo]      = useState("");
+ const [billsDateField,   setBillsDateField]   = useState<"dueDate"|"billingPeriodStart">("dueDate");
+ const [chargesDateFrom,  setChargesDateFrom]  = useState("");
+ const [chargesDateTo,    setChargesDateTo]    = useState("");
+ const [chargesDateField, setChargesDateField] = useState<"nextChargeDate"|"startDate">("nextChargeDate");
+ const [invoiceDateFrom,  setInvoiceDateFrom]  = useState("");
+ const [invoiceDateTo,    setInvoiceDateTo]    = useState("");
+ const [invoiceDateField, setInvoiceDateField] = useState<"dueDate"|"createdAt">("dueDate");
+
+ // Edit dialog state
+ const [editBill,    setEditBill]    = useState<UtilityBill | null>(null);
+ const [editCharge,  setEditCharge]  = useState<RecurringCharge | null>(null);
+ const [editInvoice, setEditInvoice] = useState<Invoice | null>(null);
+
+ // Dialog open states
+ const [addUtilityBillOpen, setAddUtilityBillOpen] = useState(false);
+ const [addRecurringChargeOpen, setAddRecurringChargeOpen] = useState(false);
+ const [createInvoiceOpen, setCreateInvoiceOpen] = useState(false);
+ const [addProviderOpen, setAddProviderOpen] = useState(false);
+ const [addBillingCycleOpen, setAddBillingCycleOpen] = useState(false);
+ // Step within the Add Utility Bill dialog: "account" (create account first) | "bill" (fill bill)
+ const [billDialogStep, setBillDialogStep] = useState<"bill" | "account">("bill");
+
+ // Form state for Add Utility Bill
+ const [billForm, setBillForm] = useState({
+   accountId: "", billingPeriodStart: "", billingPeriodEnd: "",
+   dueDate: "", amount: "", unitsConsumed: "", status: "pending", notes: "",
+ });
+
+ // Form state for Add Recurring Charge
+ const [chargeForm, setChargeForm] = useState({
+   propertyId: "", chargeName: "", chargeType: "service_charge",
+   amount: "", frequency: "monthly", startDate: "", nextChargeDate: "", description: "",
+ });
+
+ // Form state for Create Invoice
+ const [invoiceForm, setInvoiceForm] = useState({
+   propertyId: "", tenantId: "", amount: "", dueDate: "", description: "", status: "pending",
+ });
+
+ // Form state for Add Utility Provider
+ const [providerForm, setProviderForm] = useState({
+   name: "", type: "electricity", billingCycle: "monthly",
+   contactEmail: "", contactPhone: "", averageRate: "",
+ });
+
+ // Form state for Add Billing Cycle
+ const [cycleForm, setCycleForm] = useState({
+   propertyId: "", cycleName: "", type: "rent", frequency: "monthly",
+   billingDay: "1", dueDay: "5", graceDay: "5",
+ });
+
+ // Form state for quick Utility Account creation (used inside Add Utility Bill dialog)
+ const [accountForm, setAccountForm] = useState({
+   propertyId: "", providerId: "", accountNumber: "", meterNumber: "",
+ });
+ 
+ const { user, isLoading: authLoading } = useAuth();
+ const { toast } = useToast();
+ const queryClient = useQueryClient();
+
+ // Queries with proper error handling
+ const { data: propertiesRaw = [], isLoading: loadingProperties } = useQuery({
+ queryKey: ["/api/properties"],
+ queryFn: async () => { 
+ try {
+ const r = await apiRequest("/api/properties"); 
+ const d = await r.json(); 
+ return ensureArray(d);
+ } catch (error) {
+ console.error("Error fetching properties:", error);
+ return [];
+ }
+ },
+ });
+
+ const { data: utilityProvidersRaw = [], isLoading: loadingProviders } = useQuery({
+ queryKey: ["/api/utility-providers"],
+ queryFn: async () => { 
+ try {
+ const r = await apiRequest("/api/utility-providers"); 
+ const d = await r.json(); 
+ return ensureArray(d);
+ } catch (error) {
+ console.error("Error fetching utility providers:", error);
+ return [];
+ }
+ },
+ });
+
+ const { data: utilityAccountsRaw = [], isLoading: loadingAccounts } = useQuery({
+ queryKey: ["/api/utility-accounts"],
+ queryFn: async () => { 
+ try {
+ const r = await apiRequest("/api/utility-accounts"); 
+ const d = await r.json(); 
+ return ensureArray(d);
+ } catch (error) {
+ console.error("Error fetching utility accounts:", error);
+ return [];
+ }
+ },
+ });
+
+ const { data: utilityBillsRaw = [], isLoading: loadingBills } = useQuery({
+ queryKey: ["/api/utility-bills"],
+ queryFn: async () => { 
+ try {
+ const r = await apiRequest("/api/utility-bills"); 
+ const d = await r.json(); 
+ return ensureArray(d);
+ } catch (error) {
+ console.error("Error fetching utility bills:", error);
+ return [];
+ }
+ },
+ });
+
+ const { data: recurringChargesRaw = [], isLoading: loadingCharges } = useQuery({
+ queryKey: ["/api/recurring-charges"],
+ queryFn: async () => { 
+ try {
+ const r = await apiRequest("/api/recurring-charges"); 
+ const d = await r.json(); 
+ return ensureArray(d);
+ } catch (error) {
+ console.error("Error fetching recurring charges:", error);
+ return [];
+ }
+ },
+ });
+
+ const { data: invoicesRaw = [], isLoading: loadingInvoices } = useQuery({
+ queryKey: ["/api/invoices"],
+ queryFn: async () => { 
+ try {
+ const r = await apiRequest("/api/invoices"); 
+ const d = await r.json(); 
+ return ensureArray(d);
+ } catch (error) {
+ console.error("Error fetching invoices:", error);
+ return [];
+ }
+ },
+ });
+
+ const { data: billingCyclesRaw = [], isLoading: loadingCycles } = useQuery({
+ queryKey: ["/api/billing-cycles"],
+ queryFn: async () => { 
+ try {
+ const r = await apiRequest("/api/billing-cycles"); 
+ const d = await r.json(); 
+ return ensureArray(d);
+ } catch (error) {
+ console.error("Error fetching billing cycles:", error);
+ return [];
+ }
+ },
+ });
+
+ const { data: tenantsRaw = [] } = useQuery({
+ queryKey: ["/api/tenants"],
+ queryFn: async () => { 
+ try {
+ const r = await apiRequest("/api/tenants");
+ const d = await r.json();
+ return ensureArray(d?.data ?? d);
+ } catch (error) {
+ console.error("Error fetching tenants:", error);
+ return [];
+ }
+ },
+ });
+
+ // Ensure data is always an array
+ const properties = ensureArray(propertiesRaw);
+ const utilityProviders = ensureArray(utilityProvidersRaw);
+ const utilityAccounts = ensureArray(utilityAccountsRaw);
+ const utilityBills = ensureArray(utilityBillsRaw);
+ const recurringCharges = ensureArray(recurringChargesRaw);
+ const invoices = ensureArray(invoicesRaw);
+ const billingCycles = ensureArray(billingCyclesRaw);
+ const tenants = ensureArray(tenantsRaw);
+
+ // Mutations - Fixed to use 'data' instead of 'body'
+ const generateInvoicesMutation = useMutation({
+ mutationFn: async () => {
+ const response = await apiRequest("/api/billing/generate-invoices", { 
+ method: "POST",
+ data: {} // Empty data object for POST request
+ });
+ if (!response.ok) {
+ throw new Error("Failed to generate invoices");
+ }
+ return response.json();
+ },
+ onSuccess: (data: Invoice[]) => {
+ toast({
+ title: "Success",
+ description: `Generated ${data?.length || 0} recurring invoices`,
+ });
+ queryClient.invalidateQueries({ queryKey: ["/api/invoices"] });
+ },
+ onError: (error: any) => {
+ console.error("Error generating invoices:", error);
+ toast({
+ title: "Error",
+ description: error?.message || "Failed to generate recurring invoices",
+ variant: "destructive",
+ });
+ },
+ });
+
+ const createRecurringChargeMutation = useMutation({
+ mutationFn: async (data: Partial<RecurringCharge>) => {
+ const response = await apiRequest("/api/recurring-charges", {
+ method: "POST",
+ data: data // Changed from 'body' to 'data'
+ });
+ if (!response.ok) {
+ throw new Error("Failed to create recurring charge");
+ }
+ return response.json();
+ },
+ onSuccess: () => {
+ toast({
+ title: "Success",
+ description: "Recurring charge created successfully",
+ });
+ queryClient.invalidateQueries({ queryKey: ["/api/recurring-charges"] });
+ },
+ onError: (error: any) => {
+ console.error("Error creating recurring charge:", error);
+ toast({
+ title: "Error",
+ description: error?.message || "Failed to create recurring charge",
+ variant: "destructive",
+ });
+ },
+ });
+
+ const createUtilityProviderMutation = useMutation({
+ mutationFn: async (data: Partial<UtilityProvider>) => {
+ const response = await apiRequest("/api/utility-providers", {
+ method: "POST",
+ data: data // Changed from 'body' to 'data'
+ });
+ if (!response.ok) {
+ throw new Error("Failed to create utility provider");
+ }
+ return response.json();
+ },
+ onSuccess: () => {
+ toast({
+ title: "Success",
+ description: "Utility provider created successfully",
+ });
+ queryClient.invalidateQueries({ queryKey: ["/api/utility-providers"] });
+ },
+ onError: (error: any) => {
+ console.error("Error creating utility provider:", error);
+ toast({
+ title: "Error",
+ description: error?.message || "Failed to create utility provider",
+ variant: "destructive",
+ });
+ },
+ });
+
+ const createBillingCycleMutation = useMutation({
+ mutationFn: async (data: any) => {
+ const response = await apiRequest("/api/billing-cycles", { method: "POST", data });
+ if (!response.ok) throw new Error("Failed to create billing cycle");
+ return response.json();
+ },
+ onSuccess: () => {
+ toast({ title: "Success", description: "Billing cycle created successfully" });
+ queryClient.invalidateQueries({ queryKey: ["/api/billing-cycles"] });
+ setAddBillingCycleOpen(false);
+ setCycleForm({ propertyId: "", cycleName: "", type: "rent", frequency: "monthly", billingDay: "1", dueDay: "5", graceDay: "5" });
+ },
+ onError: (error: any) => {
+ toast({ title: "Error", description: error?.message || "Failed to create billing cycle", variant: "destructive" });
+ },
+ });
+
+ const createUtilityAccountMutation = useMutation({
+ mutationFn: async (data: any) => {
+ const response = await apiRequest("/api/utility-accounts", { method: "POST", data });
+ if (!response.ok) throw new Error("Failed to create utility account");
+ return response.json();
+ },
+ onSuccess: (created: any) => {
+ toast({ title: "Account created", description: "Now fill in the bill details below." });
+ queryClient.invalidateQueries({ queryKey: ["/api/utility-accounts"] });
+ setBillForm(f => ({ ...f, accountId: String(created.id) }));
+ setAccountForm({ propertyId: "", providerId: "", accountNumber: "", meterNumber: "" });
+ setBillDialogStep("bill");
+ },
+ onError: (error: any) => {
+ toast({ title: "Error", description: error?.message || "Failed to create utility account", variant: "destructive" });
+ },
+ });
+
+ const createUtilityBillMutation = useMutation({
+ mutationFn: async (data: any) => {
+ const response = await apiRequest("/api/utility-bills", { method: "POST", data });
+ if (!response.ok) throw new Error("Failed to create utility bill");
+ return response.json();
+ },
+ onSuccess: () => {
+ toast({ title: "Success", description: "Utility bill created successfully" });
+ queryClient.invalidateQueries({ queryKey: ["/api/utility-bills"] });
+ setAddUtilityBillOpen(false);
+ setBillDialogStep("bill");
+ setBillForm({ accountId: "", billingPeriodStart: "", billingPeriodEnd: "", dueDate: "", amount: "", unitsConsumed: "", status: "pending", notes: "" });
+ },
+ onError: (error: any) => {
+ toast({ title: "Error", description: error?.message || "Failed to create utility bill", variant: "destructive" });
+ },
+ });
+
+ const createInvoiceMutation = useMutation({
+ mutationFn: async (data: any) => {
+ const invoiceNumber = `INV-${Date.now()}`;
+ const amountStr = String(data.amount);
+ const response = await apiRequest("/api/invoices", {
+ method: "POST",
+ data: { 
+ ...data, 
+ invoiceNumber, 
+ type: "rent",
+ amount: amountStr,
+ totalAmount: amountStr,
+ taxAmount: "0",
+ discountAmount: "0",
+ },
+ });
+ if (!response.ok) throw new Error("Failed to create invoice");
+ return response.json();
+ },
+ onSuccess: () => {
+ toast({ title: "Success", description: "Invoice created successfully" });
+ queryClient.invalidateQueries({ queryKey: ["/api/invoices"] });
+ setCreateInvoiceOpen(false);
+ setInvoiceForm({ propertyId: "", tenantId: "", amount: "", dueDate: "", description: "", status: "pending" });
+ },
+ onError: (error: any) => {
+ toast({ title: "Error", description: error?.message || "Failed to create invoice", variant: "destructive" });
+ },
+ });
+
+ const filterBySearch = (items: any[], fields: string[]) => {
+   if (!searchTerm) return items;
+   const q = searchTerm.toLowerCase();
+   return items.filter(item => fields.some(f => String(item[f] ?? "").toLowerCase().includes(q)));
+ };
+ const filterByProperty = (items: any[]) =>
+   selectedProperty ? items.filter((i: any) => i.propertyId === selectedProperty) : items;
+ const filterByStatus = (items: any[]) =>
+   selectedStatus !== "all" ? items.filter((i: any) => i.status === selectedStatus) : items;
+
+ const filteredBills = filterByStatus(filterByProperty(filterBySearch(utilityBills, ["billNumber", "notes", "status"])));
+ const filteredCharges = filterByStatus(
+   filterByProperty(filterBySearch(recurringCharges, ["chargeName", "chargeType", "frequency"]))
+     .map((c: RecurringCharge) => ({ ...c, status: c.isActive ? "active" : "inactive" }))
+ );
+ const filteredInvoices = filterByStatus(filterByProperty(filterBySearch(invoices, ["invoiceNumber", "description", "status"])));
+
+
+ const updateUtilityBillMutation = useMutation({
+ mutationFn: async ({ id, data }: { id: number; data: any }) => {
+   const r = await apiRequest(`/api/utility-bills/${id}`, { method: "PUT", data });
+   if (!r.ok) throw new Error("Failed to update bill");
+   return r.json();
+ },
+ onSuccess: () => {
+   toast({ title: "Bill updated" });
+   queryClient.invalidateQueries({ queryKey: ["/api/utility-bills"] });
+   setEditBill(null);
+ },
+ onError: (e: any) => toast({ title: "Error", description: e?.message, variant: "destructive" }),
+ });
+
+ const updateRecurringChargeMutation = useMutation({
+ mutationFn: async ({ id, data }: { id: number; data: any }) => {
+   const r = await apiRequest(`/api/recurring-charges/${id}`, { method: "PUT", data });
+   if (!r.ok) throw new Error("Failed to update charge");
+   return r.json();
+ },
+ onSuccess: () => {
+   toast({ title: "Charge updated" });
+   queryClient.invalidateQueries({ queryKey: ["/api/recurring-charges"] });
+   setEditCharge(null);
+ },
+ onError: (e: any) => toast({ title: "Error", description: e?.message, variant: "destructive" }),
+ });
+
+ const updateInvoiceMutation = useMutation({
+ mutationFn: async ({ id, data }: { id: number; data: any }) => {
+   const r = await apiRequest(`/api/invoices/${id}`, { method: "PATCH", data });
+   if (!r.ok) throw new Error("Failed to update invoice");
+   return r.json();
+ },
+ onSuccess: () => {
+   toast({ title: "Invoice updated" });
+   queryClient.invalidateQueries({ queryKey: ["/api/invoices"] });
+   setEditInvoice(null);
+ },
+ onError: (e: any) => toast({ title: "Error", description: e?.message, variant: "destructive" }),
+ });
+
+ // Computed metrics — based on filtered data so top cards update with filters
+ const totalMonthlyRevenue = filteredInvoices
+   .filter((invoice: Invoice) => invoice.status === 'paid')
+   .reduce((sum: number, invoice: Invoice) => sum + (invoice.amount || 0), 0);
+
+ const pendingInvoicesCount = filteredInvoices
+   .filter((invoice: Invoice) => invoice.status === 'pending').length;
+ const overdueInvoicesCount = filteredInvoices
+   .filter((invoice: Invoice) =>
+     invoice.status === 'overdue' ||
+     (invoice.status === 'pending' && invoice.dueDate && new Date(invoice.dueDate) < new Date())
+   ).length;
+
+ const activeRecurringChargesCount = filteredCharges
+   .filter((c: any) => c.isActive).length;
+
+ // ── Date range filter helper ─────────────────────────────────────────────────
+ const filterByDate = (items: any[], field: string, from: string, to: string) => {
+   if (!from && !to) return items;
+   return items.filter(item => {
+     const val = item[field];
+     if (!val) return false;
+     const d = new Date(val).getTime();
+     if (from && d < new Date(from).getTime()) return false;
+     if (to   && d > new Date(to + "T23:59:59").getTime()) return false;
+     return true;
+   });
+ };
+
+ const dateFilteredBills    = filterByDate(filteredBills,    billsDateField,   billsDateFrom,   billsDateTo);
+ const dateFilteredCharges  = filterByDate(filteredCharges,  chargesDateField, chargesDateFrom, chargesDateTo);
+ const dateFilteredInvoices = filterByDate(filteredInvoices, invoiceDateField,  invoiceDateFrom, invoiceDateTo);
+
+ // ── Pagination helpers ───────────────────────────────────────────────────────
+ const paginate = (items: any[], page: number, size: number) =>
+   items.slice((page - 1) * size, page * size);
+
+ const pagedBills    = paginate(dateFilteredBills,    billsPage,    billsPageSize);
+ const pagedCharges  = paginate(dateFilteredCharges,  chargesPage,  chargesPageSize);
+ const pagedInvoices = paginate(dateFilteredInvoices, invoicesPage, invoicesPageSize);
+
+ // ── Money formatter ──────────────────────────────────────────────────────────
+ const fmtMoney = (val: string | number) =>
+   `KSh ${Number(val).toLocaleString("en-KE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
+ // Derive provider type for the selected account so the bill dialog can show a context-aware consumption label
+ const selectedBillAccount = utilityAccounts.find((a: UtilityAccount) => String(a.id) === billForm.accountId);
+ const selectedBillProvider = selectedBillAccount
+   ? utilityProviders.find((p: UtilityProvider) => p.id === selectedBillAccount.providerId)
+   : null;
+
+ const consumptionMeta: Record<string, { label: string; placeholder: string; unit: string }> = {
+   electricity: { label: "Electricity Consumed", placeholder: "e.g. 120", unit: "kWh" },
+   water:       { label: "Water Consumed",        placeholder: "e.g. 15",  unit: "m³" },
+   gas:         { label: "Gas Consumed",          placeholder: "e.g. 30",  unit: "m³" },
+   internet:    { label: "Data Used",             placeholder: "e.g. 50",  unit: "GB" },
+   default:     { label: "Consumption (optional)", placeholder: "e.g. 10", unit: "units" },
+ };
+ const providerType = selectedBillProvider?.type?.toLowerCase() ?? "default";
+ const consumption = consumptionMeta[providerType] ?? consumptionMeta.default;
+
+ // Utility Bills Data Table Columns
+ const utilityBillColumns = [
+ { accessorKey: "billNumber",    header: "Bill #",   cell: (row: any) => <span className="font-mono text-xs whitespace-nowrap">{row.billNumber || `BILL-${row.id}`}</span> },
+ { accessorKey: "accountNumber", header: "Account",  cell: (row: any) => {
+     const account = utilityAccounts.find((a: UtilityAccount) => a.id === row.accountId);
+     return <span className="block truncate max-w-[100px]">{account?.accountNumber || row.accountNumber || "—"}</span>;
+ }},
+ { accessorKey: "amount",        header: "Amount",   cell: (row: any) => <span className="whitespace-nowrap">{fmtMoney(row.amount)}</span> },
+ { accessorKey: "dueDate",       header: "Due",      cell: (row: any) => <span className="whitespace-nowrap text-xs">{row.dueDate ? format(new Date(row.dueDate), "dd MMM yy") : "—"}</span> },
+ { accessorKey: "status",        header: "Status",   cell: (row: any) => <StatusBadge status={row.status} /> },
+ { accessorKey: "unitsConsumed", header: "Units",    cell: (row: any) => <span className="text-xs">{row.unitsConsumed || "—"}</span> },
+ { accessorKey: "actions",       header: "",         cell: (row: any) => <Button size="sm" variant="ghost" className="h-7 px-2 text-xs" onClick={() => setEditBill(row)}>Edit</Button> },
+ ];
+
+ // Recurring Charges Data Table Columns
+ const recurringChargeColumns = [
+ { accessorKey: "chargeName",     header: "Name",     cell: (row: any) => <span className="block truncate max-w-[130px] font-medium">{row.chargeName}</span> },
+ { accessorKey: "chargeType",     header: "Type",     cell: (row: any) => <span className="capitalize text-xs">{(row.chargeType||"").replace(/_/g," ")}</span> },
+ { accessorKey: "amount",         header: "Amount",   cell: (row: any) => <span className="whitespace-nowrap">{fmtMoney(row.amount)}</span> },
+ { accessorKey: "frequency",      header: "Freq",     cell: (row: any) => <span className="capitalize text-xs">{row.frequency}</span> },
+ { accessorKey: "nextChargeDate", header: "Next",     cell: (row: any) => <span className="whitespace-nowrap text-xs">{row.nextChargeDate ? format(new Date(row.nextChargeDate),"dd MMM yy") : "—"}</span> },
+ { accessorKey: "isActive",       header: "Status",   cell: (row: any) => <Badge variant={row.isActive?"default":"secondary"} className="text-xs">{row.isActive?"Active":"Off"}</Badge> },
+ { accessorKey: "actions",        header: "",         cell: (row: any) => <Button size="sm" variant="ghost" className="h-7 px-2 text-xs" onClick={() => setEditCharge(row)}>Edit</Button> },
+ ];
+ // Invoices Data Table Columns
+ const invoiceColumns = [
+ { accessorKey: "invoiceNumber", header: "Invoice #",   cell: (row: any) => <span className="font-mono text-xs whitespace-nowrap">{row.invoiceNumber}</span> },
+ { accessorKey: "description",   header: "Description", cell: (row: any) => <span className="block truncate max-w-[150px]">{row.description || "Invoice"}</span> },
+ { accessorKey: "amount",        header: "Amount",      cell: (row: any) => <span className="whitespace-nowrap">{fmtMoney(row.amount)}</span> },
+ { accessorKey: "dueDate",       header: "Due",         cell: (row: any) => <span className="whitespace-nowrap text-xs">{row.dueDate ? format(new Date(row.dueDate),"dd MMM yy") : "—"}</span> },
+ { accessorKey: "status",        header: "Status",      cell: (row: any) => <StatusBadge status={row.status} /> },
+ { accessorKey: "actions",       header: "",            cell: (row: any) => <Button size="sm" variant="ghost" className="h-7 px-2 text-xs" onClick={() => setEditInvoice(row)}>Edit</Button> },
+ ];
+ // ── Org guard ────────────────────────────────────────────────────────────────
+ if (authLoading || loadingProperties) {
+   return (
+     <div className="flex items-center justify-center h-96">
+       <div className="text-center">
+         <div className="animate-spin w-8 h-8 border-4 border-primary border-t-transparent rounded-full mx-auto mb-4" />
+         <p className="text-muted-foreground">Loading billing data…</p>
+       </div>
+     </div>
+   );
+ }
+
+ if (!user?.organizationId) {
+   return (
+     <div className="flex items-center justify-center h-96">
+       <div className="text-center max-w-sm mx-auto">
+         <AlertCircle className="w-10 h-10 text-amber-500 mx-auto mb-3" />
+         <h2 className="text-lg font-semibold mb-1">No organisation found</h2>
+         <p className="text-sm text-muted-foreground">
+           Your account is not linked to an organisation. Contact your administrator.
+         </p>
+       </div>
+     </div>
+   );
+ }
+
+ return (
+ <div className="space-y-6">
+ {/* Header */}
+ <div className="flex flex-wrap items-start justify-between gap-4">
+ <div>
+ <h1 className="text-3xl font-bold tracking-tight">Billing & Utilities</h1>
+ <p className="text-muted-foreground">
+ Manage utility billing, recurring charges, and automated invoicing
+ </p>
+ </div>
+ <div className="flex gap-2">
+ <Button 
+ onClick={() => generateInvoicesMutation.mutate()}
+ disabled={generateInvoicesMutation.isPending}
+ className="bg-emerald-600 hover:bg-emerald-700"
+ >
+ {generateInvoicesMutation.isPending ? (
+ <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+ ) : (
+ <PlayCircle className="h-4 w-4 mr-2" />
+ )}
+ Generate Invoices
+ </Button>
+ </div>
+ </div>
+
+ {/* Metrics Cards */}
+ <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
+ <Card>
+ <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+ <CardTitle className="text-sm font-medium">Monthly Revenue</CardTitle>
+ <DollarSign className="h-4 w-4 text-muted-foreground" />
+ </CardHeader>
+ <CardContent>
+ <div className="text-2xl font-semibold">{fmtMoney(totalMonthlyRevenue)}</div>
+ <p className="text-xs text-muted-foreground">From paid invoices</p>
+ </CardContent>
+ </Card>
+
+ <Card>
+ <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+ <CardTitle className="text-sm font-medium">Pending Invoices</CardTitle>
+ <Clock className="h-4 w-4 text-muted-foreground" />
+ </CardHeader>
+ <CardContent>
+ <div className="text-2xl font-semibold">{pendingInvoicesCount}</div>
+ <p className="text-xs text-muted-foreground">Awaiting payment</p>
+ </CardContent>
+ </Card>
+
+ <Card>
+ <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+ <CardTitle className="text-sm font-medium">Overdue Bills</CardTitle>
+ <AlertCircle className="h-4 w-4 text-muted-foreground" />
+ </CardHeader>
+ <CardContent>
+ <div className="text-2xl font-semibold text-red-600">{overdueInvoicesCount}</div>
+ <p className="text-xs text-muted-foreground">Past due date</p>
+ </CardContent>
+ </Card>
+
+ <Card>
+ <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+ <CardTitle className="text-sm font-medium">Recurring Charges</CardTitle>
+ <Repeat className="h-4 w-4 text-muted-foreground" />
+ </CardHeader>
+ <CardContent>
+ <div className="text-2xl font-semibold">{activeRecurringChargesCount}</div>
+ <p className="text-xs text-muted-foreground">Active subscriptions</p>
+ </CardContent>
+ </Card>
+ </div>
+
+ {/* Filters */}
+ <Card>
+ <CardContent className="pt-6">
+ <div className="flex gap-4 flex-wrap">
+ <div className="flex-1 min-w-[200px]">
+ <div className="relative">
+ <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+ <Input
+ placeholder="Search billing items..."
+ value={searchTerm}
+ onChange={(e) => setSearchTerm(e.target.value)}
+ className="pl-8"
+ />
+ </div>
+ </div>
+ <Select value={selectedProperty?.toString() || "all"} onValueChange={(value) => setSelectedProperty(value === "all" ? null : parseInt(value))}>
+ <SelectTrigger className="w-48">
+ <SelectValue placeholder="All Properties" />
+ </SelectTrigger>
+ <SelectContent>
+ <SelectItem value="all">All Properties</SelectItem>
+ {properties.length === 0 ? (
+ <SelectItem value="no-properties" disabled>No properties available</SelectItem>
+ ) : (
+ (Array.isArray(properties) ? properties : []).map((property: any) => (
+ <SelectItem key={property.id} value={property.id.toString()}>
+ {property.name}
+ </SelectItem>
+ ))
+ )}
+ </SelectContent>
+ </Select>
+ <Select value={selectedStatus} onValueChange={setSelectedStatus}>
+ <SelectTrigger className="w-48">
+ <SelectValue placeholder="All Statuses" />
+ </SelectTrigger>
+ <SelectContent>
+ <SelectItem value="all">All Statuses</SelectItem>
+ <SelectItem value="pending">Pending</SelectItem>
+ <SelectItem value="paid">Paid</SelectItem>
+ <SelectItem value="overdue">Overdue</SelectItem>
+ </SelectContent>
+ </Select>
+ </div>
+ </CardContent>
+ </Card>
+
+ {/* Main Content Tabs */}
+ <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
+ <TabsList className="flex flex-wrap w-full h-auto gap-0.5 p-1">
+ <TabsTrigger value="overview">Overview</TabsTrigger>
+ <TabsTrigger value="utilities">Utility Bills</TabsTrigger>
+ <TabsTrigger value="recurring">Recurring Charges</TabsTrigger>
+ <TabsTrigger value="invoices">Invoices</TabsTrigger>
+ <TabsTrigger value="settings">Setup</TabsTrigger>
+ </TabsList>
+
+ <TabsContent value="overview" className="space-y-4">
+ <div className="grid gap-4 md:grid-cols-2">
+ <Card>
+ <CardHeader>
+ <CardTitle className="flex items-center gap-2">
+ <Droplets className="h-5 w-5" />
+ Recent Utility Bills
+ </CardTitle>
+ </CardHeader>
+ <CardContent>
+ <div className="space-y-2">
+ {utilityBills.length === 0 ? (
+ <p className="text-center text-muted-foreground py-4">No utility bills found</p>
+ ) : utilityBills.slice(0, 5).map((bill: UtilityBill) => {
+   const billAccount = utilityAccounts.find((a: UtilityAccount) => a.id === bill.accountId);
+   return (
+     <div key={bill.id} className="flex items-center justify-between p-2 border rounded">
+       <div>
+         <p className="font-medium">{bill.billNumber || `BILL-${bill.id}`}</p>
+         <p className="text-sm text-muted-foreground">
+           {billAccount?.accountNumber ? `Acct: ${billAccount.accountNumber} · ` : ''}Due: {bill.dueDate ? format(new Date(bill.dueDate), "MMM dd") : 'N/A'}
+         </p>
+       </div>
+       <div className="text-right">
+         <p className="font-medium">{fmtMoney(bill.amount)}</p>
+         <StatusBadge status={bill.status} />
+       </div>
+     </div>
+   );
+ })}
+ </div>
+ </CardContent>
+ </Card>
+
+ <Card>
+ <CardHeader>
+ <CardTitle className="flex items-center gap-2">
+ <Repeat className="h-5 w-5" />
+ Upcoming Charges
+ </CardTitle>
+ </CardHeader>
+ <CardContent>
+ <div className="space-y-2">
+ {recurringCharges.length === 0 ? (
+ <p className="text-center text-muted-foreground py-4">No recurring charges found</p>
+ ) : (
+ recurringCharges
+ .filter((charge: RecurringCharge) => charge.isActive)
+ .sort((a: RecurringCharge, b: RecurringCharge) => {
+ if (!a.nextChargeDate || !b.nextChargeDate) return 0;
+ return new Date(a.nextChargeDate).getTime() - new Date(b.nextChargeDate).getTime();
+ })
+ .slice(0, 5)
+ .map((charge: RecurringCharge) => (
+ <div key={charge.id} className="flex items-center justify-between p-2 border rounded">
+ <div>
+ <p className="font-medium">{charge.chargeName}</p>
+ <p className="text-sm text-muted-foreground">{charge.frequency}</p>
+ </div>
+ <div className="text-right">
+ <p className="font-medium">{fmtMoney(charge.amount)}</p>
+ <p className="text-sm text-muted-foreground">
+ {charge.nextChargeDate ? format(new Date(charge.nextChargeDate), "MMM dd") : 'N/A'}
+ </p>
+ </div>
+ </div>
+ ))
+ )}
+ </div>
+ </CardContent>
+ </Card>
+ </div>
+ </TabsContent>
+
+ <TabsContent value="utilities" className="space-y-4">
+ <div className="flex flex-wrap items-center justify-between gap-2">
+ <h2 className="text-xl font-semibold">Utility Bills</h2>
+ <Dialog open={addUtilityBillOpen} onOpenChange={(open) => { 
+   setAddUtilityBillOpen(open); 
+   if (!open) { 
+     setBillDialogStep("bill"); 
+     setAccountForm({ propertyId: "", providerId: "", accountNumber: "", meterNumber: "" }); 
+   } 
+ }}>
+ <DialogTrigger asChild>
+ <Button>
+ <Plus className="h-4 w-4 mr-2" />
+ Add Utility Bill
+ </Button>
+ </DialogTrigger>
+ <DialogContent>
+ <DialogHeader>
+ <DialogTitle>
+   {billDialogStep === "account" ? "Step 1 of 2 — Create Utility Account" : "Add Utility Bill"}
+ </DialogTitle>
+ <DialogDescription>
+   {billDialogStep === "account"
+     ? "A utility account links a provider to a property. Create one first, then you can log bills against it."
+     : "Enter the bill details for the selected utility account."}
+ </DialogDescription>
+ </DialogHeader>
+
+ {/* ── Step 1: Create a utility account inline ── */}
+ {billDialogStep === "account" && (
+ <div className="space-y-4 pt-2">
+   <div>
+     <Label>Property <span className="text-red-500">*</span></Label>
+     <Select value={accountForm.propertyId} onValueChange={v => setAccountForm(f => ({ ...f, propertyId: v }))}>
+       <SelectTrigger><SelectValue placeholder="Select property" /></SelectTrigger>
+       <SelectContent>
+         {properties.map((p: any) => (
+           <SelectItem key={p.id} value={String(p.id)}>{p.name}</SelectItem>
+         ))}
+       </SelectContent>
+     </Select>
+   </div>
+   <div>
+     <Label>Provider <span className="text-red-500">*</span></Label>
+     {utilityProviders.length === 0 ? (
+       <div className="flex items-center gap-2 p-3 border rounded-md bg-amber-50 text-amber-800 text-sm">
+         <AlertCircle className="h-4 w-4 shrink-0" />
+         <span>No providers yet. Go to the <strong>Settings</strong> tab to add one first.</span>
+       </div>
+     ) : (
+       <Select value={accountForm.providerId} onValueChange={v => setAccountForm(f => ({ ...f, providerId: v }))}>
+         <SelectTrigger><SelectValue placeholder="Select provider" /></SelectTrigger>
+         <SelectContent>
+           {utilityProviders.map((p: UtilityProvider) => (
+             <SelectItem key={p.id} value={String(p.id)}>
+               {p.name} <span className="text-muted-foreground capitalize">({p.type})</span>
+             </SelectItem>
+           ))}
+         </SelectContent>
+       </Select>
+     )}
+   </div>
+   <div>
+     <Label>Account Number <span className="text-red-500">*</span></Label>
+     <Input placeholder="e.g. 123456789" value={accountForm.accountNumber} onChange={e => setAccountForm(f => ({ ...f, accountNumber: e.target.value }))} />
+   </div>
+   <div>
+     <Label>Meter Number <span className="text-xs text-muted-foreground">(optional)</span></Label>
+     <Input placeholder="e.g. MTR-001" value={accountForm.meterNumber} onChange={e => setAccountForm(f => ({ ...f, meterNumber: e.target.value }))} />
+   </div>
+   <div className="flex justify-end gap-2 pt-2">
+     <Button variant="outline" onClick={() => { setBillDialogStep("bill"); setAccountForm({ propertyId: "", providerId: "", accountNumber: "", meterNumber: "" }); }}>
+       Back
+     </Button>
+     <Button
+       disabled={createUtilityAccountMutation.isPending || utilityProviders.length === 0}
+       onClick={() => {
+         if (!accountForm.propertyId || !accountForm.providerId || !accountForm.accountNumber) {
+           toast({ title: "Validation Error", description: "Property, provider, and account number are required", variant: "destructive" });
+           return;
+         }
+         createUtilityAccountMutation.mutate({
+           propertyId: parseInt(accountForm.propertyId),
+           providerId: parseInt(accountForm.providerId),
+           accountNumber: accountForm.accountNumber,
+           meterNumber: accountForm.meterNumber || undefined,
+           isActive: true,
+         });
+       }}
+     >
+       {createUtilityAccountMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+       Create Account &amp; Continue
+     </Button>
+   </div>
+ </div>
+ )}
+
+ {/* ── Step 2 (or only step when accounts already exist): Bill details ── */}
+ {billDialogStep === "bill" && (
+ <div className="space-y-4 pt-2">
+   <div>
+     <Label>Utility Account <span className="text-red-500">*</span></Label>
+     {utilityAccounts.length === 0 ? (
+       <div className="space-y-2">
+         <div className="flex items-center gap-2 p-3 border rounded-md bg-amber-50 text-amber-800 text-sm">
+           <AlertCircle className="h-4 w-4 shrink-0" />
+           <span>No utility accounts yet. You need one to link bills to a property and provider.</span>
+         </div>
+         <Button variant="outline" className="w-full" onClick={() => setBillDialogStep("account")}>
+           <Plus className="h-4 w-4 mr-2" />
+           Create a Utility Account
+         </Button>
+       </div>
+     ) : (
+       <div className="flex gap-2">
+         <Select value={billForm.accountId} onValueChange={v => setBillForm(f => ({ ...f, accountId: v }))}>
+           <SelectTrigger className="flex-1"><SelectValue placeholder="Select account" /></SelectTrigger>
+           <SelectContent>
+             {utilityAccounts.map((acc: UtilityAccount) => (
+               <SelectItem key={acc.id} value={String(acc.id)}>
+                 {acc.accountNumber}{acc.meterNumber ? ` — Meter ${acc.meterNumber}` : ""}
+                 {acc.providerName ? ` (${acc.providerName})` : ""}
+               </SelectItem>
+             ))}
+           </SelectContent>
+         </Select>
+         <Button variant="outline" size="sm" onClick={() => setBillDialogStep("account")} title="Add another account">
+           <Plus className="h-4 w-4" />
+         </Button>
+       </div>
+     )}
+   </div>
+   {utilityAccounts.length > 0 && (
+   <>
+   <div>
+     <Label>Billing Period Start <span className="text-red-500">*</span></Label>
+     <Input type="date" value={billForm.billingPeriodStart} onChange={e => setBillForm(f => ({ ...f, billingPeriodStart: e.target.value }))} />
+   </div>
+   <div>
+     <Label>Billing Period End <span className="text-red-500">*</span></Label>
+     <Input type="date" value={billForm.billingPeriodEnd} onChange={e => setBillForm(f => ({ ...f, billingPeriodEnd: e.target.value }))} />
+   </div>
+   <div>
+     <Label>Due Date <span className="text-red-500">*</span></Label>
+     <Input type="date" value={billForm.dueDate} onChange={e => setBillForm(f => ({ ...f, dueDate: e.target.value }))} />
+   </div>
+   <div>
+     <Label>Amount (KSh) <span className="text-red-500">*</span></Label>
+     <Input type="number" placeholder="0.00" value={billForm.amount} onChange={e => setBillForm(f => ({ ...f, amount: e.target.value }))} />
+   </div>
+   <div>
+     <Label className="flex items-center gap-1">
+       {consumption.label}
+       <span className="text-xs text-muted-foreground font-normal">(optional)</span>
+     </Label>
+     <div className="flex gap-2 items-center">
+       <Input
+         type="number"
+         min="0"
+         placeholder={consumption.placeholder}
+         value={billForm.unitsConsumed}
+         onChange={e => setBillForm(f => ({ ...f, unitsConsumed: e.target.value }))}
+         className="flex-1"
+       />
+       <span className="text-sm text-muted-foreground w-12 shrink-0">{consumption.unit}</span>
+     </div>
+   </div>
+   <div>
+     <Label>Status</Label>
+     <Select value={billForm.status} onValueChange={v => setBillForm(f => ({ ...f, status: v }))}>
+       <SelectTrigger><SelectValue /></SelectTrigger>
+       <SelectContent>
+         <SelectItem value="pending">Pending</SelectItem>
+         <SelectItem value="paid">Paid</SelectItem>
+         <SelectItem value="overdue">Overdue</SelectItem>
+       </SelectContent>
+     </Select>
+   </div>
+   <div>
+     <Label>Notes</Label>
+     <Input placeholder="Optional notes" value={billForm.notes} onChange={e => setBillForm(f => ({ ...f, notes: e.target.value }))} />
+   </div>
+   <div className="flex justify-end gap-2 pt-2">
+     <Button variant="outline" onClick={() => { setAddUtilityBillOpen(false); setBillDialogStep("bill"); }}>Cancel</Button>
+     <Button
+       disabled={createUtilityBillMutation.isPending || !billForm.accountId}
+       onClick={() => {
+         if (!billForm.accountId || !billForm.billingPeriodStart || !billForm.billingPeriodEnd || !billForm.dueDate || !billForm.amount) {
+           toast({ title: "Validation Error", description: "Please fill in all required fields", variant: "destructive" });
+           return;
+         }
+         createUtilityBillMutation.mutate({ ...billForm, accountId: parseInt(billForm.accountId) });
+       }}
+     >
+       {createUtilityBillMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+       Create Bill
+     </Button>
+   </div>
+   </>
+   )}
+ </div>
+ )}
+ </DialogContent>
+ </Dialog>
+ </div>
+ 
+ {/* ── Utility Bills date filters + page size ── */}
+ <Card>
+   <CardContent className="pt-4">
+     <div className="flex flex-wrap gap-3 items-end">
+       <div>
+         <label className="text-xs font-medium text-muted-foreground block mb-1">Date Field</label>
+         <Select value={billsDateField} onValueChange={v => { setBillsDateField(v as any); setBillsPage(1); }}>
+           <SelectTrigger className="w-40 h-8 text-sm"><SelectValue /></SelectTrigger>
+           <SelectContent>
+             <SelectItem value="dueDate">Due Date</SelectItem>
+             <SelectItem value="billingPeriodStart">Billing Start</SelectItem>
+           </SelectContent>
+         </Select>
+       </div>
+       <div>
+         <label className="text-xs font-medium text-muted-foreground block mb-1">From</label>
+         <input type="date" value={billsDateFrom} onChange={e => { setBillsDateFrom(e.target.value); setBillsPage(1); }}
+           className="h-8 px-2 text-sm border rounded-md bg-background" />
+       </div>
+       <div>
+         <label className="text-xs font-medium text-muted-foreground block mb-1">To</label>
+         <input type="date" value={billsDateTo} onChange={e => { setBillsDateTo(e.target.value); setBillsPage(1); }}
+           className="h-8 px-2 text-sm border rounded-md bg-background" />
+       </div>
+       {(billsDateFrom || billsDateTo) && (
+         <button onClick={() => { setBillsDateFrom(""); setBillsDateTo(""); setBillsPage(1); }}
+           className="h-8 px-3 text-xs border rounded-md text-muted-foreground hover:bg-muted">Clear</button>
+       )}
+       <div className="ml-auto flex items-end gap-2">
+         <label className="text-xs font-medium text-muted-foreground block mb-1">Rows</label>
+         <Select value={String(billsPageSize)} onValueChange={v => { setBillsPageSize(Number(v)); setBillsPage(1); }}>
+           <SelectTrigger className="w-20 h-8 text-sm"><SelectValue /></SelectTrigger>
+           <SelectContent>
+             {[5,10,25,50,100].map(n => <SelectItem key={n} value={String(n)}>{n}</SelectItem>)}
+           </SelectContent>
+         </Select>
+       </div>
+     </div>
+   </CardContent>
+ </Card>
+
+ <Card>
+ <CardContent className="pt-6">
+ {loadingBills ? (
+ <div className="flex justify-center p-8">
+ <div className="animate-spin w-8 h-8 border-4 border-primary border-t-transparent rounded-full" />
+ </div>
+ ) : (
+ <>
+ <DataTable
+ data={pagedBills}
+ columns={utilityBillColumns}
+ />
+ <div className="flex items-center justify-between mt-4 text-sm text-muted-foreground">
+   <span>{dateFilteredBills.length === 0 ? "No results" : `Showing ${Math.min((billsPage-1)*billsPageSize+1, dateFilteredBills.length)}–${Math.min(billsPage*billsPageSize, dateFilteredBills.length)} of ${dateFilteredBills.length}`}</span>
+   <div className="flex gap-1">
+     <button disabled={billsPage === 1} onClick={() => setBillsPage(p => p-1)}
+       className="px-2 py-1 border rounded disabled:opacity-40 hover:bg-muted">‹</button>
+     {Array.from({ length: Math.ceil(dateFilteredBills.length / billsPageSize) }, (_, i) => i+1)
+       .filter(p => p === 1 || p === Math.ceil(dateFilteredBills.length/billsPageSize) || Math.abs(p - billsPage) <= 1)
+       .reduce((acc: (number|string)[], p, i, arr) => {
+         if (i > 0 && p - (arr[i-1] as number) > 1) acc.push("…");
+         acc.push(p); return acc;
+       }, [])
+       .map((p, i) => typeof p === "string"
+         ? <span key={i} className="px-2 py-1">…</span>
+         : <button key={i} onClick={() => setBillsPage(p as number)}
+             className={"px-2 py-1 border rounded " + (billsPage === p ? "bg-primary text-primary-foreground" : "hover:bg-muted")}>{p}</button>
+       )}
+     <button disabled={billsPage >= Math.ceil(dateFilteredBills.length/billsPageSize)} onClick={() => setBillsPage(p => p+1)}
+       className="px-2 py-1 border rounded disabled:opacity-40 hover:bg-muted">›</button>
+   </div>
+ </div>
+ </>
+ )}
+ </CardContent>
+ </Card>
+ </TabsContent>
+
+ <TabsContent value="recurring" className="space-y-4">
+ <div className="flex flex-wrap items-center justify-between gap-2">
+ <h2 className="text-xl font-semibold">Recurring Charges</h2>
+ <Dialog open={addRecurringChargeOpen} onOpenChange={setAddRecurringChargeOpen}>
+ <DialogTrigger asChild>
+ <Button>
+ <Plus className="h-4 w-4 mr-2" />
+ Add Recurring Charge
+ </Button>
+ </DialogTrigger>
+ <DialogContent>
+ <DialogHeader>
+ <DialogTitle>Add Recurring Charge</DialogTitle>
+ <DialogDescription>
+ Set up automated billing for rent, service charges, or other recurring fees.
+ </DialogDescription>
+ </DialogHeader>
+ <div className="space-y-4 pt-2">
+ <div>
+ <Label>Property</Label>
+ <Select value={chargeForm.propertyId} onValueChange={v => setChargeForm(f => ({ ...f, propertyId: v }))}>
+ <SelectTrigger><SelectValue placeholder="Select property" /></SelectTrigger>
+ <SelectContent>
+ {properties.map((p: any) => (
+ <SelectItem key={p.id} value={p.id.toString()}>{p.name}</SelectItem>
+ ))}
+ </SelectContent>
+ </Select>
+ </div>
+ <div>
+ <Label>Charge Name</Label>
+ <Input placeholder="e.g. Monthly Service Charge" value={chargeForm.chargeName} onChange={e => setChargeForm(f => ({ ...f, chargeName: e.target.value }))} />
+ </div>
+ <div>
+ <Label>Type</Label>
+ <Select value={chargeForm.chargeType} onValueChange={v => setChargeForm(f => ({ ...f, chargeType: v }))}>
+ <SelectTrigger><SelectValue /></SelectTrigger>
+ <SelectContent>
+ <SelectItem value="service_charge">Service Charge</SelectItem>
+ <SelectItem value="utility">Utility</SelectItem>
+ <SelectItem value="maintenance">Maintenance</SelectItem>
+ <SelectItem value="insurance">Insurance</SelectItem>
+ <SelectItem value="other">Other</SelectItem>
+ </SelectContent>
+ </Select>
+ </div>
+ <div>
+ <Label>Amount (KSh)</Label>
+ <Input type="number" placeholder="0.00" value={chargeForm.amount} onChange={e => setChargeForm(f => ({ ...f, amount: e.target.value }))} />
+ </div>
+ <div>
+ <Label>Frequency</Label>
+ <Select value={chargeForm.frequency} onValueChange={v => setChargeForm(f => ({ ...f, frequency: v }))}>
+ <SelectTrigger><SelectValue /></SelectTrigger>
+ <SelectContent>
+ <SelectItem value="weekly">Weekly</SelectItem>
+ <SelectItem value="monthly">Monthly</SelectItem>
+ <SelectItem value="quarterly">Quarterly</SelectItem>
+ <SelectItem value="annually">Annually</SelectItem>
+ </SelectContent>
+ </Select>
+ </div>
+ <div>
+ <Label>Start Date</Label>
+ <Input type="date" value={chargeForm.startDate} onChange={e => setChargeForm(f => ({ ...f, startDate: e.target.value }))} />
+ </div>
+ <div>
+ <Label>Next Charge Date</Label>
+ <Input type="date" value={chargeForm.nextChargeDate} onChange={e => setChargeForm(f => ({ ...f, nextChargeDate: e.target.value }))} />
+ </div>
+ <div>
+ <Label>Description</Label>
+ <Input placeholder="Optional description" value={chargeForm.description} onChange={e => setChargeForm(f => ({ ...f, description: e.target.value }))} />
+ </div>
+ <div className="flex justify-end gap-2 pt-2">
+ <Button variant="outline" onClick={() => setAddRecurringChargeOpen(false)}>Cancel</Button>
+ <Button
+ disabled={createRecurringChargeMutation.isPending}
+ onClick={() => {
+ if (!chargeForm.propertyId || !chargeForm.chargeName || !chargeForm.amount || !chargeForm.startDate || !chargeForm.nextChargeDate) {
+ toast({ title: "Validation Error", description: "Please fill in all required fields", variant: "destructive" });
+ return;
+ }
+ createRecurringChargeMutation.mutate({
+ propertyId: parseInt(chargeForm.propertyId),
+ chargeName: chargeForm.chargeName,
+ chargeType: chargeForm.chargeType,
+ amount: parseFloat(chargeForm.amount),
+ frequency: chargeForm.frequency,
+ startDate: chargeForm.startDate,
+ nextChargeDate: chargeForm.nextChargeDate,
+ description: chargeForm.description,
+ isActive: true,
+ } as any);
+ setAddRecurringChargeOpen(false);
+ setChargeForm({ propertyId: "", chargeName: "", chargeType: "service_charge", amount: "", frequency: "monthly", startDate: "", nextChargeDate: "", description: "" });
+ }}
+ >
+ {createRecurringChargeMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+ Create Charge
+ </Button>
+ </div>
+ </div>
+ </DialogContent>
+ </Dialog>
+ </div>
+ 
+ {/* ── Recurring Charges date filters + page size ── */}
+ <Card>
+   <CardContent className="pt-4">
+     <div className="flex flex-wrap gap-3 items-end">
+       <div>
+         <label className="text-xs font-medium text-muted-foreground block mb-1">Date Field</label>
+         <Select value={chargesDateField} onValueChange={v => { setChargesDateField(v as any); setChargesPage(1); }}>
+           <SelectTrigger className="w-40 h-8 text-sm"><SelectValue /></SelectTrigger>
+           <SelectContent>
+             <SelectItem value="nextChargeDate">Next Charge</SelectItem>
+             <SelectItem value="startDate">Start Date</SelectItem>
+           </SelectContent>
+         </Select>
+       </div>
+       <div>
+         <label className="text-xs font-medium text-muted-foreground block mb-1">From</label>
+         <input type="date" value={chargesDateFrom} onChange={e => { setChargesDateFrom(e.target.value); setChargesPage(1); }}
+           className="h-8 px-2 text-sm border rounded-md bg-background" />
+       </div>
+       <div>
+         <label className="text-xs font-medium text-muted-foreground block mb-1">To</label>
+         <input type="date" value={chargesDateTo} onChange={e => { setChargesDateTo(e.target.value); setChargesPage(1); }}
+           className="h-8 px-2 text-sm border rounded-md bg-background" />
+       </div>
+       {(chargesDateFrom || chargesDateTo) && (
+         <button onClick={() => { setChargesDateFrom(""); setChargesDateTo(""); setChargesPage(1); }}
+           className="h-8 px-3 text-xs border rounded-md text-muted-foreground hover:bg-muted">Clear</button>
+       )}
+       <div className="ml-auto flex items-end gap-2">
+         <label className="text-xs font-medium text-muted-foreground block mb-1">Rows</label>
+         <Select value={String(chargesPageSize)} onValueChange={v => { setChargesPageSize(Number(v)); setChargesPage(1); }}>
+           <SelectTrigger className="w-20 h-8 text-sm"><SelectValue /></SelectTrigger>
+           <SelectContent>
+             {[5,10,25,50,100].map(n => <SelectItem key={n} value={String(n)}>{n}</SelectItem>)}
+           </SelectContent>
+         </Select>
+       </div>
+     </div>
+   </CardContent>
+ </Card>
+
+ <Card>
+ <CardContent className="pt-6">
+ {loadingCharges ? (
+ <div className="flex justify-center p-8">
+ <div className="animate-spin w-8 h-8 border-4 border-primary border-t-transparent rounded-full" />
+ </div>
+ ) : (
+ <>
+ <DataTable
+ data={pagedCharges}
+ columns={recurringChargeColumns}
+ />
+ <div className="flex items-center justify-between mt-4 text-sm text-muted-foreground">
+   <span>{dateFilteredCharges.length === 0 ? "No results" : `Showing ${Math.min((chargesPage-1)*chargesPageSize+1, dateFilteredCharges.length)}–${Math.min(chargesPage*chargesPageSize, dateFilteredCharges.length)} of ${dateFilteredCharges.length}`}</span>
+   <div className="flex gap-1">
+     <button disabled={chargesPage === 1} onClick={() => setChargesPage(p => p-1)}
+       className="px-2 py-1 border rounded disabled:opacity-40 hover:bg-muted">‹</button>
+     {Array.from({ length: Math.ceil(dateFilteredCharges.length / chargesPageSize) }, (_, i) => i+1)
+       .filter(p => p === 1 || p === Math.ceil(dateFilteredCharges.length/chargesPageSize) || Math.abs(p - chargesPage) <= 1)
+       .reduce((acc: (number|string)[], p, i, arr) => {
+         if (i > 0 && p - (arr[i-1] as number) > 1) acc.push("…");
+         acc.push(p); return acc;
+       }, [])
+       .map((p, i) => typeof p === "string"
+         ? <span key={i} className="px-2 py-1">…</span>
+         : <button key={i} onClick={() => setChargesPage(p as number)}
+             className={"px-2 py-1 border rounded " + (chargesPage === p ? "bg-primary text-primary-foreground" : "hover:bg-muted")}>{p}</button>
+       )}
+     <button disabled={chargesPage >= Math.ceil(dateFilteredCharges.length/chargesPageSize)} onClick={() => setChargesPage(p => p+1)}
+       className="px-2 py-1 border rounded disabled:opacity-40 hover:bg-muted">›</button>
+   </div>
+ </div>
+ </>
+ )}
+ </CardContent>
+ </Card>
+ </TabsContent>
+
+ <TabsContent value="invoices" className="space-y-4">
+ <div className="flex flex-wrap items-center justify-between gap-2">
+ <h2 className="text-xl font-semibold">Invoices</h2>
+ <Dialog open={createInvoiceOpen} onOpenChange={setCreateInvoiceOpen}>
+ <DialogTrigger asChild>
+ <Button>
+ <Plus className="h-4 w-4 mr-2" />
+ Create Invoice
+ </Button>
+ </DialogTrigger>
+ <DialogContent>
+ <DialogHeader>
+ <DialogTitle>Create New Invoice</DialogTitle>
+ <DialogDescription>
+ Generate a manual invoice for one-time charges or services.
+ </DialogDescription>
+ </DialogHeader>
+ <div className="space-y-4 pt-2">
+ <div>
+ <Label>Property <span className="text-red-500">*</span></Label>
+ <Select value={invoiceForm.propertyId} onValueChange={v => setInvoiceForm(f => ({ ...f, propertyId: v }))}>
+ <SelectTrigger><SelectValue placeholder="Select property" /></SelectTrigger>
+ <SelectContent>
+ {properties.map((p: any) => (
+ <SelectItem key={p.id} value={p.id.toString()}>{p.name}</SelectItem>
+ ))}
+ </SelectContent>
+ </Select>
+ </div>
+ <div>
+ <Label>Tenant <span className="text-red-500">*</span></Label>
+ <Select value={invoiceForm.tenantId} onValueChange={v => setInvoiceForm(f => ({ ...f, tenantId: v }))}>
+ <SelectTrigger><SelectValue placeholder="Select tenant" /></SelectTrigger>
+ <SelectContent>
+ {tenants.length === 0 ? (
+ <SelectItem value="none" disabled>No tenants available</SelectItem>
+ ) : (
+ tenants.map((t: any) => (
+ <SelectItem key={t.id} value={String(t.id)}>
+ {t.firstName || t.name || "Tenant"} {t.lastName ?? ""} {t.unitNumber ? `— Unit ${t.unitNumber}` : ""}
+ </SelectItem>
+ ))
+ )}
+ </SelectContent>
+ </Select>
+ </div>
+ <div>
+ <Label>Amount (KSh) <span className="text-red-500">*</span></Label>
+ <Input type="number" placeholder="0.00" value={invoiceForm.amount} onChange={e => setInvoiceForm(f => ({ ...f, amount: e.target.value }))} />
+ </div>
+ <div>
+ <Label>Due Date <span className="text-red-500">*</span></Label>
+ <Input type="date" value={invoiceForm.dueDate} onChange={e => setInvoiceForm(f => ({ ...f, dueDate: e.target.value }))} />
+ </div>
+ <div>
+ <Label>Description</Label>
+ <Input placeholder="Invoice description" value={invoiceForm.description} onChange={e => setInvoiceForm(f => ({ ...f, description: e.target.value }))} />
+ </div>
+ <div>
+ <Label>Status</Label>
+ <Select value={invoiceForm.status} onValueChange={v => setInvoiceForm(f => ({ ...f, status: v }))}>
+ <SelectTrigger><SelectValue /></SelectTrigger>
+ <SelectContent>
+ <SelectItem value="pending">Pending</SelectItem>
+ <SelectItem value="paid">Paid</SelectItem>
+ <SelectItem value="overdue">Overdue</SelectItem>
+ </SelectContent>
+ </Select>
+ </div>
+ <div className="flex justify-end gap-2 pt-2">
+ <Button variant="outline" onClick={() => setCreateInvoiceOpen(false)}>Cancel</Button>
+ <Button
+ disabled={createInvoiceMutation.isPending}
+ onClick={() => {
+ if (!invoiceForm.propertyId || !invoiceForm.tenantId || !invoiceForm.amount || !invoiceForm.dueDate) {
+ toast({ title: "Validation Error", description: "Please fill in all required fields", variant: "destructive" });
+ return;
+ }
+ createInvoiceMutation.mutate({
+ propertyId: parseInt(invoiceForm.propertyId),
+ tenantId: parseInt(invoiceForm.tenantId),
+ amount: parseFloat(invoiceForm.amount),
+ dueDate: invoiceForm.dueDate,
+ description: invoiceForm.description,
+ status: invoiceForm.status,
+ currency: "KES",
+ });
+ }}
+ >
+ {createInvoiceMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+ Create Invoice
+ </Button>
+ </div>
+ </div>
+ </DialogContent>
+ </Dialog>
+ </div>
+ 
+ {/* ── Invoices date filters + page size ── */}
+ <Card>
+   <CardContent className="pt-4">
+     <div className="flex flex-wrap gap-3 items-end">
+       <div>
+         <label className="text-xs font-medium text-muted-foreground block mb-1">Date Field</label>
+         <Select value={invoiceDateField} onValueChange={v => { setInvoiceDateField(v as any); setInvoicesPage(1); }}>
+           <SelectTrigger className="w-40 h-8 text-sm"><SelectValue /></SelectTrigger>
+           <SelectContent>
+             <SelectItem value="dueDate">Due Date</SelectItem>
+             <SelectItem value="createdAt">Created At</SelectItem>
+           </SelectContent>
+         </Select>
+       </div>
+       <div>
+         <label className="text-xs font-medium text-muted-foreground block mb-1">From</label>
+         <input type="date" value={invoiceDateFrom} onChange={e => { setInvoiceDateFrom(e.target.value); setInvoicesPage(1); }}
+           className="h-8 px-2 text-sm border rounded-md bg-background" />
+       </div>
+       <div>
+         <label className="text-xs font-medium text-muted-foreground block mb-1">To</label>
+         <input type="date" value={invoiceDateTo} onChange={e => { setInvoiceDateTo(e.target.value); setInvoicesPage(1); }}
+           className="h-8 px-2 text-sm border rounded-md bg-background" />
+       </div>
+       {(invoiceDateFrom || invoiceDateTo) && (
+         <button onClick={() => { setInvoiceDateFrom(""); setInvoiceDateTo(""); setInvoicesPage(1); }}
+           className="h-8 px-3 text-xs border rounded-md text-muted-foreground hover:bg-muted">Clear</button>
+       )}
+       <div className="ml-auto flex items-end gap-2">
+         <label className="text-xs font-medium text-muted-foreground block mb-1">Rows</label>
+         <Select value={String(invoicesPageSize)} onValueChange={v => { setInvoicesPageSize(Number(v)); setInvoicesPage(1); }}>
+           <SelectTrigger className="w-20 h-8 text-sm"><SelectValue /></SelectTrigger>
+           <SelectContent>
+             {[5,10,25,50,100].map(n => <SelectItem key={n} value={String(n)}>{n}</SelectItem>)}
+           </SelectContent>
+         </Select>
+       </div>
+     </div>
+   </CardContent>
+ </Card>
+
+ <Card>
+ <CardContent className="pt-6">
+ {loadingInvoices ? (
+ <div className="flex justify-center p-8">
+ <div className="animate-spin w-8 h-8 border-4 border-primary border-t-transparent rounded-full" />
+ </div>
+ ) : (
+ <>
+ <DataTable
+ data={pagedInvoices}
+ columns={invoiceColumns}
+ />
+ <div className="flex items-center justify-between mt-4 text-sm text-muted-foreground">
+   <span>{dateFilteredInvoices.length === 0 ? "No results" : `Showing ${Math.min((invoicesPage-1)*invoicesPageSize+1, dateFilteredInvoices.length)}–${Math.min(invoicesPage*invoicesPageSize, dateFilteredInvoices.length)} of ${dateFilteredInvoices.length}`}</span>
+   <div className="flex gap-1">
+     <button disabled={invoicesPage === 1} onClick={() => setInvoicesPage(p => p-1)}
+       className="px-2 py-1 border rounded disabled:opacity-40 hover:bg-muted">‹</button>
+     {Array.from({ length: Math.ceil(dateFilteredInvoices.length / invoicesPageSize) }, (_, i) => i+1)
+       .filter(p => p === 1 || p === Math.ceil(dateFilteredInvoices.length/invoicesPageSize) || Math.abs(p - invoicesPage) <= 1)
+       .reduce((acc: (number|string)[], p, i, arr) => {
+         if (i > 0 && p - (arr[i-1] as number) > 1) acc.push("…");
+         acc.push(p); return acc;
+       }, [])
+       .map((p, i) => typeof p === "string"
+         ? <span key={i} className="px-2 py-1">…</span>
+         : <button key={i} onClick={() => setInvoicesPage(p as number)}
+             className={"px-2 py-1 border rounded " + (invoicesPage === p ? "bg-primary text-primary-foreground" : "hover:bg-muted")}>{p}</button>
+       )}
+     <button disabled={invoicesPage >= Math.ceil(dateFilteredInvoices.length/invoicesPageSize)} onClick={() => setInvoicesPage(p => p+1)}
+       className="px-2 py-1 border rounded disabled:opacity-40 hover:bg-muted">›</button>
+   </div>
+ </div>
+ </>
+ )}
+ </CardContent>
+ </Card>
+ </TabsContent>
+
+ <TabsContent value="settings" className="space-y-4">
+ {/* Distinguish this "Setup" tab from the sidebar Settings page */}
+ <div className="flex items-start gap-3 px-4 py-3 rounded-xl bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-900 text-xs text-blue-700 dark:text-blue-300">
+   <Settings className="w-4 h-4 mt-0.5 shrink-0" />
+   <span>
+     This is billing setup — utility providers and billing cycles for your properties.
+     For account, user, and app settings go to <strong>Settings → Organisation</strong> in the sidebar.
+   </span>
+ </div>
+ <div className="grid gap-4 grid-cols-1 md:grid-cols-2">
+
+ {/* ── Utility Providers ── */}
+ <Card>
+ <CardHeader>
+ <div className="flex items-center justify-between">
+ <div>
+ <CardTitle>Utility Providers</CardTitle>
+ <CardDescription>Service providers for water, electricity, gas, etc.</CardDescription>
+ </div>
+ <Dialog open={addProviderOpen} onOpenChange={setAddProviderOpen}>
+ <DialogTrigger asChild>
+ <Button size="sm"><Plus className="h-4 w-4 mr-1" />Add Provider</Button>
+ </DialogTrigger>
+ <DialogContent>
+ <DialogHeader>
+ <DialogTitle>Add Utility Provider</DialogTitle>
+ <DialogDescription>Register a new utility service provider.</DialogDescription>
+ </DialogHeader>
+ <div className="space-y-4 pt-2">
+ <div>
+ <Label>Provider Name <span className="text-red-500">*</span></Label>
+ <Input placeholder="e.g. Kenya Power" value={providerForm.name} onChange={e => setProviderForm(f => ({ ...f, name: e.target.value }))} />
+ </div>
+ <div>
+ <Label>Type <span className="text-red-500">*</span></Label>
+ <Select value={providerForm.type} onValueChange={v => setProviderForm(f => ({ ...f, type: v }))}>
+ <SelectTrigger><SelectValue /></SelectTrigger>
+ <SelectContent>
+ <SelectItem value="electricity">Electricity</SelectItem>
+ <SelectItem value="water">Water</SelectItem>
+ <SelectItem value="gas">Gas</SelectItem>
+ <SelectItem value="internet">Internet</SelectItem>
+ <SelectItem value="other">Other</SelectItem>
+ </SelectContent>
+ </Select>
+ </div>
+ <div>
+ <Label>Billing Cycle <span className="text-red-500">*</span></Label>
+ <Select value={providerForm.billingCycle} onValueChange={v => setProviderForm(f => ({ ...f, billingCycle: v }))}>
+ <SelectTrigger><SelectValue /></SelectTrigger>
+ <SelectContent>
+ <SelectItem value="monthly">Monthly</SelectItem>
+ <SelectItem value="quarterly">Quarterly</SelectItem>
+ <SelectItem value="annually">Annually</SelectItem>
+ </SelectContent>
+ </Select>
+ </div>
+ <div>
+ <Label>Contact Email</Label>
+ <Input type="email" placeholder="billing@provider.com" value={providerForm.contactEmail} onChange={e => setProviderForm(f => ({ ...f, contactEmail: e.target.value }))} />
+ </div>
+ <div>
+ <Label>Contact Phone</Label>
+ <Input placeholder="+254..." value={providerForm.contactPhone} onChange={e => setProviderForm(f => ({ ...f, contactPhone: e.target.value }))} />
+ </div>
+ <div>
+ <Label>Average Rate (KSh/unit)</Label>
+ <Input type="number" placeholder="e.g. 23.50" value={providerForm.averageRate} onChange={e => setProviderForm(f => ({ ...f, averageRate: e.target.value }))} />
+ </div>
+ <div className="flex justify-end gap-2 pt-2">
+ <Button variant="outline" onClick={() => setAddProviderOpen(false)}>Cancel</Button>
+ <Button
+ disabled={createUtilityProviderMutation.isPending}
+ onClick={() => {
+ if (!providerForm.name || !providerForm.type || !providerForm.billingCycle) {
+ toast({ title: "Validation Error", description: "Name, type, and billing cycle are required", variant: "destructive" });
+ return;
+ }
+ createUtilityProviderMutation.mutate({
+ name: providerForm.name,
+ type: providerForm.type,
+ billingCycle: providerForm.billingCycle,
+ contactEmail: providerForm.contactEmail || undefined,
+ contactPhone: providerForm.contactPhone || undefined,
+ averageRate: providerForm.averageRate || undefined,
+ currency: "KES",
+ isActive: true,
+ });
+ setProviderForm({ name: "", type: "electricity", billingCycle: "monthly", contactEmail: "", contactPhone: "", averageRate: "" });
+ }}
+ >
+ {createUtilityProviderMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+ Add Provider
+ </Button>
+ </div>
+ </div>
+ </DialogContent>
+ </Dialog>
+ </div>
+ </CardHeader>
+ <CardContent>
+ <div className="space-y-2">
+ {loadingProviders ? (
+ <div className="flex justify-center p-4">
+ <div className="animate-spin w-6 h-6 border-4 border-primary border-t-transparent rounded-full" />
+ </div>
+ ) : utilityProviders.length === 0 ? (
+ <p className="text-center text-muted-foreground py-4">No utility providers yet — add one above.</p>
+ ) : (
+ utilityProviders.map((provider: UtilityProvider) => (
+ <div key={provider.id} className="flex items-center justify-between p-2 border rounded">
+ <div>
+ <p className="font-medium">{provider.name}</p>
+ <p className="text-sm text-muted-foreground capitalize">{provider.type} · {provider.billingCycle}</p>
+ </div>
+ <Badge variant={provider.isActive ? "default" : "secondary"}>
+ {provider.isActive ? "Active" : "Inactive"}
+ </Badge>
+ </div>
+ ))
+ )}
+ </div>
+ </CardContent>
+ </Card>
+
+ {/* ── Billing Cycles ── */}
+ <Card>
+ <CardHeader>
+ <div className="flex items-center justify-between">
+ <div>
+ <CardTitle>Billing Cycles</CardTitle>
+ <CardDescription>Automatic billing schedules per property.</CardDescription>
+ </div>
+ <Dialog open={addBillingCycleOpen} onOpenChange={setAddBillingCycleOpen}>
+ <DialogTrigger asChild>
+ <Button size="sm"><Plus className="h-4 w-4 mr-1" />Add Cycle</Button>
+ </DialogTrigger>
+ <DialogContent>
+ <DialogHeader>
+ <DialogTitle>Add Billing Cycle</DialogTitle>
+ <DialogDescription>Configure a recurring billing schedule for a property.</DialogDescription>
+ </DialogHeader>
+ <div className="space-y-4 pt-2">
+ <div>
+ <Label>Property <span className="text-red-500">*</span></Label>
+ <Select value={cycleForm.propertyId} onValueChange={v => setCycleForm(f => ({ ...f, propertyId: v }))}>
+ <SelectTrigger><SelectValue placeholder="Select property" /></SelectTrigger>
+ <SelectContent>
+ {properties.map((p: any) => (
+ <SelectItem key={p.id} value={p.id.toString()}>{p.name}</SelectItem>
+ ))}
+ </SelectContent>
+ </Select>
+ </div>
+ <div>
+ <Label>Cycle Name <span className="text-red-500">*</span></Label>
+ <Input placeholder="e.g. Monthly Rent" value={cycleForm.cycleName} onChange={e => setCycleForm(f => ({ ...f, cycleName: e.target.value }))} />
+ </div>
+ <div>
+ <Label>Type <span className="text-red-500">*</span></Label>
+ <Select value={cycleForm.type} onValueChange={v => setCycleForm(f => ({ ...f, type: v }))}>
+ <SelectTrigger><SelectValue /></SelectTrigger>
+ <SelectContent>
+ <SelectItem value="rent">Rent</SelectItem>
+ <SelectItem value="service_charge">Service Charge</SelectItem>
+ <SelectItem value="utility">Utility</SelectItem>
+ <SelectItem value="other">Other</SelectItem>
+ </SelectContent>
+ </Select>
+ </div>
+ <div>
+ <Label>Frequency <span className="text-red-500">*</span></Label>
+ <Select value={cycleForm.frequency} onValueChange={v => setCycleForm(f => ({ ...f, frequency: v }))}>
+ <SelectTrigger><SelectValue /></SelectTrigger>
+ <SelectContent>
+ <SelectItem value="weekly">Weekly</SelectItem>
+ <SelectItem value="monthly">Monthly</SelectItem>
+ <SelectItem value="quarterly">Quarterly</SelectItem>
+ <SelectItem value="annually">Annually</SelectItem>
+ </SelectContent>
+ </Select>
+ </div>
+ <div className="grid grid-cols-3 gap-3">
+ <div>
+ <Label>Billing Day <span className="text-red-500">*</span></Label>
+ <Input type="number" min="1" max="31" placeholder="1" value={cycleForm.billingDay} onChange={e => setCycleForm(f => ({ ...f, billingDay: e.target.value }))} />
+ </div>
+ <div>
+ <Label>Due Day <span className="text-red-500">*</span></Label>
+ <Input type="number" min="1" max="31" placeholder="5" value={cycleForm.dueDay} onChange={e => setCycleForm(f => ({ ...f, dueDay: e.target.value }))} />
+ </div>
+ <div>
+ <Label>Grace Days</Label>
+ <Input type="number" min="0" max="30" placeholder="5" value={cycleForm.graceDay} onChange={e => setCycleForm(f => ({ ...f, graceDay: e.target.value }))} />
+ </div>
+ </div>
+ <div className="flex justify-end gap-2 pt-2">
+ <Button variant="outline" onClick={() => setAddBillingCycleOpen(false)}>Cancel</Button>
+ <Button
+ disabled={createBillingCycleMutation.isPending}
+ onClick={() => {
+ if (!cycleForm.propertyId || !cycleForm.cycleName || !cycleForm.billingDay || !cycleForm.dueDay) {
+ toast({ title: "Validation Error", description: "Please fill in all required fields", variant: "destructive" });
+ return;
+ }
+ createBillingCycleMutation.mutate({
+ propertyId: parseInt(cycleForm.propertyId),
+ cycleName: cycleForm.cycleName,
+ type: cycleForm.type,
+ frequency: cycleForm.frequency,
+ billingDay: cycleForm.billingDay,
+ dueDay: cycleForm.dueDay,
+ graceDay: cycleForm.graceDay,
+ });
+ }}
+ >
+ {createBillingCycleMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+ Add Cycle
+ </Button>
+ </div>
+ </div>
+ </DialogContent>
+ </Dialog>
+ </div>
+ </CardHeader>
+ <CardContent>
+ <div className="space-y-2">
+ {loadingCycles ? (
+ <div className="flex justify-center p-4">
+ <div className="animate-spin w-6 h-6 border-4 border-primary border-t-transparent rounded-full" />
+ </div>
+ ) : billingCycles.length === 0 ? (
+ <p className="text-center text-muted-foreground py-4">No billing cycles yet — add one above.</p>
+ ) : (
+ billingCycles.map((cycle: BillingCycle) => (
+ <div key={cycle.id} className="flex items-center justify-between p-2 border rounded">
+ <div>
+ <p className="font-medium">{cycle.cycleName}</p>
+ <p className="text-sm text-muted-foreground">
+ {cycle.startDate ? format(new Date(cycle.startDate), "MMM dd") : 'N/A'} – {cycle.endDate ? format(new Date(cycle.endDate), "MMM dd, yyyy") : 'N/A'}
+ </p>
+ </div>
+ <Badge variant={cycle.status === 'active' ? "default" : "secondary"}>
+ {cycle.status}
+ </Badge>
+ </div>
+ ))
+ )}
+ </div>
+ </CardContent>
+ </Card>
+
+ </div>
+ </TabsContent>
+ </Tabs>
+
+ {/* ── Edit Utility Bill Dialog ── */}
+ {editBill && (
+ <Dialog open={!!editBill} onOpenChange={open => { if (!open) setEditBill(null); }}>
+   <DialogContent>
+     <DialogHeader>
+       <DialogTitle>Edit Utility Bill</DialogTitle>
+       <DialogDescription>
+         {editBill.status !== "pending" ? "Some fields are locked for non-pending bills. You can still update status, notes and paid date." : "Edit the bill details below."}
+       </DialogDescription>
+     </DialogHeader>
+     <div className="space-y-4 pt-2">
+       <div>
+         <Label>Bill #</Label>
+         <Input value={editBill.billNumber || ""} disabled={editBill.status !== "pending"}
+           onChange={e => setEditBill(b => b ? { ...b, billNumber: e.target.value } : b)} />
+       </div>
+       <div className="grid grid-cols-2 gap-3">
+         <div>
+           <Label>Amount (KSh)</Label>
+           <Input type="number" value={editBill.amount} disabled={editBill.status !== "pending"}
+             onChange={e => setEditBill(b => b ? { ...b, amount: e.target.value } : b)} />
+         </div>
+         <div>
+           <Label>Units Consumed</Label>
+           <Input value={editBill.unitsConsumed || ""} disabled={editBill.status !== "pending"}
+             onChange={e => setEditBill(b => b ? { ...b, unitsConsumed: e.target.value } : b)} />
+         </div>
+       </div>
+       <div>
+         <Label>Due Date</Label>
+         <Input type="date" value={editBill.dueDate ? editBill.dueDate.slice(0,10) : ""}
+           onChange={e => setEditBill(b => b ? { ...b, dueDate: e.target.value } : b)} />
+       </div>
+       <div>
+         <Label>Status</Label>
+         <Select value={editBill.status} onValueChange={v => setEditBill(b => b ? { ...b, status: v } : b)}>
+           <SelectTrigger><SelectValue /></SelectTrigger>
+           <SelectContent>
+             <SelectItem value="pending">Pending</SelectItem>
+             <SelectItem value="paid">Paid</SelectItem>
+             <SelectItem value="overdue">Overdue</SelectItem>
+             <SelectItem value="cancelled">Cancelled</SelectItem>
+           </SelectContent>
+         </Select>
+       </div>
+       {(editBill.status === "paid" || editBill.status === "cancelled") && (
+         <div>
+           <Label>Paid Date</Label>
+           <Input type="date" value={editBill.paidDate ? editBill.paidDate.slice(0,10) : ""}
+             onChange={e => setEditBill(b => b ? { ...b, paidDate: e.target.value } : b)} />
+         </div>
+       )}
+       <div>
+         <Label>Notes</Label>
+         <Input value={editBill.notes || ""}
+           onChange={e => setEditBill(b => b ? { ...b, notes: e.target.value } : b)} />
+       </div>
+       <div className="flex justify-end gap-2 pt-2">
+         <Button variant="outline" onClick={() => setEditBill(null)}>Cancel</Button>
+         <Button disabled={updateUtilityBillMutation.isPending}
+           onClick={() => updateUtilityBillMutation.mutate({ id: editBill.id, data: {
+             billNumber: editBill.billNumber,
+             amount: editBill.amount,
+             unitsConsumed: editBill.unitsConsumed,
+             dueDate: editBill.dueDate,
+             status: editBill.status,
+             paidDate: editBill.paidDate,
+             notes: editBill.notes,
+           } })}>
+           {updateUtilityBillMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+           Save Changes
+         </Button>
+       </div>
+     </div>
+   </DialogContent>
+ </Dialog>
+ )}
+
+ {/* ── Edit Recurring Charge Dialog ── */}
+ {editCharge && (
+ <Dialog open={!!editCharge} onOpenChange={open => { if (!open) setEditCharge(null); }}>
+   <DialogContent>
+     <DialogHeader>
+       <DialogTitle>Edit Recurring Charge</DialogTitle>
+       <DialogDescription>Update this recurring charge. All fields are editable.</DialogDescription>
+     </DialogHeader>
+     <div className="space-y-4 pt-2">
+       <div>
+         <Label>Charge Name</Label>
+         <Input value={editCharge.chargeName}
+           onChange={e => setEditCharge(c => c ? { ...c, chargeName: e.target.value, name: e.target.value } : c)} />
+       </div>
+       <div className="grid grid-cols-2 gap-3">
+         <div>
+           <Label>Amount (KSh)</Label>
+           <Input type="number" value={editCharge.amount}
+             onChange={e => setEditCharge(c => c ? { ...c, amount: parseFloat(e.target.value) } : c)} />
+         </div>
+         <div>
+           <Label>Frequency</Label>
+           <Select value={editCharge.frequency} onValueChange={v => setEditCharge(c => c ? { ...c, frequency: v } : c)}>
+             <SelectTrigger><SelectValue /></SelectTrigger>
+             <SelectContent>
+               <SelectItem value="weekly">Weekly</SelectItem>
+               <SelectItem value="monthly">Monthly</SelectItem>
+               <SelectItem value="quarterly">Quarterly</SelectItem>
+               <SelectItem value="annually">Annually</SelectItem>
+             </SelectContent>
+           </Select>
+         </div>
+       </div>
+       <div>
+         <Label>Next Charge Date</Label>
+         <Input type="date" value={editCharge.nextChargeDate ? editCharge.nextChargeDate.slice(0,10) : ""}
+           onChange={e => setEditCharge(c => c ? { ...c, nextChargeDate: e.target.value, nextBillDate: e.target.value } : c)} />
+       </div>
+       <div>
+         <Label>End Date (optional)</Label>
+         <Input type="date" value={editCharge.endDate ? editCharge.endDate.slice(0,10) : ""}
+           onChange={e => setEditCharge(c => c ? { ...c, endDate: e.target.value || undefined } : c)} />
+       </div>
+       <div className="flex items-center gap-3">
+         <Label>Active</Label>
+         <input type="checkbox" checked={editCharge.isActive}
+           onChange={e => setEditCharge(c => c ? { ...c, isActive: e.target.checked } : c)}
+           className="h-4 w-4" />
+       </div>
+       <div>
+         <Label>Description</Label>
+         <Input value={editCharge.description || ""}
+           onChange={e => setEditCharge(c => c ? { ...c, description: e.target.value } : c)} />
+       </div>
+       <div className="flex justify-end gap-2 pt-2">
+         <Button variant="outline" onClick={() => setEditCharge(null)}>Cancel</Button>
+         <Button disabled={updateRecurringChargeMutation.isPending}
+           onClick={() => updateRecurringChargeMutation.mutate({ id: editCharge.id, data: {
+             chargeName: editCharge.chargeName,
+             chargeType: editCharge.chargeType,
+             amount: editCharge.amount,
+             frequency: editCharge.frequency,
+             nextChargeDate: editCharge.nextChargeDate,
+             endDate: editCharge.endDate,
+             isActive: editCharge.isActive,
+             description: editCharge.description,
+           } })}>
+           {updateRecurringChargeMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+           Save Changes
+         </Button>
+       </div>
+     </div>
+   </DialogContent>
+ </Dialog>
+ )}
+
+ {/* ── Edit Invoice Dialog ── */}
+ {editInvoice && (
+ <Dialog open={!!editInvoice} onOpenChange={open => { if (!open) setEditInvoice(null); }}>
+   <DialogContent>
+     <DialogHeader>
+       <DialogTitle>Edit Invoice {editInvoice.invoiceNumber}</DialogTitle>
+       <DialogDescription>
+         {editInvoice.status !== "pending" ? "Amount is locked for non-pending invoices. You can update status, due date and description." : "Edit the invoice details below."}
+       </DialogDescription>
+     </DialogHeader>
+     <div className="space-y-4 pt-2">
+       <div>
+         <Label>Amount (KSh)</Label>
+         <Input type="number" value={editInvoice.amount} disabled={editInvoice.status !== "pending"}
+           onChange={e => setEditInvoice(i => i ? { ...i, amount: parseFloat(e.target.value) } : i)} />
+       </div>
+       <div>
+         <Label>Due Date</Label>
+         <Input type="date" value={editInvoice.dueDate ? editInvoice.dueDate.slice(0,10) : ""}
+           onChange={e => setEditInvoice(i => i ? { ...i, dueDate: e.target.value } : i)} />
+       </div>
+       <div>
+         <Label>Status</Label>
+         <Select value={editInvoice.status} onValueChange={v => setEditInvoice(i => i ? { ...i, status: v } : i)}>
+           <SelectTrigger><SelectValue /></SelectTrigger>
+           <SelectContent>
+             <SelectItem value="pending">Pending</SelectItem>
+             <SelectItem value="paid">Paid</SelectItem>
+             <SelectItem value="overdue">Overdue</SelectItem>
+             <SelectItem value="cancelled">Cancelled</SelectItem>
+           </SelectContent>
+         </Select>
+       </div>
+       <div>
+         <Label>Description</Label>
+         <Input value={editInvoice.description || ""}
+           onChange={e => setEditInvoice(i => i ? { ...i, description: e.target.value } : i)} />
+       </div>
+       <div className="flex justify-end gap-2 pt-2">
+         <Button variant="outline" onClick={() => setEditInvoice(null)}>Cancel</Button>
+         <Button disabled={updateInvoiceMutation.isPending}
+           onClick={() => updateInvoiceMutation.mutate({ id: editInvoice.id, data: { amount: editInvoice.amount, dueDate: editInvoice.dueDate, status: editInvoice.status, description: editInvoice.description } })}>
+           {updateInvoiceMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+           Save Changes
+         </Button>
+       </div>
+     </div>
+   </DialogContent>
+ </Dialog>
+ )}
+
+ </div>
+ );
+}
