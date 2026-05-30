@@ -310,8 +310,8 @@ export default function AuthPage() {
               </p>
             </div>
 
-            {/* Tab toggle */}
-            <div className="flex bg-slate-100 rounded-xl p-1">
+            {/* Tab toggle — signup disabled, admin creates accounts manually */}
+            {/* <div className="flex bg-slate-100 rounded-xl p-1">
               {(["login", "signup"] as const).map(t => (
                 <button
                   key={t}
@@ -325,7 +325,7 @@ export default function AuthPage() {
                   {t === "login" ? "Sign in" : "Sign up"}
                 </button>
               ))}
-            </div>
+            </div> */}
 
             {/* ── Login form ── */}
             {tab === "login" && (
@@ -370,8 +370,8 @@ export default function AuthPage() {
               </form>
             )}
 
-            {/* ── Signup form ── */}
-            {tab === "signup" && (
+            {/* ── Signup form — disabled, admin creates accounts via User Management ── */}
+            {false && tab === "signup" && (
               <form onSubmit={e => { e.preventDefault(); signupMutation.mutate(signupData); }} className="space-y-4">
                 <div className="grid grid-cols-2 gap-3">
                   <Field label="First name"  value={signupData.firstName}  onChange={setSignup("firstName")}  placeholder="Wanjiru"  icon={User} />

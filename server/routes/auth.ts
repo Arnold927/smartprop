@@ -162,7 +162,20 @@ function sanitizeUser(user: any) {
 }
 
 // POST /api/auth/signup
+// Public signup is disabled — accounts are created by admins via User Management.
+// Remove this block to re-enable self-service registration.
 router.post("/signup", async (req, res) => {
+  // Check if any organization exists — if yes, block public signup
+  try {
+    const [anyOrg] = await db.select({ id: organizations.id }).from(organizations).limit(1);
+    if (anyOrg) {
+      return res.status(403).json({
+        message: "Public registration is disabled. Please contact your administrator to create an account.",
+      });
+    }
+  } catch {
+    // If DB check fails, allow first signup to proceed
+  }
   try {
     const { firstName, lastName, email, password, organizationName, phoneNumber } = req.body;
 

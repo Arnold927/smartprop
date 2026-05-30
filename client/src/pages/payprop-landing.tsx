@@ -988,8 +988,8 @@ function Contact() {
               </Button>
             </a>
             <a href="mailto:noreply@smartprop.co.ke">
-              <Button size="sm" variant="outline"
-                className="border-white/20 text-white hover:text-white hover:border-white/40 gap-2 w-full sm:w-auto">
+              <Button size="sm"
+                className="bg-transparent border border-white/30 text-white hover:bg-white/10 hover:border-white/50 gap-2 w-full sm:w-auto">
                 <Mail className="w-4 h-4" /> Email Us
               </Button>
             </a>
