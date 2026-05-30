@@ -315,6 +315,23 @@ function NotificationBell() {
   );
 }
 
+
+// ── Role-based avatar colours (all emerald shades) ────────────────────────
+const ROLE_AVATAR: Record<string, { bg: string; label: string }> = {
+  admin:       { bg: "from-emerald-700 to-emerald-900", label: "Admin"       },
+  manager:     { bg: "from-emerald-500 to-emerald-700", label: "Manager"     },
+  landlord:    { bg: "from-teal-500    to-teal-700",    label: "Landlord"    },
+  staff:       { bg: "from-emerald-400 to-emerald-600", label: "Staff"       },
+  caretaker:   { bg: "from-emerald-300 to-emerald-500", label: "Caretaker"   },
+  tenant:      { bg: "from-green-400   to-green-600",   label: "Tenant"      },
+  guard:       { bg: "from-lime-500    to-lime-700",    label: "Guard"       },
+  contractor:  { bg: "from-teal-400    to-teal-600",    label: "Contractor"  },
+};
+
+function getRoleAvatar(role?: string) {
+  return ROLE_AVATAR[role ?? ""] ?? { bg: "from-emerald-500 to-emerald-700", label: role ?? "User" };
+}
+
 // ── Main TopBar ────────────────────────────────────────────────────────────
 export default function TopBar() {
  const { user } = useAuth();
@@ -360,7 +377,7 @@ export default function TopBar() {
  <DropdownMenu>
  <DropdownMenuTrigger asChild>
  <Button variant="ghost" className="flex items-center gap-2 px-2 h-9 rounded-lg hover:bg-muted dark:hover:bg-gray-800">
- <div className="w-7 h-7 rounded-full bg-gradient-to-br from-blue-500 to-blue-700 flex items-center justify-center shadow-sm flex-shrink-0">
+ <div className={`w-7 h-7 rounded-full bg-gradient-to-br ${getRoleAvatar(user?.role).bg} flex items-center justify-center shadow-sm flex-shrink-0`}>
  <span className="text-white font-semibold text-xs">
  {user?.firstName?.[0] || "U"}{user?.lastName?.[0] || ""}
  </span>
@@ -374,7 +391,10 @@ export default function TopBar() {
  <DropdownMenuContent align="end" className="w-52 shadow-xl border-border dark:border-gray-700 rounded-xl">
  <div className="px-3 py-2 border-b border-border dark:border-gray-800" >
  <p className="text-sm font-semibold text-slate-900">{user?.firstName} {user?.lastName}</p>
- <p className="text-xs text-muted-foreground dark:text-muted-foreground capitalize mt-0.5">{user?.role}</p>
+ <p className="text-xs text-muted-foreground dark:text-muted-foreground capitalize mt-0.5 flex items-center gap-1.5">
+              <span className={`inline-block w-2 h-2 rounded-full bg-gradient-to-br ${getRoleAvatar(user?.role).bg}`} />
+              {getRoleAvatar(user?.role).label}
+            </p>
  </div>
  <DropdownMenuItem onClick={() => setLocation("/profile")} className="mt-1">
  <User className="mr-2 h-4 w-4" /> {t("common.profile")}
