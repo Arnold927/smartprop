@@ -1,18 +1,13 @@
 /**
- * AuthPage — redesigned login & signup
+ * AuthPage — login (v3)
  *
- * Visual language:
- *   Left panel  — deep slate hero with Nairobi property photography via
- *                 Unsplash source URL, brand story, trust signals
- *   Right panel — clean white form, Inter font, subtle inputs
- *
- * Design decisions:
- *   • Split-screen layout (60/40) — product story left, form right
- *   • Dark left panel grounds the brand as serious / enterprise
- *   • Trust bar: 500+ properties, 95.3% collection rate, KES 1B+ monthly
- *   • Logo mark: green accent on slate — matches Nyumba Zetu visual weight
- *   • Form: labeled inputs with floating icons, primary CTA is emerald green
- *   • No decorative gradients — clean, direct, professional
+ * Fixes over v2:
+ *  - Removed all unused sp-ui imports
+ *  - Sharper, Kenya-specific left panel copy
+ *  - Spinner replaced with a proper animated element
+ *  - Remember me row given proper spacing and layout
+ *  - Mobile panel gains trust signals below the form
+ *  - "Learn more" link repositioned and styled as a real nav element
  */
 
 import { useState } from "react";
@@ -23,11 +18,11 @@ import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import {
   Eye, EyeOff, Mail, Lock, User, Building2,
-  Phone, CheckCircle, ArrowRight, Shield, Smartphone, FileText, Bell,
+  Phone, ArrowRight, Shield, Smartphone, FileText,
+  Scale, ShieldCheck, Loader2,
 } from "lucide-react";
 import { useMutation } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
-import { PageShell, PageHeader, SectionCard, SPBadge, EmptyState, PrimaryButton, SecondaryButton, FilterBar, SPTable, SPAvatar, StatTile, StatsGrid, KESAmount, ActionMenu, ConfirmDialog } from "@/components/ui/sp-ui";
 
 // ── SmartProp wordmark ────────────────────────────────────────────────────────
 function Wordmark({ white = false }: { white?: boolean }) {
@@ -43,7 +38,7 @@ function Wordmark({ white = false }: { white?: boolean }) {
   );
 }
 
-// ── Feature card ─────────────────────────────────────────────────────────────
+// ── Feature card ──────────────────────────────────────────────────────────────
 function FeatureCard({ icon: Icon, title, desc }: { icon: any; title: string; desc: string }) {
   return (
     <div className="flex items-start gap-3.5 p-4 rounded-xl bg-white/5 border border-white/10 hover:bg-white/8 transition-colors">
@@ -121,6 +116,29 @@ function PasswordRequirements({ password }: { password: string }) {
   );
 }
 
+// ── Mobile trust strip ────────────────────────────────────────────────────────
+function MobileTrustStrip() {
+  return (
+    <div className="lg:hidden mt-6 pt-6 border-t border-slate-100">
+      <div className="grid grid-cols-3 gap-3">
+        {[
+          { icon: Smartphone, label: "M-Pesa C2B",      sub: "Auto-reconciled" },
+          { icon: Scale,      label: "KRA eTIMS",        sub: "Every invoice" },
+          { icon: ShieldCheck,label: "ODPC compliant",   sub: "Data encrypted" },
+        ].map(({ icon: Icon, label, sub }) => (
+          <div key={label} className="flex flex-col items-center text-center gap-1.5 p-3 rounded-xl bg-slate-50 border border-slate-100">
+            <div className="w-8 h-8 rounded-lg bg-emerald-50 flex items-center justify-center">
+              <Icon className="w-4 h-4 text-emerald-600" />
+            </div>
+            <p className="text-xs font-semibold text-slate-700 leading-tight">{label}</p>
+            <p className="text-[10px] text-slate-400 leading-tight">{sub}</p>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 // ══════════════════════════════════════════════════════════════════════════════
 // Main
 // ══════════════════════════════════════════════════════════════════════════════
@@ -163,7 +181,6 @@ export default function AuthPage() {
       const refresh = data.refreshToken || data.refresh_token || data.refresh;
       const remember = data.rememberMe ?? loginData.rememberMe;
       const store = remember ? localStorage : sessionStorage;
-      // Clear the other storage to avoid stale tokens
       if (remember) {
         sessionStorage.removeItem("access_token");
         sessionStorage.removeItem("refresh_token");
@@ -215,7 +232,6 @@ export default function AuthPage() {
     </button>
   );
 
-
   // ── Render ────────────────────────────────────────────────────────────────
   return (
     <div className="flex h-screen bg-white">
@@ -223,16 +239,13 @@ export default function AuthPage() {
       {/* ── Left panel — brand hero ── */}
       <div className="hidden lg:flex lg:w-[58%] relative flex-col justify-between p-10 bg-slate-900 h-screen sticky top-0 overflow-y-auto overscroll-contain">
 
-        {/* Backgrounds — clipped to panel via a contained absolute wrapper */}
+        {/* Backgrounds */}
         <div className="absolute inset-0 overflow-hidden pointer-events-none">
-          {/* Nairobi property photo */}
           <div
             className="absolute inset-0 bg-cover bg-center"
             style={{ backgroundImage: "url('https://images.unsplash.com/photo-1545324418-cc1a3fa10c00?w=1400&q=80')" }}
           />
-          {/* Dark overlay — keeps text readable, lets photo breathe */}
           <div className="absolute inset-0 bg-slate-900/75" />
-          {/* Subtle emerald tint at bottom */}
           <div className="absolute bottom-0 left-0 right-0 h-64 bg-gradient-to-t from-slate-900/60 to-transparent" />
         </div>
 
@@ -249,11 +262,14 @@ export default function AuthPage() {
               Built for Kenya. Works the way you do.
             </div>
             <h1 className="text-[2.6rem] font-bold text-white leading-[1.15] tracking-tight">
-              Your property, your lease,<br />
-              <span className="text-emerald-400">your numbers — all in one place.</span>
+              Every payment matched.<br />
+              Every tenant managed.<br />
+              <span className="text-emerald-400">Every KRA return ready.</span>
             </h1>
             <p className="text-white/55 text-base mt-4 leading-relaxed max-w-sm">
-              Whether you manage 200 units or just moved into one — SmartProp gives everyone on the property the same real-time picture. Payments, maintenance, documents, and compliance. No chasing, no confusion.
+              From M-Pesa C2B reconciliation to eTIMS invoices, digital leases to gate
+              security — SmartProp is the one system your whole team runs on.
+              No WhatsApp threads. No Excel arrears sheets. No audit panic.
             </p>
           </div>
 
@@ -262,17 +278,17 @@ export default function AuthPage() {
             <FeatureCard
               icon={Smartphone}
               title="M-Pesa rent collection, automated"
-              desc="Tenants pay via STK push or Paybill. Payments reconcile instantly — no manual matching, no missed deposits."
+              desc="Tenants pay via STK push or Paybill. Every payment auto-matched to the right unit — no copy-pasting, no midnight phone checks."
             />
             <FeatureCard
-              icon={Bell}
-              title="Know who owes you, the moment it's due"
-              desc="Automated reminders go out on WhatsApp and SMS. Arrears reports update in real time. No awkward phone calls."
+              icon={Scale}
+              title="All 7 KRA obligations — covered"
+              desc="eTIMS invoices, WHT at 10%/30%, Stamp Duty, CGT, CBK deposit interest, ARMA, and RRT. Maintained in real time, ready for iTax."
             />
             <FeatureCard
               icon={FileText}
-              title="KRA-ready invoices, generated for you"
-              desc="eTIMS-compliant e-invoices for every payment. Rental income returns pre-filled. Audit season stops being a crisis."
+              title="Every role gets their own portal"
+              desc="Manager, landlord, tenant, guard, caretaker, staff, contractor — each person sees exactly what they need and nothing more."
             />
           </div>
         </div>
@@ -290,8 +306,14 @@ export default function AuthPage() {
       <div className="flex-1 flex flex-col bg-background h-screen overflow-y-auto overscroll-contain">
 
         {/* Mobile logo */}
-        <div className="lg:hidden flex items-center justify-between px-6 py-4 border-b border-slate-100" >
+        <div className="lg:hidden flex items-center justify-between px-6 py-4 border-b border-slate-100">
           <Wordmark />
+          <a
+            href="/payprop-landing"
+            className="text-xs text-slate-400 hover:text-emerald-600 transition-colors font-medium"
+          >
+            Learn more →
+          </a>
         </div>
 
         <div className="flex flex-col items-center justify-center px-6 py-8 flex-grow">
@@ -310,26 +332,12 @@ export default function AuthPage() {
               </p>
             </div>
 
-            {/* Tab toggle — signup disabled, admin creates accounts manually */}
-            {/* <div className="flex bg-slate-100 rounded-xl p-1">
-              {(["login", "signup"] as const).map(t => (
-                <button
-                  key={t}
-                  onClick={() => setTab(t)}
-                  className={`flex-1 py-2 text-sm font-medium rounded-lg transition-all ${
-                    tab === t
-                      ? "bg-white text-slate-900 shadow-sm"
-                      : "text-slate-500 hover:text-slate-700"
-                  }`}
-                >
-                  {t === "login" ? "Sign in" : "Sign up"}
-                </button>
-              ))}
-            </div> */}
-
             {/* ── Login form ── */}
             {tab === "login" && (
-              <form onSubmit={e => { e.preventDefault(); loginMutation.mutate(loginData); }} className="space-y-4">
+              <form
+                onSubmit={e => { e.preventDefault(); loginMutation.mutate(loginData); }}
+                className="space-y-4"
+              >
                 <Field
                   label="Email address" type="email"
                   value={loginData.email} onChange={setLogin("email")}
@@ -342,17 +350,22 @@ export default function AuthPage() {
                   action={eyeBtn(showPwd, () => setShowPwd(v => !v))}
                 />
 
-                <div className="flex items-center justify-between text-sm">
-                  <label className="flex items-center gap-2 text-slate-600 cursor-pointer">
+                {/* Remember me + forgot password — proper row */}
+                <div className="flex items-center justify-between pt-1">
+                  <label className="flex items-center gap-2 cursor-pointer select-none">
                     <input
                       type="checkbox"
                       checked={loginData.rememberMe}
                       onChange={e => setLogin("rememberMe")(e.target.checked)}
-                      className="rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
+                      className="w-4 h-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
                     />
-                    Remember me
+                    <span className="text-sm text-slate-600">Remember me</span>
                   </label>
-                  <button type="button" onClick={() => setLocation("/auth/forgot-password")} className="text-emerald-600 hover:text-emerald-700 font-medium">
+                  <button
+                    type="button"
+                    onClick={() => setLocation("/auth/forgot-password")}
+                    className="text-sm text-emerald-600 hover:text-emerald-700 font-medium transition-colors"
+                  >
                     Forgot password?
                   </button>
                 </div>
@@ -360,12 +373,19 @@ export default function AuthPage() {
                 <Button
                   type="submit"
                   disabled={loginMutation.isPending}
-                  className="w-full h-10 bg-emerald-600 hover:bg-emerald-700 text-white font-medium rounded-lg text-sm"
+                  className="w-full h-10 bg-emerald-600 hover:bg-emerald-700 text-white font-medium rounded-lg text-sm gap-2"
                 >
-                  {loginMutation.isPending
-                    ? <><span className="animate-spin mr-2">⟳</span>Signing in…</>
-                    : <><span>Sign in</span><ArrowRight className="w-4 h-4 ml-1.5" /></>
-                  }
+                  {loginMutation.isPending ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      Signing in…
+                    </>
+                  ) : (
+                    <>
+                      Sign in
+                      <ArrowRight className="w-4 h-4" />
+                    </>
+                  )}
                 </Button>
               </form>
             )}
@@ -395,7 +415,6 @@ export default function AuthPage() {
                   placeholder="Repeat password" icon={Lock}
                   action={eyeBtn(showConfirmPwd, () => setShowConfirmPwd(v => !v))}
                 />
-
                 <label className="flex items-start gap-2.5 text-sm text-slate-600 cursor-pointer">
                   <input
                     type="checkbox"
@@ -410,30 +429,32 @@ export default function AuthPage() {
                     <button type="button" className="text-emerald-600 hover:underline font-medium">Privacy Policy</button>
                   </span>
                 </label>
-
                 <Button
                   type="submit"
                   disabled={signupMutation.isPending}
-                  className="w-full h-10 bg-emerald-600 hover:bg-emerald-700 text-white font-medium rounded-lg text-sm"
+                  className="w-full h-10 bg-emerald-600 hover:bg-emerald-700 text-white font-medium rounded-lg text-sm gap-2"
                 >
-                  {signupMutation.isPending
-                    ? <><span className="animate-spin mr-2">⟳</span>Creating account…</>
-                    : <><span>Create account</span><ArrowRight className="w-4 h-4 ml-1.5" /></>
-                  }
+                  {signupMutation.isPending ? (
+                    <><Loader2 className="w-4 h-4 animate-spin" />Creating account…</>
+                  ) : (
+                    <><span>Create account</span><ArrowRight className="w-4 h-4" /></>
+                  )}
                 </Button>
               </form>
             )}
 
-            {/* Landing page link */}
-            <div className="text-center">
-              <button
-                type="button"
-                onClick={() => setLocation("/payprop-landing")}
-                className="inline-flex items-center gap-1.5 text-sm text-slate-500 hover:text-emerald-600 transition-colors font-medium"
+            {/* Mobile trust strip */}
+            <MobileTrustStrip />
+
+            {/* Landing page link — desktop only (mobile has it in header) */}
+            <div className="hidden lg:block text-center">
+              <a
+                href="/payprop-landing"
+                className="inline-flex items-center gap-1.5 text-sm text-slate-400 hover:text-emerald-600 transition-colors font-medium"
               >
                 <Building2 className="w-3.5 h-3.5" />
                 Learn more about SmartProp
-              </button>
+              </a>
             </div>
 
             {/* Footer */}
@@ -443,6 +464,7 @@ export default function AuthPage() {
               {" "}·{" "}
               <button className="underline hover:text-slate-600">Privacy</button>
             </p>
+
           </div>
         </div>
       </div>
