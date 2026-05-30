@@ -938,7 +938,7 @@ function Contact() {
           <div className="grid sm:grid-cols-3 gap-4 max-w-3xl mx-auto mb-10">
             {[
               { emoji: "💬", label: "WhatsApp", desc: "Message us to book a time", href: "https://wa.me/254759657590?text=Hi%2C%20I%27d%20like%20to%20book%20a%20SmartProp%20demo", cta: "Open WhatsApp" },
-              { emoji: "📧", label: "Email", desc: "We'll reply within a few hours", href: "mailto:noreply@send.smartprop.co.ke?subject=SmartProp Demo Request", cta: "Send Email" },
+              { emoji: "📧", label: "Email", desc: "We'll reply within a few hours", href: "mailto:noreply@smartprop.co.ke?subject=SmartProp Demo Request", cta: "Send Email" },
               { emoji: "📞", label: "Call us", desc: "+254 759 657 590", href: "tel:+254759657590", cta: "Call Now" },
             ].map(({ emoji, label, desc, href, cta }) => (
               <a key={label} href={href} target={href.startsWith("http") ? "_blank" : undefined}
@@ -987,10 +987,10 @@ function Contact() {
                 <Phone className="w-4 h-4" /> WhatsApp us
               </Button>
             </a>
-            <a href="mailto:noreply@send.smartprop.co.ke">
+            <a href="mailto:noreply@smartprop.co.ke">
               <Button size="sm" variant="outline"
                 className="border-white/20 text-white/70 hover:text-white hover:border-white/40 gap-2 w-full sm:w-auto">
-                <Mail className="w-4 h-4" /> noreply@send.smartprop.co.ke
+                <Mail className="w-4 h-4" /> noreply@smartprop.co.ke
               </Button>
             </a>
           </div>

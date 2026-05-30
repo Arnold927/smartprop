@@ -143,7 +143,7 @@ export async function sendPasswordResetEmail({
         <p>
           <a
             href="${resetLink}"
-            style="display:inline-block;padding:12px 24px;background-color:#2563eb;color:white;text-decoration:none;border-radius:6px;font-weight:bold;"
+            style="display:inline-block;padding:12px 24px;background-color:#059669;color:white;text-decoration:none;border-radius:6px;font-weight:bold;"
           >
             Reset Password
           </a>
@@ -181,12 +181,12 @@ export async function sendVerificationEmail({
     subject: `Verify your email for ${APP_NAME}`,
     html: `
       <div style="font-family: Arial, sans-serif; line-height: 1.6; max-width: 600px; margin: 0 auto;">
-        <h2 style="color: #2563eb;">Welcome to ${APP_NAME}!</h2>
+        <h2 style="color: #065f46;">Welcome to ${APP_NAME}!</h2>
         <p>Please verify your email address to complete your registration.</p>
         <p>
           <a
             href="${verificationLink}"
-            style="display:inline-block;padding:12px 24px;background-color:#2563eb;color:white;text-decoration:none;border-radius:6px;font-weight:bold;"
+            style="display:inline-block;padding:12px 24px;background-color:#059669;color:white;text-decoration:none;border-radius:6px;font-weight:bold;"
           >
             Verify Email
           </a>
