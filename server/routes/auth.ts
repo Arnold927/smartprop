@@ -315,7 +315,7 @@ router.post("/login", async (req, res) => {
     await clearFailedAttempts(user.id);
 
     const payload = buildTokenPayload(user);
-    const accessToken  = jwt.sign(payload, JWT_SECRET, { expiresIn: "15m" });
+    const accessToken  = jwt.sign(payload, JWT_SECRET, { expiresIn: "4h" });
     const refreshExpiry = rememberMe ? "30d" : "1d";
     const refreshToken = jwt.sign({ userId: user.id }, JWT_REFRESH_SECRET, { expiresIn: refreshExpiry });
 
@@ -400,7 +400,7 @@ router.post("/refresh", async (req, res) => {
       path: "/",
     });
 
-    const newAccessToken = jwt.sign(buildTokenPayload(user), JWT_SECRET, { expiresIn: "15m" });
+    const newAccessToken = jwt.sign(buildTokenPayload(user), JWT_SECRET, { expiresIn: "4h" });
 
     return res.json({
       success: true,
@@ -709,7 +709,7 @@ router.post("/mobile-refresh", async (req, res) => {
     }
 
     const payload     = buildTokenPayload(user);
-    const accessToken = jwt.sign(payload, JWT_SECRET, { expiresIn: "15m" });
+    const accessToken = jwt.sign(payload, JWT_SECRET, { expiresIn: "4h" });
 
     res.json({ success: true, accessToken });
   } catch (err: any) {
