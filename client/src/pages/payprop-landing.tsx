@@ -989,8 +989,8 @@ function Contact() {
             </a>
             <a href="mailto:noreply@smartprop.co.ke">
               <Button size="sm" variant="outline"
-                className="border-white/20 text-white/70 hover:text-white hover:border-white/40 gap-2 w-full sm:w-auto">
-                <Mail className="w-4 h-4" /> noreply@smartprop.co.ke
+                className="border-white/20 text-white hover:text-white hover:border-white/40 gap-2 w-full sm:w-auto">
+                <Mail className="w-4 h-4" /> Email Us
               </Button>
             </a>
           </div>
