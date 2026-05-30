@@ -165,7 +165,7 @@ export default function ComprehensiveTenantModal({ isOpen, onClose, properties: 
           <Card className="border-0 shadow-sm bg-card">
             <CardHeader className="pb-4 border-b border-border">
               <CardTitle className="flex items-center gap-2 text-lg font-semibold text-foreground">
-                <User className="h-5 w-5 text-blue-600" />
+                <User className="h-5 w-5 text-emerald-600" />
                 Tenant Information
               </CardTitle>
             </CardHeader>
@@ -203,7 +203,7 @@ export default function ComprehensiveTenantModal({ isOpen, onClose, properties: 
           <Card className="border-0 shadow-sm bg-card">
             <CardHeader className="pb-4 border-b border-border">
               <CardTitle className="flex items-center gap-2 text-lg font-semibold text-foreground">
-                <Building className="h-5 w-5 text-blue-600" />
+                <Building className="h-5 w-5 text-emerald-600" />
                 Property & Lease Information
               </CardTitle>
             </CardHeader>
@@ -285,7 +285,7 @@ export default function ComprehensiveTenantModal({ isOpen, onClose, properties: 
           <Card className="border-0 shadow-sm bg-card">
             <CardHeader className="pb-4 border-b border-border">
               <CardTitle className="flex items-center gap-2 text-lg font-semibold text-foreground">
-                <Zap className="h-5 w-5 text-blue-600" />
+                <Zap className="h-5 w-5 text-emerald-600" />
                 Utility Baseline Meter Readings
               </CardTitle>
             </CardHeader>
@@ -331,7 +331,7 @@ export default function ComprehensiveTenantModal({ isOpen, onClose, properties: 
           <Card className="border-0 shadow-sm bg-card">
             <CardHeader className="pb-4 border-b border-border">
               <CardTitle className="flex items-center gap-2 text-lg font-semibold text-foreground">
-                <Receipt className="h-5 w-5 text-blue-600" />
+                <Receipt className="h-5 w-5 text-emerald-600" />
                 Agreed Rates & Charges (KES)
               </CardTitle>
             </CardHeader>
@@ -368,7 +368,7 @@ export default function ComprehensiveTenantModal({ isOpen, onClose, properties: 
           <Card className="border-0 shadow-sm bg-card">
             <CardHeader className="pb-4 border-b border-border">
               <CardTitle className="flex items-center gap-2 text-lg font-semibold text-foreground">
-                <CreditCard className="h-5 w-5 text-blue-600" />
+                <CreditCard className="h-5 w-5 text-emerald-600" />
                 Payment Information
               </CardTitle>
             </CardHeader>
@@ -441,7 +441,7 @@ export default function ComprehensiveTenantModal({ isOpen, onClose, properties: 
           <Card className="border-0 shadow-sm bg-card">
             <CardHeader className="pb-4 border-b border-border">
               <CardTitle className="flex items-center gap-2 text-lg font-semibold text-foreground">
-                <FileText className="h-5 w-5 text-blue-600" />
+                <FileText className="h-5 w-5 text-emerald-600" />
                 Notes & Special Agreements
               </CardTitle>
             </CardHeader>
@@ -459,7 +459,7 @@ export default function ComprehensiveTenantModal({ isOpen, onClose, properties: 
             <Button type="button" variant="outline" onClick={handleClose}>Cancel</Button>
             <Button
               type="submit"
-              className="px-8 bg-blue-600 hover:bg-blue-700 text-white"
+              className="px-8 bg-emerald-600 hover:bg-emerald-700 text-white"
               disabled={isSubmitting}
             >
               <Save className="h-4 w-4 mr-2" />
