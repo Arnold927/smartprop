@@ -46,9 +46,17 @@ export default defineConfig({
             return "vendor-charts";
           }
 
-          if (id.includes("node_modules/react") ||
+          // React MUST be in a single chunk — duplicating React breaks hooks
+          if (id.includes("node_modules/react-dom") ||
+              id.includes("node_modules/react/") ||
+              id.includes("node_modules/react-is") ||
               id.includes("node_modules/scheduler")) {
             return "vendor-react";
+          }
+
+          if (id.includes("node_modules/react-hook-form") ||
+              id.includes("node_modules/@hookform")) {
+            return "vendor-forms";
           }
 
           if (id.includes("node_modules/@tanstack")) {
@@ -63,9 +71,7 @@ export default defineConfig({
             return "vendor-dates";
           }
 
-          if (id.includes("node_modules/zod") ||
-              id.includes("node_modules/@hookform") ||
-              id.includes("node_modules/react-hook-form")) {
+          if (id.includes("node_modules/zod")) {
             return "vendor-forms";
           }
 
