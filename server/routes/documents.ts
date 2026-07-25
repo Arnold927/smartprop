@@ -12,10 +12,10 @@
 import { Router } from "express";
 import { db } from "../db";
 import {
-  documents, tenants, properties,
+  documents, tenants, properties, units,
   insertDocumentSchema,
 } from "@shared/schema";
-import { eq, and, or, count } from "drizzle-orm";
+import { eq, and, or, count, inArray, sql } from "drizzle-orm";
 import { authenticateJWT } from "../middleware/auth";
 import { auditLog } from "../middleware/auditLog";
 import { requireOrg } from "../middleware/requireOrg";
@@ -73,6 +73,32 @@ router.get("/", authenticateJWT, requireOrg, async (req: any, res) => {
     const conditions: any[] = [orgDocCondition(orgId)];
     if (tenantId)   conditions.push(eq(documents.tenantId,   tenantId));
     if (propertyId) conditions.push(eq(documents.propertyId, propertyId));
+
+    // Landlords only ever see documents tied to their own properties —
+    // previously this endpoint only scoped by org, so a landlord saw every
+    // document in the org (leases, ID scans, everything) regardless of
+    // whose property or tenant it belonged to. A document can be linked
+    // either via tenantId or directly via propertyId, so both paths are
+    // covered here.
+    if (role === "landlord") {
+      const ownedProps = await db.select({ id: properties.id }).from(properties).where(and(eq(properties.organizationId, orgId), eq(properties.ownerId, req.user.id)));
+      const ownedPropIds = ownedProps.map(p => p.id);
+
+      const ownedTenants = ownedPropIds.length > 0
+        ? await db.select({ id: tenants.id }).from(tenants).innerJoin(units, eq(tenants.unitId, units.id)).where(inArray(units.propertyId, ownedPropIds))
+        : [];
+      const ownedTenantIds = ownedTenants.map(t => t.id);
+
+      if (ownedPropIds.length === 0 && ownedTenantIds.length === 0) {
+        return res.json({ count: 0, page, limit, next: null, previous: null, results: [] });
+      }
+      conditions.push(
+        or(
+          ownedPropIds.length   > 0 ? inArray(documents.propertyId, ownedPropIds)   : sql`false`,
+          ownedTenantIds.length > 0 ? inArray(documents.tenantId,   ownedTenantIds) : sql`false`,
+        )
+      );
+    }
 
     const [rows, [{ total }]] = await Promise.all([
       db
@@ -178,10 +204,54 @@ router.post("/upload", authenticateJWT, requireOrg, upload.single("file"), audit
 });
 
 // ── GET /api/documents/:id/download ──────────────────────────────────────────
+/** Resolves whether the caller may access a specific document — org-scoped
+ *  always, plus tenant self-ownership or landlord property-ownership on top
+ *  when applicable. Previously GET /:id/download and DELETE /:id only
+ *  checked org membership, so a tenant could download/delete another
+ *  tenant's private documents by id, and a landlord could reach any other
+ *  landlord's, despite the list view (GET /) already correctly scoping both. */
+async function resolveDocumentAccess(docId: number, req: any): Promise<boolean> {
+  const orgId: number = req.user.organizationId;
+  const role: string  = req.user.role ?? "";
+
+  const [row] = await db
+    .select({ id: documents.id, tenantId: documents.tenantId, propertyId: documents.propertyId })
+    .from(documents)
+    .leftJoin(tenants,    eq(documents.tenantId,   tenants.id))
+    .leftJoin(properties, eq(documents.propertyId, properties.id))
+    .where(and(eq(documents.id, docId), orgDocCondition(orgId)))
+    .limit(1);
+  if (!row) return false;
+
+  if (role === "tenant") {
+    const [own] = await db.select({ id: tenants.id }).from(tenants).where(eq(tenants.userId, req.user.id)).limit(1);
+    return !!own && row.tenantId === own.id;
+  }
+
+  if (role === "landlord") {
+    let propertyId = row.propertyId ?? undefined;
+    if (!propertyId && row.tenantId) {
+      const [tenant] = await db.select({ unitId: tenants.unitId }).from(tenants).where(eq(tenants.id, row.tenantId)).limit(1);
+      if (tenant?.unitId) {
+        const [unit] = await db.select({ propertyId: units.propertyId }).from(units).where(eq(units.id, tenant.unitId)).limit(1);
+        propertyId = unit?.propertyId ?? undefined;
+      }
+    }
+    if (!propertyId) return false;
+    const [prop] = await db.select({ ownerId: properties.ownerId }).from(properties).where(eq(properties.id, propertyId)).limit(1);
+    return !!prop && prop.ownerId === req.user.id;
+  }
+
+  return true; // admin/manager/staff — org membership already confirmed above
+}
+
 router.get("/:id/download", authenticateJWT, requireOrg, async (req: any, res) => {
   try {
     const id    = Number(req.params.id);
     const orgId: number = req.user.organizationId;
+
+    const allowed = await resolveDocumentAccess(id, req);
+    if (!allowed) return res.status(404).json({ message: "Document not found" });
 
     const [row] = await db
       .select({ doc: documents })
@@ -214,6 +284,9 @@ router.delete("/:id", authenticateJWT, requireOrg, auditLog("document", "DELETE"
   try {
     const id    = parseInt(req.params.id);
     const orgId: number = req.user.organizationId;
+
+    const allowed = await resolveDocumentAccess(id, req);
+    if (!allowed) return res.status(404).json({ message: "Document not found" });
 
     // Confirm ownership before deleting
     const [row] = await db

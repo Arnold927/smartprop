@@ -241,6 +241,19 @@ router.get("/:id", async (req: any, res) => {
 
     if (!row) return res.status(404).json({ message: "Lease not found" });
 
+    // Landlords may only view leases on properties they own — the list
+    // endpoint already filters this way; single-record fetch by id needs the
+    // same check or it could be bypassed just by knowing/guessing an id.
+    if (req.user.role === "landlord") {
+      const propertyId = (row.lease as any).propertyId;
+      const [prop] = propertyId
+        ? await db.select({ ownerId: properties.ownerId }).from(properties).where(eq(properties.id, propertyId)).limit(1)
+        : [undefined];
+      if (!prop || prop.ownerId !== req.user.id) {
+        return res.status(404).json({ message: "Lease not found" });
+      }
+    }
+
     const events  = await db
       .select()
       .from(leaseEvents)
@@ -417,6 +430,16 @@ router.patch("/:id", auditLog("lease", "UPDATE") as any, async (req: any, res) =
       .limit(1);
 
     if (!existing) return res.status(404).json({ message: "Lease not found" });
+
+    if (req.user.role === "landlord") {
+      const [prop] = existing.propertyId
+        ? await db.select({ ownerId: properties.ownerId }).from(properties).where(eq(properties.id, existing.propertyId)).limit(1)
+        : [undefined];
+      if (!prop || prop.ownerId !== userId) {
+        return res.status(404).json({ message: "Lease not found" });
+      }
+    }
+
     if (!["draft", "pending_signature"].includes(existing.status)) {
       return res.status(400).json({ message: `Cannot edit a lease in status: ${existing.status}` });
     }

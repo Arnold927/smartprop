@@ -34,7 +34,7 @@ import {
   insertVisitorSchema,
 } from "@shared/schema";
 import { db } from "../db";
-import { eq, and, desc, sql, inArray, desc } from "drizzle-orm";
+import { eq, and, sql, inArray, desc } from "drizzle-orm";
 import { authenticateJWT } from "../middleware/auth";
 import { requireOrg } from "../middleware/requireOrg";
 import {
@@ -115,16 +115,14 @@ expenseRouter.get("/:id", authenticateJWT, requireOrg, async (req: any, res) => 
   try {
     const orgId: number = req.user.organizationId;
     const id = parseInt(req.params.id);
+    const propCondition = req.user.role === "landlord"
+      ? and(eq(propertyExpenses.id, id), eq(properties.organizationId, orgId), eq(properties.ownerId, req.user.id))
+      : and(eq(propertyExpenses.id, id), eq(properties.organizationId, orgId));
     const [expense] = await db
       .select()
       .from(propertyExpenses)
       .innerJoin(properties, eq(propertyExpenses.propertyId, properties.id))
-      .where(
-        and(
-          eq(propertyExpenses.id, id),
-          eq(properties.organizationId, orgId)
-        )
-      )
+      .where(propCondition)
       .limit(1);
     if (!expense) return res.status(404).json({ message: "Expense not found" });
     res.json((expense as any).property_expenses ?? expense);
@@ -137,11 +135,15 @@ expenseRouter.post("/", authenticateJWT, requireOrg, async (req: any, res) => {
   try {
     const orgId: number = req.user.organizationId;
     const propertyId = parseInt(req.body.propertyId);
-    // Ownership check: ensure the property belongs to this org
+    // Ownership check: property must belong to this org (and, for a
+    // landlord, to them specifically).
+    const propCondition = req.user.role === "landlord"
+      ? and(eq(properties.id, propertyId), eq(properties.organizationId, orgId), eq(properties.ownerId, req.user.id))
+      : and(eq(properties.id, propertyId), eq(properties.organizationId, orgId));
     const [prop] = await db
       .select({ id: properties.id })
       .from(properties)
-      .where(and(eq(properties.id, propertyId), eq(properties.organizationId, orgId)))
+      .where(propCondition)
       .limit(1);
     if (!prop) return res.status(403).json({ message: "Property does not belong to your organisation" });
 
@@ -162,12 +164,15 @@ expenseRouter.put("/:id", authenticateJWT, requireOrg, async (req: any, res) => 
   try {
     const orgId: number = req.user.organizationId;
     const id = parseInt(req.params.id);
-    // Ownership check via property join
+    // Ownership check via property join (and, for a landlord, ownerId too)
+    const propCondition = req.user.role === "landlord"
+      ? and(eq(propertyExpenses.id, id), eq(properties.organizationId, orgId), eq(properties.ownerId, req.user.id))
+      : and(eq(propertyExpenses.id, id), eq(properties.organizationId, orgId));
     const [existing] = await db
       .select({ propertyId: propertyExpenses.propertyId })
       .from(propertyExpenses)
       .innerJoin(properties, eq(propertyExpenses.propertyId, properties.id))
-      .where(and(eq(propertyExpenses.id, id), eq(properties.organizationId, orgId)))
+      .where(propCondition)
       .limit(1);
     if (!existing) return res.status(404).json({ message: "Expense not found" });
 
@@ -186,11 +191,14 @@ expenseRouter.delete("/:id", authenticateJWT, requireOrg, async (req: any, res) 
   try {
     const orgId: number = req.user.organizationId;
     const id = parseInt(req.params.id);
+    const propCondition = req.user.role === "landlord"
+      ? and(eq(propertyExpenses.id, id), eq(properties.organizationId, orgId), eq(properties.ownerId, req.user.id))
+      : and(eq(propertyExpenses.id, id), eq(properties.organizationId, orgId));
     const [existing] = await db
       .select({ propertyId: propertyExpenses.propertyId })
       .from(propertyExpenses)
       .innerJoin(properties, eq(propertyExpenses.propertyId, properties.id))
-      .where(and(eq(propertyExpenses.id, id), eq(properties.organizationId, orgId)))
+      .where(propCondition)
       .limit(1);
     if (!existing) return res.status(404).json({ message: "Expense not found" });
     await db.delete(propertyExpenses).where(eq(propertyExpenses.id, id));

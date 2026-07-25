@@ -61,7 +61,7 @@ function fmtKES(amount: number | string, currency = "KES"): string {
 }
 
 /** Resolve full lease + related tenant / unit / property in one query */
-async function fetchLeaseContext(leaseId: number, orgId: number) {
+async function fetchLeaseContext(leaseId: number, orgId: number, callerRole?: string, callerUserId?: string) {
   const [lease] = await db
     .select()
     .from(leases)
@@ -71,6 +71,14 @@ async function fetchLeaseContext(leaseId: number, orgId: number) {
   const [tenant]   = lease.tenantId   ? await db.select().from(tenants).where(eq(tenants.id, lease.tenantId))           : [];
   const [unit]     = lease.unitId     ? await db.select().from(units).where(eq(units.id, lease.unitId))                 : [];
   const [property] = lease.propertyId ? await db.select().from(properties).where(eq(properties.id, lease.propertyId)) : [];
+
+  // Landlords may only generate/view RRT notices for leases on properties
+  // they own — previously unchecked, so a landlord could generate a
+  // legally-significant rent-increase or eviction notice against any lease
+  // in the org, including a different landlord's tenant.
+  if (callerRole === "landlord" && property?.ownerId !== callerUserId) {
+    return null;
+  }
 
   // Resolve owner name from users table via property.ownerId
   let ownerName = "Landlord";
@@ -534,7 +542,7 @@ router.post("/rent-increase", ...auth, async (req: any, res: any) => {
     }
 
     const orgId = req.user.organizationId as number;
-    const ctx = await fetchLeaseContext(Number(leaseId), orgId);
+    const ctx = await fetchLeaseContext(Number(leaseId), orgId, req.user.role, req.user.id);
     if (!ctx) return res.status(404).json({ message: "Lease not found" });
 
     const { lease, tenant, unit, property, ownerName } = ctx;
@@ -609,7 +617,7 @@ router.post("/eviction-notice", ...auth, async (req: any, res: any) => {
     }
 
     const orgId = req.user.organizationId as number;
-    const ctx = await fetchLeaseContext(Number(leaseId), orgId);
+    const ctx = await fetchLeaseContext(Number(leaseId), orgId, req.user.role, req.user.id);
     if (!ctx) return res.status(404).json({ message: "Lease not found" });
 
     const { lease, tenant, unit, property, ownerName } = ctx;
@@ -689,6 +697,21 @@ router.get("/notices/:leaseId", ...auth, async (req: any, res: any) => {
   try {
     const leaseId = Number(req.params.leaseId);
     const orgId   = req.user.organizationId as number;
+
+    // Same landlord ownership rule as rent-increase/eviction-notice above —
+    // this route uses its own separate lookup (not fetchLeaseContext), so it
+    // needs its own check rather than inheriting theirs.
+    const [lease] = await db.select({ id: leases.id, propertyId: leases.propertyId }).from(leases).where(and(eq(leases.id, leaseId), eq(leases.organizationId, orgId))).limit(1);
+    if (!lease) return res.status(404).json({ message: "Lease not found" });
+
+    if (req.user.role === "landlord") {
+      const [prop] = lease.propertyId
+        ? await db.select({ ownerId: properties.ownerId }).from(properties).where(eq(properties.id, lease.propertyId)).limit(1)
+        : [undefined];
+      if (!prop || prop.ownerId !== req.user.id) {
+        return res.status(404).json({ message: "Lease not found" });
+      }
+    }
 
     const events = await db
       .select()
