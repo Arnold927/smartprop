@@ -231,13 +231,17 @@ router.patch("/:id/feedback", auditLog("maintenance_request", "ACTION"), async (
     const orgId: number = req.user.organizationId;
     const role: string  = req.user.role ?? "";
 
+    // maintenance_requests has no organizationId column of its own — scope
+    // via its unitId join to units.organizationId, same pattern used in
+    // maintenance-item-guard.ts and maintenanceListRouter's GET /.
     const [existing] = await db
-      .select({ id: maintenanceRequests.id, tenantId: maintenanceRequests.tenantId, organizationId: maintenanceRequests.organizationId })
+      .select({ id: maintenanceRequests.id, tenantId: maintenanceRequests.tenantId, unitOrgId: units.organizationId })
       .from(maintenanceRequests)
+      .innerJoin(units, eq(maintenanceRequests.unitId, units.id))
       .where(eq(maintenanceRequests.id, id))
       .limit(1);
 
-    if (!existing || existing.organizationId !== orgId) {
+    if (!existing || existing.unitOrgId !== orgId) {
       return res.status(404).json({ message: "Maintenance request not found" });
     }
 
