@@ -133,7 +133,11 @@ export default function PropertyDetailsPage() {
 
   const { property, isLoading, updateUnitStatusMutation } = usePropertyDetails(propertyId);
   const { user } = useAuth();
-  const isManager = user?.role === "admin" || user?.role === "manager";
+  // Previously admin/manager only, on the assumption a PM always handles this.
+  // Landlords self-manage in many cases, and /api/tenants already allows the
+  // landlord role server-side (see STAFF_AND_ABOVE in requireRole.ts) — this
+  // was purely a frontend restriction with no matching backend enforcement.
+  const isManager = user?.role === "admin" || user?.role === "manager" || user?.role === "landlord";
   const queryClient = useQueryClient();
   const organizationId = user?.organizationId ?? 0;
 

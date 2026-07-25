@@ -13,7 +13,7 @@ interface PropertyHeaderProps {
   onAddTenant: () => void;
   onEdit?: () => void;
   onDelete?: () => void;
-  isManager?: boolean; // if false (landlord), hide add-unit and add-tenant buttons
+  isManager?: boolean; // true for admin/manager/landlord — controls add-unit/add-tenant buttons; false hides them (e.g. staff, caretaker)
 }
 
 function fmt(n: number) {
@@ -108,7 +108,8 @@ export function PropertyHeader({ property, onAddUnit, onAddTenant, onEdit, onDel
             </div>
           </div>
 
-          {/* Action buttons — manager/admin only; landlords view but cannot add units or tenants (PM does this) */}
+          {/* Action buttons — admin/manager, and landlords who self-manage (isManager
+              covers all three; see property-details.tsx for the exact role check) */}
           <div className="flex items-center gap-2 flex-shrink-0">
             {isManager && (
               <Button
