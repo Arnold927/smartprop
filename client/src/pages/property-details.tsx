@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react";
+import { useState } from "react";
 import { useRoute, useLocation, useSearch } from "wouter";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -137,15 +137,6 @@ export default function PropertyDetailsPage() {
 
   const { property, isLoading, updateUnitStatusMutation } = usePropertyDetails(propertyId, orgIdParam);
   const { user } = useAuth();
-
-  // The tab bar scrolls horizontally once it has more tabs than fit (see the
-  // Payments/Maintenance/Documents tabs added below) — force it to start at
-  // the very beginning rather than wherever the browser/Radix happens to
-  // leave it by default, which was cutting off the first tab's label.
-  const tabsListRef = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    tabsListRef.current?.scrollTo({ left: 0 });
-  }, [propertyId]);
 
   // Consolidated per-property data — so a manager (or landlord) can see
   // everything about this one property in a single place, instead of
@@ -341,7 +332,7 @@ export default function PropertyDetailsPage() {
 
       <div className="max-w-7xl mx-auto px-4 md:px-6 py-8">
         <Tabs defaultValue="units" className="space-y-6">
-          <TabsList ref={tabsListRef} className="bg-card dark:bg-gray-900 border border-border dark:border-gray-800 p-1 rounded-xl flex max-w-full overflow-x-auto scrollbar-thin">
+          <TabsList className="bg-card dark:bg-gray-900 border border-border dark:border-gray-800 p-1 rounded-xl flex flex-wrap h-auto gap-1">
             <TabsTrigger value="units" className="rounded-lg px-6 shrink-0">
               <LayoutGrid className="h-4 w-4 mr-2" /> Units
               <span className="ml-2 text-xs bg-muted dark:bg-gray-800 text-muted-foreground px-1.5 py-0.5 rounded-full">{units.length}</span>
