@@ -13,6 +13,7 @@ import { useAuth } from "@/hooks/useAuth";
 import React from "react";
 
 export type AppRole =
+  | "platform_admin"
   | "admin"
   | "manager"
   | "landlord"
@@ -24,6 +25,7 @@ export type AppRole =
 
 // Convenience role groups matching the server's ROUTE_POLICY
 export const ROLES = {
+  PLATFORM_ADMIN_ONLY:     ["platform_admin"] as AppRole[],
   ADMIN_ONLY:              ["admin"] as AppRole[],
   ADMIN_MANAGER:           ["admin", "manager"] as AppRole[],
   ADMIN_MANAGER_STAFF:     ["admin", "manager", "staff"] as AppRole[],
@@ -38,6 +40,7 @@ interface GuardResult {
   gate: React.ReactElement | null;
   user: ReturnType<typeof useAuth>["user"];
   role: AppRole | "";
+  isPlatformAdmin: boolean;
   isAdmin:    boolean;
   isManager:  boolean;
   isLandlord: boolean;
@@ -54,14 +57,15 @@ export function useRoleGuard(allowedRoles: AppRole[]): GuardResult {
   const { user, isLoading } = useAuth();
   const role = (user?.role ?? "") as AppRole | "";
 
+  const isPlatformAdmin = role === "platform_admin";
   const isAdmin     = role === "admin";
   const isManager   = role === "manager";
   const isLandlord  = role === "landlord";
   const isStaff     = role === "staff";
   const isCaretaker = role === "caretaker";
   const isTenant    = role === "tenant";
-  const canManage   = isAdmin || isManager;
-  const canOperate  = isAdmin || isManager || isStaff;
+  const canManage   = isPlatformAdmin || isAdmin || isManager;
+  const canOperate  = isPlatformAdmin || isAdmin || isManager || isStaff;
 
   let gate: React.ReactElement | null = null;
 
@@ -77,7 +81,7 @@ export function useRoleGuard(allowedRoles: AppRole[]): GuardResult {
       { className: "flex flex-col items-center justify-center min-h-[60vh] gap-3 text-center p-8" },
       React.createElement("p", { className: "text-lg font-semibold" }, "Please sign in to continue.")
     );
-  } else if (role && !allowedRoles.includes(role as AppRole)) {
+  } else if (role && role !== "platform_admin" && !allowedRoles.includes(role as AppRole)) {
     gate = React.createElement(
       "div",
       { className: "flex flex-col items-center justify-center min-h-[60vh] gap-4 text-center p-8" },
@@ -99,5 +103,5 @@ export function useRoleGuard(allowedRoles: AppRole[]): GuardResult {
     );
   }
 
-  return { gate, user, role, isAdmin, isManager, isLandlord, isStaff, isCaretaker, isTenant, canManage, canOperate };
+  return { gate, user, role, isPlatformAdmin, isAdmin, isManager, isLandlord, isStaff, isCaretaker, isTenant, canManage, canOperate };
 }

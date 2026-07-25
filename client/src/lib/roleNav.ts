@@ -372,8 +372,19 @@ const getContractorNav = (t: (k: string) => string): NavGroup[] => [
 ];
 
 // ─── Lookup ───────────────────────────────────────────────────────────────────
+// ─── Platform admin — deliberately minimal, not scoped to any organisation ───
+const getPlatformAdminNav = (t: (k: string) => string): NavGroup[] => [
+  {
+    label: t("nav.group_platform"),
+    items: [
+      { name: t("nav.organisations"), href: "/organisations", icon: Building },
+    ],
+  },
+];
+
 export function getNavForRole(role: string | undefined, t: (k: string) => string, isDiasporaBuyer = false): NavGroup[] {
   switch (role) {
+    case "platform_admin":  return getPlatformAdminNav(t);
     case "admin":           return getAdminNav(t);
     case "manager":         return getManagerNav(t);
     case "landlord":        return getLandlordNav(t);
@@ -389,6 +400,7 @@ export function getNavForRole(role: string | undefined, t: (k: string) => string
 
 export function getHomeForRole(role?: string): string {
   switch (role) {
+    case "platform_admin": return "/organisations";
     case "tenant":     return "/tenant-portal";
     case "landlord":   return "/landlord-portal";
     case "staff":      return "/staff-portal";
@@ -404,6 +416,7 @@ export function getHomeForRole(role?: string): string {
  * Prefix matching: "/properties" covers "/properties/123".
  */
 export const ROLE_ALLOWED_ROUTES: Record<string, string[]> = {
+  platform_admin: ["*"],
   admin: ["*"],
 
   manager: [

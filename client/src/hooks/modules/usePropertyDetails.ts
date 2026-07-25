@@ -1,15 +1,16 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { withOrgParam } from "@/lib/platformOrgContext";
 
-export function usePropertyDetails(id: string | undefined) {
+export function usePropertyDetails(id: string | undefined, orgIdParam?: string | null) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
   const { data: property, isLoading, error } = useQuery({
-    queryKey: [`/api/properties/${id}/full`],
+    queryKey: [`/api/properties/${id}/full`, orgIdParam],
     queryFn: async () => {
-      const res = await apiRequest(`/api/properties/${id}/full`);
+      const res = await apiRequest(withOrgParam(`/api/properties/${id}/full`, orgIdParam));
       return res.json();
     },
     enabled: !!id,

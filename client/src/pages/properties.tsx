@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useLocation } from "wouter";
+import { useLocation, useSearch } from "wouter";
+import { getOrgIdFromSearch, withOrgParam } from "@/lib/platformOrgContext";
 import { apiRequest, ensureArray } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import {
@@ -89,11 +90,13 @@ export default function Properties() {
   const [editingProperty, setEditingProperty] = useState<Property | null>(null);
   const { toast } = useToast();
   const [, navigate] = useLocation();
+  const search = useSearch();
+  const orgIdParam = getOrgIdFromSearch(search); // only meaningful for platform_admin
   const queryClient = useQueryClient();
 
   const { data: raw = [], isLoading } = useQuery<any>({
-    queryKey: ["/api/properties"],
-    queryFn: async () => { const r = await apiRequest("/api/properties"); return ensureArray(await r.json()); },
+    queryKey: ["/api/properties", orgIdParam],
+    queryFn: async () => { const r = await apiRequest(withOrgParam("/api/properties", orgIdParam)); return ensureArray(await r.json()); },
     staleTime: 5 * 60 * 1000,
   });
   const properties: Property[] = Array.isArray(raw) ? raw : (raw?.results ?? []);
@@ -294,7 +297,7 @@ export default function Properties() {
                     {/* Thumbnail */}
                     <div
                       className="h-44 relative overflow-hidden cursor-pointer"
-                      onClick={() => navigate(`/properties/${p.id}`)}
+                      onClick={() => navigate(withOrgParam(`/properties/${p.id}`, orgIdParam))}
                     >
                       {p.imageUrl ? (
                         <img src={p.imageUrl} alt={p.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
@@ -320,7 +323,7 @@ export default function Properties() {
                       <div className="flex items-start justify-between gap-2 mb-1">
                         <div
                           className="flex-1 min-w-0 cursor-pointer"
-                          onClick={() => navigate(`/properties/${p.id}`)}
+                          onClick={() => navigate(withOrgParam(`/properties/${p.id}`, orgIdParam))}
                         >
                           <h3 className="font-bold text-base text-foreground truncate leading-snug">{p.name}</h3>
                           <p className="text-xs text-muted-foreground flex items-center gap-1 mt-0.5 truncate">
@@ -334,7 +337,7 @@ export default function Properties() {
                             </Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end" className="w-40">
-                            <DropdownMenuItem onClick={() => navigate(`/properties/${p.id}`)}>
+                            <DropdownMenuItem onClick={() => navigate(withOrgParam(`/properties/${p.id}`, orgIdParam))}>
                               <Eye className="w-4 h-4 mr-2" /> View details
                             </DropdownMenuItem>
                             <DropdownMenuItem onClick={() => { setEditingProperty(p); setIsAddModalOpen(true); }}>
@@ -385,7 +388,7 @@ export default function Properties() {
                       {/* CTA */}
                       <button
                         className="mt-4 w-full flex items-center justify-center gap-1.5 text-xs font-medium text-emerald-700 dark:text-emerald-400 hover:text-emerald-800 py-2 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 hover:bg-emerald-100 dark:hover:bg-emerald-950/60 transition-colors"
-                        onClick={() => navigate(`/properties/${p.id}`)}
+                        onClick={() => navigate(withOrgParam(`/properties/${p.id}`, orgIdParam))}
                       >
                         View full details <ChevronRight className="w-3.5 h-3.5" />
                       </button>

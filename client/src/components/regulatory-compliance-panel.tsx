@@ -15,6 +15,7 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
+import { withOrgParam } from "@/lib/platformOrgContext";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { format, differenceInDays, isPast } from "date-fns";
@@ -68,6 +69,7 @@ interface RegulatoryCert {
 interface Props {
   propertyId: number;
   propertyName: string;
+  orgIdParam?: string | null;
 }
 
 // ─── Constants ─────────────────────────────────────────────────────────────
@@ -135,15 +137,31 @@ function StatusBadge({ status }: { status: string }) {
 
 // ─── Empty cert form ──────────────────────────────────────────────────────
 
-const emptyForm = {
-  authority: "NEMA" as const,
+interface CertFormState {
+  authority: RegulatoryCert["authority"];
+  certificateType: string;
+  certificateNumber: string;
+  title: string;
+  issueDate: string;
+  expiryDate: string;
+  renewalDate: string;
+  status: RegulatoryCert["status"];
+  issuingOfficer: string;
+  issuingOffice: string;
+  conditions: string;
+  notes: string;
+  documentUrl: string;
+}
+
+const emptyForm: CertFormState = {
+  authority: "NEMA",
   certificateType: "",
   certificateNumber: "",
   title: "",
   issueDate: "",
   expiryDate: "",
   renewalDate: "",
-  status: "active" as const,
+  status: "active",
   issuingOfficer: "",
   issuingOffice: "",
   conditions: "",
@@ -175,7 +193,7 @@ function CertModal({
       issueDate:         cert.issueDate ?? "",
       expiryDate:        cert.expiryDate ?? "",
       renewalDate:       cert.renewalDate ?? "",
-      status:            cert.status as any,
+      status:            cert.status,
       issuingOfficer:    cert.issuingOfficer ?? "",
       issuingOffice:     cert.issuingOffice ?? "",
       conditions:        cert.conditions ?? "",
@@ -214,7 +232,7 @@ function CertModal({
     onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
   });
 
-  const set = (k: keyof typeof emptyForm, v: string) => setForm(f => ({ ...f, [k]: v }));
+  const set = (k: keyof CertFormState, v: string) => setForm(f => ({ ...f, [k]: v } as CertFormState));
 
   const suggestedTypes = CERT_TYPES[form.authority] ?? CERT_TYPES["OTHER"];
 
@@ -416,7 +434,7 @@ function CertModal({
 
 // ─── Main Panel ───────────────────────────────────────────────────────────
 
-export function RegulatoryCompliancePanel({ propertyId, propertyName }: Props) {
+export function RegulatoryCompliancePanel({ propertyId, propertyName, orgIdParam }: Props) {
   const { toast } = useToast();
   const qc = useQueryClient();
   const [showModal, setShowModal] = useState(false);
@@ -425,9 +443,9 @@ export function RegulatoryCompliancePanel({ propertyId, propertyName }: Props) {
   const [filterAuth, setFilterAuth] = useState<string>("all");
 
   const { data: certs = [], isLoading, refetch } = useQuery<RegulatoryCert[]>({
-    queryKey: [`/api/regulatory-certificates`, propertyId],
+    queryKey: [`/api/regulatory-certificates`, propertyId, orgIdParam],
     queryFn: async () => {
-      const res = await apiRequest(`/api/regulatory-certificates?propertyId=${propertyId}`);
+      const res = await apiRequest(withOrgParam(`/api/regulatory-certificates?propertyId=${propertyId}`, orgIdParam));
       return res.json();
     },
   });

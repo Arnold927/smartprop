@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useRoute, useLocation } from "wouter";
+import { useRoute, useLocation, useSearch } from "wouter";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
@@ -23,6 +23,7 @@ import { ViewTenantDialog } from "@/components/property/ViewTenantDialog";
 import AddTenantDialog, { type TenantFormValues } from "@/components/add-tenant-dialog";
 import AddUnitDialog from "@/components/add-unit-dialog";
 import { apiRequest } from "@/lib/queryClient";
+import { getOrgIdFromSearch, withOrgParam } from "@/lib/platformOrgContext";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Tenant } from "@/types/tenant";
 import { Unit } from "@/types/unit";
@@ -131,8 +132,10 @@ function Pagination({
 export default function PropertyDetailsPage() {
   const [, params] = useRoute("/properties/:id");
   const propertyId = params?.id;
+  const search = useSearch();
+  const orgIdParam = getOrgIdFromSearch(search); // only meaningful for platform_admin
 
-  const { property, isLoading, updateUnitStatusMutation } = usePropertyDetails(propertyId);
+  const { property, isLoading, updateUnitStatusMutation } = usePropertyDetails(propertyId, orgIdParam);
   const { user } = useAuth();
 
   // Consolidated per-property data — so a manager (or landlord) can see
@@ -140,9 +143,9 @@ export default function PropertyDetailsPage() {
   // digging through the org-wide Rent Collection/Maintenance/Documents pages
   // and filtering out every other property each time.
   const { data: propertyRentPayments = [], isLoading: rentPaymentsLoading } = useQuery<any[]>({
-    queryKey: [`/api/rent-payments`, "property", propertyId],
+    queryKey: [`/api/rent-payments`, "property", propertyId, orgIdParam],
     queryFn: async () => {
-      const r = await apiRequest(`/api/rent-payments?propertyId=${propertyId}&page_size=50`);
+      const r = await apiRequest(withOrgParam(`/api/rent-payments?propertyId=${propertyId}&page_size=50`, orgIdParam));
       const body = await r.json();
       return Array.isArray(body) ? body : (body.results ?? []);
     },
@@ -150,9 +153,9 @@ export default function PropertyDetailsPage() {
   });
 
   const { data: propertyUtilityBills = [], isLoading: utilityBillsLoading } = useQuery<any[]>({
-    queryKey: [`/api/utility-bills`, "property", propertyId],
+    queryKey: [`/api/utility-bills`, "property", propertyId, orgIdParam],
     queryFn: async () => {
-      const r = await apiRequest(`/api/utility-bills?propertyId=${propertyId}`);
+      const r = await apiRequest(withOrgParam(`/api/utility-bills?propertyId=${propertyId}`, orgIdParam));
       const body = await r.json();
       return Array.isArray(body) ? body : [];
     },
@@ -160,9 +163,9 @@ export default function PropertyDetailsPage() {
   });
 
   const { data: propertyMaintenanceRequests = [], isLoading: maintenanceLoading } = useQuery<any[]>({
-    queryKey: [`/api/maintenance-requests`, "property", propertyId],
+    queryKey: [`/api/maintenance-requests`, "property", propertyId, orgIdParam],
     queryFn: async () => {
-      const r = await apiRequest(`/api/maintenance-requests?propertyId=${propertyId}`);
+      const r = await apiRequest(withOrgParam(`/api/maintenance-requests?propertyId=${propertyId}`, orgIdParam));
       const body = await r.json();
       return Array.isArray(body) ? body : [];
     },
@@ -170,9 +173,9 @@ export default function PropertyDetailsPage() {
   });
 
   const { data: propertyDocuments = [], isLoading: documentsLoading } = useQuery<any[]>({
-    queryKey: [`/api/documents`, "property", propertyId],
+    queryKey: [`/api/documents`, "property", propertyId, orgIdParam],
     queryFn: async () => {
-      const r = await apiRequest(`/api/documents?propertyId=${propertyId}&limit=50`);
+      const r = await apiRequest(withOrgParam(`/api/documents?propertyId=${propertyId}&limit=50`, orgIdParam));
       const body = await r.json();
       return Array.isArray(body) ? body : (body.results ?? []);
     },
@@ -762,6 +765,7 @@ export default function PropertyDetailsPage() {
             <RegulatoryCompliancePanel
               propertyId={Number(propertyId)}
               propertyName={property?.name ?? ""}
+              orgIdParam={orgIdParam}
             />
           </TabsContent>
 

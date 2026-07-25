@@ -25,7 +25,7 @@
 
 import { Request, Response, NextFunction } from 'express';
 
-export type AppRole = 'admin' | 'manager' | 'landlord' | 'staff' | 'caretaker' | 'tenant' | 'guard' | 'contractor';
+export type AppRole = 'platform_admin' | 'admin' | 'manager' | 'landlord' | 'staff' | 'caretaker' | 'tenant' | 'guard' | 'contractor';
 
 const ADMIN_MANAGER:           AppRole[] = ['admin', 'manager'];
 const ADMIN_MANAGER_LANDLORD:  AppRole[] = ['admin', 'manager', 'landlord'];
@@ -184,18 +184,7 @@ export const ROUTE_POLICY: Record<string, AppRole[]> = {
  */
 export function roleGuard(prefix: string) {
   const allowed = ROUTE_POLICY[prefix];
-
-  if (!allowed) {
-    // No policy defined — fail closed (deny everything).
-    // This means adding a new route group without a policy entry is safe-by-default.
-    return (_req: Request, res: Response, _next: NextFunction) => {
-      res.status(403).json({
-        message: `No access policy defined for ${prefix}. Contact the system administrator.`,
-      });
-    };
-  }
-
-  const allowedSet = new Set(allowed);
+  const allowedSet = allowed ? new Set(allowed) : null;
 
   return (req: Request, res: Response, next: NextFunction) => {
     const user = (req as any).user;
@@ -206,6 +195,25 @@ export function roleGuard(prefix: string) {
     }
 
     const role = (user.role ?? 'tenant') as string;
+
+    // platform_admin has full oversight access everywhere by design — that's
+    // the entire point of the role (explicitly not scoped to one
+    // organisation, equivalent to a super admin). Bypassing ROUTE_POLICY
+    // here means every existing and future prefix works for it automatically,
+    // rather than needing all ~40 policy entries individually updated to
+    // include it. requireOrg still resolves which organisation a given
+    // request is scoped to, via ?organizationId=, on every route that needs it.
+    if (role === 'platform_admin') {
+      return next();
+    }
+
+    if (!allowedSet) {
+      // No policy defined — fail closed (deny everything).
+      // This means adding a new route group without a policy entry is safe-by-default.
+      return res.status(403).json({
+        message: `No access policy defined for ${prefix}. Contact the system administrator.`,
+      });
+    }
 
     if (!allowedSet.has(role as AppRole)) {
       return res.status(403).json({
