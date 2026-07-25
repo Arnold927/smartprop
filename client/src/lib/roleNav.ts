@@ -151,6 +151,7 @@ const getLandlordNav = (t: (k: string) => string): NavGroup[] => [
         children: [
           { name: t("nav.rent_collection"), href: "/rent-collection" },
           { name: t("nav.expenses"),        href: "/expense-management" },
+          { name: t("nav.payment_setup"),   href: "/payment-setup" },
         ],
       },
     ],
@@ -425,7 +426,7 @@ export const ROLE_ALLOWED_ROUTES: Record<string, string[]> = {
     "/finances", "/rent-collection", "/expense-management",
     "/owner-statements",
     "/maintenance", "/inspections", "/documents",
-    "/utility-bill-sender",
+    "/utility-bill-sender", "/payment-setup",
     "/compliance",
     "/messages", "/profile",
     "/diaspora-portal",

@@ -96,6 +96,7 @@ const NairobiCompliance   = lazy(() => import("@/pages/compliance"));
 const UtilityManagement = lazy(() => import("@/pages/utility-management"));
 const Utilities         = lazy(() => import("@/pages/utilities"));
 const UtilityBillSenderPage = lazy(() => import("@/pages/utility-bill-sender-page"));
+const PaymentSetupPage      = lazy(() => import("@/pages/payment-setup"));
 
 // Maintenance
 const Maintenance        = lazy(() => import("@/pages/maintenance"));
@@ -366,6 +367,7 @@ function Router() {
             <Route path="/utility-management"  component={() => <P><UtilityManagement /></P>} />
             <Route path="/utilities"           component={() => <P><Utilities /></P>} />
             <Route path="/utility-bill-sender" component={() => <P><UtilityBillSenderPage /></P>} />
+            <Route path="/payment-setup" component={() => <P><PaymentSetupPage /></P>} />
 
             {/* Maintenance */}
             <Route path="/maintenance-request/:id" component={() => <P><MaintenanceDetails /></P>} />
