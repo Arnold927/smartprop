@@ -2514,6 +2514,14 @@ export default function NairobiCompliance() {
   const guard = useRoleGuard(ROLES.ADMIN_MANAGER_LANDLORD);
   if (guard.gate) return guard.gate;
 
+  // Landlord clients only ever see "Rent Notices" (RRT) here — the KRA/tax-facing
+  // sections below (KRA returns, eTIMS, stamp duty, valuations/CGT, deposit
+  // interest, service charges) are hidden for that role only, since some landlord
+  // clients are uneasy seeing KRA/tax tooling. Admin and manager are unaffected;
+  // this can't be a plain source comment because it needs to depend on who's
+  // logged in, not be removed for everyone — flip this flag if that changes.
+  const landlordSeesRentNoticesOnly = guard.isLandlord;
+
   // useLocation returns only the pathname in wouter; useSearch returns the
   // query string (without the leading "?"), e.g. "tab=kra".
   const [, navigate] = useLocation();
@@ -2521,6 +2529,7 @@ export default function NairobiCompliance() {
 
   // Parse the active tab from the query string every time search changes.
   const activeTab: ComplianceTab = (() => {
+    if (landlordSeesRentNoticesOnly) return "rrt"; // ignore ?tab= entirely for landlords
     const t = new URLSearchParams(search).get("tab");
     return t && VALID_TABS.includes(t as ComplianceTab) ? (t as ComplianceTab) : "kra";
   })();
@@ -2528,10 +2537,11 @@ export default function NairobiCompliance() {
   // Clicking a tab: push the new URL. Because activeTab is derived directly
   // from useSearch (not useState), the tab switches instantly on re-render.
   function handleTabChange(tab: string) {
+    if (landlordSeesRentNoticesOnly) return; // only one tab available; nothing to switch to
     navigate(`/compliance?tab=${tab}`, { replace: true });
   }
 
-  const COMPLIANCE_TABS = [
+  const ALL_COMPLIANCE_TABS = [
     { id: "kra",             label: "KRA Returns",      icon: FileText,  desc: "Monthly rental income returns" },
     { id: "etims",           label: "eTIMS",            icon: Zap,       desc: "KRA e-invoicing" },
     { id: "stamp-duty",      label: "Stamp Duty",       icon: BookOpen,  desc: "Lease registration" },
@@ -2540,6 +2550,12 @@ export default function NairobiCompliance() {
     { id: "service-charges", label: "Service Charges",  icon: PiggyBank, desc: "ARMA budgets & demands" },
     { id: "rrt",             label: "Rent Notices",     icon: Gavel,     desc: "RRT notices (Cap 296)" },
   ] as const;
+
+  // See landlordSeesRentNoticesOnly above — the nav list a landlord sees is
+  // filtered down to just Rent Notices; admin/manager get the full list.
+  const COMPLIANCE_TABS = landlordSeesRentNoticesOnly
+    ? ALL_COMPLIANCE_TABS.filter(tab => tab.id === "rrt")
+    : ALL_COMPLIANCE_TABS;
 
   return (
     <div className="min-h-screen bg-background text-foreground">
@@ -2550,9 +2566,13 @@ export default function NairobiCompliance() {
             <Shield className="h-5 w-5 text-emerald-600" />
           </div>
           <div>
-            <h1 className="text-lg font-semibold text-foreground">Nairobi Compliance</h1>
+            <h1 className="text-lg font-semibold text-foreground">
+              {landlordSeesRentNoticesOnly ? "Rent Notices" : "Nairobi Compliance"}
+            </h1>
             <p className="text-xs text-muted-foreground mt-0.5">
-              KRA returns · eTIMS · Stamp duty · Valuations (CGT 15%) · Deposit interest · Service charges · RRT notices
+              {landlordSeesRentNoticesOnly
+                ? "RRT notices (Cap 296)"
+                : "KRA returns · eTIMS · Stamp duty · Valuations (CGT 15%) · Deposit interest · Service charges · RRT notices"}
             </p>
           </div>
         </div>
@@ -2603,18 +2623,26 @@ export default function NairobiCompliance() {
         {/* Content area */}
         <Tabs value={activeTab} onValueChange={handleTabChange} className="flex-1 min-w-0">
           <TabsList className="hidden">
-            <TabsTrigger value="service-charges" /><TabsTrigger value="kra" />
-            <TabsTrigger value="stamp-duty" /><TabsTrigger value="valuations" />
-            <TabsTrigger value="deposit-interest" /><TabsTrigger value="etims" />
+            {!landlordSeesRentNoticesOnly && (
+              <>
+                <TabsTrigger value="service-charges" /><TabsTrigger value="kra" />
+                <TabsTrigger value="stamp-duty" /><TabsTrigger value="valuations" />
+                <TabsTrigger value="deposit-interest" /><TabsTrigger value="etims" />
+              </>
+            )}
             <TabsTrigger value="rrt" />
           </TabsList>
           <div className="p-4 sm:p-6">
-            <TabsContent value="service-charges" className="mt-0"><ServiceChargesTab /></TabsContent>
-            <TabsContent value="kra"             className="mt-0"><KraReturnsTab /></TabsContent>
-            <TabsContent value="stamp-duty"      className="mt-0"><StampDutyTab /></TabsContent>
-            <TabsContent value="valuations"      className="mt-0"><ValuationsTab /></TabsContent>
-            <TabsContent value="deposit-interest" className="mt-0"><DepositInterestTab /></TabsContent>
-            <TabsContent value="etims"           className="mt-0"><EtimsTab /></TabsContent>
+            {!landlordSeesRentNoticesOnly && (
+              <>
+                <TabsContent value="service-charges" className="mt-0"><ServiceChargesTab /></TabsContent>
+                <TabsContent value="kra"             className="mt-0"><KraReturnsTab /></TabsContent>
+                <TabsContent value="stamp-duty"      className="mt-0"><StampDutyTab /></TabsContent>
+                <TabsContent value="valuations"      className="mt-0"><ValuationsTab /></TabsContent>
+                <TabsContent value="deposit-interest" className="mt-0"><DepositInterestTab /></TabsContent>
+                <TabsContent value="etims"           className="mt-0"><EtimsTab /></TabsContent>
+              </>
+            )}
             <TabsContent value="rrt"             className="mt-0"><RrtNoticesTab /></TabsContent>
           </div>
         </Tabs>
