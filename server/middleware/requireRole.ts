@@ -132,6 +132,7 @@ export const ROUTE_POLICY: Record<string, AppRole[]> = {
   '/api/utility-providers':          ADMIN_MANAGER_STAFF,
   '/api/utility-accounts':           ADMIN_MANAGER_STAFF,
   '/api/utility-bills':              [...ADMIN_MANAGER_STAFF, 'landlord'],
+  '/api/utility-meter-readings':     ADMIN_MANAGER_STAFF,
   '/api/recurring-charges':          ADMIN_MANAGER_STAFF,
   '/api/upload':                     ADMIN_MANAGER_STAFF,
   '/api/tenant-onboarding':          ADMIN_MANAGER_STAFF,

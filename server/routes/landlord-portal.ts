@@ -3,6 +3,8 @@
  *
  * GET  /dashboard              — KPIs, 6-month trends, expense breakdown,
  *                                occupancy insight, recent reports, documents
+ * GET  /properties             — plain list of this owner's properties
+ *                                (id/name/address only — for filters & dropdowns)
  * GET  /properties/stats       — per-property occupancy, active leases,
  *                                monthly revenue (for property cards)
  * GET  /maintenance            — server-filtered maintenance for this owner's
@@ -376,6 +378,20 @@ router.get("/dashboard", authenticateJWT, requireOrg, requireOwner, async (req: 
   } catch (error) {
     console.error("Landlord dashboard error:", error);
     res.status(500).json({ message: "Failed to fetch landlord dashboard data" });
+  }
+});
+
+// ── Plain properties list ──────────────────────────────────────────────────────
+// Lightweight list (no computed stats) used by other pages — e.g. Arrears —
+// to know which property IDs belong to the logged-in landlord/owner.
+router.get("/properties", authenticateJWT, requireOrg, requireOwner, async (req: any, res) => {
+  try {
+    const ownerId = (req as any).ownerId as string;
+    const { ownerProperties } = await resolveOwnerProperties(ownerId, req.user.organizationId as number);
+    res.json(ownerProperties);
+  } catch (error) {
+    console.error("Landlord properties list error:", error);
+    res.status(500).json({ message: "Failed to fetch properties" });
   }
 });
 

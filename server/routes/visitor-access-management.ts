@@ -328,4 +328,77 @@ router.patch("/:code/approve", ...auth, async (req: any, res: any) => {
   }
 });
 
+// ── PATCH /api/visitor-access-management/:code/revoke ──────────────────────────
+router.patch("/:code/revoke", ...auth, async (req: any, res: any) => {
+  try {
+    const { code } = req.params;
+    const orgId: number = req.user.organizationId;
+    const reason: string | undefined = req.body?.reason;
+
+    // Scope the lookup to the caller's org via the visitor's property, matching
+    // the same org-safety check used by GET / and POST /.
+    const [visitor] = await db
+      .select({ id: visitors.id })
+      .from(visitors)
+      .innerJoin(properties, eq(visitors.propertyId, properties.id))
+      .where(and(eq(visitors.accessCode, code), eq(properties.organizationId, orgId)))
+      .limit(1);
+
+    if (!visitor) {
+      return res.status(404).json({ message: "Visitor not found" });
+    }
+
+    const [updated] = await db
+      .update(visitors)
+      .set({
+        status: "denied", // mapToFrontend() treats "denied" as access_revoked: true
+        updatedAt: new Date() as any,
+      })
+      .where(eq(visitors.accessCode, code))
+      .returning();
+
+    await db.insert(visitorLog).values({
+      visitorId: visitor.id,
+      logType: "status_change",
+      notes: reason ? `Access revoked: ${reason}` : "Access revoked",
+    } as any);
+
+    res.json(mapToFrontend(updated));
+  } catch (err) {
+    console.error("PATCH revoke error:", err);
+    res.status(500).json({ message: "Failed to revoke visitor access" });
+  }
+});
+
+// ── DELETE /api/visitor-access-management/:code ─────────────────────────────────
+router.delete("/:code", ...auth, async (req: any, res: any) => {
+  try {
+    const { code } = req.params;
+    const orgId: number = req.user.organizationId;
+
+    const [visitor] = await db
+      .select({ id: visitors.id })
+      .from(visitors)
+      .innerJoin(properties, eq(visitors.propertyId, properties.id))
+      .where(and(eq(visitors.accessCode, code), eq(properties.organizationId, orgId)))
+      .limit(1);
+
+    if (!visitor) {
+      return res.status(404).json({ message: "Visitor not found" });
+    }
+
+    // visitor_log.visitor_id is NOT NULL with no ON DELETE CASCADE, so any
+    // logged check-in/check-out/approval history must be cleared first or the
+    // delete below fails on a foreign-key violation.
+    await db.delete(visitorLog).where(eq(visitorLog.visitorId, visitor.id));
+
+    await db.delete(visitors).where(eq(visitors.accessCode, code));
+
+    res.status(204).send();
+  } catch (err) {
+    console.error("DELETE /api/visitor-access-management error:", err);
+    res.status(500).json({ message: "Failed to delete visitor access record" });
+  }
+});
+
 export default router;
