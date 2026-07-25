@@ -261,6 +261,17 @@ utilityAccountsRouter.delete("/:id", async (req: any, res: any) => {
 // ── Utility Bills ──────────────────────────────────────────────────────────────
 export const utilityBillsRouter = Router();
 utilityBillsRouter.use(authenticateJWT as any, requireOrg as any);
+// Tenants use GET /api/utility-bills/my-bills (utility-bill-sender.ts) instead —
+// these generic CRUD routes have no tenant-level scoping at all (some don't
+// even scope by org) and were never meant for tenant access. The RBAC policy
+// for this whole prefix now includes 'tenant' so my-bills is reachable; block
+// it explicitly here so that doesn't also open up this router.
+utilityBillsRouter.use((req: any, res, next) => {
+  if (req.user?.role === "tenant") {
+    return res.status(403).json({ message: "Not permitted. Use /api/utility-bills/my-bills instead." });
+  }
+  next();
+});
 
 utilityBillsRouter.get("/", async (req: any, res: any) => {
   try {
