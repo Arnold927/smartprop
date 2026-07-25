@@ -12,13 +12,12 @@
  */
 
 import { Router } from "express";
-import { randomUUID } from "crypto";
 import { db } from "../db";
-import { tenants, units, properties, users, organizations } from "@shared/schema";
+import { tenants, units, properties } from "@shared/schema";
 import { eq, and } from "drizzle-orm";
 import { authenticateJWT } from "../middleware/auth";
 import { requireOrg } from "../middleware/requireOrg";
-import { sendInviteEmail } from "../lib/email";
+import { inviteTenantUser } from "../utils/inviteTenantUser";
 
 const tenantOnboardingRouter = Router();
 
@@ -167,52 +166,13 @@ tenantOnboardingRouter.post("/", async (req: any, res: any) => {
       .where(eq(units.id, unit.id));
 
     // ── 7. Auto-invite the tenant to the portal ─────────────────────────────
-    if (email) {
-      (async () => {
-        try {
-          const [org] = await db
-            .select({ name: organizations.name })
-            .from(organizations)
-            .where(eq(organizations.id, orgId))
-            .limit(1);
-
-          const inviteToken    = randomUUID();
-          const inviteExpiresAt = new Date(Date.now() + 1000 * 60 * 60 * 24 * 7); // 7 days
-
-          await db
-            .insert(users)
-            .values({
-              id:                         randomUUID(),
-              email:                      email.toLowerCase(),
-              role:                       "tenant",
-              organizationId:             orgId,
-              firstName,
-              lastName,
-              passwordHash:               "",
-              emailVerified:              false,
-              invitedAt:                  new Date(),
-              invitedBy:                  userId,
-              emailVerificationToken:     inviteToken,
-              emailVerificationExpiresAt: inviteExpiresAt,
-            } as any)
-            .onConflictDoUpdate({
-              target: [users.organizationId, users.email],
-              set: {
-                role:                       "tenant",
-                invitedAt:                  new Date(),
-                emailVerificationToken:     inviteToken,
-                emailVerificationExpiresAt: inviteExpiresAt,
-              },
-            });
-
-          const inviteLink = `${process.env.APP_URL || "http://localhost:5173"}/accept-invite/${inviteToken}`;
-          await sendInviteEmail({ to: email.toLowerCase(), inviteLink });
-          console.log(`[tenant-onboarding] Portal invite sent to ${email}`);
-        } catch (err) {
-          console.warn(`[tenant-onboarding] Failed to send portal invite to ${email}:`, err);
-        }
-      })();
-    }
+    inviteTenantUser({
+      organizationId: orgId,
+      invitedByUserId: userId,
+      email,
+      firstName,
+      lastName,
+    });
 
     return res.status(201).json({
       message: "Tenant onboarded successfully.",

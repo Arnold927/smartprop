@@ -625,6 +625,23 @@ router.post("/activate", async (req, res) => {
       ),
     });
     const { token, password } = schema.parse(req.body);
+
+    // Look up first and check expiry — previously this went straight to an
+    // UPDATE keyed only on token match, with no expiry check at all, unlike
+    // the sibling /verify-email endpoint just above, which correctly checks
+    // emailVerificationExpiresAt. That meant an invite link never actually
+    // expired in practice, despite tenant-onboarding.ts (and now
+    // inviteTenantUser) clearly setting a 7-day expiry with that intent.
+    const [existing] = await db
+      .select()
+      .from(users)
+      .where(eq(users.emailVerificationToken, token))
+      .limit(1);
+
+    if (!existing || !existing.emailVerificationExpiresAt || existing.emailVerificationExpiresAt < new Date()) {
+      return res.status(400).json({ message: "Invalid or expired token" });
+    }
+
     const passwordHash = await bcrypt.hash(password, BCRYPT_ROUNDS);
 
     const [user] = await db
@@ -636,7 +653,7 @@ router.post("/activate", async (req, res) => {
         emailVerificationExpiresAt: null,
         updatedAt: new Date(),
       })
-      .where(eq(users.emailVerificationToken, token))
+      .where(eq(users.id, existing.id))
       .returning();
 
     if (!user) return res.status(400).json({ message: "Invalid or expired token" });

@@ -24,6 +24,7 @@ import { authenticateJWT } from "../middleware/auth";
 import { requireOrg } from "../middleware/requireOrg";
 import { z } from "zod";
 import { storage } from "../storage";
+import { inviteTenantUser } from "../utils/inviteTenantUser";
 
 const tenantRouter = Router();
 
@@ -355,6 +356,23 @@ tenantRouter.post("/", async (req: any, res: any) => {
       });
     }
     const tenant = await storage.createTenant(parsed.data);
+
+    // Auto-invite the tenant to the portal — same behavior as
+    // /api/tenant-onboarding, so which "Add Tenant" entry point someone
+    // used no longer determines whether the tenant can ever log in. Only
+    // when no existing user account was already found above for this
+    // email — otherwise this would email an already-active tenant a
+    // confusing "set up your account" link for an account they already use.
+    if (!tenantUserId) {
+      inviteTenantUser({
+        organizationId: orgId,
+        invitedByUserId: req.user.id,
+        email: tenantData.email,
+        firstName: tenantData.firstName,
+        lastName: tenantData.lastName,
+      });
+    }
+
     return res.status(201).json(tenant);
   } catch (error: any) {
     console.error("Error creating tenant:", error);
