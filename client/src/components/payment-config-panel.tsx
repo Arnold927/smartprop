@@ -56,9 +56,12 @@ interface PaymentConfig {
 interface PaymentConfigPanelProps {
   /** "org" (default) edits the org-wide default via /api/payment-config.
    *  "mine" edits the calling landlord's own override via
-   *  /api/payment-config/landlord/mine — for orgs with multiple landlords
-   *  sharing one account, where each owner needs their own Paybill/Till. */
-  scope?: "org" | "mine";
+   *  /api/payment-config/landlord/mine.
+   *  "landlord" (admin/manager only) edits a SPECIFIC landlord's override
+   *  on their behalf via /api/payment-config/landlord/:landlordOwnerId —
+   *  requires landlordOwnerId to be set. */
+  scope?: "org" | "mine" | "landlord";
+  landlordOwnerId?: string;
 }
 
 const emptyAccount = (): PaymentAccount => ({
@@ -323,13 +326,17 @@ function PaymentMethodSection({
 
 // ── Main component ─────────────────────────────────────────────────────────────
 
-export default function PaymentConfigPanel({ scope = "org" }: PaymentConfigPanelProps = {}) {
+export default function PaymentConfigPanel({ scope = "org", landlordOwnerId }: PaymentConfigPanelProps = {}) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const endpoint = scope === "mine" ? "/api/payment-config/landlord/mine" : "/api/payment-config";
+  const endpoint =
+    scope === "mine"     ? "/api/payment-config/landlord/mine" :
+    scope === "landlord" ? `/api/payment-config/landlord/${landlordOwnerId}` :
+    "/api/payment-config";
 
   const { data: config, isLoading } = useQuery<PaymentConfig>({
     queryKey: [endpoint],
+    enabled: scope !== "landlord" || !!landlordOwnerId,
   });
 
   const [rent, setRent] = useState<PaymentAccount>(emptyAccount());
@@ -407,6 +414,14 @@ export default function PaymentConfigPanel({ scope = "org" }: PaymentConfigPanel
     }
   };
 
+  if (scope === "landlord" && !landlordOwnerId) {
+    return (
+      <div className="flex items-center gap-2 text-sm text-muted-foreground py-6">
+        <Info className="w-4 h-4" /> Select a landlord above to view or edit their payment details.
+      </div>
+    );
+  }
+
   if (isLoading) {
     return (
       <div className="flex items-center gap-2 text-sm text-gray-500 py-6">
@@ -481,7 +496,7 @@ export default function PaymentConfigPanel({ scope = "org" }: PaymentConfigPanel
       </Dialog>
 
       {/* Scope-specific status banner */}
-      {scope === "mine" && (
+      {(scope === "mine" || scope === "landlord") && (
         <div className={`flex items-start gap-3 rounded-xl border p-4 ${
           config?.configured ? "border-emerald-100 bg-emerald-50" : "border-amber-200 bg-amber-50"
         }`}>
@@ -492,13 +507,25 @@ export default function PaymentConfigPanel({ scope = "org" }: PaymentConfigPanel
           <div className="text-sm">
             {config?.configured ? (
               <>
-                <p className="font-semibold text-emerald-800">Your own payment details are active</p>
-                <p className="mt-1 text-emerald-700">Your tenants see the Paybill/Till/bank details below — not the organisation's default.</p>
+                <p className="font-semibold text-emerald-800">
+                  {scope === "mine" ? "Your own payment details are active" : "This landlord's own payment details are active"}
+                </p>
+                <p className="mt-1 text-emerald-700">
+                  {scope === "mine"
+                    ? "Your tenants see the Paybill/Till/bank details below — not the organisation's default."
+                    : "Their tenants see the Paybill/Till/bank details below — not the organisation's default."}
+                </p>
               </>
             ) : (
               <>
-                <p className="font-semibold text-amber-800">You haven't set up your own payment details yet</p>
-                <p className="mt-1 text-amber-700">Your tenants are currently seeing the organisation's default payment details. Save the form below to use your own instead.</p>
+                <p className="font-semibold text-amber-800">
+                  {scope === "mine" ? "You haven't set up your own payment details yet" : "This landlord hasn't set up their own payment details yet"}
+                </p>
+                <p className="mt-1 text-amber-700">
+                  {scope === "mine"
+                    ? "Your tenants are currently seeing the organisation's default payment details. Save the form below to use your own instead."
+                    : "Their tenants are currently seeing the organisation's default payment details. Save the form below to set up their own instead."}
+                </p>
               </>
             )}
           </div>
@@ -513,6 +540,8 @@ export default function PaymentConfigPanel({ scope = "org" }: PaymentConfigPanel
           <p className="mt-1 text-blue-700">
             {scope === "mine"
               ? "Configure the payment details your tenants should use — set different accounts for rent and utility bills, or use one account for both. This only affects your own properties; other landlords in the same organisation (if any) set their own separately."
+              : scope === "landlord"
+              ? "Configure this landlord's payment details on their behalf — useful if they gave you their Till or bank details directly. This only affects their properties; the organisation default and other landlords' settings are unaffected."
               : "Configure the default payment details tenants should use. These appear in the tenant portal under each payment screen. If a specific landlord has set up their own payment details, tenants linked to that landlord's properties see theirs instead of this default."}
           </p>
         </div>
