@@ -38,10 +38,14 @@ export default function PlatformOrganizationsPage() {
 
   const [, navigate] = useLocation();
 
-  const { data: orgs = [], isLoading } = useQuery<OrgRow[]>({
+  const { data: orgs = [], isLoading, error } = useQuery<OrgRow[]>({
     queryKey: ["/api/platform/organizations"],
     queryFn: async () => {
       const r = await apiRequest("/api/platform/organizations");
+      if (!r.ok) {
+        const body = await r.json().catch(() => ({}));
+        throw new Error(body.message || `Request failed (${r.status})`);
+      }
       return r.json();
     },
   });
@@ -63,6 +67,14 @@ export default function PlatformOrganizationsPage() {
       {isLoading ? (
         <div className="space-y-3">
           {[1, 2, 3].map(i => <div key={i} className="h-20 rounded-xl bg-muted animate-pulse" />)}
+        </div>
+      ) : error ? (
+        <div className="text-center py-16">
+          <p className="text-sm font-medium text-red-600">Couldn't load organisations</p>
+          <p className="text-xs text-muted-foreground mt-1">{(error as Error).message}</p>
+          <p className="text-xs text-muted-foreground mt-3">
+            If your account was just changed to platform_admin, log out and back in — the role is read from your login token, which doesn't update until you get a fresh one.
+          </p>
         </div>
       ) : orgs.length === 0 ? (
         <div className="text-center py-16 text-muted-foreground">No organisations yet.</div>

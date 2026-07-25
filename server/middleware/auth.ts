@@ -37,12 +37,16 @@ export const authenticateJWT = async (
   try {
     const decoded = jwt.verify(token, JWT_SECRET) as CustomJWTPayload;
 
-    // Require a real organizationId for all routes EXCEPT /api/tenants/me,
-    // which has its own three-tier recovery logic and will heal a null-org
-    // user row on first successful lookup.
+    // Require a real organizationId for all routes EXCEPT /api/tenants/me
+    // (which has its own three-tier recovery logic and will heal a null-org
+    // user row on first successful lookup) and platform_admin (which has no
+    // organizationId of its own by design — see requireOrg.ts, where this
+    // role instead specifies which org it's viewing via ?organizationId=
+    // on each request).
     const orgId = decoded.organizationId;
     const isTenantMeRoute = req.path === "/me" && req.baseUrl?.includes("/tenants");
-    if (!isTenantMeRoute && (!orgId || typeof orgId !== "number" || orgId < 1)) {
+    const isPlatformAdmin = decoded.role === "platform_admin";
+    if (!isTenantMeRoute && !isPlatformAdmin && (!orgId || typeof orgId !== "number" || orgId < 1)) {
       return res.status(403).json({
         message: "Token does not contain a valid organization. Please log in again.",
       });
