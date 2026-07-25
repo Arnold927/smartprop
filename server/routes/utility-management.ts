@@ -278,6 +278,7 @@ utilityBillsRouter.get("/", async (req: any, res: any) => {
   try {
     const orgId: number = req.user.organizationId;
     const role: string  = req.user.role ?? "";
+    const propertyIdParam = req.query.propertyId ? parseInt(req.query.propertyId as string) : undefined;
     // scope via accountId → utilityAccounts.propertyId → properties.organizationId
     // (and, for a landlord, properties.ownerId too — same rule as everywhere
     // else this session; previously org-only, so a landlord in a
@@ -286,7 +287,10 @@ utilityBillsRouter.get("/", async (req: any, res: any) => {
       ? and(eq(properties.organizationId, orgId), eq(properties.ownerId, req.user.id))
       : eq(properties.organizationId, orgId);
     const orgProps = await db.select({ id: properties.id }).from(properties).where(propCondition);
-    const propIds = orgProps.map((p: any) => p.id);
+    let propIds = orgProps.map((p: any) => p.id);
+    // Optional single-property filter (e.g. the property details page's
+    // Payments tab) — narrows the already-scoped set, never widens it.
+    if (propertyIdParam) propIds = propIds.filter(id => id === propertyIdParam);
     const orgAccounts = propIds.length > 0
       ? await db.select({ id: utilityAccounts.id }).from(utilityAccounts).where(inArray(utilityAccounts.propertyId, propIds))
       : [];

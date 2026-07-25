@@ -49,6 +49,7 @@ maintenanceListRouter.get('/', authenticateJWT, requireOrg, async (req: any, res
     const orgId: number  = req.user.organizationId;
     const role:  string  = req.user.role ?? 'manager';
     const userId: string = String(req.user.id ?? req.user.userId ?? '');
+    const propertyIdParam = req.query.propertyId ? parseInt(req.query.propertyId as string, 10) : null;
 
     // Caretakers: only their assigned property.
     // Landlords: only properties they own (ownerId = userId).
@@ -113,6 +114,9 @@ maintenanceListRouter.get('/', authenticateJWT, requireOrg, async (req: any, res
         ...(landlordPropertyIds !== null ? [inArray(units.propertyId, landlordPropertyIds)] : []),
         // Tenants: only see their own submitted requests
         ...(tenantRecordId !== null ? [eq(maintenanceRequests.tenantId, tenantRecordId)] : []),
+        // Optional single-property filter (e.g. property details page) —
+        // narrows further within whatever the role above already allows.
+        ...(propertyIdParam !== null ? [eq(units.propertyId, propertyIdParam)] : []),
       ))
       .leftJoin(tenants, eq(maintenanceRequests.tenantId, tenants.id))
       .leftJoin(properties, eq(units.propertyId, properties.id))

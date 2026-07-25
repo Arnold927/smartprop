@@ -29,6 +29,7 @@ router.get("/", authenticateJWT, requireOrg, async (req: any, res) => {
     const statusFilter  = req.query.status   as string | undefined;
     const searchQuery   = (req.query.search  as string | undefined)?.toLowerCase();
     const tenantIdParam = req.query.tenantId as string | undefined;
+    const propertyIdParam = req.query.propertyId ? parseInt(req.query.propertyId as string, 10) : undefined;
 
     const tenantName = sql<{ firstName: string; lastName: string } | null>`
       CASE
@@ -64,6 +65,18 @@ router.get("/", authenticateJWT, requireOrg, async (req: any, res) => {
     if (tenantIdParam) {
       const tid = parseInt(tenantIdParam, 10);
       if (!isNaN(tid)) paymentConditions.push(eq(rentPayments.tenantId, tid));
+    }
+    // Single-property filter — used by the property details page's Payments
+    // tab, so a manager can see just this property's rent payments instead
+    // of the whole org's list mixed together.
+    if (propertyIdParam) {
+      const propTenantRows = await db
+        .select({ id: tenants.id })
+        .from(tenants)
+        .innerJoin(units, eq(tenants.unitId, units.id))
+        .where(and(eq(tenants.organizationId, orgId), eq(units.propertyId, propertyIdParam)));
+      const propTenantIds = propTenantRows.map(r => r.id);
+      paymentConditions.push(propTenantIds.length > 0 ? inArray(rentPayments.tenantId, propTenantIds) : sql`false`);
     }
 
     // Landlords only ever see payments for tenants in properties they own —
