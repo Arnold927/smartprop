@@ -48,8 +48,9 @@ import {
   invoices,
   properties,
   units,
+  tenants,
 } from "@shared/schema";
-import { eq, inArray, and, lte } from "drizzle-orm";
+import { eq, inArray, and, lte, sql } from "drizzle-orm";
 import { authenticateJWT } from "../middleware/auth.js";
 import { requireOrg } from "../middleware/requireOrg.js";
 
@@ -276,15 +277,34 @@ utilityBillsRouter.use((req: any, res, next) => {
 utilityBillsRouter.get("/", async (req: any, res: any) => {
   try {
     const orgId: number = req.user.organizationId;
+    const role: string  = req.user.role ?? "";
     // scope via accountId → utilityAccounts.propertyId → properties.organizationId
-    const orgProps = await db.select({ id: properties.id }).from(properties).where(eq(properties.organizationId, orgId));
+    // (and, for a landlord, properties.ownerId too — same rule as everywhere
+    // else this session; previously org-only, so a landlord in a
+    // multi-landlord org would see every other landlord's utility bills too)
+    const propCondition = role === "landlord"
+      ? and(eq(properties.organizationId, orgId), eq(properties.ownerId, req.user.id))
+      : eq(properties.organizationId, orgId);
+    const orgProps = await db.select({ id: properties.id }).from(properties).where(propCondition);
     const propIds = orgProps.map((p: any) => p.id);
     const orgAccounts = propIds.length > 0
       ? await db.select({ id: utilityAccounts.id }).from(utilityAccounts).where(inArray(utilityAccounts.propertyId, propIds))
       : [];
     const accountIds = orgAccounts.map((a: any) => a.id);
-    const bills = accountIds.length > 0
-      ? await db.select().from(utilityBills).where(inArray(utilityBills.accountId, accountIds)).orderBy(utilityBills.createdAt)
+
+    // Bills linked via an account (the accountId path above), UNIONed with
+    // bills linked directly by tenantId (utility-bill-sender.ts's primary
+    // path, which doesn't require a utility account to exist at all) —
+    // previously only the accountId path was checked here, so a bill created
+    // without a linked account would never show up in this list at all.
+    const tenantIds = propIds.length > 0
+      ? (await db.select({ id: tenants.id }).from(tenants).innerJoin(units, eq(tenants.unitId, units.id)).where(inArray(units.propertyId, propIds))).map(t => t.id)
+      : [];
+
+    const bills = (accountIds.length > 0 || tenantIds.length > 0)
+      ? await db.select().from(utilityBills).where(
+          sql`(${accountIds.length > 0 ? inArray(utilityBills.accountId, accountIds) : sql`false`} OR ${tenantIds.length > 0 ? inArray(utilityBills.tenantId, tenantIds) : sql`false`})`,
+        ).orderBy(utilityBills.createdAt)
       : [];
     res.json(bills);
   } catch (err) {
@@ -293,12 +313,43 @@ utilityBillsRouter.get("/", async (req: any, res: any) => {
   }
 });
 
+/** Resolves whether a bill exists and belongs to the caller's org (and, for a
+ *  landlord, to a property they own) — via EITHER its accountId link or its
+ *  direct tenantId link, since a bill can have either. */
+async function resolveBillOwnership(billId: number, orgId: number, role: string, userId: string): Promise<{ exists: boolean; allowed: boolean }> {
+  const [bill] = await db.select({ id: utilityBills.id, accountId: utilityBills.accountId, tenantId: utilityBills.tenantId }).from(utilityBills).where(eq(utilityBills.id, billId)).limit(1);
+  if (!bill) return { exists: false, allowed: false };
+
+  let propertyId: number | undefined;
+  if (bill.accountId) {
+    const [acct] = await db.select({ propertyId: utilityAccounts.propertyId }).from(utilityAccounts).where(eq(utilityAccounts.id, bill.accountId)).limit(1);
+    propertyId = acct?.propertyId;
+  }
+  if (!propertyId && bill.tenantId) {
+    const [tenant] = await db.select({ unitId: tenants.unitId }).from(tenants).where(eq(tenants.id, bill.tenantId)).limit(1);
+    if (tenant?.unitId) {
+      const [unit] = await db.select({ propertyId: units.propertyId }).from(units).where(eq(units.id, tenant.unitId)).limit(1);
+      propertyId = unit?.propertyId;
+    }
+  }
+  if (!propertyId) return { exists: true, allowed: false };
+
+  const [prop] = await db.select({ organizationId: properties.organizationId, ownerId: properties.ownerId }).from(properties).where(eq(properties.id, propertyId)).limit(1);
+  if (!prop || prop.organizationId !== orgId) return { exists: true, allowed: false };
+  if (role === "landlord" && prop.ownerId !== userId) return { exists: true, allowed: false };
+  return { exists: true, allowed: true };
+}
+
 utilityBillsRouter.get("/:id", async (req: any, res: any) => {
   try {
+    const id = parseInt(req.params.id);
+    const access = await resolveBillOwnership(id, req.user.organizationId, req.user.role ?? "", req.user.id);
+    if (!access.allowed) return res.status(404).json({ message: "Bill not found" });
+
     const [bill] = await db
       .select()
       .from(utilityBills)
-      .where(eq(utilityBills.id, parseInt(req.params.id)))
+      .where(eq(utilityBills.id, id))
       .limit(1);
     if (!bill) return res.status(404).json({ message: "Bill not found" });
     res.json(bill);
@@ -318,6 +369,18 @@ utilityBillsRouter.post("/", async (req: any, res: any) => {
     if (!accountId || !billingPeriodStart || !billingPeriodEnd || !dueDate || !amount) {
       return res.status(400).json({ message: "accountId, billingPeriodStart, billingPeriodEnd, dueDate, and amount are required" });
     }
+
+    // Verify the account's property belongs to the caller's org (and, for a
+    // landlord, to them specifically) — previously any accountId was
+    // accepted with no check at all.
+    const [acct] = await db.select({ propertyId: utilityAccounts.propertyId }).from(utilityAccounts).where(eq(utilityAccounts.id, parseInt(accountId))).limit(1);
+    const [prop] = acct?.propertyId
+      ? await db.select({ organizationId: properties.organizationId, ownerId: properties.ownerId }).from(properties).where(eq(properties.id, acct.propertyId)).limit(1)
+      : [undefined];
+    if (!prop || prop.organizationId !== req.user.organizationId || (req.user.role === "landlord" && prop.ownerId !== req.user.id)) {
+      return res.status(404).json({ message: "Utility account not found in your organisation" });
+    }
+
     const [created] = await db
       .insert(utilityBills)
       .values({
@@ -348,6 +411,9 @@ utilityBillsRouter.post("/", async (req: any, res: any) => {
 utilityBillsRouter.put("/:id", async (req: any, res: any) => {
   try {
     const id = parseInt(req.params.id);
+    const access = await resolveBillOwnership(id, req.user.organizationId, req.user.role ?? "", req.user.id);
+    if (!access.allowed) return res.status(404).json({ message: "Bill not found" });
+
     const {
       billNumber, billingPeriodStart, billingPeriodEnd, dueDate,
       amount, currency, unitsConsumed, unitRate, previousReading, currentReading,
@@ -384,6 +450,9 @@ utilityBillsRouter.put("/:id", async (req: any, res: any) => {
 utilityBillsRouter.delete("/:id", async (req: any, res: any) => {
   try {
     const id = parseInt(req.params.id);
+    const access = await resolveBillOwnership(id, req.user.organizationId, req.user.role ?? "", req.user.id);
+    if (!access.allowed) return res.status(404).json({ message: "Bill not found" });
+
     await db.delete(utilityBills).where(eq(utilityBills.id, id));
     res.json({ success: true });
   } catch (err) {

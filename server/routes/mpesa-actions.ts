@@ -30,6 +30,7 @@ import { storage }         from '../storage';
 import { notifyPaymentConfirmed } from '../ws';
 import { whatsappService } from '../whatsapp';
 import { resolvePaymentConfigForTenantId } from '../utils/resolvePaymentConfig';
+import { buildRentAccountReference, buildUtilityAccountReference, parseAccountReference } from '@shared/paymentReference';
 
 const router = Router();
 
@@ -299,6 +300,46 @@ router.post('/initiate', authenticateJWT, async (req: any, res) => {
       return res.status(403).json({ message: 'Tenant profile not found.' });
     }
     tenantId = own.id;
+
+    // The invoice/bill being paid must actually belong to THIS tenant.
+    // Previously only tenantId was forced — rentPaymentId/utilityBillId were
+    // trusted as-is from the client, so a tenant could pass any other
+    // tenant's invoice id (even one belonging to a different landlord in a
+    // multi-landlord org) and mark it paid, while their own invoice stayed
+    // unpaid and the actual money still landed correctly in their own
+    // landlord's account — a payment silently misattributed to a stranger.
+    if (rentPaymentId) {
+      const [inv] = await db.select({ tenantId: rentPayments.tenantId }).from(rentPayments).where(eq(rentPayments.id, rentPaymentId)).limit(1);
+      if (!inv || inv.tenantId !== tenantId) {
+        return res.status(403).json({ message: 'This payment does not belong to you.' });
+      }
+    }
+    if (utilityBillId) {
+      const [bill] = await db.select({ tenantId: utilityBills.tenantId }).from(utilityBills).where(eq(utilityBills.id, utilityBillId)).limit(1);
+      if (!bill || bill.tenantId !== tenantId) {
+        return res.status(403).json({ message: 'This bill does not belong to you.' });
+      }
+    }
+  } else if (rentPaymentId || utilityBillId) {
+    // Non-tenant callers (staff/manager/admin/caretaker — landlords are
+    // already blocked above) may initiate on behalf of any tenant, but only
+    // within their own organisation — previously unchecked entirely, so a
+    // caller could reference another org's invoice/bill outright.
+    const orgId: number = req.user.organizationId;
+    if (rentPaymentId) {
+      const [inv] = await db.select({ tenantId: rentPayments.tenantId }).from(rentPayments).where(eq(rentPayments.id, rentPaymentId)).limit(1);
+      const [invTenant] = inv ? await db.select({ organizationId: tenants.organizationId }).from(tenants).where(eq(tenants.id, inv.tenantId)).limit(1) : [undefined];
+      if (!invTenant || invTenant.organizationId !== orgId) {
+        return res.status(404).json({ message: 'Rent invoice not found in your organisation.' });
+      }
+    }
+    if (utilityBillId) {
+      const [bill] = await db.select({ tenantId: utilityBills.tenantId }).from(utilityBills).where(eq(utilityBills.id, utilityBillId)).limit(1);
+      const [billTenant] = bill?.tenantId ? await db.select({ organizationId: tenants.organizationId }).from(tenants).where(eq(tenants.id, bill.tenantId)).limit(1) : [undefined];
+      if (!billTenant || billTenant.organizationId !== orgId) {
+        return res.status(404).json({ message: 'Utility bill not found in your organisation.' });
+      }
+    }
   }
 
   try {
@@ -308,7 +349,7 @@ router.post('/initiate', authenticateJWT, async (req: any, res) => {
     }
 
     const ref  = accountReference
-      ?? (utilityBillId ? `UTIL-${utilityBillId}` : rentPaymentId ? `INV-${rentPaymentId}` : 'RENT');
+      ?? (utilityBillId ? buildUtilityAccountReference(utilityBillId) : rentPaymentId ? buildRentAccountReference(rentPaymentId) : 'RENT');
     const desc = description ?? (utilityBillId ? 'Utility Payment' : 'Rent Payment');
 
     // ── Resolve shortcode from Payment Setup ─────────────────────────────────
@@ -502,33 +543,28 @@ router.post('/c2b/confirmation', safaricomIpOnly, async (req, res) => {
     let matchedUtilityBillId: number | null = null;
     let matchedTenantId:      number | null = null;
 
-    // Strategy 0: reference explicitly tags a utility bill (e.g. "UTIL-42") —
-    // this is exactly the format shown to tenants for manual utility Paybill
-    // payments (see tenant-portal.tsx), so check it FIRST and exclusively —
-    // never fall through to the rent-invoice matching below for this case.
-    const utilMatch = accountRef.match(/^UTIL-?(\d+)$/i);
-    if (utilMatch) {
-      const billId = parseInt(utilMatch[1], 10);
+    // Strategy 0/1: the account reference explicitly tags a utility bill
+    // ("UTIL-42") or a rent invoice ("INV-42"/"42") — shared/paymentReference.ts
+    // is the single source of truth for this format, used by the tenant
+    // portal (what's actually sent/shown) and here (what's parsed back), so
+    // the two can never drift out of sync the way they previously did.
+    const parsedRef = parseAccountReference(accountRef);
+
+    if (parsedRef?.kind === "utility") {
       const [bill] = await db
         .select({ id: utilityBills.id, status: utilityBills.status, tenantId: utilityBills.tenantId })
         .from(utilityBills)
-        .where(eq(utilityBills.id, billId))
+        .where(eq(utilityBills.id, parsedRef.id))
         .limit(1);
       if (bill && bill.status !== 'paid') {
         matchedUtilityBillId = bill.id;
         matchedTenantId = (bill as any).tenantId ?? null;
       }
-    }
-
-    // Strategy 1: account reference contains a rent invoice ID (e.g. "INV-42", "42")
-    // — only tried when the reference wasn't a utility bill reference above.
-    const invMatch = matchedUtilityBillId ? null : accountRef.match(/^(?:INV-?)?(\d+)$/i);
-    if (invMatch) {
-      const invoiceId = parseInt(invMatch[1], 10);
+    } else if (parsedRef?.kind === "rent") {
       const rows = await db
         .select({ id: rentPayments.id, tenantId: rentPayments.tenantId, status: rentPayments.status })
         .from(rentPayments)
-        .where(eq(rentPayments.id, invoiceId))
+        .where(eq(rentPayments.id, parsedRef.id))
         .limit(1);
       const inv = rows[0];
       if (inv && inv.status !== 'paid') {

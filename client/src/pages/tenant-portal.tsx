@@ -18,6 +18,7 @@
 import { useState, useMemo, useEffect, useRef } from "react";
 import { useLocation } from "wouter";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { buildRentAccountReference, buildUtilityAccountReference } from "@shared/paymentReference";
 import { useWsEvent } from "@/hooks/useWebSocket";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -2445,11 +2446,13 @@ export default function TenantPortal({ tenantId, initialTenantData }: TenantPort
   const unreadMessages  = messages.filter(m => !m.isSentByMe && !m.isRead).length;
   const anyManagerName  = messages.find(m => !m.isSentByMe)?.fromName ?? null;
 
-  // Payment reference: e.g. tenant initials + unit number
-  const payRef = [
-    tenant?.firstName?.slice(0, 2).toUpperCase(),
-    unitNumber?.toString().replace(/\s/g, ""),
-  ].filter(Boolean).join("-") || `TEN-${tenantId}`;
+  // Payment reference — the exact invoice id, same format/helper the C2B
+  // matcher expects (shared/paymentReference.ts). Previously this was
+  // tenant-initials + unit number, which never encoded the actual invoice
+  // id at all, so a manual Paybill payment could never be auto-matched by
+  // reference — only ever by the less-reliable phone+amount fuzzy match.
+  const nextRentPaymentId = nextDue?.id ?? overduePayments[0]?.id;
+  const payRef = nextRentPaymentId != null ? buildRentAccountReference(nextRentPaymentId) : `TEN-${tenantId}`;
 
   // Notices derived from real data
   const notices = useMemo(() => {
@@ -3378,8 +3381,7 @@ export default function TenantPortal({ tenantId, initialTenantData }: TenantPort
                                   accountReference={
                                     // Bill-specific reference so the manager can identify
                                     // which bill was paid from the M-Pesa statement.
-                                    // Format: UTIL-{billId} (max 12 chars for Daraja)
-                                    `UTIL-${bill.id}`.slice(0, 12)
+                                    buildUtilityAccountReference(bill.id)
                                   }
                                   defaultPhone={tenant?.phone ?? ""}
                                   paymentConfig={

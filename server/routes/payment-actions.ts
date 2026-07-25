@@ -4,8 +4,8 @@
  */
 import { Router } from "express";
 import { db } from "../db";
-import { rentPayments, tenants } from "@shared/schema";
-import { eq, sql, desc, and, gte, lte } from "drizzle-orm";
+import { rentPayments, tenants, units, properties } from "@shared/schema";
+import { eq, sql, desc, and, gte, lte, inArray } from "drizzle-orm";
 import { authenticateJWT } from "../middleware/auth";
 import { auditLog } from "../middleware/auditLog";
 import { requireOrg } from "../middleware/requireOrg";
@@ -23,6 +23,7 @@ const router = Router();
 router.get("/", authenticateJWT, requireOrg, async (req: any, res) => {
   try {
     const orgId    = req.user.organizationId as number;
+    const role     = req.user.role as string;
     const page     = Math.max(1, parseInt((req.query.page      as string) || "1",  10));
     const pageSize = Math.min(100, Math.max(1, parseInt((req.query.page_size as string) || "20", 10)));
     const statusFilter  = req.query.status   as string | undefined;
@@ -63,6 +64,22 @@ router.get("/", authenticateJWT, requireOrg, async (req: any, res) => {
     if (tenantIdParam) {
       const tid = parseInt(tenantIdParam, 10);
       if (!isNaN(tid)) paymentConditions.push(eq(rentPayments.tenantId, tid));
+    }
+
+    // Landlords only ever see payments for tenants in properties they own —
+    // previously this endpoint only scoped by org, so in a multi-landlord org
+    // a landlord could see every OTHER landlord's tenants' payments too.
+    if (role === "landlord") {
+      const ownedTenantRows = await db
+        .select({ id: tenants.id })
+        .from(tenants)
+        .innerJoin(units, eq(tenants.unitId, units.id))
+        .innerJoin(properties, eq(units.propertyId, properties.id))
+        .where(and(eq(tenants.organizationId, orgId), eq(properties.ownerId, req.user.id)));
+      const ownedTenantIds = ownedTenantRows.map(r => r.id);
+      paymentConditions.push(
+        ownedTenantIds.length > 0 ? inArray(rentPayments.tenantId, ownedTenantIds) : sql`false`
+      );
     }
 
     const whereClause = paymentConditions.length ? and(...paymentConditions) : undefined;
@@ -121,6 +138,7 @@ router.get("/", authenticateJWT, requireOrg, async (req: any, res) => {
 router.get("/stats", authenticateJWT, requireOrg, async (req: any, res) => {
   try {
     const orgId: number = req.user.organizationId;
+    const role: string  = req.user.role;
     const allTime = req.query.all === "1";
 
     // Default: current month
@@ -140,6 +158,20 @@ router.get("/stats", authenticateJWT, requireOrg, async (req: any, res) => {
         gte(rentPayments.dueDate, periodStart.toISOString().slice(0, 10)),
         lte(rentPayments.dueDate, periodEnd.toISOString().slice(0, 10)),
       );
+    }
+
+    // Landlords only ever see stats for their own properties' tenants —
+    // previously org-only, so a landlord's KPIs would be mixed with every
+    // other landlord's numbers in a multi-landlord org.
+    if (role === "landlord") {
+      const ownedTenantRows = await db
+        .select({ id: tenants.id })
+        .from(tenants)
+        .innerJoin(units, eq(tenants.unitId, units.id))
+        .innerJoin(properties, eq(units.propertyId, properties.id))
+        .where(and(eq(tenants.organizationId, orgId), eq(properties.ownerId, req.user.id)));
+      const ownedTenantIds = ownedTenantRows.map(r => r.id);
+      conditions.push(ownedTenantIds.length > 0 ? inArray(rentPayments.tenantId, ownedTenantIds) : sql`false`);
     }
 
     const rows = await db
@@ -185,9 +217,38 @@ router.get("/stats", authenticateJWT, requireOrg, async (req: any, res) => {
   }
 });
 
+/** Verifies a rent payment belongs to the caller's org (and, for a landlord,
+ *  to a tenant in a property they own). Sends a 404 and returns null if not —
+ *  callers should `if (!payment) return;` immediately after calling this. */
+async function requireOwnedRentPayment(req: any, res: any): Promise<typeof rentPayments.$inferSelect | null> {
+  const id = parseInt(req.params.id);
+  const [payment] = await db.select().from(rentPayments).where(eq(rentPayments.id, id)).limit(1);
+  if (!payment) { res.status(404).json({ message: "Payment not found" }); return null; }
+
+  const [tenant] = await db.select({ organizationId: tenants.organizationId, unitId: tenants.unitId }).from(tenants).where(eq(tenants.id, payment.tenantId)).limit(1);
+  if (!tenant || tenant.organizationId !== req.user.organizationId) {
+    res.status(404).json({ message: "Payment not found" });
+    return null;
+  }
+
+  if (req.user.role === "landlord") {
+    if (!tenant.unitId) { res.status(404).json({ message: "Payment not found" }); return null; }
+    const [unit] = await db.select({ propertyId: units.propertyId }).from(units).where(eq(units.id, tenant.unitId)).limit(1);
+    const [prop] = unit?.propertyId
+      ? await db.select({ ownerId: properties.ownerId }).from(properties).where(eq(properties.id, unit.propertyId)).limit(1)
+      : [undefined];
+    if (!prop || prop.ownerId !== req.user.id) { res.status(404).json({ message: "Payment not found" }); return null; }
+  }
+
+  return payment;
+}
+
 // POST /api/rent-payments/:id/mark-paid
 router.post("/:id/mark-paid", authenticateJWT, auditLog("rent_payment", "ACTION"), async (req: any, res) => {
   try {
+    const owned = await requireOwnedRentPayment(req, res);
+    if (!owned) return;
+
     const id = parseInt(req.params.id);
     const schema = z.object({
       paidDate: z.string(),
@@ -349,6 +410,9 @@ router.post("/:id/mark-paid", authenticateJWT, auditLog("rent_payment", "ACTION"
 // POST /api/rent-payments/:id/apply-late-fee
 router.post("/:id/apply-late-fee", authenticateJWT, auditLog("rent_payment", "ACTION"), async (req: any, res) => {
   try {
+    const owned = await requireOwnedRentPayment(req, res);
+    if (!owned) return;
+
     const id = parseInt(req.params.id);
     const schema = z.object({ lateFeeAmount: z.string() });
     const { lateFeeAmount } = schema.parse(req.body);
@@ -367,13 +431,8 @@ router.post("/:id/apply-late-fee", authenticateJWT, auditLog("rent_payment", "AC
 router.post("/:id/send-reminder", authenticateJWT, auditLog("rent_payment", "ACTION"), async (req: any, res) => {
   try {
     const id = parseInt(req.params.id);
-    const [payment] = await db
-      .select()
-      .from(rentPayments)
-      .where(eq(rentPayments.id, id))
-      .limit(1);
-
-    if (!payment) return res.status(404).json({ message: "Payment not found" });
+    const payment = await requireOwnedRentPayment(req, res);
+    if (!payment) return;
 
     let whatsappSent = false;
 
@@ -459,6 +518,7 @@ router.post("/", authenticateJWT, requireOrg, auditLog("rent_payment", "CREATE")
 router.get("/export", authenticateJWT, requireOrg, async (req: any, res) => {
   try {
     const orgId        = req.user.organizationId as number;
+    const role         = req.user.role as string;
     const statusFilter = req.query.status as string | undefined;
     const searchQuery  = (req.query.search as string | undefined)?.toLowerCase();
 
@@ -475,6 +535,19 @@ router.get("/export", authenticateJWT, requireOrg, async (req: any, res) => {
     const paymentConditions: any[] = [];
     if (statusFilter && statusFilter !== "all") {
       paymentConditions.push(eq(rentPayments.status, statusFilter));
+    }
+
+    // Landlords only ever export their own properties' payments — same rule
+    // as GET / and /stats above.
+    if (role === "landlord") {
+      const ownedTenantRows = await db
+        .select({ id: tenants.id })
+        .from(tenants)
+        .innerJoin(units, eq(tenants.unitId, units.id))
+        .innerJoin(properties, eq(units.propertyId, properties.id))
+        .where(and(eq(tenants.organizationId, orgId), eq(properties.ownerId, req.user.id)));
+      const ownedTenantIds = ownedTenantRows.map(r => r.id);
+      paymentConditions.push(ownedTenantIds.length > 0 ? inArray(rentPayments.tenantId, ownedTenantIds) : sql`false`);
     }
 
     const rows = await db
