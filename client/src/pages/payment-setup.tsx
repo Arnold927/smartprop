@@ -18,12 +18,16 @@
  */
 
 import { useRoleGuard, ROLES } from "@/hooks/useRoleGuard";
+import { useAuth } from "@/hooks/useAuth";
 import PaymentConfigPanel from "@/components/payment-config-panel";
 import { CreditCard } from "lucide-react";
 
 export default function PaymentSetupPage() {
   const guard = useRoleGuard(ROLES.ADMIN_MANAGER_LANDLORD);
   if (guard.gate) return guard.gate;
+
+  const { user } = useAuth();
+  const isLandlord = user?.role === "landlord";
 
   return (
     <div className="max-w-4xl mx-auto px-4 py-6 md:py-8">
@@ -34,12 +38,14 @@ export default function PaymentSetupPage() {
         <div>
           <h1 className="text-lg font-semibold text-foreground">Payment Setup</h1>
           <p className="text-xs text-muted-foreground mt-0.5">
-            Set the Paybill, Till, or bank details tenants should pay rent and utilities to.
+            {isLandlord
+              ? "Set the Paybill, Till, or bank details your tenants should pay rent and utilities to."
+              : "Set the organisation's default Paybill, Till, or bank details for tenants to pay rent and utilities to."}
           </p>
         </div>
       </div>
 
-      <PaymentConfigPanel />
+      <PaymentConfigPanel scope={isLandlord ? "mine" : "org"} />
     </div>
   );
 }

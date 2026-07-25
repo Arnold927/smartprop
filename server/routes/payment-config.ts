@@ -18,6 +18,7 @@ import { organizationSettings, organizations } from "@shared/schema";
 import { eq } from "drizzle-orm";
 import { authenticateJWT } from "../middleware/auth.js";
 import { requireOrg } from "../middleware/requireOrg.js";
+import { resolvePaymentConfigForTenantUser } from "../utils/resolvePaymentConfig";
 
 export const paymentConfigRouter = Router();
 
@@ -126,27 +127,28 @@ paymentConfigRouter.put("/", requireOrg as any, async (req: any, res: any) => {
 });
 
 // ── GET /api/payment-config/public ───────────────────────────────────────────
-// Tenant-accessible — returns payment details for the tenant's org.
-// Requires tenantId query param to derive the org.
+// Tenant-accessible — resolves the CALLING tenant's own payment destination:
+// their property's landlord override if one exists, else the org default.
+// Previously this always returned the plain org-wide blob regardless of
+// which landlord a tenant's property actually belongs to — fine for a
+// single-landlord org, wrong for a multi-landlord one.
 paymentConfigRouter.get("/public", async (req: any, res: any) => {
   try {
-    // Must be authenticated (JWT), but no requireOrg — org is derived from tenantId
     const orgId = req.user?.organizationId;
     if (!orgId) return res.status(401).json({ message: "Unauthorized" });
 
-    const settings = await getOrCreateOrgSettings(orgId);
     const [org] = await db
       .select({ name: organizations.name })
       .from(organizations)
       .where(eq(organizations.id, orgId))
       .limit(1);
 
-    const paymentSettings = (settings.paymentSettings as any) ?? {};
+    const resolved = await resolvePaymentConfigForTenantUser(req.user.id, orgId);
 
     return res.json({
       orgName: org?.name ?? "",
-      rentPayment: paymentSettings.rentPayment ?? null,
-      utilityPayment: paymentSettings.utilityPayment ?? null,
+      rentPayment: resolved.rentPayment ?? null,
+      utilityPayment: resolved.utilityPayment ?? null,
     });
   } catch (err) {
     console.error("[payment-config] GET /public:", err);

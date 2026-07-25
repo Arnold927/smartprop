@@ -212,6 +212,35 @@ export const organizationSettings = pgTable("organization_settings", {
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
+/**
+ * Per-landlord payment routing override, for orgs with multiple landlords
+ * sharing one organization account (a management company running several
+ * distinct owners' portfolios). organizationSettings.paymentSettings above
+ * remains the org-wide DEFAULT/fallback — used as-is for single-landlord
+ * orgs, and for any property with no specific ownerId assigned.
+ *
+ * Resolution when a tenant needs to know where to pay: look up their unit's
+ * property -> property.ownerId -> the matching row here (if any) -> else
+ * fall back to the org-wide default. A landlord who never sets this up just
+ * keeps using the org default, so single-landlord orgs need zero extra
+ * setup — this table is additive, not a replacement.
+ */
+export const landlordPaymentSettings = pgTable(
+  "landlord_payment_settings",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: integer("organization_id").references(() => organizations.id).notNull(),
+    ownerId: uuid("owner_id").references(() => users.id).notNull(),
+    rentPayment: jsonb("rent_payment").default({}),
+    utilityPayment: jsonb("utility_payment").default({}),
+    updatedAt: timestamp("updated_at").defaultNow(),
+  },
+  (t) => ({
+    orgOwnerUnique: uniqueIndex("landlord_payment_settings_org_owner_unique")
+      .on(t.organizationId, t.ownerId),
+  })
+);
+
 // User storage table (required for Replit Auth)
 export const users = pgTable("users", {
     id: uuid("id").defaultRandom().primaryKey(),

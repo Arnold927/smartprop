@@ -21,7 +21,7 @@
 import { Router }          from 'express';
 import { z }               from 'zod';
 import { db }              from '../db';
-import { rentPayments, tenants, mpesaTransactions, utilityBills, organizationSettings } from '@shared/schema';
+import { rentPayments, tenants, mpesaTransactions, utilityBills } from '@shared/schema';
 import { eq, and, or, like, gte, lte, isNull }     from 'drizzle-orm';
 import { authenticateJWT } from '../middleware/auth';
 import { safaricomIpOnly } from '../middleware/safaricomIp';
@@ -29,6 +29,7 @@ import { getMPesaService, isMpesaConfigured } from '../services/mpesa';
 import { storage }         from '../storage';
 import { notifyPaymentConfirmed } from '../ws';
 import { whatsappService } from '../whatsapp';
+import { resolvePaymentConfigForTenantId } from '../utils/resolvePaymentConfig';
 
 const router = Router();
 
@@ -311,26 +312,25 @@ router.post('/initiate', authenticateJWT, async (req: any, res) => {
     const desc = description ?? (utilityBillId ? 'Utility Payment' : 'Rent Payment');
 
     // ── Resolve shortcode from Payment Setup ─────────────────────────────────
-    // Use the Paybill/Till the admin set in the UI so STK Push money always
-    // lands in the same account tenants are instructed to use manually.
-    // Falls back to MPESA_BUSINESS_SHORTCODE env var if nothing is configured.
+    // Use the Paybill/Till configured for this tenant's specific landlord if
+    // one exists (multi-landlord orgs), else the org-wide default, else the
+    // MPESA_BUSINESS_SHORTCODE env var. Same resolution chain as the
+    // tenant-facing GET /api/payment-config/public, so STK Push money always
+    // lands wherever the tenant was actually told to pay.
     let resolvedShortCode: string | undefined;
     try {
       const orgId: number | undefined = req.user?.organizationId;
       if (orgId) {
-        const [settings] = await db
-          .select({ paymentSettings: organizationSettings.paymentSettings })
-          .from(organizationSettings)
-          .where(eq(organizationSettings.organizationId, orgId))
-          .limit(1);
+        const resolved = tenantId
+          ? await resolvePaymentConfigForTenantId(tenantId, orgId)
+          : null;
 
-        const ps = settings?.paymentSettings as any;
-        const paybill = ps?.rentPayment?.mpesaPaybill?.trim();
-        const till    = ps?.rentPayment?.mpesaTill?.trim();
+        const paybill = resolved?.rentPayment?.mpesaPaybill?.trim();
+        const till    = resolved?.rentPayment?.mpesaTill?.trim();
         resolvedShortCode = paybill || till || undefined;
 
         if (resolvedShortCode) {
-          console.log(`[MPesa] Using Payment Setup shortcode: ${resolvedShortCode} (org ${orgId})`);
+          console.log(`[MPesa] Using ${resolved?.resolvedFrom ?? "org"} shortcode: ${resolvedShortCode} (org ${orgId}${resolved?.landlordOwnerId ? `, landlord ${resolved.landlordOwnerId}` : ""})`);
         } else {
           console.log(`[MPesa] No Payment Setup shortcode for org ${orgId} — using env MPESA_BUSINESS_SHORTCODE`);
         }

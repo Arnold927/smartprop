@@ -46,10 +46,19 @@ interface PaymentAccount {
 }
 
 interface PaymentConfig {
-  orgName: string;
-  serverShortcode: string; // MPESA_BUSINESS_SHORTCODE from server .env
+  orgName?: string;
+  serverShortcode?: string; // MPESA_BUSINESS_SHORTCODE from server .env — only present for scope="org"
+  configured?: boolean;     // only present for scope="mine" — false if this landlord hasn't set their own override yet
   rentPayment: PaymentAccount;
   utilityPayment: PaymentAccount;
+}
+
+interface PaymentConfigPanelProps {
+  /** "org" (default) edits the org-wide default via /api/payment-config.
+   *  "mine" edits the calling landlord's own override via
+   *  /api/payment-config/landlord/mine — for orgs with multiple landlords
+   *  sharing one account, where each owner needs their own Paybill/Till. */
+  scope?: "org" | "mine";
 }
 
 const emptyAccount = (): PaymentAccount => ({
@@ -314,12 +323,13 @@ function PaymentMethodSection({
 
 // ── Main component ─────────────────────────────────────────────────────────────
 
-export default function PaymentConfigPanel() {
+export default function PaymentConfigPanel({ scope = "org" }: PaymentConfigPanelProps = {}) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const endpoint = scope === "mine" ? "/api/payment-config/landlord/mine" : "/api/payment-config";
 
   const { data: config, isLoading } = useQuery<PaymentConfig>({
-    queryKey: ["/api/payment-config"],
+    queryKey: [endpoint],
   });
 
   const [rent, setRent] = useState<PaymentAccount>(emptyAccount());
@@ -359,7 +369,7 @@ export default function PaymentConfigPanel() {
 
   const save = useMutation({
     mutationFn: async () => {
-      const r = await apiRequest("/api/payment-config", {
+      const r = await apiRequest(endpoint, {
         method: "PUT",
         data: {
           rentPayment: rent,
@@ -373,7 +383,7 @@ export default function PaymentConfigPanel() {
       // Update saved state so warnings clear after a successful save
       setSavedRent({ ...rent });
       setSavedUtility(sameAsRent ? { ...rent } : { ...utility });
-      queryClient.invalidateQueries({ queryKey: ["/api/payment-config"] });
+      queryClient.invalidateQueries({ queryKey: [endpoint] });
       toast({ title: "Payment config saved!", description: "Tenants will see these payment details in their portal." });
     },
     onError: (e: any) => toast({ title: "Failed to save", description: e.message, variant: "destructive" }),
@@ -470,12 +480,41 @@ export default function PaymentConfigPanel() {
         </DialogContent>
       </Dialog>
 
+      {/* Scope-specific status banner */}
+      {scope === "mine" && (
+        <div className={`flex items-start gap-3 rounded-xl border p-4 ${
+          config?.configured ? "border-emerald-100 bg-emerald-50" : "border-amber-200 bg-amber-50"
+        }`}>
+          {config?.configured
+            ? <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" />
+            : <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+          }
+          <div className="text-sm">
+            {config?.configured ? (
+              <>
+                <p className="font-semibold text-emerald-800">Your own payment details are active</p>
+                <p className="mt-1 text-emerald-700">Your tenants see the Paybill/Till/bank details below — not the organisation's default.</p>
+              </>
+            ) : (
+              <>
+                <p className="font-semibold text-amber-800">You haven't set up your own payment details yet</p>
+                <p className="mt-1 text-amber-700">Your tenants are currently seeing the organisation's default payment details. Save the form below to use your own instead.</p>
+              </>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* Info banner */}
       <div className="flex items-start gap-3 rounded-xl border border-blue-100 bg-blue-50 p-4">
         <Info className="w-5 h-5 text-blue-500 shrink-0 mt-0.5" />
         <div className="text-sm text-blue-800">
           <p className="font-semibold">How this works</p>
-          <p className="mt-1 text-blue-700">Configure the payment details tenants should use. These appear in the tenant portal under each payment screen. You can set different accounts for rent and utility bills, or use the same account for both.</p>
+          <p className="mt-1 text-blue-700">
+            {scope === "mine"
+              ? "Configure the payment details your tenants should use — set different accounts for rent and utility bills, or use one account for both. This only affects your own properties; other landlords in the same organisation (if any) set their own separately."
+              : "Configure the default payment details tenants should use. These appear in the tenant portal under each payment screen. If a specific landlord has set up their own payment details, tenants linked to that landlord's properties see theirs instead of this default."}
+          </p>
         </div>
       </div>
 
