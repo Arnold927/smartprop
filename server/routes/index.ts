@@ -18,6 +18,7 @@ import {
   projectMilestoneRouter,
 } from "./maintenance";
 import maintenanceActionsRouter from "./maintenance-actions";
+import maintenanceItemGuardRouter from "./maintenance-item-guard";
 import paymentActionsRouter from "./payment-actions";
 import documentsRouter from "./documents";
 import workOrdersRouter from "./work-orders";
@@ -251,6 +252,7 @@ export function registerModularRoutes(app: Express) {
   mount(app, "/api/invoices",                          invoiceRouter);
   mount(app, "/api/mpesa-transactions",                mpesaRouter);
   mount(app, "/api/maintenance-requests",              maintenanceListRouter);
+  mount(app, "/api/maintenance-requests",              maintenanceItemGuardRouter); // GET/PUT/PATCH/DELETE /:id org+role scoping (must be before maintenanceRouter)
   mount(app, "/api/maintenance-requests",              maintenanceRouter);
   mount(app, "/api/maintenance-requests",              maintenanceActionsRouter);
   mount(app, "/api/payment-config",                    paymentConfigRouter);

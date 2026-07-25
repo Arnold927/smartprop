@@ -473,10 +473,24 @@ utilityBillSenderRouter.post("/send-bulk", managerOnly as any, async (req: any, 
 // ─────────────────────────────────────────────────────────────────────────────
 utilityBillSenderRouter.get("/my-bills", async (req: any, res: any) => {
   try {
-    // Support both ?tenantId=X (from portal) and auto-resolve from JWT (when
-    // the logged-in user IS the tenant and their tenantId is in the token).
-    const tenantId = parseInt(req.query.tenantId as string) || req.user?.tenantId;
-    if (!tenantId) return res.status(400).json({ message: "tenantId is required" });
+    const role: string = req.user?.role ?? "";
+    let tenantId: number | undefined;
+
+    if (role === "tenant") {
+      // Always resolve from the JWT for a tenant caller — never trust the
+      // query param, which previously took priority over their own identity
+      // and let any tenant view any other tenant's bills by passing an id.
+      const [own] = await db.select({ id: tenants.id }).from(tenants).where(eq(tenants.userId, req.user.id)).limit(1);
+      if (!own) return res.status(403).json({ message: "Tenant profile not found" });
+      tenantId = own.id;
+    } else {
+      tenantId = parseInt(req.query.tenantId as string) || undefined;
+      if (!tenantId) return res.status(400).json({ message: "tenantId is required" });
+      // Non-tenant callers (staff/admin/manager/landlord) must still only see
+      // bills for a tenant within their own org.
+      const [target] = await db.select({ id: tenants.id }).from(tenants).where(and(eq(tenants.id, tenantId), eq(tenants.organizationId, req.user.organizationId))).limit(1);
+      if (!target) return res.status(404).json({ message: "Tenant not found" });
+    }
 
     // PRIMARY: fetch bills stored directly against this tenant
     // (new path — works even without a utility account row)

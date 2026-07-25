@@ -50,8 +50,21 @@ function orgDocCondition(orgId: number) {
 router.get("/", authenticateJWT, requireOrg, async (req: any, res) => {
   try {
     const orgId: number = req.user.organizationId;
-    const tenantId   = req.query.tenantId   ? parseInt(req.query.tenantId   as string) : undefined;
+    const role: string  = req.user.role ?? "";
+    let tenantId   = req.query.tenantId   ? parseInt(req.query.tenantId   as string) : undefined;
     const propertyId = req.query.propertyId ? parseInt(req.query.propertyId as string) : undefined;
+
+    // A tenant may only ever see their OWN documents — resolve their tenantId
+    // from the JWT and ignore whatever (if anything) was passed in the query.
+    if (role === "tenant") {
+      const [own] = await db
+        .select({ id: tenants.id })
+        .from(tenants)
+        .where(eq(tenants.userId, req.user.id))
+        .limit(1);
+      if (!own) return res.json({ count: 0, page: 1, limit: 20, next: null, previous: null, results: [] });
+      tenantId = own.id;
+    }
 
     const page   = Math.max(1, parseInt(req.query.page  as string) || 1);
     const limit  = Math.min(100, Math.max(1, parseInt(req.query.limit as string) || 20));
@@ -98,13 +111,22 @@ router.post("/", authenticateJWT, requireOrg, upload.single("file"), auditLog("d
     if (!req.file) return res.status(400).json({ message: "No file uploaded" });
 
     const userId = req.user.userId || req.user.id;
+    const role: string = req.user.role ?? "";
+
+    let tenantId = req.body.tenantId ? Number(req.body.tenantId) : undefined;
+    if (role === "tenant") {
+      const [own] = await db.select({ id: tenants.id }).from(tenants).where(eq(tenants.userId, userId)).limit(1);
+      if (!own) return res.status(403).json({ message: "Tenant profile not found" });
+      tenantId = own.id;
+    }
+
     const validated = insertDocumentSchema.parse({
       name:        req.body.name ?? req.file.originalname,
       type:        req.body.type ?? "document",
       url:         resolveUploadUrl(req.file as any),
       uploadedBy:  String(userId),
       size:        req.file.size,
-      tenantId:    req.body.tenantId   ? Number(req.body.tenantId)   : undefined,
+      tenantId,
       propertyId:  req.body.propertyId ? Number(req.body.propertyId) : undefined,
     });
 

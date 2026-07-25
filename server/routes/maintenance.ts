@@ -190,6 +190,24 @@ maintenanceListRouter.post('/', authenticateJWT, requireOrg, async (req: any, re
     return;
   }
 
+  // A tenant may only file a request as themselves, against their own unit —
+  // tenantId/unitId previously came straight from the client body with no
+  // verification, so a tenant could submit a request attributed to someone
+  // else's tenantId/unitId. Force both from their own record server-side.
+  if (req.user?.role === 'tenant') {
+    const userId = String(req.user.id ?? req.user.userId ?? '');
+    const [own] = await db
+      .select({ id: tenants.id, unitId: tenants.unitId })
+      .from(tenants)
+      .where(and(eq(tenants.userId, userId), eq(tenants.organizationId, req.user.organizationId)))
+      .limit(1);
+    if (!own || !own.unitId) {
+      return res.status(403).json({ message: 'Tenant profile not found or not linked to a unit.' });
+    }
+    req.body.tenantId = own.id;
+    req.body.unitId   = own.unitId;
+  }
+
   // Delegate to the CRUD router by calling next() — this runs the actual insert.
   // We intercept the response to send the WhatsApp after the DB write.
   // Technique: wrap res.json to capture the created object.

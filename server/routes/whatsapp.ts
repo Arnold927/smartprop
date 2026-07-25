@@ -799,15 +799,17 @@ router.post('/automated', authenticateJWT, async (req: any, res) => {
   }
 });
 
-// ─── Tenant lookup (no JWT — phone is the credential) ───────────────────────
+// ─── Tenant lookup (JWT required — used by the tenant chat widget) ──────────
 // GET /api/whatsapp/tenant-lookup?phone=+254...  OR  ?tenantId=42
-router.get('/tenant-lookup', async (req, res) => {
+// Was "no JWT" — but its only caller (tenant-whatsapp-chat.tsx) is only ever
+// rendered inside the already-authenticated tenant portal and already sends
+// a Bearer token on every request, so requiring auth here breaks nothing.
+router.get('/tenant-lookup', authenticateJWT as any, async (req: any, res) => {
   const { phone, tenantId } = req.query as Record<string, string>;
+  const role: string = req.user?.role ?? '';
 
   try {
     // Select tenant fields + unitNumber via left join on units
-    // tenant-lookup is intentionally public (used by the tenant chat widget).
-    // Do NOT include organizationId or other sensitive org data in this response.
     const selectShape = {
       id:             tenants.id,
       firstName:      tenants.firstName,
@@ -849,6 +851,15 @@ router.get('/tenant-lookup', async (req, res) => {
       });
     }
 
+    // A tenant caller may only ever look up their own record — never
+    // someone else's, by phone or by tenantId.
+    if (role === 'tenant') {
+      const [own] = await db.select({ id: tenants.id }).from(tenants).where(eq(tenants.userId, req.user.id)).limit(1);
+      if (!own || own.id !== row.id) {
+        return res.status(404).json({ message: "We couldn't find this number in our system. Please contact your property manager." });
+      }
+    }
+
     res.json({
       id:             row.id,
       firstName:      row.firstName,
@@ -856,7 +867,8 @@ router.get('/tenant-lookup', async (req, res) => {
       phone:          row.phone,
       unitNumber:     row.unitNumber ?? undefined,
       propertyName:   undefined,
-      organizationId: row.organizationId,
+      // organizationId intentionally omitted from the response — this
+      // endpoint's own original intent, now actually honored.
     });
   } catch (err) {
     logger.error('[WhatsApp] tenant-lookup error:', err);
@@ -864,10 +876,22 @@ router.get('/tenant-lookup', async (req, res) => {
   }
 });
 
-// ─── Tenant thread (no JWT — phone identifies the conversation) ──────────────
+// ─── Tenant thread (JWT required — used by the tenant chat widget) ──────────
 // GET /api/whatsapp/tenant-thread?phone=+254...
-router.get('/tenant-thread', async (req, res) => {
-  const { phone } = req.query as Record<string, string>;
+// Was "no JWT" — same reasoning as tenant-lookup above: its only caller
+// already sends a Bearer token on every request, so this breaks nothing.
+router.get('/tenant-thread', authenticateJWT as any, async (req: any, res) => {
+  const role: string = req.user?.role ?? '';
+  let phone = (req.query as Record<string, string>).phone;
+
+  // A tenant may only ever view their OWN thread — resolve their phone from
+  // the JWT-linked tenant record and ignore whatever was passed in the query.
+  if (role === 'tenant') {
+    const [own] = await db.select({ phone: tenants.phone }).from(tenants).where(eq(tenants.userId, req.user.id)).limit(1);
+    if (!own?.phone) return res.status(403).json({ message: 'Tenant profile not found or has no phone on file.' });
+    phone = own.phone;
+  }
+
   if (!phone) return res.status(400).json({ message: 'phone is required' });
 
   try {
@@ -902,11 +926,13 @@ router.get('/tenant-thread', async (req, res) => {
   }
 });
 
-// ─── Tenant send (no JWT — tenant sends a message to the manager) ─────────────
+// ─── Tenant send (JWT required — used by the tenant chat widget) ────────────
 // POST /api/whatsapp/tenant-send  { to, message, type, mediaUrl? }
-router.post('/tenant-send', async (req, res) => {
+// Was "no JWT" — same reasoning as tenant-lookup/tenant-thread above.
+router.post('/tenant-send', authenticateJWT as any, async (req: any, res) => {
+  const role: string = req.user?.role ?? '';
   const schema = z.object({
-    to:       z.string().min(1),
+    to:       z.string().min(1).optional(),
     message:  z.string().min(1),
     type:     z.enum(['text', 'media']).default('text'),
     mediaUrl: z.string().url().optional(),
@@ -917,7 +943,19 @@ router.post('/tenant-send', async (req, res) => {
     return res.status(400).json({ message: 'Invalid request', errors: parsed.error.errors });
   }
 
-  const { to, message, type } = parsed.data;
+  const { message, type } = parsed.data;
+  let to = parsed.data.to;
+
+  // A tenant may only ever send as themselves — resolve their own phone from
+  // the JWT-linked tenant record and ignore whatever "to" was sent, rather
+  // than letting a message appear to come from an arbitrary phone number.
+  if (role === 'tenant') {
+    const [own] = await db.select({ phone: tenants.phone }).from(tenants).where(eq(tenants.userId, req.user.id)).limit(1);
+    if (!own?.phone) return res.status(403).json({ message: 'Tenant profile not found or has no phone on file.' });
+    to = own.phone;
+  }
+  if (!to) return res.status(400).json({ message: '"to" is required' });
+
   const normalised = to.startsWith('+') ? to : `+${to}`;
 
   // Resolve org from phone so the operator console sees it correctly

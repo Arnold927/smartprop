@@ -100,8 +100,8 @@ export function TenantOnboardingFlow({ tenantId, tenantName, phone = "", rentAmo
   const savePhoneMutation = useMutation({
     mutationFn: () =>
       apiRequest(`/api/tenants/${tenantId}`, {
-        method: "PATCH",
-        body: JSON.stringify({ phoneNumber: phoneInput }),
+        method: "PUT",
+        data: { phone: phoneInput },
       }).then(r => r.json()),
     onSuccess: () => {
       setPhoneSaved(true);

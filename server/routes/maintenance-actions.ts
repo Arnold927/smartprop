@@ -228,6 +228,27 @@ router.patch("/:id/complete", auditLog("maintenance_request", "ACTION"), async (
 router.patch("/:id/feedback", auditLog("maintenance_request", "ACTION"), async (req: any, res) => {
   try {
     const id = parseInt(req.params.id);
+    const orgId: number = req.user.organizationId;
+    const role: string  = req.user.role ?? "";
+
+    const [existing] = await db
+      .select({ id: maintenanceRequests.id, tenantId: maintenanceRequests.tenantId, organizationId: maintenanceRequests.organizationId })
+      .from(maintenanceRequests)
+      .where(eq(maintenanceRequests.id, id))
+      .limit(1);
+
+    if (!existing || existing.organizationId !== orgId) {
+      return res.status(404).json({ message: "Maintenance request not found" });
+    }
+
+    // A tenant may only leave feedback on their OWN maintenance request.
+    if (role === "tenant") {
+      const [own] = await db.select({ id: tenants.id }).from(tenants).where(eq(tenants.userId, req.user.id)).limit(1);
+      if (!own || existing.tenantId !== own.id) {
+        return res.status(404).json({ message: "Maintenance request not found" });
+      }
+    }
+
     const schema = z.object({
       rating: z.number().int().min(1).max(5),
       comments: z.string().optional(),

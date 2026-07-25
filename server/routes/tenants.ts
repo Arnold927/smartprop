@@ -367,6 +367,49 @@ tenantRouter.put("/:id", async (req: any, res: any) => {
   try {
     const id: number    = parseInt(req.params.id);
     const orgId: number = req.user.organizationId;
+    const role: string  = req.user.role ?? "";
+
+    // A tenant may only edit their OWN record, and only a small whitelist of
+    // self-service fields (contact info) — never rent, deposit, status, lease
+    // dates, or unitId. Previously any tenant could edit any other tenant's
+    // full record, including financial fields, by guessing an id.
+    if (role === "tenant") {
+      const [own] = await db
+        .select({ id: tenants.id })
+        .from(tenants)
+        .where(and(eq(tenants.id, id), eq(tenants.userId, req.user.id)))
+        .limit(1);
+      if (!own) return res.status(404).json({ message: "Tenant not found" });
+
+      const selfServiceSchema = z.object({
+        phone: z.string().optional(),
+        email: z.string().email().optional(),
+      });
+      const parsed = selfServiceSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(422).json({ message: "Validation error", errors: parsed.error.flatten().fieldErrors });
+      }
+      const tenant = await storage.updateTenantById(id, orgId, parsed.data);
+      return res.json(tenant);
+    }
+
+    // Landlords may only edit tenants in properties they own — same rule used
+    // everywhere else a landlord touches property-scoped data this session.
+    if (role === "landlord") {
+      const [row] = await db
+        .select({ propertyId: units.propertyId })
+        .from(tenants)
+        .leftJoin(units, eq(tenants.unitId, units.id))
+        .where(and(eq(tenants.id, id), eq(tenants.organizationId, orgId)))
+        .limit(1);
+      if (!row) return res.status(404).json({ message: "Tenant not found" });
+      if (row.propertyId) {
+        const [prop] = await db.select({ ownerId: properties.ownerId }).from(properties).where(eq(properties.id, row.propertyId)).limit(1);
+        if (!prop || prop.ownerId !== req.user.id) {
+          return res.status(403).json({ message: "You can only edit tenants in properties you own." });
+        }
+      }
+    }
 
     const updateSchema = insertTenantSchema.partial().omit({ organizationId: true, userId: true });
     const parsed = updateSchema.safeParse(req.body);
@@ -418,15 +461,32 @@ tenantRouter.get("/:id/payments", async (req: any, res: any) => {
   try {
     const tenantId: number = parseInt(req.params.id);
     const orgId: number    = req.user.organizationId;
+    const role: string     = req.user.role ?? "";
 
-    // Verify the tenant belongs to the caller's org before exposing payments
+    // Verify the tenant belongs to the caller's org before exposing payments —
+    // and if the caller IS a tenant, it must be their own record specifically.
+    const ownerCondition = role === "tenant"
+      ? and(eq(tenants.id, tenantId), eq(tenants.userId, req.user.id))
+      : and(eq(tenants.id, tenantId), eq(tenants.organizationId, orgId));
+
     const [tenant] = await db
-      .select({ id: tenants.id })
+      .select({ id: tenants.id, unitId: tenants.unitId })
       .from(tenants)
-      .where(and(eq(tenants.id, tenantId), eq(tenants.organizationId, orgId)))
+      .where(ownerCondition)
       .limit(1);
 
     if (!tenant) return res.status(404).json({ message: "Tenant not found" });
+
+    // Landlords may only view payments for tenants in properties they own.
+    if (role === "landlord" && tenant.unitId) {
+      const [unit] = await db.select({ propertyId: units.propertyId }).from(units).where(eq(units.id, tenant.unitId)).limit(1);
+      if (unit?.propertyId) {
+        const [prop] = await db.select({ ownerId: properties.ownerId }).from(properties).where(eq(properties.id, unit.propertyId)).limit(1);
+        if (!prop || prop.ownerId !== req.user.id) {
+          return res.status(404).json({ message: "Tenant not found" });
+        }
+      }
+    }
 
     const results = await db
       .select()

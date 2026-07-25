@@ -287,7 +287,18 @@ router.post('/initiate', authenticateJWT, async (req: any, res) => {
     return res.status(400).json({ message: 'Invalid request', errors: parsed.error.errors });
   }
 
-  const { phoneNumber, amount, rentPaymentId, utilityBillId, tenantId, accountReference, description } = parsed.data;
+  let { phoneNumber, amount, rentPaymentId, utilityBillId, tenantId, accountReference, description } = parsed.data;
+
+  // A tenant initiating their own payment may only ever have it recorded
+  // against their own tenantId — resolve it from the JWT and ignore whatever
+  // (if anything) was sent in the body, rather than trusting the client.
+  if (callerRole === 'tenant') {
+    const [own] = await db.select({ id: tenants.id }).from(tenants).where(eq(tenants.userId, req.user.id)).limit(1);
+    if (!own) {
+      return res.status(403).json({ message: 'Tenant profile not found.' });
+    }
+    tenantId = own.id;
+  }
 
   try {
     const mpesaService = getMPesaService();
