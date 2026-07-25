@@ -18,7 +18,7 @@
 import { Router } from "express";
 import { db } from "../db.js";
 import { utilityMeterReadings, utilityAccounts, properties } from "@shared/schema";
-import { eq, inArray } from "drizzle-orm";
+import { eq, inArray, and } from "drizzle-orm";
 import { authenticateJWT } from "../middleware/auth.js";
 import { requireOrg } from "../middleware/requireOrg.js";
 
@@ -28,11 +28,15 @@ router.use(authenticateJWT as any, requireOrg as any);
 // utility_meter_readings has no organizationId column of its own — scope via
 // accountId → utilityAccounts.propertyId → properties.organizationId, the same
 // pattern already used for utility bills elsewhere in utility-management.ts.
-async function getOrgAccountIds(orgId: number): Promise<number[]> {
+// For a landlord, further restrict to properties they actually own.
+async function getOrgAccountIds(orgId: number, role: string, userId: string): Promise<number[]> {
+  const propConditions = role === "landlord"
+    ? and(eq(properties.organizationId, orgId), eq(properties.ownerId, userId))
+    : eq(properties.organizationId, orgId);
   const orgProps = await db
     .select({ id: properties.id })
     .from(properties)
-    .where(eq(properties.organizationId, orgId));
+    .where(propConditions);
   const propIds = orgProps.map((p: any) => p.id);
   if (propIds.length === 0) return [];
 
@@ -57,7 +61,7 @@ function safeUuid(id: string | undefined | null): string | null {
 router.get("/", async (req: any, res: any) => {
   try {
     const orgId: number = req.user.organizationId;
-    const accountIds = await getOrgAccountIds(orgId);
+    const accountIds = await getOrgAccountIds(orgId, req.user.role ?? "", req.user.id);
     const readings = accountIds.length > 0
       ? await db
           .select()
@@ -85,7 +89,7 @@ router.get("/:id", async (req: any, res: any) => {
 
     if (!reading) return res.status(404).json({ message: "Reading not found" });
 
-    const accountIds = await getOrgAccountIds(orgId);
+    const accountIds = await getOrgAccountIds(orgId, req.user.role ?? "", req.user.id);
     if (!accountIds.includes(reading.accountId)) {
       return res.status(404).json({ message: "Reading not found" });
     }
@@ -107,7 +111,7 @@ router.post("/", async (req: any, res: any) => {
     }
 
     // Verify the account belongs to the caller's org before allowing the insert.
-    const accountIds = await getOrgAccountIds(orgId);
+    const accountIds = await getOrgAccountIds(orgId, req.user.role ?? "", req.user.id);
     if (!accountIds.includes(parseInt(accountId))) {
       return res.status(404).json({ message: "Utility account not found" });
     }
@@ -151,7 +155,7 @@ router.put("/:id", async (req: any, res: any) => {
       .where(eq(utilityMeterReadings.id, id))
       .limit(1);
 
-    const accountIds = await getOrgAccountIds(orgId);
+    const accountIds = await getOrgAccountIds(orgId, req.user.role ?? "", req.user.id);
     if (!existing || !accountIds.includes(existing.accountId)) {
       return res.status(404).json({ message: "Reading not found" });
     }
@@ -194,7 +198,7 @@ router.delete("/:id", async (req: any, res: any) => {
       .where(eq(utilityMeterReadings.id, id))
       .limit(1);
 
-    const accountIds = await getOrgAccountIds(orgId);
+    const accountIds = await getOrgAccountIds(orgId, req.user.role ?? "", req.user.id);
     if (!existing || !accountIds.includes(existing.accountId)) {
       return res.status(404).json({ message: "Reading not found" });
     }

@@ -131,12 +131,21 @@ utilityProvidersRouter.delete("/:id", async (req: any, res: any) => {
 export const utilityAccountsRouter = Router();
 utilityAccountsRouter.use(authenticateJWT as any, requireOrg as any);
 
+// Properties this caller may touch: all of the org's, or — for a landlord —
+// only ones they own. Reused across every method below so GET /:id, POST,
+// PUT, and DELETE are all scoped the same way GET / already was.
+async function accessiblePropertyIds(orgId: number, role: string, userId: string): Promise<number[]> {
+  const conditions = role === "landlord"
+    ? and(eq(properties.organizationId, orgId), eq(properties.ownerId, userId))
+    : eq(properties.organizationId, orgId);
+  const rows = await db.select({ id: properties.id }).from(properties).where(conditions);
+  return rows.map((p: any) => p.id);
+}
+
 utilityAccountsRouter.get("/", async (req: any, res: any) => {
   try {
     const orgId: number = req.user.organizationId;
-    // scope via propertyId → properties.organizationId
-    const orgProps = await db.select({ id: properties.id }).from(properties).where(eq(properties.organizationId, orgId));
-    const propIds = orgProps.map((p: any) => p.id);
+    const propIds = await accessiblePropertyIds(orgId, req.user.role ?? "", req.user.id);
     const accounts = propIds.length > 0
       ? await db.select().from(utilityAccounts).where(inArray(utilityAccounts.propertyId, propIds)).orderBy(utilityAccounts.createdAt)
       : [];
@@ -149,12 +158,16 @@ utilityAccountsRouter.get("/", async (req: any, res: any) => {
 
 utilityAccountsRouter.get("/:id", async (req: any, res: any) => {
   try {
+    const orgId: number = req.user.organizationId;
+    const propIds = await accessiblePropertyIds(orgId, req.user.role ?? "", req.user.id);
     const [account] = await db
       .select()
       .from(utilityAccounts)
       .where(eq(utilityAccounts.id, parseInt(req.params.id)))
       .limit(1);
-    if (!account) return res.status(404).json({ message: "Account not found" });
+    if (!account || !propIds.includes(account.propertyId)) {
+      return res.status(404).json({ message: "Account not found" });
+    }
     res.json(account);
   } catch (err) {
     console.error("[utility-accounts] GET /:id:", err);
@@ -164,9 +177,14 @@ utilityAccountsRouter.get("/:id", async (req: any, res: any) => {
 
 utilityAccountsRouter.post("/", async (req: any, res: any) => {
   try {
+    const orgId: number = req.user.organizationId;
     const { propertyId, unitId, providerId, accountNumber, meterNumber, connectionDate, isActive, notes } = req.body;
     if (!propertyId || !providerId || !accountNumber) {
       return res.status(400).json({ message: "propertyId, providerId, and accountNumber are required" });
+    }
+    const propIds = await accessiblePropertyIds(orgId, req.user.role ?? "", req.user.id);
+    if (!propIds.includes(parseInt(propertyId))) {
+      return res.status(404).json({ message: "Property not found in your organisation" });
     }
     const [created] = await db
       .insert(utilityAccounts)
@@ -190,8 +208,17 @@ utilityAccountsRouter.post("/", async (req: any, res: any) => {
 
 utilityAccountsRouter.put("/:id", async (req: any, res: any) => {
   try {
+    const orgId: number = req.user.organizationId;
     const id = parseInt(req.params.id);
+    const propIds = await accessiblePropertyIds(orgId, req.user.role ?? "", req.user.id);
+    const [existing] = await db.select({ propertyId: utilityAccounts.propertyId }).from(utilityAccounts).where(eq(utilityAccounts.id, id)).limit(1);
+    if (!existing || !propIds.includes(existing.propertyId)) {
+      return res.status(404).json({ message: "Account not found" });
+    }
     const { propertyId, unitId, providerId, accountNumber, meterNumber, connectionDate, isActive, notes } = req.body;
+    if (propertyId && !propIds.includes(parseInt(propertyId))) {
+      return res.status(404).json({ message: "Property not found in your organisation" });
+    }
     const [updated] = await db
       .update(utilityAccounts)
       .set({
@@ -216,7 +243,13 @@ utilityAccountsRouter.put("/:id", async (req: any, res: any) => {
 
 utilityAccountsRouter.delete("/:id", async (req: any, res: any) => {
   try {
+    const orgId: number = req.user.organizationId;
     const id = parseInt(req.params.id);
+    const propIds = await accessiblePropertyIds(orgId, req.user.role ?? "", req.user.id);
+    const [existing] = await db.select({ propertyId: utilityAccounts.propertyId }).from(utilityAccounts).where(eq(utilityAccounts.id, id)).limit(1);
+    if (!existing || !propIds.includes(existing.propertyId)) {
+      return res.status(404).json({ message: "Account not found" });
+    }
     await db.delete(utilityAccounts).where(eq(utilityAccounts.id, id));
     res.json({ success: true });
   } catch (err) {

@@ -129,10 +129,10 @@ export const ROUTE_POLICY: Record<string, AppRole[]> = {
   '/api/parking-spaces':             ADMIN_MANAGER_STAFF,
   '/api/registered-vehicles':        ADMIN_MANAGER_STAFF,
   '/api/parking-assignments':        ADMIN_MANAGER_STAFF,
-  '/api/utility-providers':          ADMIN_MANAGER_STAFF,
-  '/api/utility-accounts':           ADMIN_MANAGER_STAFF,
+  '/api/utility-providers':          STAFF_AND_ABOVE,        // shared reference data (no organizationId column) — landlord's utility-management.tsx nav already promised this
+  '/api/utility-accounts':           STAFF_AND_ABOVE,
   '/api/utility-bills':              [...ADMIN_MANAGER_STAFF, 'landlord'],
-  '/api/utility-meter-readings':     ADMIN_MANAGER_STAFF,
+  '/api/utility-meter-readings':     STAFF_AND_ABOVE,
   '/api/recurring-charges':          ADMIN_MANAGER_STAFF,
   '/api/upload':                     ADMIN_MANAGER_STAFF,
   '/api/tenant-onboarding':          STAFF_AND_ABOVE,
