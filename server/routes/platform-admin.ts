@@ -11,14 +11,26 @@
  * automatically. platform_admin bypasses that check in roleGuard, so this
  * file only needs its own internal check as a second layer of defense.
  *
- * GET /organizations             — every organisation, with property/user counts
+ * GET /organizations             — every organisation, with property/user
+ *                                   counts and revenue figures
  * GET /organizations/:id/properties — properties within one specific org
+ *
+ * Revenue definition: sum of rent payments + utility bills with
+ * status = 'paid', by amount. This is the most complete measure available
+ * across all payment methods (M-Pesa, bank transfer, cash) — every fully
+ * settled payment gets marked 'paid' regardless of how it was collected.
+ * 'partial' status rows are counted as $0 here, not estimated — the
+ * paidAmount/balanceDue columns that would track partial amounts exist on
+ * rent_payments but are never actually written by any code path (found
+ * earlier this session), so there's nothing reliable to sum for those.
+ * This means revenue is a slight undercount wherever partial payments
+ * exist, never an overcount.
  */
 
 import { Router } from "express";
 import { db } from "../db";
-import { organizations, properties, users } from "@shared/schema";
-import { eq, sql } from "drizzle-orm";
+import { organizations, properties, users, rentPayments, utilityBills, tenants } from "@shared/schema";
+import { eq, and, gte, sql } from "drizzle-orm";
 import { authenticateJWT } from "../middleware/auth";
 
 const router = Router();
@@ -31,6 +43,13 @@ function requirePlatformAdmin(req: any, res: any, next: any) {
   next();
 }
 router.use(requirePlatformAdmin);
+
+/** First day of the current calendar month, as a YYYY-MM-DD string. */
+function startOfMonthStr(): string {
+  const d = new Date();
+  d.setDate(1);
+  return d.toISOString().slice(0, 10);
+}
 
 router.get("/organizations", async (_req: any, res: any) => {
   try {
@@ -49,11 +68,11 @@ router.get("/organizations", async (_req: any, res: any) => {
       .from(organizations)
       .orderBy(organizations.name);
 
-    // Counts as separate grouped queries, merged in JS — avoids raw sql
-    // template correlated subqueries (a fragile pattern that's hard to
-    // verify without a live database to test against) and explicitly casts
-    // to int, since Postgres COUNT(*) returns bigint, which node-postgres
-    // serializes as a string by default.
+    // Counts and revenue as separate grouped queries, merged in JS — avoids
+    // raw sql template correlated subqueries (a fragile pattern that's hard
+    // to verify without a live database to test against) and explicitly
+    // casts numeric results, since Postgres COUNT(*)/DECIMAL both commonly
+    // come back as strings from node-postgres rather than JS numbers.
     const propertyCounts = await db
       .select({ organizationId: properties.organizationId, count: sql<number>`count(*)::int` })
       .from(properties)
@@ -64,13 +83,53 @@ router.get("/organizations", async (_req: any, res: any) => {
       .from(users)
       .groupBy(users.organizationId);
 
+    const monthStart = startOfMonthStr();
+
+    // Rent revenue — all-time and this month, by org (via tenantId -> tenants.organizationId)
+    const rentAllTime = await db
+      .select({ organizationId: tenants.organizationId, total: sql<number>`COALESCE(SUM(${rentPayments.amount}::numeric), 0)` })
+      .from(rentPayments)
+      .innerJoin(tenants, eq(rentPayments.tenantId, tenants.id))
+      .where(eq(rentPayments.status, "paid"))
+      .groupBy(tenants.organizationId);
+
+    const rentThisMonth = await db
+      .select({ organizationId: tenants.organizationId, total: sql<number>`COALESCE(SUM(${rentPayments.amount}::numeric), 0)` })
+      .from(rentPayments)
+      .innerJoin(tenants, eq(rentPayments.tenantId, tenants.id))
+      .where(and(eq(rentPayments.status, "paid"), gte(rentPayments.paidDate, monthStart)))
+      .groupBy(tenants.organizationId);
+
+    // Utility revenue — same shape. utilityBills.amount is a varchar column
+    // (not numeric), so the ::numeric cast here isn't just defensive, it's
+    // required for SUM() to work on it at all.
+    const utilAllTime = await db
+      .select({ organizationId: tenants.organizationId, total: sql<number>`COALESCE(SUM(${utilityBills.amount}::numeric), 0)` })
+      .from(utilityBills)
+      .innerJoin(tenants, eq(utilityBills.tenantId, tenants.id))
+      .where(eq(utilityBills.status, "paid"))
+      .groupBy(tenants.organizationId);
+
+    const utilThisMonth = await db
+      .select({ organizationId: tenants.organizationId, total: sql<number>`COALESCE(SUM(${utilityBills.amount}::numeric), 0)` })
+      .from(utilityBills)
+      .innerJoin(tenants, eq(utilityBills.tenantId, tenants.id))
+      .where(and(eq(utilityBills.status, "paid"), gte(utilityBills.paidDate, new Date(monthStart))))
+      .groupBy(tenants.organizationId);
+
     const propCountMap = new Map(propertyCounts.map(r => [r.organizationId, Number(r.count)]));
     const userCountMap = new Map(userCounts.map(r => [r.organizationId, Number(r.count)]));
+    const rentAllTimeMap = new Map(rentAllTime.map(r => [r.organizationId, Number(r.total)]));
+    const rentMonthMap = new Map(rentThisMonth.map(r => [r.organizationId, Number(r.total)]));
+    const utilAllTimeMap = new Map(utilAllTime.map(r => [r.organizationId, Number(r.total)]));
+    const utilMonthMap = new Map(utilThisMonth.map(r => [r.organizationId, Number(r.total)]));
 
     const result = orgs.map(o => ({
       ...o,
       propertyCount: propCountMap.get(o.id) ?? 0,
       userCount: userCountMap.get(o.id) ?? 0,
+      revenueThisMonth: (rentMonthMap.get(o.id) ?? 0) + (utilMonthMap.get(o.id) ?? 0),
+      revenueTotal: (rentAllTimeMap.get(o.id) ?? 0) + (utilAllTimeMap.get(o.id) ?? 0),
     }));
 
     res.json(result);

@@ -16,7 +16,7 @@ import { apiRequest } from "@/lib/queryClient";
 import { useRoleGuard, ROLES } from "@/hooks/useRoleGuard";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Building2, Users, Home, ChevronRight } from "lucide-react";
+import { Building2, Users, Home, ChevronRight, CreditCard } from "lucide-react";
 
 interface OrgRow {
   id: number;
@@ -30,7 +30,12 @@ interface OrgRow {
   createdAt: string;
   propertyCount: number;
   userCount: number;
+  revenueThisMonth: number;
+  revenueTotal: number;
 }
+
+const fmtKES = (n: number) =>
+  `KES ${n.toLocaleString("en-KE", { maximumFractionDigits: 0 })}`;
 
 export default function PlatformOrganizationsPage() {
   const guard = useRoleGuard(ROLES.PLATFORM_ADMIN_ONLY);
@@ -50,6 +55,9 @@ export default function PlatformOrganizationsPage() {
     },
   });
 
+  const totalRevenueThisMonth = orgs.reduce((sum, o) => sum + (o.revenueThisMonth ?? 0), 0);
+  const totalRevenueAllTime   = orgs.reduce((sum, o) => sum + (o.revenueTotal ?? 0), 0);
+
   return (
     <div className="max-w-5xl mx-auto px-4 py-6 md:py-8">
       <div className="flex items-center gap-3 mb-6">
@@ -63,6 +71,23 @@ export default function PlatformOrganizationsPage() {
           </p>
         </div>
       </div>
+
+      {!isLoading && !error && orgs.length > 0 && (
+        <div className="grid grid-cols-2 gap-3 mb-6">
+          <Card>
+            <CardContent className="py-4">
+              <p className="text-xs text-muted-foreground">Revenue this month — all organisations</p>
+              <p className="text-xl font-semibold mt-1">{fmtKES(totalRevenueThisMonth)}</p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="py-4">
+              <p className="text-xs text-muted-foreground">Revenue all-time — all organisations</p>
+              <p className="text-xl font-semibold mt-1">{fmtKES(totalRevenueAllTime)}</p>
+            </CardContent>
+          </Card>
+        </div>
+      )}
 
       {isLoading ? (
         <div className="space-y-3">
@@ -118,6 +143,10 @@ export default function PlatformOrganizationsPage() {
                   <div className="flex items-center gap-1.5">
                     <Users className="h-3.5 w-3.5" />
                     <span>{org.userCount}{org.maxUsers ? ` / ${org.maxUsers}` : ""}</span>
+                  </div>
+                  <div className="flex items-center gap-1.5" title="Revenue this month / all-time">
+                    <CreditCard className="h-3.5 w-3.5" />
+                    <span>{fmtKES(org.revenueThisMonth)} <span className="text-xs opacity-70">/ {fmtKES(org.revenueTotal)} total</span></span>
                   </div>
                   <ChevronRight className="h-4 w-4" />
                 </div>
