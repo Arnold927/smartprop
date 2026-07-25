@@ -35,8 +35,11 @@ router.use(authenticateJWT as any, requireOrg as any);
 
 /** Resolve the maintenance request's org (via its unit) plus enough context
  *  to apply role-aware narrowing. Returns null if the request doesn't exist
- *  or doesn't belong to the caller's org. */
-async function resolveScopedRequest(id: number, orgId: number) {
+ *  or doesn't belong to the caller's org.
+ *  Exported for reuse by maintenance-actions.ts's action endpoints, which
+ *  had the identical gap (zero org scoping) until this same check was
+ *  applied there too. */
+export async function resolveScopedRequest(id: number, orgId: number) {
   const [row] = await db
     .select({
       id: maintenanceRequests.id,
@@ -56,7 +59,7 @@ async function resolveScopedRequest(id: number, orgId: number) {
 
 /** Returns true if this caller (given their role) is allowed to see/act on
  *  this specific request, beyond the basic org match already checked above. */
-async function callerCanAccess(row: NonNullable<Awaited<ReturnType<typeof resolveScopedRequest>>>, req: any): Promise<boolean> {
+export async function callerCanAccess(row: NonNullable<Awaited<ReturnType<typeof resolveScopedRequest>>>, req: any): Promise<boolean> {
   const role: string = req.user.role ?? "";
   const userId: string = String(req.user.id ?? req.user.userId ?? "");
 

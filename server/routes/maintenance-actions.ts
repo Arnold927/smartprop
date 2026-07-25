@@ -16,6 +16,7 @@ import { pushNotification } from "./notifications";
 import { whatsappService } from "../whatsapp";
 import { notifyTenant } from "../services/notifyTenant";
 import { s3Upload, resolveUploadUrl } from "../middleware/s3Upload";
+import { resolveScopedRequest, callerCanAccess } from "./maintenance-item-guard";
 
 // Use the same S3/R2-backed upload middleware as documents and messages.
 // Falls back to local disk automatically when S3 env vars are absent (dev mode).
@@ -49,6 +50,21 @@ async function getTenantForRequest(requestId: number) {
 router.patch("/:id/assign-technician", auditLog("maintenance_request", "ACTION"), async (req: any, res) => {
   try {
     const id = parseInt(req.params.id);
+
+    // No legitimate tenant-facing use case — matches the same rule already
+    // applied to the generic update in maintenance-item-guard.ts.
+    if (req.user.role === "tenant") {
+      return res.status(403).json({ message: "Not permitted." });
+    }
+
+    // Previously zero scoping at all — any authenticated user, from any
+    // organisation, could assign a technician to any maintenance request on
+    // the entire platform by guessing an id.
+    const scoped = await resolveScopedRequest(id, req.user.organizationId);
+    if (!scoped || !(await callerCanAccess(scoped, req))) {
+      return res.status(404).json({ message: "Maintenance request not found" });
+    }
+
     const schema = z.object({
       technicianId: z.number().int().positive(),
       workStartTime: z.string().optional(),
@@ -161,6 +177,16 @@ router.patch("/:id/assign-technician", auditLog("maintenance_request", "ACTION")
 router.patch("/:id/complete", auditLog("maintenance_request", "ACTION"), async (req: any, res) => {
   try {
     const id = parseInt(req.params.id);
+
+    if (req.user.role === "tenant") {
+      return res.status(403).json({ message: "Not permitted." });
+    }
+
+    const scoped = await resolveScopedRequest(id, req.user.organizationId);
+    if (!scoped || !(await callerCanAccess(scoped, req))) {
+      return res.status(404).json({ message: "Maintenance request not found" });
+    }
+
     const schema = z.object({
       workEndTime: z.string().optional(),
       technicianNotes: z.string().optional(),
@@ -281,9 +307,19 @@ router.patch("/:id/feedback", auditLog("maintenance_request", "ACTION"), async (
 });
 
 // GET /api/maintenance-requests/:id/comments
-router.get("/:id/comments", async (req, res) => {
+router.get("/:id/comments", async (req: any, res) => {
   try {
     const id = parseInt(req.params.id);
+
+    // Previously zero scoping — any authenticated user, from any
+    // organisation, could read any maintenance request's comments. Tenants
+    // ARE allowed here (unlike assign-technician/complete above), but only
+    // for their own request — callerCanAccess already enforces that.
+    const scoped = await resolveScopedRequest(id, req.user.organizationId);
+    if (!scoped || !(await callerCanAccess(scoped, req))) {
+      return res.status(404).json({ message: "Request not found" });
+    }
+
     const request = await storage.getMaintenanceRequest(id);
     if (!request) return res.status(404).json({ message: "Request not found" });
 
@@ -306,6 +342,12 @@ router.post("/:id/comments", auditLog("maintenance_comment", "CREATE"), async (r
     const id = parseInt(req.params.id);
     const { content } = req.body;
     if (!content?.trim()) return res.status(400).json({ message: "Comment content is required" });
+
+    // Same scoping as GET /:id/comments above.
+    const scoped = await resolveScopedRequest(id, req.user.organizationId);
+    if (!scoped || !(await callerCanAccess(scoped, req))) {
+      return res.status(404).json({ message: "Request not found" });
+    }
 
     const request = await storage.getMaintenanceRequest(id);
     if (!request) return res.status(404).json({ message: "Request not found" });
@@ -337,9 +379,17 @@ router.post("/:id/comments", auditLog("maintenance_comment", "CREATE"), async (r
 });
 
 // GET /api/maintenance-requests/:id/photos
-router.get("/:id/photos", async (req, res) => {
+router.get("/:id/photos", async (req: any, res) => {
   try {
     const id = parseInt(req.params.id);
+
+    // Previously zero scoping — any authenticated user, from any
+    // organisation, could view any maintenance request's photos.
+    const scoped = await resolveScopedRequest(id, req.user.organizationId);
+    if (!scoped || !(await callerCanAccess(scoped, req))) {
+      return res.status(404).json({ message: "Request not found" });
+    }
+
     const request = await storage.getMaintenanceRequest(id);
     if (!request) return res.status(404).json({ message: "Request not found" });
 
@@ -362,6 +412,12 @@ router.post("/:id/photos", authenticateJWT, upload.single("photo"), auditLog("ma
   try {
     const id = parseInt(req.params.id);
     if (!req.file) return res.status(400).json({ message: "No photo uploaded" });
+
+    // Same scoping as GET /:id/photos above.
+    const scoped = await resolveScopedRequest(id, req.user.organizationId);
+    if (!scoped || !(await callerCanAccess(scoped, req))) {
+      return res.status(404).json({ message: "Request not found" });
+    }
 
     const request = await storage.getMaintenanceRequest(id);
     if (!request) return res.status(404).json({ message: "Request not found" });
@@ -399,6 +455,14 @@ export default router;
 router.get("/approvals", async (req: any, res) => {
   try {
     const orgId = req.user?.organizationId || req.session?.organizationId;
+    const role: string = req.user?.role ?? "";
+
+    const conditions = [eq(maintenanceRequests.approvalRequired, true)];
+    if (orgId) conditions.push(eq(tenants.organizationId, orgId));
+    // Landlords only ever see approvals for their own properties — previously
+    // only org was checked, so a landlord in a multi-landlord org saw every
+    // other landlord's pending approvals too.
+    if (role === "landlord") conditions.push(eq(properties.ownerId, req.user.id));
 
     const rows = await db
       .select({
@@ -427,11 +491,7 @@ router.get("/approvals", async (req: any, res) => {
       .leftJoin(tenants, eq(maintenanceRequests.tenantId, tenants.id))
       .leftJoin(units, eq(maintenanceRequests.unitId, units.id))
       .leftJoin(properties, eq(units.propertyId, properties.id))
-      .where(
-        orgId
-          ? and(eq(maintenanceRequests.approvalRequired, true), eq(tenants.organizationId, orgId))
-          : eq(maintenanceRequests.approvalRequired, true)
-      )
+      .where(and(...conditions))
       .orderBy(desc(maintenanceRequests.createdAt));
 
     const results = rows.map(r => ({
