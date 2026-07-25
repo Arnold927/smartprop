@@ -311,18 +311,18 @@ export default function Tenants() {
                 <Download className="w-4 h-4 mr-1.5" /> Export
               </Button>
             )}
-            {/* Landlords may not add tenants directly — they don't control all units */}
-            {!isLandlord && (
-              <Button
-                size="sm"
-                className="bg-emerald-600 hover:bg-emerald-700 text-white"
-                onClick={() => setIsAddModalOpen(true)}
-              >
-                <UserPlus className="w-4 h-4 mr-1.5" />
-                <span className="hidden sm:inline">Add tenant</span>
-                <span className="sm:hidden">Add</span>
-              </Button>
-            )}
+            {/* Landlords can add tenants to their own properties directly —
+                many self-manage without a separate PM. /api/tenant-onboarding
+                now allows the landlord role (see requireRole.ts). */}
+            <Button
+              size="sm"
+              className="bg-emerald-600 hover:bg-emerald-700 text-white"
+              onClick={() => setIsAddModalOpen(true)}
+            >
+              <UserPlus className="w-4 h-4 mr-1.5" />
+              <span className="hidden sm:inline">Add tenant</span>
+              <span className="sm:hidden">Add</span>
+            </Button>
           </div>
         </div>
       </div>
@@ -332,7 +332,7 @@ export default function Tenants() {
         <div className="bg-blue-50 border-b border-blue-100 px-4 md:px-6 py-2.5">
           <div className="max-w-7xl mx-auto flex items-center gap-2 text-sm text-blue-700">
             <Shield className="w-4 h-4 flex-shrink-0" />
-            <span>Showing only tenants in your properties. Contact a manager to add new tenants.</span>
+            <span>Showing only tenants in your properties.</span>
           </div>
         </div>
       )}
@@ -660,16 +660,14 @@ export default function Tenants() {
         )}
       </div>
 
-      {!isLandlord && (
-        <ComprehensiveTenantModal
-          isOpen={isAddModalOpen}
-          onClose={() => {
-            setIsAddModalOpen(false);
-            queryClient.invalidateQueries({ queryKey: tenantQueryKey });
-          }}
-          properties={Array.isArray(properties) ? properties : []}
-        />
-      )}
+      <ComprehensiveTenantModal
+        isOpen={isAddModalOpen}
+        onClose={() => {
+          setIsAddModalOpen(false);
+          queryClient.invalidateQueries({ queryKey: tenantQueryKey });
+        }}
+        properties={Array.isArray(properties) ? properties : []}
+      />
     </div>
   );
 }

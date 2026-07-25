@@ -302,6 +302,29 @@ tenantRouter.get("/:id", async (req: any, res: any) => {
 tenantRouter.post("/", async (req: any, res: any) => {
   try {
     const orgId: number  = req.user.organizationId;
+    const role: string   = req.user.role ?? "";
+
+    // Previously unitId was accepted from the request body with no
+    // verification at all — not even that the unit belonged to the caller's
+    // own organisation. Now: the unit must belong to this org, and if the
+    // caller is a landlord, the unit's property must also belong to them.
+    const unitIdRaw = req.body.unitId;
+    if (unitIdRaw != null) {
+      const unitId = Number(unitIdRaw);
+      const [unitRow] = await db
+        .select({ unitId: units.id, propertyId: units.propertyId, propOrgId: properties.organizationId, ownerId: properties.ownerId })
+        .from(units)
+        .innerJoin(properties, eq(units.propertyId, properties.id))
+        .where(eq(units.id, unitId))
+        .limit(1);
+
+      if (!unitRow || unitRow.propOrgId !== orgId) {
+        return res.status(400).json({ message: "Unit not found in your organisation." });
+      }
+      if (role === "landlord" && unitRow.ownerId !== req.user.id) {
+        return res.status(403).json({ message: "You can only add tenants to units in properties you own." });
+      }
+    }
 
     // Resolve the tenant's OWN user account by their email so that
     // GET /api/tenants/me can find the record when the tenant logs in.

@@ -70,11 +70,18 @@ tenantOnboardingRouter.post("/", async (req: any, res: any) => {
       notesAgreements,
     } = req.body;
 
-    // ── 1. Resolve property (must belong to this org) ────────────────────────
+    // ── 1. Resolve property (must belong to this org; if the caller is a
+    //    landlord, it must also belong to them specifically — same rule as
+    //    GET /api/properties in properties-list.ts) ───────────────────────────
+    const role: string = req.user.role ?? "";
+    const propertyCondition = role === "landlord"
+      ? and(eq(properties.name, propertyName), eq(properties.organizationId, orgId), eq(properties.ownerId, userId))
+      : and(eq(properties.name, propertyName), eq(properties.organizationId, orgId));
+
     const [property] = await db
       .select({ id: properties.id })
       .from(properties)
-      .where(and(eq(properties.name, propertyName), eq(properties.organizationId, orgId)))
+      .where(propertyCondition)
       .limit(1);
 
     if (!property) {

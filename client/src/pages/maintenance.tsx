@@ -343,7 +343,9 @@ export default function Maintenance() {
  const { user } = useAuth();
  const isManager = guard.canManage;
  const isStaff   = guard.isStaff || guard.isCaretaker;
- const canAct    = isManager || isStaff;
+ // Many landlords self-manage without a separate PM — backend already allows
+ // landlord on /api/maintenance-requests (CARETAKER_ALLOWED in requireRole.ts).
+ const canAct    = isManager || isStaff || guard.isLandlord;
 
  const { data: raw = [], isLoading } = useQuery<any>({
  queryKey: ["/api/maintenance-requests"],

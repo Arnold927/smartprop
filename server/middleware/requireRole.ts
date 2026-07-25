@@ -135,7 +135,7 @@ export const ROUTE_POLICY: Record<string, AppRole[]> = {
   '/api/utility-meter-readings':     ADMIN_MANAGER_STAFF,
   '/api/recurring-charges':          ADMIN_MANAGER_STAFF,
   '/api/upload':                     ADMIN_MANAGER_STAFF,
-  '/api/tenant-onboarding':          ADMIN_MANAGER_STAFF,
+  '/api/tenant-onboarding':          STAFF_AND_ABOVE,
 
   // ── Staff and above (operational + landlord) ──────────────────────────────────
   '/api/leases':                     ADMIN_MANAGER_LANDLORD,  // landlords need their own leases for compliance (RRT, deposit interest, stamp duty)
