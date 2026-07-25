@@ -44,7 +44,7 @@ export default function PlatformOrganizationsPage() {
       const r = await apiRequest("/api/platform/organizations");
       if (!r.ok) {
         const body = await r.json().catch(() => ({}));
-        throw new Error(body.message || `Request failed (${r.status})`);
+        throw new Error(body.detail || body.message || `Request failed (${r.status})`);
       }
       return r.json();
     },
