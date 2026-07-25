@@ -1491,9 +1491,8 @@ function TenantPaymentHistory({ tenantId, currency }: { tenantId: number; curren
   const { data, isLoading } = useQuery<any>({
     queryKey: ["/api/landlord-portal/tenants", tenantId, "payments", page],
     queryFn: async () => {
-      const res = await fetch(
-        `/api/landlord-portal/tenants/${tenantId}/payments?page=${page}&pageSize=${pageSize}`,
-        {}
+      const res = await apiRequest(
+        `/api/landlord-portal/tenants/${tenantId}/payments?page=${page}&pageSize=${pageSize}`
       );
       if (!res.ok) throw new Error(await res.text());
       return res.json();
@@ -1980,7 +1979,7 @@ export default function LandlordPortal({ ownerId }: LandlordPortalProps) {
   } = useQuery<any[]>({
     queryKey: ["/api/messages", "all", activeTab],
     queryFn: async () => {
-      const res = await fetch("/api/messages?box=all&limit=200", {});
+      const res = await apiRequest("/api/messages?box=all&limit=200");
       if (!res.ok) throw new Error(await res.text());
       const data = await res.json();
       return Array.isArray(data) ? data : (data.results ?? []);

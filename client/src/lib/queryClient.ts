@@ -56,8 +56,10 @@ export async function apiRequest(url: string, options?: { method?: string; data?
 }
 
 export async function uploadWithAuth(url: string, formData: FormData): Promise<Response> {
-  const token = localStorage.getItem("access_token");
-  const headers: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {};
+  // Use getAuthHeader() (checks both localStorage and sessionStorage) rather than
+  // reading localStorage directly — the token lives in sessionStorage whenever the
+  // user didn't check "Remember me" at login, which is the default, unchecked state.
+  const headers: Record<string, string> = getAuthHeader();
   let res = await fetch(`${API_BASE}${url}`, { method: "POST", body: formData, headers, credentials: "include" });
   if (res.status === 401) { const newToken = await refreshAccessToken(); if (newToken) { res = await fetch(`${API_BASE}${url}`, { method: "POST", body: formData, headers: { Authorization: `Bearer ${newToken}` }, credentials: "include" }); } }
   if (!res.ok) { const text = await res.text().catch(() => res.statusText); throw new Error(text); }
