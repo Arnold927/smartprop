@@ -1,7 +1,7 @@
 import { Link, useLocation } from "wouter";
 import { useState, useMemo } from "react";
 import {
-  X, ChevronDown,
+  X, ChevronDown, ChevronUp,
   LogOut, Moon, Sun, Contrast, Wifi, WifiOff, PanelLeftClose, PanelLeftOpen, Home, Settings, MessageCircle,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -190,6 +190,23 @@ export default function Sidebar({ isOpen, onClose, isCollapsed = false, onToggle
     [user?.role, t, isDiasporaBuyer]
   );
 
+  // The footer block (connection status, theme toggle, contact support) sits
+  // below the scrollable nav and never scrolls away itself — on roles with a
+  // long nav tree it eats space the nav list needs, with no visual cue that
+  // there's more to scroll to above it. Collapsed by default; "Collapse
+  // sidebar" and "Sign out" stay always visible either way since those are
+  // reached often enough to not want an extra click.
+  const [showFooterExtras, setShowFooterExtras] = useState(() => {
+    try { return localStorage.getItem("sp_sidebar_footer_expanded") === "1"; } catch { return false; }
+  });
+  const toggleFooterExtras = () => {
+    setShowFooterExtras(prev => {
+      const next = !prev;
+      try { localStorage.setItem("sp_sidebar_footer_expanded", next ? "1" : "0"); } catch {}
+      return next;
+    });
+  };
+
   // Track which nav item (by href) currently has its submenu open.
   // Only one can be open at a time — clicking a new one closes the previous.
   const [openNav, setOpenNav] = useState<string | null>(() => {
@@ -283,82 +300,7 @@ export default function Sidebar({ isOpen, onClose, isCollapsed = false, onToggle
         {/* Bottom user area */}
         <div className={`p-3 space-y-1 ${isCollapsed ? "flex flex-col items-center" : ""}`}>
 
-          {!isCollapsed && (
-            <div className="flex items-center gap-2 px-3 py-1.5">
-              {connected
-                ? <Wifi className="w-3 h-3 text-green-500 flex-shrink-0" />
-                : <WifiOff className="w-3 h-3 text-muted-foreground flex-shrink-0" />
-              }
-              <span className="text-xs text-muted-foreground">
-                {connected ? "Live sync" : "Offline"}
-              </span>
-            </div>
-          )}
-
-          {isCollapsed && (
-            <Tooltip delayDuration={0}>
-              <TooltipTrigger asChild>
-                <div className="flex items-center justify-center w-10 h-6">
-                  {connected
-                    ? <Wifi className="w-3.5 h-3.5 text-green-500" />
-                    : <WifiOff className="w-3.5 h-3.5 text-muted-foreground" />
-                  }
-                </div>
-              </TooltipTrigger>
-              <TooltipContent side="right">{connected ? "Live sync" : "Offline"}</TooltipContent>
-            </Tooltip>
-          )}
-
-          {/* Theme toggle */}
-          {!isCollapsed ? (
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={toggleDark}
-              className="w-full flex items-center justify-start gap-2.5 px-3 h-9 text-muted-foreground hover:bg-muted hover:text-foreground rounded-lg"
-            >
-              {theme === "light" ? (
-                <>
-                  <Contrast className="w-4 h-4" />
-                  <span className="text-sm">Gray mode</span>
-                </>
-              ) : theme === "gray" ? (
-                <>
-                  <Moon className="w-4 h-4" />
-                  <span className="text-sm">Dark mode</span>
-                </>
-              ) : (
-                <>
-                  <Sun className="w-4 h-4" />
-                  <span className="text-sm">Light mode</span>
-                </>
-              )}
-            </Button>
-          ) : (
-            <Tooltip delayDuration={0}>
-              <TooltipTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={toggleDark}
-                  className="h-9 w-9 p-0 rounded-lg hover:bg-muted"
-                >
-                  {theme === "light" ? (
-                    <Contrast className="w-4 h-4 text-muted-foreground" />
-                  ) : theme === "gray" ? (
-                    <Moon className="w-4 h-4 text-slate-400" />
-                  ) : (
-                    <Sun className="w-4 h-4 text-amber-400" />
-                  )}
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent side="right">
-                {theme === "light" ? "Gray mode" : theme === "gray" ? "Dark mode" : "Light mode"}
-              </TooltipContent>
-            </Tooltip>
-          )}
-
-          {/* Collapse toggle */}
+          {/* Collapse toggle — always visible, not part of the collapsible extras below */}
           {!isCollapsed ? (
             <Button
               variant="ghost"
@@ -385,34 +327,145 @@ export default function Sidebar({ isOpen, onClose, isCollapsed = false, onToggle
             </Tooltip>
           )}
 
-          <div className="h-px bg-slate-800 my-1 w-full" />
-
-          {/* Contact support — replaces the floating WhatsApp FAB */}
+          {/* More/Less toggle — reveals connection status, theme toggle, and
+              contact support below. Collapsed by default so this fixed footer
+              block doesn't eat space the scrollable nav list above needs;
+              state persists across sessions via localStorage. */}
           {!isCollapsed ? (
-            <a
-              href="https://wa.me/254759657590?text=Hi%21%20I%20need%20help%20with%20my%20Smart%20Prop%20account."
-              target="_blank"
-              rel="noopener noreferrer"
-              className="w-full flex items-center gap-2.5 px-3 h-9 rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground transition-colors text-sm"
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={toggleFooterExtras}
+              className="w-full flex items-center justify-start gap-2.5 px-3 h-8 text-muted-foreground hover:bg-muted hover:text-foreground rounded-lg"
             >
-              <MessageCircle className="w-4 h-4 shrink-0" />
-              <span>Contact Support</span>
-            </a>
+              {showFooterExtras ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+              <span className="text-xs">{showFooterExtras ? "Less" : "More"}</span>
+            </Button>
           ) : (
             <Tooltip delayDuration={0}>
               <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={toggleFooterExtras}
+                  className="h-7 w-9 p-0 rounded-lg hover:bg-muted"
+                >
+                  {showFooterExtras ? <ChevronUp className="w-3.5 h-3.5 text-muted-foreground" /> : <ChevronDown className="w-3.5 h-3.5 text-muted-foreground" />}
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="right">{showFooterExtras ? "Fewer options" : "More options"}</TooltipContent>
+            </Tooltip>
+          )}
+
+          {showFooterExtras && (
+            <>
+              {!isCollapsed && (
+                <div className="flex items-center gap-2 px-3 py-1.5">
+                  {connected
+                    ? <Wifi className="w-3 h-3 text-green-500 flex-shrink-0" />
+                    : <WifiOff className="w-3 h-3 text-muted-foreground flex-shrink-0" />
+                  }
+                  <span className="text-xs text-muted-foreground">
+                    {connected ? "Live sync" : "Offline"}
+                  </span>
+                </div>
+              )}
+
+              {isCollapsed && (
+                <Tooltip delayDuration={0}>
+                  <TooltipTrigger asChild>
+                    <div className="flex items-center justify-center w-10 h-6">
+                      {connected
+                        ? <Wifi className="w-3.5 h-3.5 text-green-500" />
+                        : <WifiOff className="w-3.5 h-3.5 text-muted-foreground" />
+                      }
+                    </div>
+                  </TooltipTrigger>
+                  <TooltipContent side="right">{connected ? "Live sync" : "Offline"}</TooltipContent>
+                </Tooltip>
+              )}
+
+              {/* Theme toggle */}
+              {!isCollapsed ? (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={toggleDark}
+                  className="w-full flex items-center justify-start gap-2.5 px-3 h-9 text-muted-foreground hover:bg-muted hover:text-foreground rounded-lg"
+                >
+                  {theme === "light" ? (
+                    <>
+                      <Contrast className="w-4 h-4" />
+                      <span className="text-sm">Gray mode</span>
+                    </>
+                  ) : theme === "gray" ? (
+                    <>
+                      <Moon className="w-4 h-4" />
+                      <span className="text-sm">Dark mode</span>
+                    </>
+                  ) : (
+                    <>
+                      <Sun className="w-4 h-4" />
+                      <span className="text-sm">Light mode</span>
+                    </>
+                  )}
+                </Button>
+              ) : (
+                <Tooltip delayDuration={0}>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={toggleDark}
+                      className="h-9 w-9 p-0 rounded-lg hover:bg-muted"
+                    >
+                      {theme === "light" ? (
+                        <Contrast className="w-4 h-4 text-muted-foreground" />
+                      ) : theme === "gray" ? (
+                        <Moon className="w-4 h-4 text-slate-400" />
+                      ) : (
+                        <Sun className="w-4 h-4 text-amber-400" />
+                      )}
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent side="right">
+                    {theme === "light" ? "Gray mode" : theme === "gray" ? "Dark mode" : "Light mode"}
+                  </TooltipContent>
+                </Tooltip>
+              )}
+
+              <div className="h-px bg-slate-800 my-1 w-full" />
+
+              {/* Contact support — replaces the floating WhatsApp FAB */}
+              {!isCollapsed ? (
                 <a
                   href="https://wa.me/254759657590?text=Hi%21%20I%20need%20help%20with%20my%20Smart%20Prop%20account."
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="h-9 w-9 flex items-center justify-center rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+                  className="w-full flex items-center gap-2.5 px-3 h-9 rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground transition-colors text-sm"
                 >
-                  <MessageCircle className="w-4 h-4" />
+                  <MessageCircle className="w-4 h-4 shrink-0" />
+                  <span>Contact Support</span>
                 </a>
-              </TooltipTrigger>
-              <TooltipContent side="right">Contact Support</TooltipContent>
-            </Tooltip>
+              ) : (
+                <Tooltip delayDuration={0}>
+                  <TooltipTrigger asChild>
+                    <a
+                      href="https://wa.me/254759657590?text=Hi%21%20I%20need%20help%20with%20my%20Smart%20Prop%20account."
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="h-9 w-9 flex items-center justify-center rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+                    >
+                      <MessageCircle className="w-4 h-4" />
+                    </a>
+                  </TooltipTrigger>
+                  <TooltipContent side="right">Contact Support</TooltipContent>
+                </Tooltip>
+              )}
+            </>
           )}
+
+          <div className="h-px bg-slate-800 my-1 w-full" />
 
           <Button
             variant="ghost"
