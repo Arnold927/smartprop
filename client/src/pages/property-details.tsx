@@ -329,30 +329,30 @@ export default function PropertyDetailsPage() {
 
       <div className="max-w-7xl mx-auto px-4 md:px-6 py-8">
         <Tabs defaultValue="units" className="space-y-6">
-          <TabsList className="bg-card dark:bg-gray-900 border border-border dark:border-gray-800 p-1 rounded-xl inline-flex">
-            <TabsTrigger value="units" className="rounded-lg px-6">
+          <TabsList className="bg-card dark:bg-gray-900 border border-border dark:border-gray-800 p-1 rounded-xl flex max-w-full overflow-x-auto scrollbar-thin">
+            <TabsTrigger value="units" className="rounded-lg px-6 shrink-0">
               <LayoutGrid className="h-4 w-4 mr-2" /> Units
               <span className="ml-2 text-xs bg-muted dark:bg-gray-800 text-muted-foreground px-1.5 py-0.5 rounded-full">{units.length}</span>
             </TabsTrigger>
-            <TabsTrigger value="tenants" className="rounded-lg px-6">
+            <TabsTrigger value="tenants" className="rounded-lg px-6 shrink-0">
               <Users className="h-4 w-4 mr-2" /> Tenants
               <span className="ml-2 text-xs bg-muted dark:bg-gray-800 text-muted-foreground px-1.5 py-0.5 rounded-full">{tenants.length}</span>
             </TabsTrigger>
-            <TabsTrigger value="analytics" className="rounded-lg px-6">
+            <TabsTrigger value="analytics" className="rounded-lg px-6 shrink-0">
               <PieChart className="h-4 w-4 mr-2" /> Analytics
             </TabsTrigger>
-            <TabsTrigger value="compliance" className="rounded-lg px-6">
+            <TabsTrigger value="compliance" className="rounded-lg px-6 shrink-0">
               <Shield className="h-4 w-4 mr-2" /> Compliance
             </TabsTrigger>
-            <TabsTrigger value="payments" className="rounded-lg px-6">
+            <TabsTrigger value="payments" className="rounded-lg px-6 shrink-0">
               <CreditCard className="h-4 w-4 mr-2" /> Payments
               <span className="ml-2 text-xs bg-muted dark:bg-gray-800 text-muted-foreground px-1.5 py-0.5 rounded-full">{propertyRentPayments.length + propertyUtilityBills.length}</span>
             </TabsTrigger>
-            <TabsTrigger value="maintenance" className="rounded-lg px-6">
+            <TabsTrigger value="maintenance" className="rounded-lg px-6 shrink-0">
               <Wrench className="h-4 w-4 mr-2" /> Maintenance
               <span className="ml-2 text-xs bg-muted dark:bg-gray-800 text-muted-foreground px-1.5 py-0.5 rounded-full">{propertyMaintenanceRequests.length}</span>
             </TabsTrigger>
-            <TabsTrigger value="property-documents" className="rounded-lg px-6">
+            <TabsTrigger value="property-documents" className="rounded-lg px-6 shrink-0">
               <FileText className="h-4 w-4 mr-2" /> Documents
               <span className="ml-2 text-xs bg-muted dark:bg-gray-800 text-muted-foreground px-1.5 py-0.5 rounded-full">{propertyDocuments.length}</span>
             </TabsTrigger>
