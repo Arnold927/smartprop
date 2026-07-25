@@ -119,10 +119,11 @@ export default function TenantDetails() {
   const [activeTab, setActiveTab] = useState("overview");
   const { user } = useAuth();
  const isManager = user?.role === "admin" || user?.role === "manager";
- // Scoped narrower than isManager on purpose: landlords can dispatch maintenance
- // directly (many self-manage with no separate PM), but Edit Tenant/Deactivate
- // below stay admin/manager-only — that's a separate question from this one.
- const canDispatchMaintenance = isManager || user?.role === "landlord";
+ // Reverted: every use of this flag on this page creates a request "for" the
+ // specific tenant being viewed (preSelectedTenantId below) — that should
+ // come from the tenant reporting the issue, not be filed on their behalf by
+ // the landlord. (Landlords still get to approve/progress existing requests
+ // on the main Maintenance page — that's the separate canAct flag there.)
  const [isAddMaintenanceModalOpen, setIsAddMaintenanceModalOpen] = useState(false);
   const [isEditTenantDialogOpen, setIsEditTenantDialogOpen] = useState(false);
 
@@ -683,7 +684,7 @@ export default function TenantDetails() {
                   <CardTitle className="text-sm font-semibold">Maintenance Requests</CardTitle>
                   <CardDescription className="text-xs mt-0.5">{maintenanceStats.total} total</CardDescription>
                 </div>
-                {canDispatchMaintenance && <Button size="sm" className="h-8" onClick={() => setIsAddMaintenanceModalOpen(true)}>
+                {isManager && <Button size="sm" className="h-8" onClick={() => setIsAddMaintenanceModalOpen(true)}>
                   <Wrench className="mr-1.5 h-3.5 w-3.5" />New Request
                 </Button>}
               </CardHeader>
@@ -711,7 +712,7 @@ export default function TenantDetails() {
                   <div className="text-center py-10">
                     <Wrench className="h-10 w-10 mx-auto text-muted-foreground mb-3 opacity-30" />
                     <p className="text-sm text-muted-foreground mb-3">No maintenance requests yet</p>
-                    {canDispatchMaintenance && <Button size="sm" onClick={() => setIsAddMaintenanceModalOpen(true)}>Create First Request</Button>}
+                    {isManager && <Button size="sm" onClick={() => setIsAddMaintenanceModalOpen(true)}>Create First Request</Button>}
                   </div>
                 ) : (() => {
                   // Filter
@@ -940,7 +941,7 @@ export default function TenantDetails() {
       </div>
 
       {/* ── Modals ── */}
-      {canDispatchMaintenance && <AddMaintenanceModal
+      {isManager && <AddMaintenanceModal
         isOpen={isAddMaintenanceModalOpen}
         onClose={() => setIsAddMaintenanceModalOpen(false)}
         preSelectedTenantId={parseInt(id || "0")}

@@ -343,8 +343,13 @@ export default function Maintenance() {
  const { user } = useAuth();
  const isManager = guard.canManage;
  const isStaff   = guard.isStaff || guard.isCaretaker;
- // Many landlords self-manage without a separate PM — backend already allows
- // landlord on /api/maintenance-requests (CARETAKER_ALLOWED in requireRole.ts).
+ // Creating a request is deliberately NOT extended to landlord — a request
+ // should originate from whoever is experiencing the issue (the tenant), not
+ // be filed on their behalf by the landlord. Acting on a request that already
+ // exists (approve/reject, start work, mark complete) is a different action —
+ // backend already allows landlord there (CARETAKER_ALLOWED in requireRole.ts)
+ // — so canAct still includes landlord, canCreate does not.
+ const canCreate = isManager || isStaff;
  const canAct    = isManager || isStaff || guard.isLandlord;
 
  const { data: raw = [], isLoading } = useQuery<any>({
@@ -420,7 +425,7 @@ export default function Maintenance() {
  </div>
  <div className="flex items-center gap-2">
  {!isMobile && <Button variant="outline" size="sm" onClick={handleExport}><Download className="w-4 h-4 mr-1.5" />Export</Button>}
- {canAct && (
+ {canCreate && (
  <Button size="sm" className="bg-emerald-600 hover:bg-emerald-700 text-white" onClick={() => setIsAddOpen(true)}>
    <Plus className="w-4 h-4 mr-1.5" />
    <span className="hidden sm:inline">New request</span>
@@ -512,7 +517,7 @@ export default function Maintenance() {
  <CheckCircle className="w-12 h-12 text-gray-200 mx-auto mb-3" />
  <p className="text-sm font-medium text-slate-900">{search ? "No requests match" : "No maintenance requests"}</p>
  <p className="text-xs text-slate-500 mt-1 mb-4">{search ? "Try adjusting filters" : "Create your first request"}</p>
- {!search && canAct && <Button size="sm" onClick={() => setIsAddOpen(true)}><Plus className="w-3.5 h-3.5 mr-1" />New request</Button>}
+ {!search && canCreate && <Button size="sm" onClick={() => setIsAddOpen(true)}><Plus className="w-3.5 h-3.5 mr-1" />New request</Button>}
  </CardContent>
  ) : (
  <>
@@ -541,7 +546,7 @@ export default function Maintenance() {
  <CheckCircle className="w-12 h-12 text-gray-200 mx-auto mb-3" />
  <p className="text-sm font-medium text-slate-900">{search ? "No requests match your search" : "No maintenance requests"}</p>
  <p className="text-xs text-slate-500 mt-1 mb-4">{search ? "Try adjusting your filters" : "Create your first maintenance request"}</p>
- {!search && canAct && <Button size="sm" onClick={() => setIsAddOpen(true)}><Plus className="w-3.5 h-3.5 mr-1" />New request</Button>}
+ {!search && canCreate && <Button size="sm" onClick={() => setIsAddOpen(true)}><Plus className="w-3.5 h-3.5 mr-1" />New request</Button>}
  </CardContent>
  ) : (
  <>
@@ -648,7 +653,7 @@ export default function Maintenance() {
  )}
  </div>
 
- {canAct && <AddMaintenanceModal isOpen={isAddOpen} onClose={() => setIsAddOpen(false)}
+ {canCreate && <AddMaintenanceModal isOpen={isAddOpen} onClose={() => setIsAddOpen(false)}
  onSuccess={() => { queryClient.invalidateQueries({ queryKey: ["/api/maintenance-requests"] }); setIsAddOpen(false); }} />}
  <ViewMaintenanceModal isOpen={isViewOpen} onClose={() => setIsViewOpen(false)} request={selected} />
  <EditMaintenanceModal isOpen={isEditOpen} onClose={() => setIsEditOpen(false)} request={selected} />
