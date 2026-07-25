@@ -103,6 +103,12 @@ async function registerC2BUrls(): Promise<void> {
   log(`Registering C2B URLs for shortcode ${shortCode} in ${environment}...`);
 
   const mpesaService = getMPesaService();
+  if (!mpesaService) {
+    log('M-Pesa is not configured (missing one or more of MPESA_CONSUMER_KEY, ' +
+        'MPESA_CONSUMER_SECRET, MPESA_BUSINESS_SHORTCODE, MPESA_PASSKEY, MPESA_CALLBACK_URL) ' +
+        '— skipping C2B registration. Set them and re-run.');
+    return;
+  }
   // @ts-ignore — access private method for token retrieval
   const accessToken  = await (mpesaService as any).getAccessToken();
 

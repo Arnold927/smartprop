@@ -23,12 +23,11 @@
  */
 
 import { db }              from '../db';
-import { mpesaTransactions, rentPayments, tenants } from '@shared/schema';
+import { mpesaTransactions } from '@shared/schema';
 import { eq, and, lte, gte, isNull }                from 'drizzle-orm';
 import { getMPesaService, isMpesaConfigured } from '../services/mpesa';
+import { reconcilePayment } from '../routes/mpesa-actions';
 import { storage }         from '../storage';
-import { notifyPaymentConfirmed } from '../ws';
-import { whatsappService } from '../whatsapp';
 
 const log = (msg: string) => console.log(`[MpesaSweep] ${msg}`);
 
@@ -96,100 +95,33 @@ export async function sweepPendingMpesaTransactions(): Promise<void> {
         const transactionDate = String(result.TransactionDate   ?? new Date().toISOString());
         const amount          = Number(txn.amount);
 
-        // Update mpesaTransaction to completed
+        // Preserve Safaricom's result code/description for debugging —
+        // reconcilePayment below doesn't set these, it only marks status.
         await storage.updateMpesaTransaction(txn.id, {
-          status:            'completed',
-          mpesaReceiptNumber: receiptNumber,
+          resultCode: String(code),
+          resultDesc: result.ResultDesc,
+        });
+
+        // Delegate to the same reconcilePayment used by the STK/C2B webhook
+        // handlers — handles both rent AND utility bills, marks the
+        // transaction completed, sends the WhatsApp receipt, and is
+        // idempotent. This used to be a separate, rent-only copy of this
+        // logic living here, which is exactly how utility bill payments
+        // ended up with no recovery path when their Safaricom callback was
+        // lost — they'd just sit "pending" until marked expired, even though
+        // the tenant had actually paid.
+        await reconcilePayment({
+          rentPaymentId:        txn.rentPaymentId ?? null,
+          utilityBillId:        (txn as any).utilityBillId ?? null,
+          amount,
+          mpesaReceiptNumber:   receiptNumber,
+          phoneNumber:          txn.phoneNumber,
           transactionDate,
-          resultCode:        String(code),
-          resultDesc:        result.ResultDesc,
+          mpesaTransactionDbId: txn.id,
+          callbackSource:       'stk',
         });
 
-        if (!txn.rentPaymentId) {
-          log(`Transaction ${txn.id} confirmed but has no rentPaymentId — left as unmatched`);
-          continue;
-        }
-
-        // Reconcile invoice (partial/full + WhatsApp)
-        const [invoice] = await db
-          .select()
-          .from(rentPayments)
-          .where(eq(rentPayments.id, txn.rentPaymentId))
-          .limit(1);
-
-        if (!invoice) {
-          log(`Warning: rentPaymentId ${txn.rentPaymentId} not found for transaction ${txn.id}`);
-          continue;
-        }
-
-        const invoiceAmount = Number(invoice.amount);
-
-        // Sum all completed payments for this invoice
-        const prevRows = await db
-          .select({ amount: mpesaTransactions.amount })
-          .from(mpesaTransactions)
-          .where(
-            and(
-              eq(mpesaTransactions.rentPaymentId, txn.rentPaymentId),
-              eq(mpesaTransactions.status, 'completed'),
-            )
-          );
-
-        const totalPaid   = prevRows.reduce((s, r) => s + Number(r.amount), 0);
-        const balance     = invoiceAmount - totalPaid;
-        const isFullyPaid = balance <= 0.01;
-
-        await storage.markPaymentAsPaid(txn.rentPaymentId, {
-          paidDate:      isFullyPaid ? new Date().toISOString().split('T')[0] : (invoice.paidDate ?? ''),
-          paymentMethod: 'mpesa',
-          transactionId: receiptNumber,
-          notes: [
-            invoice.notes,
-            `[Sweep] M-Pesa ${receiptNumber}: ${fmtKES(amount)} on ${transactionDate}`,
-            balance > 0.01 ? `Balance: ${fmtKES(balance)}` : `Fully settled`,
-          ].filter(Boolean).join(' | '),
-        });
-
-        if (!isFullyPaid) {
-          await db.update(rentPayments).set({ status: 'partial' }).where(eq(rentPayments.id, txn.rentPaymentId));
-        }
-
-        // WebSocket event
-        if (invoice.tenantId) {
-          const [tenantRow] = await db
-            .select({ organizationId: tenants.organizationId, firstName: tenants.firstName, phoneNumber: tenants.phoneNumber })
-            .from(tenants)
-            .where(eq(tenants.id, invoice.tenantId))
-            .limit(1);
-
-          if (tenantRow?.organizationId) {
-            notifyPaymentConfirmed(tenantRow.organizationId, {
-              id:            txn.rentPaymentId,
-              amount,
-              invoiceNumber: invoice.invoiceNumber ?? undefined,
-            });
-          }
-
-          // WhatsApp receipt (sweep may fire hours after the STK prompt —
-          // the tenant may not have received confirmation because they closed
-          // the app; this ensures they always get a receipt)
-          const recipientPhone = tenantRow?.phoneNumber ?? txn.phoneNumber;
-          if (recipientPhone && whatsappService.isConfigured) {
-            const msg = [
-              `✅ *Payment Confirmed*`,
-              `Receipt: ${receiptNumber}`,
-              `Amount: ${fmtKES(amount)}`,
-              `Invoice: ${invoice.invoiceNumber ?? `#${txn.rentPaymentId}`} — ${isFullyPaid ? '*Fully settled* ✓' : `Balance: *${fmtKES(balance)}*`}`,
-              `Date: ${transactionDate}`,
-              `\nThank you${tenantRow?.firstName ? ', ' + tenantRow.firstName : ''}! Your payment has been recorded.`,
-            ].join('\n');
-
-            whatsappService.sendMessage({ to: recipientPhone, type: 'text', content: msg })
-              .catch(err => log(`WhatsApp receipt failed for ${recipientPhone}: ${err}`));
-          }
-        }
-
-        log(`Reconciled transaction ${txn.id} — invoice ${txn.rentPaymentId}, status: ${isFullyPaid ? 'paid' : 'partial'}`);
+        log(`Reconciled transaction ${txn.id} (rent: ${txn.rentPaymentId ?? 'none'}, utility: ${(txn as any).utilityBillId ?? 'none'})`);
 
       } else if (code === SAFARICOM_STILL_PROCESSING_CODE) {
         // ── Still pending — leave for next sweep ──────────────────────────

@@ -48,7 +48,7 @@ const fmtKES = (n: number | string) =>
  *   - Fires WebSocket event for real-time dashboard update
  *   - Sends WhatsApp receipt to tenant
  */
-async function reconcilePayment(opts: {
+export async function reconcilePayment(opts: {
   rentPaymentId:        number | null | undefined;
   utilityBillId:        number | null | undefined;
   amount:               number;
@@ -325,12 +325,18 @@ router.post('/initiate', authenticateJWT, async (req: any, res) => {
           ? await resolvePaymentConfigForTenantId(tenantId, orgId)
           : null;
 
-        const paybill = resolved?.rentPayment?.mpesaPaybill?.trim();
-        const till    = resolved?.rentPayment?.mpesaTill?.trim();
+        // Utility bill payments use utilityPayment's account, NOT
+        // rentPayment's — they can be configured separately
+        // (utilityPayment.sameAsRent: false), and previously this always
+        // read rentPayment regardless, silently sending utility STK Pushes
+        // to the rent account whenever the two were set up differently.
+        const account = utilityBillId ? resolved?.utilityPayment : resolved?.rentPayment;
+        const paybill = account?.mpesaPaybill?.trim();
+        const till    = account?.mpesaTill?.trim();
         resolvedShortCode = paybill || till || undefined;
 
         if (resolvedShortCode) {
-          console.log(`[MPesa] Using ${resolved?.resolvedFrom ?? "org"} shortcode: ${resolvedShortCode} (org ${orgId}${resolved?.landlordOwnerId ? `, landlord ${resolved.landlordOwnerId}` : ""})`);
+          console.log(`[MPesa] Using ${resolved?.resolvedFrom ?? "org"} ${utilityBillId ? "utility" : "rent"} shortcode: ${resolvedShortCode} (org ${orgId}${resolved?.landlordOwnerId ? `, landlord ${resolved.landlordOwnerId}` : ""})`);
         } else {
           console.log(`[MPesa] No Payment Setup shortcode for org ${orgId} — using env MPESA_BUSINESS_SHORTCODE`);
         }
@@ -343,6 +349,27 @@ router.post('/initiate', authenticateJWT, async (req: any, res) => {
     // then restore it immediately after — works with any version of mpesa.ts.
     const svcConfig = (mpesaService as any).config;
     const originalShortCode: string | undefined = svcConfig?.businessShortCode;
+
+    // Safety guard: the server's single MPESA_PASSKEY env var is issued by
+    // Safaricom specifically for originalShortCode. If a landlord or the org
+    // has configured a DIFFERENT Paybill/Till for manual payment display,
+    // that's fine for showing tenants where to pay manually — but attempting
+    // an automated STK Push with a mismatched shortcode+passkey pair doesn't
+    // just fail, it fails with a cryptic Safaricom authentication error after
+    // the tenant has already been prompted. Refuse it up front instead, with
+    // an actionable message, and let them use the manual Paybill/Till shown
+    // on screen (which needs no passkey — it works for any shortcode).
+    if (resolvedShortCode && originalShortCode && resolvedShortCode !== originalShortCode) {
+      return res.status(409).json({
+        message:
+          "Automatic M-Pesa prompts (STK Push) aren't available for this specific payment destination yet — " +
+          "please pay using the Paybill or Till number and steps shown on screen instead. " +
+          "(This account uses a different Paybill/Till than the one STK Push is currently set up for; " +
+          "ask your administrator to register it for Lipa Na M-Pesa Online to enable automatic prompts here.)",
+        code: "STK_SHORTCODE_MISMATCH",
+      });
+    }
+
     if (resolvedShortCode && svcConfig) {
       svcConfig.businessShortCode = resolvedShortCode;
     }
@@ -471,11 +498,31 @@ router.post('/c2b/confirmation', safaricomIpOnly, async (req, res) => {
     console.log(`[M-Pesa] C2B — receipt: ${transactionId}, ref: "${accountRef}", phone: ${phoneNumber}, amount: ${fmtKES(amount)}`);
 
     // ── Fuzzy matching ────────────────────────────────────────────────────
-    // Strategy 1: account reference contains an invoice ID  (e.g. "INV-42", "42")
     let matchedRentPaymentId: number | null = null;
+    let matchedUtilityBillId: number | null = null;
     let matchedTenantId:      number | null = null;
 
-    const invMatch = accountRef.match(/(?:INV-?)?(\d+)/i);
+    // Strategy 0: reference explicitly tags a utility bill (e.g. "UTIL-42") —
+    // this is exactly the format shown to tenants for manual utility Paybill
+    // payments (see tenant-portal.tsx), so check it FIRST and exclusively —
+    // never fall through to the rent-invoice matching below for this case.
+    const utilMatch = accountRef.match(/^UTIL-?(\d+)$/i);
+    if (utilMatch) {
+      const billId = parseInt(utilMatch[1], 10);
+      const [bill] = await db
+        .select({ id: utilityBills.id, status: utilityBills.status, tenantId: utilityBills.tenantId })
+        .from(utilityBills)
+        .where(eq(utilityBills.id, billId))
+        .limit(1);
+      if (bill && bill.status !== 'paid') {
+        matchedUtilityBillId = bill.id;
+        matchedTenantId = (bill as any).tenantId ?? null;
+      }
+    }
+
+    // Strategy 1: account reference contains a rent invoice ID (e.g. "INV-42", "42")
+    // — only tried when the reference wasn't a utility bill reference above.
+    const invMatch = matchedUtilityBillId ? null : accountRef.match(/^(?:INV-?)?(\d+)$/i);
     if (invMatch) {
       const invoiceId = parseInt(invMatch[1], 10);
       const rows = await db
@@ -491,7 +538,8 @@ router.post('/c2b/confirmation', safaricomIpOnly, async (req, res) => {
     }
 
     // Strategy 2: phone number → tenant → pending invoice with similar amount
-    if (!matchedRentPaymentId && phoneNumber) {
+    // (skipped entirely if a utility bill was already matched above)
+    if (!matchedRentPaymentId && !matchedUtilityBillId && phoneNumber) {
       const suffix = phoneNumber.slice(-9);
       const tenantRows = await db
         .select({ id: tenants.id })
@@ -531,11 +579,12 @@ router.post('/c2b/confirmation', safaricomIpOnly, async (req, res) => {
       description:        `C2B from ${phoneNumber}, ref "${accountRef}"`,
       ...(matchedTenantId      ? { tenantId:      matchedTenantId }      : {}),
       ...(matchedRentPaymentId ? { rentPaymentId: matchedRentPaymentId } : {}),
+      ...(matchedUtilityBillId ? { utilityBillId: matchedUtilityBillId } : {}),
     });
 
     await reconcilePayment({
       rentPaymentId:        matchedRentPaymentId,
-      utilityBillId:        null,
+      utilityBillId:        matchedUtilityBillId,
       amount,
       mpesaReceiptNumber:   transactionId,
       phoneNumber,
@@ -550,12 +599,20 @@ router.post('/c2b/confirmation', safaricomIpOnly, async (req, res) => {
 });
 
 // ─── GET /api/mpesa/status/:checkoutRequestId ────────────────────────────────
-router.get('/status/:checkoutRequestId', authenticateJWT, async (req, res) => {
+router.get('/status/:checkoutRequestId', authenticateJWT, async (req: any, res) => {
   const { checkoutRequestId } = req.params;
 
   try {
     const transaction = await storage.getMpesaTransactionByCheckoutRequestId(checkoutRequestId);
     if (!transaction) return res.status(404).json({ message: 'Transaction not found' });
+
+    // A tenant may only poll the status of their OWN payment.
+    if (req.user.role === 'tenant') {
+      const [own] = await db.select({ id: tenants.id }).from(tenants).where(eq(tenants.userId, req.user.id)).limit(1);
+      if (!own || transaction.tenantId !== own.id) {
+        return res.status(404).json({ message: 'Transaction not found' });
+      }
+    }
 
     const ageMs = Date.now() - new Date(transaction.createdAt!).getTime();
     if (transaction.status === 'pending' && ageMs > 30_000) {
@@ -588,20 +645,33 @@ router.get('/status/:checkoutRequestId', authenticateJWT, async (req, res) => {
 
 // ─── GET /api/mpesa/unmatched ────────────────────────────────────────────────
 // Completed C2B transactions with no linked invoice — for manager resolution.
-router.get('/unmatched', authenticateJWT, async (_req, res) => {
+// mpesaTransactions has no organizationId column of its own — scope via its
+// tenantId join to tenants.organizationId, same pattern used elsewhere this
+// session for tables missing a direct org column. Transactions with no
+// tenantId at all (couldn't even fuzzy-match a tenant by phone) have no way
+// to be attributed to a specific org from the data available, so they're
+// excluded here rather than shown to every org's admin/manager — a real but
+// rare residual gap: fully-unidentifiable C2B payments currently need a
+// different, manual resolution path outside this per-org view.
+router.get('/unmatched', authenticateJWT, async (req: any, res) => {
   try {
+    const orgId: number = req.user.organizationId;
+
     const rows = await db
-      .select()
+      .select({ txn: mpesaTransactions })
       .from(mpesaTransactions)
+      .innerJoin(tenants, eq(mpesaTransactions.tenantId, tenants.id))
       .where(
         and(
           eq(mpesaTransactions.status, 'completed'),
           isNull(mpesaTransactions.rentPaymentId),
+          isNull(mpesaTransactions.utilityBillId),
+          eq(tenants.organizationId, orgId),
         )
       )
       .orderBy(mpesaTransactions.createdAt);
 
-    return res.json(rows);
+    return res.json(rows.map(r => r.txn));
   } catch (err: any) {
     console.error('[M-Pesa] Unmatched query error:', err.message);
     return res.status(500).json({ message: 'Failed to fetch unmatched transactions' });
@@ -613,7 +683,10 @@ router.get('/unmatched', authenticateJWT, async (_req, res) => {
 router.post('/match', authenticateJWT, async (req: any, res) => {
   const schema = z.object({
     mpesaTransactionId: z.number().int().positive(),
-    rentPaymentId:      z.number().int().positive(),
+    rentPaymentId:      z.number().int().positive().optional(),
+    utilityBillId:      z.number().int().positive().optional(),
+  }).refine(d => !!d.rentPaymentId !== !!d.utilityBillId, {
+    message: 'Provide exactly one of rentPaymentId or utilityBillId',
   });
 
   const parsed = schema.safeParse(req.body);
@@ -621,7 +694,8 @@ router.post('/match', authenticateJWT, async (req: any, res) => {
     return res.status(400).json({ message: 'Invalid request', errors: parsed.error.errors });
   }
 
-  const { mpesaTransactionId, rentPaymentId } = parsed.data;
+  const { mpesaTransactionId, rentPaymentId, utilityBillId } = parsed.data;
+  const orgId: number = req.user.organizationId;
 
   try {
     const rows = await db
@@ -631,15 +705,44 @@ router.post('/match', authenticateJWT, async (req: any, res) => {
       .limit(1);
 
     const txn = rows[0];
-    if (!txn)             return res.status(404).json({ message: 'M-Pesa transaction not found' });
-    if (txn.status !== 'completed') return res.status(400).json({ message: 'Transaction is not completed' });
-    if (txn.rentPaymentId) return res.status(400).json({ message: 'Transaction already linked' });
+    if (!txn)                        return res.status(404).json({ message: 'M-Pesa transaction not found' });
+    if (txn.status !== 'completed')  return res.status(400).json({ message: 'Transaction is not completed' });
+    if (txn.rentPaymentId || txn.utilityBillId) return res.status(400).json({ message: 'Transaction already linked' });
 
-    await storage.updateMpesaTransaction(mpesaTransactionId, { rentPaymentId });
+    // Org-scope whichever target was chosen — a transaction may only be
+    // matched to an invoice/bill within the caller's own organisation.
+    if (rentPaymentId) {
+      // rent_payments has no organizationId of its own — verify org via its
+      // tenantId link to tenants.organizationId, same pattern used for the
+      // utility bill check below.
+      const [invoice] = await db.select({ id: rentPayments.id, tenantId: rentPayments.tenantId }).from(rentPayments)
+        .where(eq(rentPayments.id, rentPaymentId)).limit(1);
+      if (!invoice) return res.status(404).json({ message: 'Rent invoice not found' });
+
+      const [invoiceTenant] = await db.select({ organizationId: tenants.organizationId }).from(tenants)
+        .where(eq(tenants.id, invoice.tenantId)).limit(1);
+      if (!invoiceTenant || invoiceTenant.organizationId !== orgId) {
+        return res.status(404).json({ message: 'Rent invoice not found in your organisation' });
+      }
+
+      await storage.updateMpesaTransaction(mpesaTransactionId, { rentPaymentId });
+    } else {
+      const [bill] = await db.select({ id: utilityBills.id, tenantId: utilityBills.tenantId }).from(utilityBills)
+        .where(eq(utilityBills.id, utilityBillId!)).limit(1);
+      if (!bill) return res.status(404).json({ message: 'Utility bill not found' });
+      // utilityBills has no organizationId of its own — verify org via its
+      // direct tenantId link (the same field GET /my-bills relies on).
+      const [billTenant] = bill.tenantId
+        ? await db.select({ organizationId: tenants.organizationId }).from(tenants).where(eq(tenants.id, bill.tenantId)).limit(1)
+        : [undefined];
+      if (!billTenant || billTenant.organizationId !== orgId) return res.status(404).json({ message: 'Utility bill not found in your organisation' });
+
+      await storage.updateMpesaTransaction(mpesaTransactionId, { utilityBillId } as any);
+    }
 
     await reconcilePayment({
-      rentPaymentId,
-      utilityBillId: null,
+      rentPaymentId:        rentPaymentId ?? null,
+      utilityBillId:        utilityBillId ?? null,
       amount:               Number(txn.amount),
       mpesaReceiptNumber:   txn.mpesaReceiptNumber ?? txn.transactionId ?? `MANUAL-${txn.id}`,
       phoneNumber:          txn.phoneNumber,

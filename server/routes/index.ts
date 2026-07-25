@@ -9,6 +9,9 @@ import { propertyRouter, unitRouter, expenseRouter, visitorRouter } from "./prop
 import unitVacancyGuardRouter from "./unit-vacancy-guard";
 import propertiesListRouter from "./properties-list";
 import { tenantRouter, paymentRouter, invoiceRouter, mpesaRouter } from "./tenants";
+import mpesaTransactionsGuardRouter from "./mpesa-transactions-guard";
+import invoicesGuardRouter from "./invoices-guard";
+import rentPaymentsItemGuardRouter from "./rent-payments-item-guard";
 import {
   maintenanceListRouter,
   maintenanceRouter,
@@ -248,9 +251,12 @@ export function registerModularRoutes(app: Express) {
   mount(app, "/api/visitors",                          visitorRouter);
   mount(app, "/api/tenants",                           tenantRouter);
   mount(app, "/api/bank-reconciliation",               bankReconciliationRouter);
+  mount(app, "/api/rent-payments",                     rentPaymentsItemGuardRouter); // GET/PUT/PATCH /:id org+ownership scoping (must be before paymentActionsRouter/paymentRouter)
   mount(app, "/api/rent-payments",                     paymentActionsRouter);
   mount(app, "/api/rent-payments",                     paymentRouter);
+  mount(app, "/api/invoices",                          invoicesGuardRouter); // full org+ownership scoping (must be before invoiceRouter)
   mount(app, "/api/invoices",                          invoiceRouter);
+  mount(app, "/api/mpesa-transactions",                mpesaTransactionsGuardRouter); // org+ownership scoping (must be before mpesaRouter)
   mount(app, "/api/mpesa-transactions",                mpesaRouter);
   mount(app, "/api/maintenance-requests",              maintenanceListRouter);
   mount(app, "/api/maintenance-requests",              maintenanceItemGuardRouter); // GET/PUT/PATCH/DELETE /:id org+role scoping (must be before maintenanceRouter)
