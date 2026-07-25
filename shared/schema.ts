@@ -2704,7 +2704,7 @@ export const visitors = pgTable("visitors", {
   checkedOutBy: uuid("checked_out_by"),
   vehiclePlate: varchar("vehicle_plate"), // If visitor has vehicle
   parkingSpot: varchar("parking_spot"),
-  accessCode: varchar("access_code"), // Temporary access code
+  accessCode: varchar("access_code").unique(), // Temporary access code
   notes: text("notes"),
   photoUrl: varchar("photo_url"), // Visitor photo
   createdBy: uuid("created_by").notNull(),

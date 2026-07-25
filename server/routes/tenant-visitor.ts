@@ -172,31 +172,48 @@ tenantVisitorRouter.post("/invite-visitor", ...auth, async (req: any, res: any) 
     const propertyId = tenantRow.propertyId;
     const hostTenantName = `${tenantRow.firstName} ${tenantRow.lastName}`.trim();
 
-    // ── Generate access code ──────────────────────────────────────────────────
-    const accessCode = generateVisitorCode();
     const hasVehicle = !!vehiclePlate?.trim();
 
-    // ── Create visitor record ─────────────────────────────────────────────────
-    const [created] = await db
-      .insert(visitors)
-      .values({
-        propertyId,
-        unitId: tenantRow.unitId ?? null,
-        tenantId: tenantRow.id,
-        visitorName: visitorName.trim(),
-        visitorPhone: visitorPhone?.trim() || null,
-        visitorEmail: visitorEmail.trim().toLowerCase(),
-        idNumber: visitorIdNumber?.trim() || null,
-        purposeOfVisit: visitPurpose.trim(),
-        expectedArrival: new Date(expectedArrival),
-        expectedDeparture: expectedDeparture ? new Date(expectedDeparture) : null,
-        status: "pending" as any,
-        accessCode,
-        vehiclePlate: vehiclePlate?.trim().toUpperCase() || null,
-        notes: `access_method:qr_code\nvehicle:${hasVehicle ? vehiclePlate.trim().toUpperCase() : "none"}`,
-        createdBy: userId,
-      } as any)
-      .returning();
+    // ── Create visitor record — retry on the rare accessCode collision ───────
+    // accessCode now has a real unique constraint (previously none existed,
+    // so two visitors could silently end up with the same code, and /scan's
+    // lookup — with no ORDER BY — would just take whichever row came back
+    // first). 24 bits of entropy makes a collision unlikely, not impossible,
+    // so retry a few times rather than fail the whole invitation outright.
+    let created: typeof visitors.$inferSelect | undefined;
+    let accessCode = "";
+    for (let attempt = 0; attempt < 5 && !created; attempt++) {
+      accessCode = generateVisitorCode();
+      try {
+        [created] = await db
+          .insert(visitors)
+          .values({
+            propertyId,
+            unitId: tenantRow.unitId ?? null,
+            tenantId: tenantRow.id,
+            visitorName: visitorName.trim(),
+            visitorPhone: visitorPhone?.trim() || null,
+            visitorEmail: visitorEmail.trim().toLowerCase(),
+            idNumber: visitorIdNumber?.trim() || null,
+            purposeOfVisit: visitPurpose.trim(),
+            expectedArrival: new Date(expectedArrival),
+            expectedDeparture: expectedDeparture ? new Date(expectedDeparture) : null,
+            status: "pending" as any,
+            accessCode,
+            vehiclePlate: vehiclePlate?.trim().toUpperCase() || null,
+            notes: `access_method:qr_code\nvehicle:${hasVehicle ? vehiclePlate.trim().toUpperCase() : "none"}`,
+            createdBy: userId,
+          } as any)
+          .returning();
+      } catch (insertErr: any) {
+        // Postgres unique_violation — regenerate and retry; any other error
+        // should propagate as normal.
+        if (insertErr?.code !== "23505") throw insertErr;
+      }
+    }
+    if (!created) {
+      return res.status(500).json({ message: "Could not generate a unique access code. Please try again." });
+    }
 
     // ── Pre-register vehicle if plate + details provided ──────────────────────
     if (hasVehicle && vehicleMake && vehicleModel && vehicleColor && vehicleType) {
@@ -380,6 +397,7 @@ guestCheckinRouter.post("/scan", ...guardAuth, async (req: any, res: any) => {
         tenantLastName: tenants.lastName,
         unitNumber: units.unitNumber,
         propertyName: properties.name,
+        propertyOrgId: properties.organizationId,
       })
       .from(visitors)
       .leftJoin(tenants, eq(visitors.tenantId, tenants.id))
@@ -389,6 +407,29 @@ guestCheckinRouter.post("/scan", ...guardAuth, async (req: any, res: any) => {
       .limit(1);
 
     if (!visitor) {
+      return res.status(404).json({
+        success: false,
+        message: "Invalid access code. No matching visitor found.",
+      });
+    }
+
+    // ── Scoping ─────────────────────────────────────────────────────────────
+    // A guard (a PIN token scoped to one property — see authenticateGuard)
+    // may only check in visitors invited to THAT property. Property ids are
+    // globally unique across the platform, so this comparison alone also
+    // guarantees the organisation matches — no separate org check is needed
+    // for this branch. The admin/manager fallback (a full user JWT, no
+    // propertyId) has no property to compare, so it's scoped by org instead.
+    // Previously neither check existed at all: any guard could check in any
+    // property's visitor, and any admin/manager token could act cross-org.
+    if (req.user.role === "guard") {
+      if (!req.user.propertyId || visitor.propertyId !== req.user.propertyId) {
+        return res.status(404).json({
+          success: false,
+          message: "Invalid access code. No matching visitor found.",
+        });
+      }
+    } else if (visitor.propertyOrgId !== req.user.organizationId) {
       return res.status(404).json({
         success: false,
         message: "Invalid access code. No matching visitor found.",
@@ -592,6 +633,20 @@ guestCheckinRouter.get("/spaces", ...guardAuth, async (req: any, res: any) => {
     const propertyId = parseInt(req.query.propertyId as string);
     if (!propertyId) return res.status(400).json({ message: "propertyId is required" });
 
+    // Same scoping rule as /scan — previously this endpoint accepted any
+    // propertyId with zero verification, letting a guard (or an
+    // admin/manager token) query available spaces for any property at all.
+    if (req.user.role === "guard") {
+      if (!req.user.propertyId || propertyId !== req.user.propertyId) {
+        return res.status(403).json({ message: "You can only view spaces at your assigned property." });
+      }
+    } else {
+      const [prop] = await db.select({ organizationId: properties.organizationId }).from(properties).where(eq(properties.id, propertyId)).limit(1);
+      if (!prop || prop.organizationId !== req.user.organizationId) {
+        return res.status(404).json({ message: "Property not found in your organisation." });
+      }
+    }
+
     const spaces = await db
       .select({
         id: parkingSpaces.id,
@@ -651,13 +706,31 @@ guestCheckinRouter.post("/assign-space", ...guardAuth, async (req: any, res: any
 
     if (!visitor) return res.status(404).json({ message: "Visitor not found" });
 
-    // Check the space exists and has no active assignment (not just the flag)
+    // Same scoping rule as /scan — previously unchecked, so a guard (or an
+    // admin/manager token) could assign parking for a visitor invited to a
+    // completely different property.
+    if (req.user.role === "guard") {
+      if (!req.user.propertyId || visitor.propertyId !== req.user.propertyId) {
+        return res.status(404).json({ message: "Visitor not found" });
+      }
+    } else {
+      const [prop] = await db.select({ organizationId: properties.organizationId }).from(properties).where(eq(properties.id, visitor.propertyId)).limit(1);
+      if (!prop || prop.organizationId !== req.user.organizationId) {
+        return res.status(404).json({ message: "Visitor not found" });
+      }
+    }
+
+    // Check the space exists, belongs to the SAME property as the visitor,
+    // and has no active assignment (not just the flag) — previously the
+    // space's property was never checked at all, so a space from a totally
+    // different property could be assigned to this visitor.
     const [space] = await db
       .select()
       .from(parkingSpaces)
       .where(
         and(
           eq(parkingSpaces.id, parseInt(spaceId)),
+          eq(parkingSpaces.propertyId, visitor.propertyId),
           eq(parkingSpaces.isReserved, false),
           notExists(
             db
@@ -750,6 +823,19 @@ guestCheckinRouter.post("/checkout", ...guardAuth, async (req: any, res: any) =>
       .limit(1);
 
     if (!visitor) return res.status(404).json({ message: "Visitor not found" });
+
+    // Same scoping rule as /scan and /assign-space.
+    if (req.user.role === "guard") {
+      if (!req.user.propertyId || visitor.propertyId !== req.user.propertyId) {
+        return res.status(404).json({ message: "Visitor not found" });
+      }
+    } else {
+      const [prop] = await db.select({ organizationId: properties.organizationId }).from(properties).where(eq(properties.id, visitor.propertyId)).limit(1);
+      if (!prop || prop.organizationId !== req.user.organizationId) {
+        return res.status(404).json({ message: "Visitor not found" });
+      }
+    }
+
     if (visitor.status !== "checked_in") {
       return res.status(409).json({ message: `Visitor status is "${visitor.status}", not checked_in` });
     }
