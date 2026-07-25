@@ -46,6 +46,8 @@ async function nextInspectionNumber(): Promise<string> {
 router.get("/", ...auth, async (req: any, res: any) => {
   try {
     const orgId          = req.user.organizationId;
+    const role: string   = req.user.role ?? "";
+    const userId: string = req.user.id;
     const unitId         = req.query.unitId   ? parseInt(req.query.unitId   as string) : null;
     const leaseId        = req.query.leaseId  ? parseInt(req.query.leaseId  as string) : null;
     const propertyId     = req.query.propertyId ? parseInt(req.query.propertyId as string) : null;
@@ -56,6 +58,9 @@ router.get("/", ...auth, async (req: any, res: any) => {
     if (leaseId)    conditions.push(eq(propertyInspections.leaseId,    leaseId));
     if (propertyId) conditions.push(eq(propertyInspections.propertyId, propertyId));
     if (type)       conditions.push(eq(propertyInspections.inspectionType, type));
+    // Landlords only ever see inspections on properties they own — same rule
+    // used everywhere else a landlord touches property-scoped data this session.
+    if (role === "landlord") conditions.push(eq(properties.ownerId, userId));
 
     const rows = await db
       .select({
@@ -107,6 +112,18 @@ router.get("/:id", ...auth, async (req: any, res: any) => {
       ))
       .limit(1);
     if (!row) return res.status(404).json({ message: "Inspection not found" });
+
+    if (req.user.role === "landlord" && row.propertyId) {
+      const [prop] = await db
+        .select({ ownerId: properties.ownerId })
+        .from(properties)
+        .where(eq(properties.id, row.propertyId))
+        .limit(1);
+      if (!prop || prop.ownerId !== req.user.id) {
+        return res.status(404).json({ message: "Inspection not found" });
+      }
+    }
+
     res.json(row);
   } catch (err: any) { res.status(500).json({ message: err.message }); }
 });
@@ -127,11 +144,13 @@ router.post("/", ...auth, async (req: any, res: any) => {
       return res.status(400).json({ message: "propertyId and inspectionType are required" });
     }
 
-    // Verify property belongs to org
+    // Verify property belongs to org (and, for a landlord, that they own it)
+    const propConditions = [eq(properties.id, propertyId), eq(properties.organizationId, orgId)];
+    if (req.user.role === "landlord") propConditions.push(eq(properties.ownerId, req.user.id));
     const [prop] = await db
       .select({ id: properties.id })
       .from(properties)
-      .where(and(eq(properties.id, propertyId), eq(properties.organizationId, orgId)))
+      .where(and(...propConditions))
       .limit(1);
     if (!prop) return res.status(404).json({ message: "Property not found in your organisation" });
 
@@ -184,6 +203,23 @@ router.post("/", ...auth, async (req: any, res: any) => {
 router.patch("/:id", ...auth, async (req: any, res: any) => {
   try {
     const orgId = req.user.organizationId;
+    const inspectionId = parseInt(req.params.id);
+
+    if (req.user.role === "landlord") {
+      const [existing] = await db
+        .select({ propertyId: propertyInspections.propertyId })
+        .from(propertyInspections)
+        .where(and(eq(propertyInspections.id, inspectionId), eq(propertyInspections.organizationId, orgId)))
+        .limit(1);
+      if (!existing) return res.status(404).json({ message: "Inspection not found" });
+      if (existing.propertyId) {
+        const [prop] = await db.select({ ownerId: properties.ownerId }).from(properties).where(eq(properties.id, existing.propertyId)).limit(1);
+        if (!prop || prop.ownerId !== req.user.id) {
+          return res.status(404).json({ message: "Inspection not found" });
+        }
+      }
+    }
+
     const allowed = [
       "rooms", "issuesFound", "overallCondition", "totalIssuesCost",
       "electricityReading", "waterReading", "conductedDate",
@@ -198,7 +234,7 @@ router.patch("/:id", ...auth, async (req: any, res: any) => {
       .update(propertyInspections)
       .set(patch)
       .where(and(
-        eq(propertyInspections.id, parseInt(req.params.id)),
+        eq(propertyInspections.id, inspectionId),
         eq(propertyInspections.organizationId, orgId),
       ))
       .returning();
@@ -218,7 +254,7 @@ router.post("/:id/sign-manager", ...auth, async (req: any, res: any) => {
     const name = req.body.signatoryName ?? `${req.user.firstName ?? ""} ${req.user.lastName ?? ""}`.trim();
 
     const [insp] = await db
-      .select({ id: propertyInspections.id, status: propertyInspections.status, tenantSignedAt: propertyInspections.tenantSignedAt })
+      .select({ id: propertyInspections.id, status: propertyInspections.status, tenantSignedAt: propertyInspections.tenantSignedAt, managerSignedAt: propertyInspections.managerSignedAt })
       .from(propertyInspections)
       .where(and(
         eq(propertyInspections.id, parseInt(req.params.id)),
@@ -227,6 +263,17 @@ router.post("/:id/sign-manager", ...auth, async (req: any, res: any) => {
       .limit(1);
 
     if (!insp) return res.status(404).json({ message: "Inspection not found" });
+
+    if (req.user.role === "landlord") {
+      const [full] = await db.select({ propertyId: propertyInspections.propertyId }).from(propertyInspections).where(eq(propertyInspections.id, insp.id)).limit(1);
+      if (full?.propertyId) {
+        const [prop] = await db.select({ ownerId: properties.ownerId }).from(properties).where(eq(properties.id, full.propertyId)).limit(1);
+        if (!prop || prop.ownerId !== req.user.id) {
+          return res.status(404).json({ message: "Inspection not found" });
+        }
+      }
+    }
+
     if (insp.managerSignedAt) return res.status(409).json({ message: "Already signed by manager" });
 
     // If tenant already signed, mark complete

@@ -119,7 +119,7 @@ export const ROUTE_POLICY: Record<string, AppRole[]> = {
   '/api/regulatory-certificates':    ADMIN_MANAGER_LANDLORD, // NEMA/NCA/County regulatory certificates
   '/api/sustainability':             ADMIN_MANAGER_STAFF,    // ESG metrics and reporting
   '/api/owner-statements':           ADMIN_MANAGER_LANDLORD, // PM remittance statements & rent roll
-  '/api/inspections':                ADMIN_MANAGER_STAFF,    // property condition inspections (staff conduct them)
+  '/api/inspections':                STAFF_AND_ABOVE,        // property condition inspections (staff conduct them; landlord's nav already promised this page)
   // Tenants can view and sign their own inspections (separate policy — enforced in the route handler)
   '/api/inspections/sign-tenant':    TENANT_AND_ABOVE,
   '/api/prospects':                  ADMIN_MANAGER_STAFF,    // letting pipeline

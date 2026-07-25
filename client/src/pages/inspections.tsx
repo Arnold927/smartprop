@@ -271,7 +271,7 @@ function InspectionDetail({ inspection, onClose }: { inspection: any; onClose: (
 
 // ─── Main page ────────────────────────────────────────────────────────────────
 export default function Inspections() {
-  const guard = useRoleGuard(ROLES.ADMIN_MANAGER_STAFF);
+  const guard = useRoleGuard(ROLES.STAFF_AND_ABOVE); // was ADMIN_MANAGER_STAFF — landlord's sidebar nav and route allow-list already promised this page, this was the one gate left out of sync
   if (guard.gate) return guard.gate;
 
   const { toast } = useToast();
