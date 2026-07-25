@@ -1056,7 +1056,7 @@ function AnalyticsTab({ bills, providers }: { bills: UtilityBill[]; providers: U
 // ── Main Page ─────────────────────────────────────────────────────────────────
 
 export default function UtilityManagement() {
-  const guard = useRoleGuard(ROLES.STAFF_AND_ABOVE); // was ADMIN_MANAGER_STAFF — same nav/route-allowlist mismatch as inspections.tsx
+  const guard = useRoleGuard(ROLES.ADMIN_MANAGER_STAFF); // landlord removed — nav trimmed to /utility-bill-sender only, see roleNav.ts
   if (guard.gate) return guard.gate;
 
   const [activeTab, setActiveTab] = useState<"bills" | "providers" | "accounts" | "expenses" | "readings" | "analytics">("bills");

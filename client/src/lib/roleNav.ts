@@ -165,13 +165,12 @@ const getLandlordNav = (t: (k: string) => string): NavGroup[] => [
         ],
       },
       { name: t("nav.inspections"), href: "/inspections", icon: ClipboardCheck },
-      {
-        name: t("nav.utilities"), href: "/utility-management", icon: Receipt,
-        children: [
-          { name: t("nav.manage_utilities"),   href: "/utility-management" },
-          { name: t("nav.send_utility_bills"), href: "/utility-bill-sender" },
-        ],
-      },
+      // Trimmed to Bill Sender only — Utility Management's other tabs
+      // (Providers/Accounts/Readings/Bills/Expenses/Analytics) are redundant
+      // or irrelevant for a landlord: Bill Sender already takes readings and
+      // creates the bill record inline, Providers/Accounts are one-time setup
+      // tasks, and Expenses duplicates the dedicated Expense Management page.
+      { name: t("nav.send_utility_bills"), href: "/utility-bill-sender", icon: Receipt },
       { name: t("nav.documents"),   href: "/documents",   icon: FolderOpen },
     ],
   },
@@ -426,7 +425,7 @@ export const ROLE_ALLOWED_ROUTES: Record<string, string[]> = {
     "/finances", "/rent-collection", "/expense-management",
     "/owner-statements",
     "/maintenance", "/inspections", "/documents",
-    "/utility-management", "/utility-bill-sender",
+    "/utility-bill-sender",
     "/compliance",
     "/messages", "/profile",
     "/diaspora-portal",

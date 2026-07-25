@@ -87,8 +87,13 @@ function isoNow(): string {
 utilityBillSenderRouter.get("/tenants-with-accounts", managerOnly as any, async (req: any, res: any) => {
   try {
     const orgId: number = req.user.organizationId;
+    const role: string  = req.user.role ?? "";
+    const userId: string = req.user.id;
 
     // All active tenants in the org that have a unit assigned
+    const conditions = [eq(tenants.organizationId, orgId), eq(tenants.status, "active")];
+    if (role === "landlord") conditions.push(eq(properties.ownerId, userId));
+
     const rows = await db
       .select({
         tenantId: tenants.id,
@@ -116,10 +121,7 @@ utilityBillSenderRouter.get("/tenants-with-accounts", managerOnly as any, async 
         eq(utilityAccounts.isActive, true),
       ))
       .leftJoin(utilityProviders, eq(utilityAccounts.providerId, utilityProviders.id))
-      .where(and(
-        eq(tenants.organizationId, orgId),
-        eq(tenants.status, "active"),
-      ))
+      .where(and(...conditions))
       .orderBy(properties.name, units.unitNumber);
 
     return res.json(rows);
@@ -165,6 +167,9 @@ utilityBillSenderRouter.post("/send-email", managerOnly as any, async (req: any,
     }
 
     // Fetch tenant with unit and property
+    const tenantConditions = [eq(tenants.id, Number(tenantId)), eq(tenants.organizationId, orgId)];
+    if (req.user.role === "landlord") tenantConditions.push(eq(properties.ownerId, req.user.id));
+
     const [tenant] = await db
       .select({
         id: tenants.id,
@@ -180,7 +185,7 @@ utilityBillSenderRouter.post("/send-email", managerOnly as any, async (req: any,
       .from(tenants)
       .leftJoin(units, eq(tenants.unitId, units.id))
       .leftJoin(properties, eq(units.propertyId, properties.id))
-      .where(and(eq(tenants.id, Number(tenantId)), eq(tenants.organizationId, orgId)))
+      .where(and(...tenantConditions))
       .limit(1);
 
     if (!tenant) {
@@ -341,6 +346,9 @@ utilityBillSenderRouter.post("/send-bulk", managerOnly as any, async (req: any, 
 
     // Fetch all referenced tenants in one query
     const tenantIds = readings.map((r: any) => Number(r.tenantId));
+    const bulkTenantConditions = [eq(tenants.organizationId, orgId), inArray(tenants.id, tenantIds)];
+    if (req.user.role === "landlord") bulkTenantConditions.push(eq(properties.ownerId, req.user.id));
+
     const tenantRows = await db
       .select({
         id: tenants.id,
@@ -356,10 +364,7 @@ utilityBillSenderRouter.post("/send-bulk", managerOnly as any, async (req: any, 
       .from(tenants)
       .leftJoin(units, eq(tenants.unitId, units.id))
       .leftJoin(properties, eq(units.propertyId, properties.id))
-      .where(and(
-        eq(tenants.organizationId, orgId),
-        inArray(tenants.id, tenantIds),
-      ));
+      .where(and(...bulkTenantConditions));
 
     const tenantMap = new Map(tenantRows.map((t) => [t.id, t]));
     const rate = Number(unitCost);
