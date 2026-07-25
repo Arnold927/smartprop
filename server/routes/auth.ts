@@ -79,7 +79,7 @@ async function revokeRefreshToken(rawToken: string): Promise<void> {
 }
 
 /** Revoke ALL refresh tokens for a user (on password change, admin session kill) */
-async function revokeAllUserTokens(userId: string): Promise<void> {
+export async function revokeAllUserTokens(userId: string): Promise<void> {
   await db
     .update(refreshTokens)
     .set({ revokedAt: new Date() })

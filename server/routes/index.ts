@@ -6,6 +6,7 @@ import landlordPortalRouter from "./landlord-portal";
 import organizationsRouter from "./organizations";
 import aiProxyRouter from "./ai-proxy";
 import { propertyRouter, unitRouter, expenseRouter, visitorRouter } from "./properties";
+import unitVacancyGuardRouter from "./unit-vacancy-guard";
 import propertiesListRouter from "./properties-list";
 import { tenantRouter, paymentRouter, invoiceRouter, mpesaRouter } from "./tenants";
 import {
@@ -240,6 +241,7 @@ export function registerModularRoutes(app: Express) {
   mount(app, "/api/exchange-rates",                    exchangeRatesRouter);  
   mount(app, "/api/properties",                        propertiesListRouter);  // enriched GET / (must be before propertyRouter)
   mount(app, "/api/properties",                        propertyRouter);
+  mount(app, "/api/units",                             unitVacancyGuardRouter);  // PATCH /:id ownership + tenant-safety check (must be before unitRouter)
   mount(app, "/api/units",                             unitRouter);
   mount(app, "/api/visitors",                          visitorRouter);
   mount(app, "/api/tenants",                           tenantRouter);

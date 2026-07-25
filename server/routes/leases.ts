@@ -28,6 +28,7 @@ import { requireOrg }      from "../middleware/requireOrg";
 import { auditLog }        from "../middleware/auditLog";
 import { sendLeaseEmail }  from "../lib/leaseEmail";
 import { notifyTenant }    from "../services/notifyTenant";
+import { revokeAllUserTokens } from "./auth";
 
 const router = Router();
 router.use(authenticateJWT as any, requireOrg as any);
@@ -772,6 +773,18 @@ router.post("/:id/terminate", auditLog("lease", "UPDATE") as any, async (req: an
       .limit(1);
 
     if (!lease) return res.status(404).json({ message: "Lease not found" });
+
+    // Landlords may only terminate leases on properties they own — same rule
+    // used everywhere else a landlord touches property-scoped data.
+    if (role === "landlord") {
+      const [prop] = lease.propertyId
+        ? await db.select({ ownerId: properties.ownerId }).from(properties).where(eq(properties.id, lease.propertyId)).limit(1)
+        : [undefined];
+      if (!prop || prop.ownerId !== userId) {
+        return res.status(403).json({ message: "You can only terminate leases on properties you own." });
+      }
+    }
+
     if (lease.status !== "active") {
       return res.status(400).json({ message: "Only active leases can be terminated" });
     }
@@ -795,9 +808,59 @@ router.post("/:id/terminate", auditLog("lease", "UPDATE") as any, async (req: an
       );
     }
     // ─────────────────────────────────────────────────────────────────────────
-    await db.update(leases)
-      .set({ status: "terminated", endDate: tDate, updatedAt: new Date() } as any)
-      .where(eq(leases.id, leaseId));
+
+    // ── End the tenancy completely, atomically ───────────────────────────────
+    // Previously this endpoint only updated leases.status — the tenant record
+    // stayed "active", their unit stayed marked occupied, and their login
+    // (users.isActive) was never touched, so a moved-out tenant could keep
+    // using the tenant portal indefinitely. This now cascades all of it in one
+    // transaction: lease -> terminated, tenant -> inactive, unit -> vacant,
+    // and the tenant's own user account deactivated.
+    const [tenant] = await db
+      .select({ id: tenants.id, unitId: tenants.unitId, userId: tenants.userId })
+      .from(tenants)
+      .where(eq(tenants.id, lease.tenantId))
+      .limit(1);
+
+    const vacatedUnitId = lease.unitId ?? tenant?.unitId ?? null;
+
+    await db.transaction(async (tx) => {
+      await tx.update(leases)
+        .set({ status: "terminated", endDate: tDate, updatedAt: new Date() } as any)
+        .where(eq(leases.id, leaseId));
+
+      if (tenant) {
+        // Reusing the existing "inactive" status (not a new "moved_out" value)
+        // so the tenant list's existing filters, counts, and TypeScript status
+        // union in tenants.tsx all keep working with no further changes.
+        await tx.update(tenants)
+          .set({ status: "inactive", updatedAt: new Date() } as any)
+          .where(eq(tenants.id, tenant.id));
+
+        if (tenant.userId) {
+          await tx.update(users)
+            .set({ isActive: false, deactivatedAt: new Date(), deactivatedBy: userId } as any)
+            .where(eq(users.id, tenant.userId));
+        }
+      }
+
+      if (vacatedUnitId != null) {
+        await tx.update(units)
+          .set({ isOccupied: false } as any)
+          .where(eq(units.id, vacatedUnitId));
+      }
+    });
+
+    // Revoke refresh tokens so the session can't be renewed once the current
+    // access token expires. Note this can't kill an already-issued access
+    // token immediately — JWTs here are stateless with no revocation
+    // blocklist, so a token stays technically valid until its own ~4h expiry.
+    // This is the closest immediate-effect lever the app has.
+    if (tenant?.userId) {
+      await revokeAllUserTokens(tenant.userId).catch(err =>
+        log(`Failed to revoke sessions for terminated tenant ${tenant.userId}: ${err}`)
+      );
+    }
 
     await appendEvent({
       leaseId, tenantId: lease.tenantId, orgId,
