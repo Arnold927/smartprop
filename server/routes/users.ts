@@ -202,9 +202,23 @@ router.patch(
 
       const schema = z.object({
         isActive: z.boolean().optional(),
+        // Narrowed to match user-management.tsx's ASSIGNABLE_ROLES exactly.
+        // caretaker, tenant, and contractor all removed — each needs a
+        // linked business record (a property assignment, a lease, a
+        // contractor profile) that this endpoint doesn't create.
+        // Reclassifying someone into one of these here would leave them
+        // with a role but nothing behind it, landing them on an empty
+        // portal. Use the dedicated Caretakers/Tenants/Contractors pages
+        // instead, which create the login and the business record together.
+        //
+        // Also: the frontend previously sent { roleName: ... } instead of
+        // { role: ... } — since neither field matched this schema's
+        // isActive/role, the refine() below rejected every single role
+        // change attempt through this endpoint with "provide at least one
+        // of: isActive, role", regardless of which role was picked. Fixed
+        // on the frontend to send the correct field name.
         role: z.enum([
-          "admin", "manager", "landlord", "staff",
-          "caretaker", "tenant", "guard",
+          "admin", "manager", "landlord", "staff", "guard",
         ]).optional(),
       }).refine(d => d.isActive !== undefined || d.role !== undefined, {
         message: "Provide at least one of: isActive, role",

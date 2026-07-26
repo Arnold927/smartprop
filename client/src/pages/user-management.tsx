@@ -52,6 +52,22 @@ const ROLE_LABELS: Record<string, string> = {
   contractor: "Contractor",
 };
 
+// Roles assignable via the "Change role" dialog below — narrower than
+// ROLE_LABELS (which also powers RoleBadge, showing every existing user's
+// current role regardless of what's reassignable). caretaker, tenant, and
+// contractor are excluded: all three need a linked business record
+// (a property assignment, a lease, a contractor profile) that this dialog
+// doesn't create — reclassifying someone into one of these here would
+// leave them with a role but nothing behind it, landing them on an empty
+// portal. Use the dedicated Caretakers/Tenants/Contractors pages instead.
+const ASSIGNABLE_ROLES: Record<string, string> = {
+  admin:   ROLE_LABELS.admin,
+  manager: ROLE_LABELS.manager,
+  landlord: ROLE_LABELS.landlord,
+  staff:   ROLE_LABELS.staff,
+  guard:   ROLE_LABELS.guard,
+};
+
 // Tooltip: which portal each role uses
 const ROLE_PORTAL: Record<string, string> = {
   admin:      "Full admin dashboard",
@@ -793,9 +809,12 @@ export default function UserManagement() {
                 <Select value={newRoleName} onValueChange={setNewRoleName}>
                   <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    {Object.entries(ROLE_LABELS).map(([k, v]) => <SelectItem key={k} value={k}>{v}</SelectItem>)}
+                    {Object.entries(ASSIGNABLE_ROLES).map(([k, v]) => <SelectItem key={k} value={k}>{v}</SelectItem>)}
                   </SelectContent>
                 </Select>
+                <p className="text-xs text-muted-foreground mt-1.5">
+                  Reclassifying to Caretaker, Tenant, or Contractor? Use the dedicated Caretakers, Tenants, or Contractors page instead — it links the property assignment, lease, or contractor profile at the same time.
+                </p>
               </div>
             </div>
           )}
@@ -804,7 +823,7 @@ export default function UserManagement() {
             <Button
               className="bg-emerald-600 hover:bg-emerald-700 text-white"
               disabled={updateMutation.isPending}
-              onClick={() => editingRole && updateMutation.mutate({ id: String(editingRole.id), data: { roleName: newRoleName } })}
+              onClick={() => editingRole && updateMutation.mutate({ id: String(editingRole.id), data: { role: newRoleName } })}
             >
               {updateMutation.isPending ? "Saving..." : "Save changes"}
             </Button>
