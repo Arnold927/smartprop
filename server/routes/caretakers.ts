@@ -8,30 +8,22 @@
  *   - GET /api/visitors               (properties.ts)
  *   - GET /api/visitor-access-management (visitor-access-management.ts)
  *
- * GET/POST/PATCH/DELETE accessible by: admin, manager only.
- * GET /me is for the caretaker themselves, to power their own portal.
+ * GET/POST/PATCH/DELETE accessible by: admin, manager, landlord.
+ * Landlords are scoped to caretakers at properties they own — matching
+ * the ownership pattern used everywhere else this session (expenses,
+ * leases, documents, RRT notices, rent payments, utility bills, etc).
+ * A landlord's caretakers must be assigned a property at creation time
+ * (unlike admin/manager, who may leave it unassigned for later) — there's
+ * no createdBy field on caretakers, so an unassigned caretaker can't be
+ * attributed back to a specific landlord for later filtering.
  *
- * Fixed in this pass:
- *   - GET / used eq(caretakers.propertyId, null) to find unassigned
- *     caretakers — NULL comparisons in SQL never match via equality
- *     (NULL = NULL evaluates to NULL, not true), so that half of the list
- *     silently never returned anything. Fixed with isNull().
- *   - GET /:id, PATCH /:id, DELETE /:id had no org scoping at all — any
- *     admin/manager, from any organisation, could view/edit/deactivate any
- *     caretaker record on the platform by guessing an id.
- *   - POST / required a user with role="caretaker" to already exist,
- *     which — since there was no frontend page to invite someone with
- *     that role in a purpose-built way — meant caretaker onboarding
- *     depended on a confusing two-step, cross-page dance. Now accepts
- *     email/firstName/lastName directly and creates the login account as
- *     part of the same request, matching the pattern already used for
- *     tenants/staff/contractors.
+ * GET /me is for the caretaker themselves, to power their own portal.
  */
 
 import { Router } from "express";
 import { db } from "../db";
 import { caretakers, users, properties } from "@shared/schema";
-import { eq, and, isNull } from "drizzle-orm";
+import { eq, and, isNull, inArray } from "drizzle-orm";
 import { authenticateJWT } from "../middleware/auth";
 import { requireOrg } from "../middleware/requireOrg";
 import { storage } from "../storage";
@@ -40,11 +32,21 @@ import { resolveOrInviteCaretakerUser } from "../utils/resolveOrInviteCaretakerU
 const router = Router();
 const auth = [authenticateJWT as any, requireOrg as any];
 
-function requireAdminManager(req: any, res: any, next: any) {
-  if (!["admin", "manager"].includes(req.user?.role)) {
-    return res.status(403).json({ message: "Admin or manager privileges required" });
+function requireAdminManagerLandlord(req: any, res: any, next: any) {
+  if (!["admin", "manager", "landlord"].includes(req.user?.role)) {
+    return res.status(403).json({ message: "Admin, manager, or landlord privileges required" });
   }
   next();
+}
+
+/** Property ids this caller may touch: every property in the org, or —
+ *  for a landlord — only the ones they own. */
+async function accessiblePropertyIds(orgId: number, role: string, userId: string): Promise<number[]> {
+  const condition = role === "landlord"
+    ? and(eq(properties.organizationId, orgId), eq(properties.ownerId, userId))
+    : eq(properties.organizationId, orgId);
+  const rows = await db.select({ id: properties.id }).from(properties).where(condition);
+  return rows.map(r => r.id);
 }
 
 const SELECT_SHAPE = {
@@ -91,21 +93,26 @@ function shapeRow(r: any) {
 }
 
 // ── GET /api/caretakers ────────────────────────────────────────────────────────
-router.get("/", ...auth, requireAdminManager, async (req: any, res: any) => {
+router.get("/", ...auth, requireAdminManagerLandlord, async (req: any, res: any) => {
   try {
     const orgId: number = req.user.organizationId;
+    const role: string  = req.user.role;
+    const propIds = await accessiblePropertyIds(orgId, role, req.user.id);
 
-    const assigned = await db
-      .select(SELECT_SHAPE)
-      .from(caretakers)
-      .innerJoin(users, eq(caretakers.userId, users.id))
-      .leftJoin(properties, eq(caretakers.propertyId, properties.id))
-      .where(and(eq(users.organizationId, orgId), eq(properties.organizationId, orgId)));
+    const assigned = propIds.length > 0
+      ? await db
+          .select(SELECT_SHAPE)
+          .from(caretakers)
+          .innerJoin(users, eq(caretakers.userId, users.id))
+          .innerJoin(properties, eq(caretakers.propertyId, properties.id))
+          .where(and(eq(users.organizationId, orgId), inArray(caretakers.propertyId, propIds)))
+      : [];
 
-    // Caretakers with no property assigned yet — org-scoped via the user,
-    // since there's no property to join through. Previously used
-    // eq(caretakers.propertyId, null), which can never match in SQL.
-    const unassigned = await db
+    // Caretakers with no property assigned yet — not shown to landlords at
+    // all, since there's no way to attribute an unassigned caretaker to a
+    // specific landlord (no createdBy field on this table). Admin/manager
+    // still see these, so they can complete the assignment.
+    const unassigned = role === "landlord" ? [] : await db
       .select(SELECT_SHAPE)
       .from(caretakers)
       .innerJoin(users, eq(caretakers.userId, users.id))
@@ -143,18 +150,22 @@ router.get("/me", ...auth, async (req: any, res: any) => {
 });
 
 // ── GET /api/caretakers/:id ────────────────────────────────────────────────────
-router.get("/:id", ...auth, requireAdminManager, async (req: any, res: any) => {
+router.get("/:id", ...auth, requireAdminManagerLandlord, async (req: any, res: any) => {
   try {
     const id = parseInt(req.params.id);
     if (isNaN(id)) return res.status(400).json({ message: "Invalid id" });
     const orgId: number = req.user.organizationId;
+    const role: string  = req.user.role;
+
+    const propIds = await accessiblePropertyIds(orgId, role, req.user.id);
+    if (propIds.length === 0) return res.status(404).json({ message: "Caretaker not found" });
 
     const [row] = await db
       .select(SELECT_SHAPE)
       .from(caretakers)
       .innerJoin(users, eq(caretakers.userId, users.id))
-      .leftJoin(properties, eq(caretakers.propertyId, properties.id))
-      .where(and(eq(caretakers.id, id), eq(users.organizationId, orgId)))
+      .innerJoin(properties, eq(caretakers.propertyId, properties.id))
+      .where(and(eq(caretakers.id, id), eq(users.organizationId, orgId), inArray(caretakers.propertyId, propIds)))
       .limit(1);
 
     if (!row) return res.status(404).json({ message: "Caretaker not found" });
@@ -166,9 +177,10 @@ router.get("/:id", ...auth, requireAdminManager, async (req: any, res: any) => {
 });
 
 // ── POST /api/caretakers ───────────────────────────────────────────────────────
-router.post("/", ...auth, requireAdminManager, async (req: any, res: any) => {
+router.post("/", ...auth, requireAdminManagerLandlord, async (req: any, res: any) => {
   try {
     const orgId: number = req.user.organizationId;
+    const role: string  = req.user.role;
     const {
       email, firstName, lastName,
       propertyId, caretakerType, shift, contactNumber,
@@ -179,12 +191,20 @@ router.post("/", ...auth, requireAdminManager, async (req: any, res: any) => {
       return res.status(400).json({ message: "email, firstName, lastName, and caretakerType are required" });
     }
 
+    // Landlords must assign a property at creation time — there's no
+    // createdBy field on caretakers, so an unassigned caretaker created by
+    // a landlord could never be attributed back to them for later
+    // filtering (they'd effectively vanish from their own view, or worse,
+    // become visible to every landlord once assigned).
+    if (role === "landlord" && !propertyId) {
+      return res.status(400).json({ message: "Select a property — landlords must assign a caretaker to one of their own properties immediately." });
+    }
+
     if (propertyId) {
-      const [prop] = await db
-        .select({ id: properties.id })
-        .from(properties)
-        .where(and(eq(properties.id, propertyId), eq(properties.organizationId, orgId)))
-        .limit(1);
+      const propCondition = role === "landlord"
+        ? and(eq(properties.id, propertyId), eq(properties.organizationId, orgId), eq(properties.ownerId, req.user.id))
+        : and(eq(properties.id, propertyId), eq(properties.organizationId, orgId));
+      const [prop] = await db.select({ id: properties.id }).from(properties).where(propCondition).limit(1);
 
       if (!prop) {
         return res.status(404).json({ message: "Property not found in your organisation" });
@@ -220,32 +240,43 @@ router.post("/", ...auth, requireAdminManager, async (req: any, res: any) => {
 });
 
 // ── PATCH /api/caretakers/:id ──────────────────────────────────────────────────
-router.patch("/:id", ...auth, requireAdminManager, async (req: any, res: any) => {
+router.patch("/:id", ...auth, requireAdminManagerLandlord, async (req: any, res: any) => {
   try {
     const id     = parseInt(req.params.id);
     const orgId: number = req.user.organizationId;
+    const role: string  = req.user.role;
     if (isNaN(id)) return res.status(400).json({ message: "Invalid id" });
+
+    const propIds = await accessiblePropertyIds(orgId, role, req.user.id);
+    if (propIds.length === 0) return res.status(404).json({ message: "Caretaker not found" });
 
     const [existing] = await db
       .select({ id: caretakers.id })
       .from(caretakers)
       .innerJoin(users, eq(caretakers.userId, users.id))
-      .where(and(eq(caretakers.id, id), eq(users.organizationId, orgId)))
+      .where(and(eq(caretakers.id, id), eq(users.organizationId, orgId), inArray(caretakers.propertyId, propIds)))
       .limit(1);
     if (!existing) return res.status(404).json({ message: "Caretaker not found" });
 
     const { propertyId, shift, contactNumber, accommodationProvided,
             status, performanceRating, notes, endDate } = req.body;
 
-    if (propertyId !== undefined && propertyId !== null) {
-      const [prop] = await db
-        .select({ id: properties.id })
-        .from(properties)
-        .where(and(eq(properties.id, propertyId), eq(properties.organizationId, orgId)))
-        .limit(1);
-
-      if (!prop) {
-        return res.status(404).json({ message: "Property not found in your organisation" });
+    // A landlord reassigning a caretaker may only move them to another
+    // property they own — never to null (see the same reasoning in POST /)
+    // and never to a property that isn't theirs.
+    if (propertyId !== undefined) {
+      if (propertyId === null) {
+        if (role === "landlord") {
+          return res.status(400).json({ message: "Landlords cannot unassign a caretaker's property — reassign to another of your properties instead." });
+        }
+      } else {
+        const propCondition = role === "landlord"
+          ? and(eq(properties.id, propertyId), eq(properties.organizationId, orgId), eq(properties.ownerId, req.user.id))
+          : and(eq(properties.id, propertyId), eq(properties.organizationId, orgId));
+        const [prop] = await db.select({ id: properties.id }).from(properties).where(propCondition).limit(1);
+        if (!prop) {
+          return res.status(404).json({ message: "Property not found in your organisation" });
+        }
       }
     }
 
@@ -269,17 +300,21 @@ router.patch("/:id", ...auth, requireAdminManager, async (req: any, res: any) =>
 });
 
 // ── DELETE /api/caretakers/:id ─────────────────────────────────────────────────
-router.delete("/:id", ...auth, requireAdminManager, async (req: any, res: any) => {
+router.delete("/:id", ...auth, requireAdminManagerLandlord, async (req: any, res: any) => {
   try {
     const id = parseInt(req.params.id);
     if (isNaN(id)) return res.status(400).json({ message: "Invalid id" });
     const orgId: number = req.user.organizationId;
+    const role: string  = req.user.role;
+
+    const propIds = await accessiblePropertyIds(orgId, role, req.user.id);
+    if (propIds.length === 0) return res.status(404).json({ message: "Caretaker not found" });
 
     const [existing] = await db
       .select({ id: caretakers.id })
       .from(caretakers)
       .innerJoin(users, eq(caretakers.userId, users.id))
-      .where(and(eq(caretakers.id, id), eq(users.organizationId, orgId)))
+      .where(and(eq(caretakers.id, id), eq(users.organizationId, orgId), inArray(caretakers.propertyId, propIds)))
       .limit(1);
     if (!existing) return res.status(404).json({ message: "Caretaker not found" });
 

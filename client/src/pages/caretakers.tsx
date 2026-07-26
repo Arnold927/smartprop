@@ -11,6 +11,7 @@ import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useRoleGuard, ROLES } from "@/hooks/useRoleGuard";
+import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -54,10 +55,12 @@ const CARETAKER_TYPES = [
 ];
 
 export default function CaretakersPage() {
-  const guard = useRoleGuard(ROLES.ADMIN_MANAGER);
+  const guard = useRoleGuard(ROLES.ADMIN_MANAGER_LANDLORD);
   if (guard.gate) return guard.gate;
 
   const { toast } = useToast();
+  const { user } = useAuth();
+  const isLandlord = user?.role === "landlord";
   const queryClient = useQueryClient();
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [editing, setEditing] = useState<CaretakerRow | null>(null);
@@ -116,11 +119,18 @@ export default function CaretakersPage() {
   const handleAdd = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const fd = new FormData(e.currentTarget);
+    const propertyId = fd.get("propertyId") ? Number(fd.get("propertyId")) : undefined;
+
+    if (isLandlord && !propertyId) {
+      toast({ title: "Select a property", description: "Choose one of your properties to assign this caretaker to.", variant: "destructive" });
+      return;
+    }
+
     createMutation.mutate({
       firstName: fd.get("firstName"),
       lastName: fd.get("lastName"),
       email: fd.get("email"),
-      propertyId: fd.get("propertyId") ? Number(fd.get("propertyId")) : undefined,
+      propertyId,
       caretakerType: fd.get("caretakerType"),
       shift: fd.get("shift") || undefined,
       contactNumber: fd.get("contactNumber") || undefined,
@@ -242,9 +252,9 @@ export default function CaretakersPage() {
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-1.5">
-                <Label htmlFor="propertyId">Property</Label>
-                <Select name="propertyId">
-                  <SelectTrigger id="propertyId"><SelectValue placeholder="Assign later" /></SelectTrigger>
+                <Label htmlFor="propertyId">Property{isLandlord && " *"}</Label>
+                <Select name="propertyId" required={isLandlord}>
+                  <SelectTrigger id="propertyId"><SelectValue placeholder={isLandlord ? "Select one of your properties" : "Assign later"} /></SelectTrigger>
                   <SelectContent>
                     {properties.map(p => <SelectItem key={p.id} value={String(p.id)}>{p.name}</SelectItem>)}
                   </SelectContent>

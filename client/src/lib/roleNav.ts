@@ -167,6 +167,7 @@ const getLandlordNav = (t: (k: string) => string): NavGroup[] => [
         ],
       },
       { name: t("nav.inspections"), href: "/inspections", icon: ClipboardCheck },
+      { name: t("nav.caretakers"),  href: "/caretakers",  icon: Shield },
       // Trimmed to Bill Sender only — Utility Management's other tabs
       // (Providers/Accounts/Readings/Bills/Expenses/Analytics) are redundant
       // or irrelevant for a landlord: Bill Sender already takes readings and
@@ -439,7 +440,7 @@ export const ROLE_ALLOWED_ROUTES: Record<string, string[]> = {
     "/properties", "/tenants", "/leases",
     "/finances", "/rent-collection", "/expense-management",
     "/owner-statements",
-    "/maintenance", "/inspections", "/documents",
+    "/maintenance", "/inspections", "/documents", "/caretakers",
     "/utility-bill-sender", "/payment-setup",
     "/compliance",
     "/messages", "/profile",
