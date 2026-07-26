@@ -18,8 +18,8 @@ import {
 const router = Router();
 
 // GET /api/users — list users in org
-// Admins see all users; managers/property_managers may query ?role=landlord
-// to populate owner-picker dropdowns.
+// Admins see all users; managers may query ?role=landlord to populate
+// owner-picker dropdowns.
 router.get("/", authenticateJWT, async (req: any, res) => {
   try {
     const callerRole: string = req.user.role;
@@ -27,7 +27,7 @@ router.get("/", authenticateJWT, async (req: any, res) => {
     const roleFilter = req.query.role as string | undefined;
 
     // Non-admins may only request the landlord list (for owner pickers).
-    const ALLOWED_NON_ADMIN_ROLES = ["admin", "manager", "property_manager"];
+    const ALLOWED_NON_ADMIN_ROLES = ["admin", "manager"];
     if (!ALLOWED_NON_ADMIN_ROLES.includes(callerRole)) {
       return res.status(403).json({ message: "Insufficient permissions" });
     }
@@ -94,7 +94,18 @@ router.post("/", authenticateJWT, requireAdmin, requireActiveSubscription as any
   try {
     const schema = z.object({
       email: z.string().email(),
-      role: z.enum(["admin", "manager", "staff", "tenant", "contractor", "property_manager", "diaspora_buyer", "project_manager", "supplier_vendor", "casual_worker_staff"]).default("staff"),
+      // Exactly the roles the real RBAC system (AppRole / ROUTE_POLICY)
+      // actually enforces. Previously included property_manager,
+      // diaspora_buyer, project_manager, supplier_vendor, and
+      // casual_worker_staff — none of which appear anywhere in
+      // ROUTE_POLICY, so a user invited with any of those would have zero
+      // recognized permissions almost everywhere in the app (every
+      // roleGuard check would simply never match their role string).
+      // landlord/caretaker/guard are real AppRole values that were simply
+      // missing from this list — there was no way to invite them at all.
+      // platform_admin is deliberately excluded: that tier isn't meant to
+      // be self-service-invitable by a regular org admin.
+      role: z.enum(["admin", "manager", "staff", "landlord", "caretaker", "tenant", "guard", "contractor"]).default("staff"),
     });
 
     const { email, role } = schema.parse(req.body);

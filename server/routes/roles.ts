@@ -108,7 +108,7 @@ router.get(
 );
 
 // ── GET /api/roles/:roleName ───────────────────────────────────────────────────
-// Returns a single role by its name string (e.g. "property_manager").
+// Returns a single role by its name string (e.g. "manager").
 
 router.get(
   "/:roleName",

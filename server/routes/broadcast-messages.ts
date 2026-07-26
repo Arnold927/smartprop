@@ -94,7 +94,7 @@ async function resolveRecipients(
       return rows.filter(u => u.role === "tenant");
 
     case "all_landlords":
-      return rows.filter(u => u.role === "property_manager" || u.role === "diaspora_buyer");
+      return rows.filter(u => u.role === "landlord");
 
     case "all_users":
       return rows;

@@ -72,6 +72,17 @@ router.patch("/:id/assign-technician", auditLog("maintenance_request", "ACTION")
     });
     const { technicianId, workStartTime, status } = schema.parse(req.body);
 
+    // Previously unchecked — a staffMembers.id from a completely different
+    // organisation could be assigned as the technician on this request.
+    const [technician] = await db
+      .select({ id: staffMembers.id })
+      .from(staffMembers)
+      .where(and(eq(staffMembers.id, technicianId), eq(staffMembers.organization_id, req.user.organizationId)))
+      .limit(1);
+    if (!technician) {
+      return res.status(404).json({ message: "Staff member not found in your organisation" });
+    }
+
     const [existing] = await db
       .select({ createdAt: maintenanceRequests.createdAt })
       .from(maintenanceRequests)
@@ -359,13 +370,28 @@ router.post("/:id/comments", auditLog("maintenance_comment", "CREATE"), async (r
       comments = [];
     }
 
+    // req.user.role can never be "technician" — that's a staffMembers.position
+    // value (an HR job title), not a users.role value, so this always
+    // evaluated to false regardless of who was actually commenting. Resolve
+    // it properly via the same email-match pattern used to link a login
+    // account to its staffMembers HR record elsewhere in this app.
+    let isTechnician = false;
+    if (req.user.email) {
+      const [staffRow] = await db
+        .select({ position: staffMembers.position })
+        .from(staffMembers)
+        .where(and(eq(staffMembers.email, req.user.email), eq(staffMembers.organization_id, req.user.organizationId)))
+        .limit(1);
+      isTechnician = staffRow?.position === "technician";
+    }
+
     const newComment = {
       id: Date.now(),
       authorId: req.user.id,
       authorName: `${req.user.firstName ?? ""} ${req.user.lastName ?? ""}`.trim() || "Unknown",
       content: content.trim(),
       createdAt: new Date().toISOString(),
-      isTechnician: req.user.role === "technician",
+      isTechnician,
     };
 
     comments.push(newComment);

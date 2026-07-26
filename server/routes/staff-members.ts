@@ -16,6 +16,7 @@ import { authenticateJWT } from "../middleware/auth";
 import { auditLog } from "../middleware/auditLog";
 import { requireOrg } from "../middleware/requireOrg";
 import { z } from "zod";
+import { inviteStaffUser } from "../utils/inviteStaffUser";
 
 const router = Router();
 
@@ -168,6 +169,20 @@ router.post(
           hire_date:       new Date(data.hire_date),
         } as any)
         .returning();
+
+      // Invite the new staff member to the portal — same gap already fixed
+      // for tenants: previously this endpoint created only the HR record,
+      // with no way for that person to ever log in unless someone
+      // separately used the unrelated admin "invite a user" flow and
+      // happened to match the email manually.
+      inviteStaffUser({
+        organizationId: orgId,
+        invitedByUserId: req.user.id,
+        email: created.email,
+        firstName: created.first_name,
+        lastName: created.last_name,
+        position: created.position ?? undefined,
+      });
 
       res.status(201).json(created);
     } catch (err: any) {
