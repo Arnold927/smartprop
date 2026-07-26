@@ -1,345 +1,216 @@
 /**
- * client/src/pages/caretakers.tsx
+ * client/src/pages/caretaker-portal.tsx
  *
- * Admin/manager-facing caretaker management: list, add, edit, reassign to
- * a different property, and deactivate. Uses the combined invite+create
- * flow on the backend (POST /api/caretakers) — filling out this one form
- * creates both the login account and the caretaker record together.
+ * A caretaker's own dashboard. Previously caretakers were routed to the
+ * generic /staff-portal (same as the plain "staff" role) — this replaces
+ * that with something scoped to what a caretaker specifically needs: their
+ * property assignment, shift, and a quick view of maintenance activity at
+ * their specific property, plus links to the pages they already have
+ * access to (Maintenance, Visitor Management, Guard Check-in, Inspections).
  */
 
-import { useState } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
+import { useLocation } from "wouter";
 import { apiRequest } from "@/lib/queryClient";
 import { useRoleGuard, ROLES } from "@/hooks/useRoleGuard";
-import { useAuth } from "@/hooks/useAuth";
-import { useToast } from "@/hooks/use-toast";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Card, CardContent } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import {
-  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
-} from "@/components/ui/dialog";
-import {
-  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
-} from "@/components/ui/select";
-import {
-  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { UserPlus, Shield, MoreVertical, Home, Phone } from "lucide-react";
+  Shield, Home, Clock, Phone, Wrench, Users, ClipboardCheck, KeyRound, ChevronRight,
+} from "lucide-react";
 
-interface CaretakerRow {
+interface CaretakerMe {
   id: number;
-  userId: string;
   propertyId: number | null;
+  propertyName: string;
   caretakerType: string;
   shift: string | null;
   status: string;
   contactNumber: string | null;
   accommodationProvided: boolean;
-  userName: string;
-  userEmail: string | null;
-  propertyName: string;
 }
 
-interface PropertyOption {
+interface MaintenanceRow {
   id: number;
-  name: string;
+  ticketNumber: string;
+  title: string;
+  priority: string;
+  status: string;
+  unit?: { id: number; unitNumber: string } | null;
 }
 
-const CARETAKER_TYPES = [
-  { value: "resident", label: "Resident (lives on-site)" },
-  { value: "visiting", label: "Visiting (comes in for shifts)" },
-  { value: "security", label: "Security-focused" },
-];
+const STATUS_COLORS: Record<string, string> = {
+  pending:     "text-amber-700 border-amber-200",
+  in_progress: "text-blue-700 border-blue-200",
+  completed:   "text-emerald-700 border-emerald-200",
+  rejected:    "text-red-700 border-red-200",
+};
 
-export default function CaretakersPage() {
-  const guard = useRoleGuard(ROLES.ADMIN_MANAGER_LANDLORD);
+export default function CaretakerPortalPage() {
+  const guard = useRoleGuard(ROLES.CARETAKER_ALLOWED);
   if (guard.gate) return guard.gate;
 
-  const { toast } = useToast();
-  const { user } = useAuth();
-  const isLandlord = user?.role === "landlord";
-  const queryClient = useQueryClient();
-  const [isAddOpen, setIsAddOpen] = useState(false);
-  const [editing, setEditing] = useState<CaretakerRow | null>(null);
+  const [, navigate] = useLocation();
 
-  const { data: caretakers = [], isLoading } = useQuery<CaretakerRow[]>({
-    queryKey: ["/api/caretakers"],
+  const { data: me, isLoading: meLoading } = useQuery<CaretakerMe>({
+    queryKey: ["/api/caretakers/me"],
     queryFn: async () => {
-      const r = await apiRequest("/api/caretakers");
-      return r.json();
-    },
-  });
-
-  const { data: properties = [] } = useQuery<PropertyOption[]>({
-    queryKey: ["/api/properties"],
-    queryFn: async () => {
-      const r = await apiRequest("/api/properties");
-      const body = await r.json();
-      return (Array.isArray(body) ? body : body.results ?? []).map((p: any) => ({ id: p.id, name: p.name }));
-    },
-  });
-
-  const createMutation = useMutation({
-    mutationFn: (data: any) => apiRequest("/api/caretakers", { method: "POST", data }),
-    onSuccess: async (r) => {
+      const r = await apiRequest("/api/caretakers/me");
       if (!r.ok) {
         const body = await r.json().catch(() => ({}));
-        throw new Error(body.message || "Failed to add caretaker");
+        throw new Error(body.message || "Failed to load your caretaker record");
       }
-      toast({ title: "Caretaker added", description: "An invite email has been sent to set up their account." });
-      queryClient.invalidateQueries({ queryKey: ["/api/caretakers"] });
-      setIsAddOpen(false);
+      return r.json();
     },
-    onError: (e: any) => toast({ title: "Failed to add caretaker", description: e.message, variant: "destructive" }),
+    retry: false,
   });
 
-  const updateMutation = useMutation({
-    mutationFn: ({ id, data }: { id: number; data: any }) =>
-      apiRequest(`/api/caretakers/${id}`, { method: "PATCH", data }),
-    onSuccess: () => {
-      toast({ title: "Caretaker updated" });
-      queryClient.invalidateQueries({ queryKey: ["/api/caretakers"] });
-      setEditing(null);
+  const { data: maintenanceRequests = [], isLoading: maintLoading } = useQuery<MaintenanceRow[]>({
+    queryKey: ["/api/maintenance-requests", "caretaker-portal", me?.propertyId],
+    queryFn: async () => {
+      const r = await apiRequest(`/api/maintenance-requests?propertyId=${me!.propertyId}`);
+      const body = await r.json();
+      return Array.isArray(body) ? body : [];
     },
-    onError: (e: any) => toast({ title: "Failed to update", description: e.message, variant: "destructive" }),
+    enabled: !!me?.propertyId,
   });
 
-  const deactivateMutation = useMutation({
-    mutationFn: (id: number) => apiRequest(`/api/caretakers/${id}`, { method: "DELETE" }),
-    onSuccess: () => {
-      toast({ title: "Caretaker deactivated" });
-      queryClient.invalidateQueries({ queryKey: ["/api/caretakers"] });
-    },
-    onError: (e: any) => toast({ title: "Failed to deactivate", description: e.message, variant: "destructive" }),
-  });
+  const openRequests = maintenanceRequests.filter(m => m.status !== "completed" && m.status !== "rejected");
 
-  const handleAdd = (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    const fd = new FormData(e.currentTarget);
-    const propertyId = fd.get("propertyId") ? Number(fd.get("propertyId")) : undefined;
-
-    if (!propertyId) {
-      toast({ title: "Select a property", description: "A caretaker must be assigned to a property immediately.", variant: "destructive" });
-      return;
-    }
-
-    createMutation.mutate({
-      firstName: fd.get("firstName"),
-      lastName: fd.get("lastName"),
-      email: fd.get("email"),
-      propertyId,
-      caretakerType: fd.get("caretakerType"),
-      shift: fd.get("shift") || undefined,
-      contactNumber: fd.get("contactNumber") || undefined,
-      accommodationProvided: fd.get("accommodationProvided") === "on",
-    });
-  };
-
-  const handleUpdate = (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    if (!editing) return;
-    const fd = new FormData(e.currentTarget);
-    const propertyId = fd.get("propertyId") ? Number(fd.get("propertyId")) : null;
-
-    if (!propertyId) {
-      toast({ title: "Select a property", description: "A caretaker must stay assigned to a property — pick a different one instead of leaving this blank.", variant: "destructive" });
-      return;
-    }
-
-    updateMutation.mutate({
-      id: editing.id,
-      data: {
-        propertyId,
-        shift: fd.get("shift") || null,
-        contactNumber: fd.get("contactNumber") || null,
-        accommodationProvided: fd.get("accommodationProvided") === "on",
-      },
-    });
-  };
+  const quickLinks = [
+    { label: "Maintenance",       href: "/maintenance",         icon: Wrench },
+    { label: "Visitor Log",       href: "/visitor-management",  icon: Users },
+    { label: "Guard Check-in",    href: "/guard-checkin",       icon: KeyRound },
+    { label: "Inspections",       href: "/inspections",         icon: ClipboardCheck },
+  ];
 
   return (
-    <div className="max-w-5xl mx-auto px-4 py-6 md:py-8">
-      <div className="flex items-center justify-between mb-6">
-        <div className="flex items-center gap-3">
-          <div className="rounded-xl bg-emerald-500/10 p-2.5">
-            <Shield className="h-5 w-5 text-emerald-600" />
-          </div>
-          <div>
-            <h1 className="text-lg font-semibold text-foreground">Caretakers</h1>
-            <p className="text-xs text-muted-foreground mt-0.5">
-              On-site property caretakers — their maintenance and visitor access is scoped to their assigned property.
-            </p>
-          </div>
+    <div className="max-w-4xl mx-auto px-4 py-6 md:py-8">
+      <div className="flex items-center gap-3 mb-6">
+        <div className="rounded-xl bg-emerald-500/10 p-2.5">
+          <Shield className="h-5 w-5 text-emerald-600" />
         </div>
-        <Button onClick={() => setIsAddOpen(true)} className="gap-2">
-          <UserPlus className="h-4 w-4" /> Add Caretaker
-        </Button>
+        <div>
+          <h1 className="text-lg font-semibold text-foreground">Caretaker Dashboard</h1>
+          <p className="text-xs text-muted-foreground mt-0.5">Your assignment and what's happening at your property.</p>
+        </div>
       </div>
 
-      {isLoading ? (
+      {meLoading ? (
         <div className="space-y-3">
-          {[1, 2, 3].map(i => <div key={i} className="h-20 rounded-xl bg-muted animate-pulse" />)}
+          <div className="h-24 rounded-xl bg-muted animate-pulse" />
+          <div className="h-40 rounded-xl bg-muted animate-pulse" />
         </div>
-      ) : caretakers.length === 0 ? (
+      ) : !me ? (
         <Card>
           <CardContent className="text-center py-16">
             <Shield className="h-12 w-12 text-muted-foreground mx-auto mb-4 opacity-20" />
-            <h3 className="text-lg font-semibold">No caretakers yet</h3>
-            <p className="text-muted-foreground mt-2">Add one to get started — they'll be invited to the portal automatically.</p>
+            <h3 className="text-lg font-semibold">No caretaker record found yet</h3>
+            <p className="text-muted-foreground mt-2">Ask your admin or manager to finish setting up your assignment.</p>
           </CardContent>
         </Card>
       ) : (
-        <div className="space-y-3">
-          {caretakers.map(c => (
-            <Card key={c.id}>
-              <CardContent className="py-4 flex items-center justify-between gap-4">
-                <div className="min-w-0">
+        <>
+          {/* Assignment card */}
+          <Card className="mb-6">
+            <CardContent className="py-5">
+              <div className="flex items-center justify-between flex-wrap gap-3">
+                <div>
                   <div className="flex items-center gap-2">
-                    <p className="text-sm font-semibold">{c.userName}</p>
-                    <Badge variant="outline" className="text-[10px] px-1.5 py-0 capitalize">{c.caretakerType}</Badge>
-                    <Badge
-                      variant="outline"
-                      className={`text-[10px] px-1.5 py-0 capitalize ${c.status === "active" ? "text-emerald-700 border-emerald-200" : "text-muted-foreground"}`}
-                    >
-                      {c.status}
-                    </Badge>
+                    <Home className="h-4 w-4 text-muted-foreground" />
+                    <span className="text-base font-semibold">{me.propertyName}</span>
+                    <Badge variant="outline" className="text-[10px] px-1.5 py-0 capitalize">{me.caretakerType}</Badge>
                   </div>
-                  <p className="text-xs text-muted-foreground mt-1">{c.userEmail}</p>
-                  <div className="flex items-center gap-4 mt-2 text-xs text-muted-foreground">
-                    <span className="flex items-center gap-1"><Home className="h-3 w-3" /> {c.propertyName}</span>
-                    {c.shift && <span className="capitalize">{c.shift} shift</span>}
-                    {c.contactNumber && <span className="flex items-center gap-1"><Phone className="h-3 w-3" /> {c.contactNumber}</span>}
+                  <div className="flex items-center gap-4 mt-2 text-sm text-muted-foreground">
+                    {me.shift && (
+                      <span className="flex items-center gap-1.5 capitalize">
+                        <Clock className="h-3.5 w-3.5" /> {me.shift} shift
+                      </span>
+                    )}
+                    {me.contactNumber && (
+                      <span className="flex items-center gap-1.5">
+                        <Phone className="h-3.5 w-3.5" /> {me.contactNumber}
+                      </span>
+                    )}
+                    {me.accommodationProvided && (
+                      <Badge variant="outline" className="text-[10px] px-1.5 py-0">On-site accommodation</Badge>
+                    )}
                   </div>
                 </div>
+                <Badge
+                  variant="outline"
+                  className={`capitalize ${me.status === "active" ? "text-emerald-700 border-emerald-200" : "text-muted-foreground"}`}
+                >
+                  {me.status}
+                </Badge>
+              </div>
+            </CardContent>
+          </Card>
 
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" size="sm"><MoreVertical className="h-4 w-4" /></Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end">
-                    <DropdownMenuItem onClick={() => setEditing(c)}>Edit / Reassign</DropdownMenuItem>
-                    <DropdownMenuItem
-                      className="text-red-600"
-                      onClick={() => deactivateMutation.mutate(c.id)}
-                    >
-                      Deactivate
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-      )}
+          {/* Quick links */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
+            {quickLinks.map(({ label, href, icon: Icon }) => (
+              <Card
+                key={href}
+                className="cursor-pointer hover:border-emerald-300 dark:hover:border-emerald-800 transition-colors"
+                onClick={() => navigate(href)}
+              >
+                <CardContent className="py-4 flex flex-col items-center text-center gap-2">
+                  <Icon className="h-5 w-5 text-emerald-600" />
+                  <span className="text-xs font-medium">{label}</span>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
 
-      {/* ── Add Caretaker dialog ── */}
-      <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
-        <DialogContent className="max-w-lg">
-          <DialogHeader>
-            <DialogTitle>Add a Caretaker</DialogTitle>
-          </DialogHeader>
-          <form onSubmit={handleAdd} className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-1.5">
-                <Label htmlFor="firstName">First Name</Label>
-                <Input id="firstName" name="firstName" required />
-              </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="lastName">Last Name</Label>
-                <Input id="lastName" name="lastName" required />
-              </div>
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="email">Email</Label>
-              <Input id="email" name="email" type="email" required />
-              <p className="text-xs text-muted-foreground">They'll get an invite email to set up their own password.</p>
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-1.5">
-                <Label htmlFor="propertyId">Property *</Label>
-                <Select name="propertyId" required>
-                  <SelectTrigger id="propertyId"><SelectValue placeholder={isLandlord ? "Select one of your properties" : "Select a property"} /></SelectTrigger>
-                  <SelectContent>
-                    {properties.map(p => <SelectItem key={p.id} value={String(p.id)}>{p.name}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="caretakerType">Type</Label>
-                <Select name="caretakerType" required defaultValue="resident">
-                  <SelectTrigger id="caretakerType"><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    {CARETAKER_TYPES.map(t => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-1.5">
-                <Label htmlFor="shift">Shift</Label>
-                <Input id="shift" name="shift" placeholder="e.g. day, night, rotating" />
-              </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="contactNumber">Contact Number</Label>
-                <Input id="contactNumber" name="contactNumber" placeholder="07xx xxx xxx" />
-              </div>
-            </div>
-            <label className="flex items-center gap-2 text-sm">
-              <input type="checkbox" name="accommodationProvided" className="rounded border-border" />
-              Accommodation provided on-site
-            </label>
-            <DialogFooter>
-              <Button type="submit" disabled={createMutation.isPending}>
-                {createMutation.isPending ? "Adding..." : "Add Caretaker"}
+          {/* Maintenance at this property */}
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between pb-3">
+              <CardTitle className="text-base">
+                Open Maintenance at {me.propertyName}
+                {openRequests.length > 0 && (
+                  <span className="ml-2 text-xs bg-muted dark:bg-gray-800 text-muted-foreground px-1.5 py-0.5 rounded-full">
+                    {openRequests.length}
+                  </span>
+                )}
+              </CardTitle>
+              <Button variant="ghost" size="sm" className="gap-1" onClick={() => navigate("/maintenance")}>
+                View all <ChevronRight className="h-3.5 w-3.5" />
               </Button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
-
-      {/* ── Edit / Reassign dialog ── */}
-      <Dialog open={!!editing} onOpenChange={(o) => !o && setEditing(null)}>
-        <DialogContent className="max-w-lg">
-          <DialogHeader>
-            <DialogTitle>Edit {editing?.userName}</DialogTitle>
-          </DialogHeader>
-          {editing && (
-            <form onSubmit={handleUpdate} className="space-y-4">
-              <div className="space-y-1.5">
-                <Label htmlFor="edit-propertyId">Property *</Label>
-                <Select name="propertyId" defaultValue={editing.propertyId ? String(editing.propertyId) : undefined} required>
-                  <SelectTrigger id="edit-propertyId"><SelectValue placeholder="Select a property" /></SelectTrigger>
-                  <SelectContent>
-                    {properties.map(p => <SelectItem key={p.id} value={String(p.id)}>{p.name}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-1.5">
-                  <Label htmlFor="edit-shift">Shift</Label>
-                  <Input id="edit-shift" name="shift" defaultValue={editing.shift ?? ""} />
+            </CardHeader>
+            <CardContent>
+              {!me.propertyId ? (
+                <p className="text-sm text-muted-foreground py-6 text-center">
+                  You're not assigned to a property yet — ask your admin or manager.
+                </p>
+              ) : maintLoading ? (
+                <div className="space-y-2">
+                  <div className="h-10 rounded bg-muted animate-pulse" />
+                  <div className="h-10 rounded bg-muted animate-pulse" />
                 </div>
-                <div className="space-y-1.5">
-                  <Label htmlFor="edit-contactNumber">Contact Number</Label>
-                  <Input id="edit-contactNumber" name="contactNumber" defaultValue={editing.contactNumber ?? ""} />
+              ) : openRequests.length === 0 ? (
+                <p className="text-sm text-muted-foreground py-6 text-center">Nothing open right now — all caught up.</p>
+              ) : (
+                <div className="divide-y divide-border dark:divide-gray-800">
+                  {openRequests.slice(0, 8).map(m => (
+                    <div key={m.id} className="flex items-center justify-between py-2.5">
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium truncate">{m.title}</p>
+                        <p className="text-xs text-muted-foreground">{m.ticketNumber}{m.unit?.unitNumber ? ` · Unit ${m.unit.unitNumber}` : ""}</p>
+                      </div>
+                      <div className="flex items-center gap-2 shrink-0">
+                        <Badge variant="outline" className="text-[10px] px-1.5 py-0 capitalize">{m.priority}</Badge>
+                        <Badge variant="outline" className={`text-[10px] px-1.5 py-0 capitalize ${STATUS_COLORS[m.status] ?? ""}`}>{m.status}</Badge>
+                      </div>
+                    </div>
+                  ))}
                 </div>
-              </div>
-              <label className="flex items-center gap-2 text-sm">
-                <input type="checkbox" name="accommodationProvided" defaultChecked={editing.accommodationProvided} className="rounded border-border" />
-                Accommodation provided on-site
-              </label>
-              <DialogFooter>
-                <Button type="submit" disabled={updateMutation.isPending}>
-                  {updateMutation.isPending ? "Saving..." : "Save Changes"}
-                </Button>
-              </DialogFooter>
-            </form>
-          )}
-        </DialogContent>
-      </Dialog>
+              )}
+            </CardContent>
+          </Card>
+        </>
+      )}
     </div>
   );
 }

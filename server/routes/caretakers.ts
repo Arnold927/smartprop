@@ -210,15 +210,13 @@ router.post("/", ...auth, requireAdminManagerLandlord, async (req: any, res: any
       return res.status(400).json({ message: "Select a property — a caretaker must be assigned to one immediately." });
     }
 
-    if (propertyId) {
-      const propCondition = role === "landlord"
-        ? and(eq(properties.id, propertyId), eq(properties.organizationId, orgId), eq(properties.ownerId, req.user.id))
-        : and(eq(properties.id, propertyId), eq(properties.organizationId, orgId));
-      const [prop] = await db.select({ id: properties.id }).from(properties).where(propCondition).limit(1);
+    const propCondition = role === "landlord"
+      ? and(eq(properties.id, propertyId), eq(properties.organizationId, orgId), eq(properties.ownerId, req.user.id))
+      : and(eq(properties.id, propertyId), eq(properties.organizationId, orgId));
+    const [prop] = await db.select({ id: properties.id }).from(properties).where(propCondition).limit(1);
 
-      if (!prop) {
-        return res.status(404).json({ message: "Property not found in your organisation" });
-      }
+    if (!prop) {
+      return res.status(404).json({ message: "Property not found in your organisation" });
     }
 
     const userId = await resolveOrInviteCaretakerUser({
