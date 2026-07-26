@@ -4,7 +4,6 @@ import { users, organizations } from "@shared/schema";
 import { eq, and } from "drizzle-orm";
 import { authenticateJWT } from "../middleware/auth";
 import { auditLog } from "../middleware/auditLog";
-import { requireAdmin } from "../middleware/authorization";
 import { sendInviteEmail } from "../lib/email";
 import { randomUUID } from "crypto";
 import bcrypt from "bcrypt";
@@ -89,26 +88,42 @@ router.get("/:id", authenticateJWT, async (req: any, res) => {
   }
 });
 
-// POST /api/users — invite a user (admin only)
-router.post("/", authenticateJWT, requireAdmin, requireActiveSubscription as any, enforceUserLimit as any, auditLog("user", "CREATE"), async (req: any, res) => {
+// POST /api/users — invite a user (admin or manager)
+// Previously admin-only (requireAdmin), but the page that renders this
+// (user-management.tsx) already guards for ADMIN_MANAGER — meaning a
+// manager could reach the page, fill out the entire invite form, and only
+// then get silently rejected by this endpoint. Loosened to match, with a
+// manager specifically blocked from granting admin-level access.
+router.post("/", authenticateJWT, requireActiveSubscription as any, enforceUserLimit as any, auditLog("user", "CREATE"), async (req: any, res) => {
   try {
+    const callerRole: string = req.user.role;
+    if (!["admin", "manager"].includes(callerRole)) {
+      return res.status(403).json({ message: "Admin or manager privileges required" });
+    }
+
     const schema = z.object({
       email: z.string().email(),
       // Exactly the roles the real RBAC system (AppRole / ROUTE_POLICY)
-      // actually enforces. Previously included property_manager,
-      // diaspora_buyer, project_manager, supplier_vendor, and
-      // casual_worker_staff — none of which appear anywhere in
-      // ROUTE_POLICY, so a user invited with any of those would have zero
-      // recognized permissions almost everywhere in the app (every
-      // roleGuard check would simply never match their role string).
-      // landlord/caretaker/guard are real AppRole values that were simply
-      // missing from this list — there was no way to invite them at all.
+      // actually enforces, minus tenant — tenants have their own dedicated
+      // invite flow (ComprehensiveTenantModal -> POST /api/tenant-onboarding,
+      // or POST /api/tenants directly, both of which now correctly create
+      // the tenant business record AND the login invite together). Inviting
+      // a "tenant" through this general user-management flow would create
+      // a login account with no linked tenant record at all — a different,
+      // broken kind of gap than the one already fixed for the tenant side.
       // platform_admin is deliberately excluded: that tier isn't meant to
       // be self-service-invitable by a regular org admin.
-      role: z.enum(["admin", "manager", "staff", "landlord", "caretaker", "tenant", "guard", "contractor"]).default("staff"),
+      role: z.enum(["admin", "manager", "staff", "landlord", "caretaker", "guard", "contractor"]).default("staff"),
     });
 
     const { email, role } = schema.parse(req.body);
+
+    // A manager may invite anyone except an admin — prevents a manager
+    // from granting themselves or anyone else admin-level access.
+    if (callerRole === "manager" && role === "admin") {
+      return res.status(403).json({ message: "Managers cannot grant admin access. Ask an admin to do this." });
+    }
+
     const orgId: number = req.user.organizationId;
 
     const inviteToken = randomUUID();
