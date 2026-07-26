@@ -104,16 +104,27 @@ router.post("/", authenticateJWT, requireActiveSubscription as any, enforceUserL
     const schema = z.object({
       email: z.string().email(),
       // Exactly the roles the real RBAC system (AppRole / ROUTE_POLICY)
-      // actually enforces, minus tenant — tenants have their own dedicated
-      // invite flow (ComprehensiveTenantModal -> POST /api/tenant-onboarding,
-      // or POST /api/tenants directly, both of which now correctly create
-      // the tenant business record AND the login invite together). Inviting
-      // a "tenant" through this general user-management flow would create
-      // a login account with no linked tenant record at all — a different,
-      // broken kind of gap than the one already fixed for the tenant side.
+      // actually enforces, minus tenant, contractor, and caretaker — all
+      // three have their own dedicated invite flows elsewhere that
+      // correctly link the login to a business record:
+      //   tenant:     ComprehensiveTenantModal / POST /api/tenant-onboarding
+      //               or POST /api/tenants
+      //   contractor: contractors-extended.ts's own auto-invite hook,
+      //               triggered when adding a contractor via the
+      //               Contractors page
+      //   caretaker:  the Caretakers page (POST /api/caretakers), which
+      //               creates the login AND the property assignment
+      //               together — caretaker was briefly still listed here
+      //               even after that page was built, which would have
+      //               created a caretaker login with no property
+      //               assignment at all (caretakers.userId requires one
+      //               to exist, so the record couldn't even be attempted
+      //               without going back through the dedicated page anyway)
+      // Inviting any of the three through this general flow creates a
+      // login account with nothing behind it.
       // platform_admin is deliberately excluded: that tier isn't meant to
       // be self-service-invitable by a regular org admin.
-      role: z.enum(["admin", "manager", "staff", "landlord", "caretaker", "guard", "contractor"]).default("staff"),
+      role: z.enum(["admin", "manager", "staff", "landlord", "guard"]).default("staff"),
     });
 
     const { email, role } = schema.parse(req.body);

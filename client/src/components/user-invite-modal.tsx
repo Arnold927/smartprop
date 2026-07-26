@@ -38,12 +38,14 @@ import { Label } from "@/components/ui/label";
  * Also previously offered admin, property_manager, tenant, diaspora_buyer,
  * project_manager, supplier_vendor, and casual_worker_staff as role
  * options — none of the last five are real, enforced roles anywhere in the
- * app (see server/routes/users.ts). tenant and contractor both have their
- * own dedicated invite flows elsewhere that correctly link the login to a
- * business record (a lease, or a contractor record) — inviting either
- * through this general flow would create a login with nothing behind it.
+ * app (see server/routes/users.ts). tenant, contractor, and caretaker all
+ * have their own dedicated invite flows elsewhere that correctly link the
+ * login to a business record (a lease, a contractor record, or a property
+ * assignment) — inviting any of the three through this general flow would
+ * create a login with nothing behind it. caretaker was removed once the
+ * dedicated Caretakers page was built, for the same reason.
  * Narrowed to the roles that actually belong here: admin, manager, staff,
- * landlord, caretaker, guard.
+ * landlord, guard.
  *
  * A manager using this modal never sees "Admin" as an option at all — the
  * backend also enforces this (a manager cannot grant admin access), but
@@ -55,7 +57,6 @@ const ROLE_OPTIONS: { value: string; label: string; description: string }[] = [
   { value: "manager",    label: "Manager",     description: "Day-to-day operations across the organisation" },
   { value: "landlord",   label: "Landlord",    description: "Owns properties; sees their own portfolio and finances" },
   { value: "staff",      label: "Staff",       description: "General team member — rent collection, tenant support" },
-  { value: "caretaker",  label: "Caretaker",   description: "On-site property upkeep and day-to-day presence" },
   { value: "guard",      label: "Guard",       description: "Gate/visitor access control (usually via PIN, not email)" },
 ];
 
@@ -160,7 +161,7 @@ export default function UserInviteModal({ triggerText }: { triggerText: string }
                   </SelectContent>
                 </Select>
                 <p className="text-xs text-muted-foreground">
-                  Adding a tenant or contractor? Use the invite flow on the Tenants or Contractors page instead — it links their unit/lease or contractor record automatically.
+                  Adding a tenant, contractor, or caretaker? Use the invite flow on the Tenants, Contractors, or Caretakers page instead — it links their unit/lease, contractor record, or property assignment automatically.
                 </p>
               </div>
 
