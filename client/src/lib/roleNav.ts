@@ -35,6 +35,7 @@ const getCoreManagerItems = (t: (k: string) => string) => [
       { name: t("nav.visitors"),        href: "/visitor-management" },
       { name: t("nav.security"),        href: "/security" },
       { name: t("nav.inspections"),     href: "/inspections" },
+      { name: t("nav.caretakers"),      href: "/caretakers" },
     ],
   },
   {
@@ -256,7 +257,7 @@ const getCaretakerNav = (t: (k: string) => string): NavGroup[] => [
   {
     label: t("nav.group_property"),
     items: [
-      { name: t("nav.dashboard"),  href: "/staff-portal", icon: LayoutDashboard },
+      { name: t("nav.dashboard"),  href: "/caretaker-portal", icon: LayoutDashboard },
       { name: t("nav.properties"), href: "/properties",   icon: Home },
     ],
   },
@@ -404,7 +405,7 @@ export function getHomeForRole(role?: string): string {
     case "tenant":     return "/tenant-portal";
     case "landlord":   return "/landlord-portal";
     case "staff":      return "/staff-portal";
-    case "caretaker":  return "/staff-portal";
+    case "caretaker":  return "/caretaker-portal";
     case "guard":      return "/guard-checkin";
     case "contractor": return "/contractor-portal";
     default:           return "/";
@@ -420,7 +421,7 @@ export const ROLE_ALLOWED_ROUTES: Record<string, string[]> = {
   admin: ["*"],
 
   manager: [
-    "/", "/properties", "/parking-management", "/visitor-management", "/inspections",
+    "/", "/properties", "/parking-management", "/visitor-management", "/inspections", "/caretakers",
     "/tenants", "/leases", "/prospects", "/tenant-onboarding", "/tenant-subletting", "/diaspora-rent-to-own", "/diaspora-rent-to-own/:id",
     "/finances", "/rent-collection", "/arrears", "/expense-management",
     "/utility-management", "/utility-bill-sender", "/owner-statements", "/general-ledger",
@@ -458,7 +459,7 @@ export const ROLE_ALLOWED_ROUTES: Record<string, string[]> = {
   ],
 
   caretaker: [
-    "/staff-portal",
+    "/caretaker-portal",
     "/properties",
     "/maintenance", "/inspections",
     "/visitor-management", "/guard-checkin",
