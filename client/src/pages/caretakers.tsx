@@ -121,8 +121,8 @@ export default function CaretakersPage() {
     const fd = new FormData(e.currentTarget);
     const propertyId = fd.get("propertyId") ? Number(fd.get("propertyId")) : undefined;
 
-    if (isLandlord && !propertyId) {
-      toast({ title: "Select a property", description: "Choose one of your properties to assign this caretaker to.", variant: "destructive" });
+    if (!propertyId) {
+      toast({ title: "Select a property", description: "A caretaker must be assigned to a property immediately.", variant: "destructive" });
       return;
     }
 
@@ -142,10 +142,17 @@ export default function CaretakersPage() {
     e.preventDefault();
     if (!editing) return;
     const fd = new FormData(e.currentTarget);
+    const propertyId = fd.get("propertyId") ? Number(fd.get("propertyId")) : null;
+
+    if (!propertyId) {
+      toast({ title: "Select a property", description: "A caretaker must stay assigned to a property — pick a different one instead of leaving this blank.", variant: "destructive" });
+      return;
+    }
+
     updateMutation.mutate({
       id: editing.id,
       data: {
-        propertyId: fd.get("propertyId") ? Number(fd.get("propertyId")) : null,
+        propertyId,
         shift: fd.get("shift") || null,
         contactNumber: fd.get("contactNumber") || null,
         accommodationProvided: fd.get("accommodationProvided") === "on",
@@ -252,9 +259,9 @@ export default function CaretakersPage() {
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-1.5">
-                <Label htmlFor="propertyId">Property{isLandlord && " *"}</Label>
-                <Select name="propertyId" required={isLandlord}>
-                  <SelectTrigger id="propertyId"><SelectValue placeholder={isLandlord ? "Select one of your properties" : "Assign later"} /></SelectTrigger>
+                <Label htmlFor="propertyId">Property *</Label>
+                <Select name="propertyId" required>
+                  <SelectTrigger id="propertyId"><SelectValue placeholder={isLandlord ? "Select one of your properties" : "Select a property"} /></SelectTrigger>
                   <SelectContent>
                     {properties.map(p => <SelectItem key={p.id} value={String(p.id)}>{p.name}</SelectItem>)}
                   </SelectContent>
@@ -302,9 +309,9 @@ export default function CaretakersPage() {
           {editing && (
             <form onSubmit={handleUpdate} className="space-y-4">
               <div className="space-y-1.5">
-                <Label htmlFor="edit-propertyId">Property</Label>
-                <Select name="propertyId" defaultValue={editing.propertyId ? String(editing.propertyId) : undefined}>
-                  <SelectTrigger id="edit-propertyId"><SelectValue placeholder="Unassigned" /></SelectTrigger>
+                <Label htmlFor="edit-propertyId">Property *</Label>
+                <Select name="propertyId" defaultValue={editing.propertyId ? String(editing.propertyId) : undefined} required>
+                  <SelectTrigger id="edit-propertyId"><SelectValue placeholder="Select a property" /></SelectTrigger>
                   <SelectContent>
                     {properties.map(p => <SelectItem key={p.id} value={String(p.id)}>{p.name}</SelectItem>)}
                   </SelectContent>

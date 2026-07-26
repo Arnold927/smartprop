@@ -12,10 +12,15 @@
  * Landlords are scoped to caretakers at properties they own — matching
  * the ownership pattern used everywhere else this session (expenses,
  * leases, documents, RRT notices, rent payments, utility bills, etc).
- * A landlord's caretakers must be assigned a property at creation time
- * (unlike admin/manager, who may leave it unassigned for later) — there's
- * no createdBy field on caretakers, so an unassigned caretaker can't be
- * attributed back to a specific landlord for later filtering.
+ *
+ * A property is required at creation and can never be unassigned — for
+ * everyone, not just landlords. A caretaker with no property is
+ * non-functional (no maintenance scoping, nothing on their own portal
+ * works) regardless of who created them, so there's no legitimate
+ * "assign later" case. This also happens to be required for landlords
+ * specifically for a second reason: there's no createdBy field on
+ * caretakers, so an unassigned one couldn't be attributed back to a
+ * specific landlord anyway.
  *
  * GET /me is for the caretaker themselves, to power their own portal.
  */
@@ -108,10 +113,13 @@ router.get("/", ...auth, requireAdminManagerLandlord, async (req: any, res: any)
           .where(and(eq(users.organizationId, orgId), inArray(caretakers.propertyId, propIds)))
       : [];
 
-    // Caretakers with no property assigned yet — not shown to landlords at
-    // all, since there's no way to attribute an unassigned caretaker to a
-    // specific landlord (no createdBy field on this table). Admin/manager
-    // still see these, so they can complete the assignment.
+    // Caretakers with no property assigned — property is now required at
+    // creation and can never be unassigned, so this should normally be
+    // empty; kept as a safety net for any legacy records that predate that
+    // rule. Not shown to landlords at all, since there's no way to
+    // attribute an unassigned caretaker to a specific landlord (no
+    // createdBy field on this table). Admin/manager still see these, so
+    // they can complete the assignment on any that turn up.
     const unassigned = role === "landlord" ? [] : await db
       .select(SELECT_SHAPE)
       .from(caretakers)
@@ -191,13 +199,15 @@ router.post("/", ...auth, requireAdminManagerLandlord, async (req: any, res: any
       return res.status(400).json({ message: "email, firstName, lastName, and caretakerType are required" });
     }
 
-    // Landlords must assign a property at creation time — there's no
-    // createdBy field on caretakers, so an unassigned caretaker created by
-    // a landlord could never be attributed back to them for later
-    // filtering (they'd effectively vanish from their own view, or worse,
-    // become visible to every landlord once assigned).
-    if (role === "landlord" && !propertyId) {
-      return res.status(400).json({ message: "Select a property — landlords must assign a caretaker to one of their own properties immediately." });
+    // A caretaker with no property assigned is non-functional — no
+    // maintenance scoping, no visitor access, nothing on their own portal
+    // works until someone finishes the job. Required for everyone, not
+    // just landlords (who additionally have no way to find an unassigned
+    // one again later, since their list is filtered to their own
+    // properties — but the "it doesn't actually work yet" problem applies
+    // regardless of who creates it).
+    if (!propertyId) {
+      return res.status(400).json({ message: "Select a property — a caretaker must be assigned to one immediately." });
     }
 
     if (propertyId) {
@@ -261,14 +271,13 @@ router.patch("/:id", ...auth, requireAdminManagerLandlord, async (req: any, res:
     const { propertyId, shift, contactNumber, accommodationProvided,
             status, performanceRating, notes, endDate } = req.body;
 
-    // A landlord reassigning a caretaker may only move them to another
-    // property they own — never to null (see the same reasoning in POST /)
-    // and never to a property that isn't theirs.
+    // Reassigning a caretaker may only move them to another property (their
+    // own, if the caller is a landlord) — never to null. A property-less
+    // caretaker is non-functional (see the same reasoning in POST /), so
+    // this applies to everyone now, not just landlords.
     if (propertyId !== undefined) {
       if (propertyId === null) {
-        if (role === "landlord") {
-          return res.status(400).json({ message: "Landlords cannot unassign a caretaker's property — reassign to another of your properties instead." });
-        }
+        return res.status(400).json({ message: "A caretaker must stay assigned to a property — reassign to a different one instead of unassigning." });
       } else {
         const propCondition = role === "landlord"
           ? and(eq(properties.id, propertyId), eq(properties.organizationId, orgId), eq(properties.ownerId, req.user.id))
