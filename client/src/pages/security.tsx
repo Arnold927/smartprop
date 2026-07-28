@@ -673,12 +673,13 @@ export default function SecurityPage() {
       const params = new URLSearchParams(window.location.search);
       const t = params.get("tab");
       const valid = ["dashboard", "qr-scanner", "visitor-management", "gate-pass", "vehicle-registration", "gate-pins", "vehicle-log", "hardware"];
-      // A self-managing landlord only has Gate PINs scoped/verified for
-      // their own properties on the backend — the other tabs' endpoints
-      // haven't been extended for landlord use, so default (and restrict)
-      // them there rather than risk a half-broken experience on tabs that
-      // would silently fail.
-      if (isLandlord) return "gate-pins";
+      // A self-managing landlord only has visitor-management, gate-pins,
+      // and hardware scoped/verified for their own properties on the
+      // backend — the other tabs' endpoints haven't been extended for
+      // landlord use, so restrict them to those three rather than risk a
+      // half-broken experience on tabs that would silently fail.
+      const landlordValidTabs = ["visitor-management", "gate-pins", "hardware"];
+      if (isLandlord) return t && landlordValidTabs.includes(t) ? t : "gate-pins";
       return t && valid.includes(t) ? t : "dashboard";
     } catch { return isLandlord ? "gate-pins" : "dashboard"; }
   })();
@@ -1371,7 +1372,11 @@ export default function SecurityPage() {
           <div className="overflow-x-auto pb-px mb-6">
             <TabsList className="inline-flex h-10 items-center bg-muted rounded-xl p-1 gap-0.5 min-w-max">
               {(isLandlord
-                ? [{ value: "gate-pins", label: "Gate PINs", icon: Shield }]
+                ? [
+                    { value: "visitor-management", label: "Visitors", icon: Users },
+                    { value: "gate-pins",          label: "Gate PINs", icon: Shield },
+                    { value: "hardware",           label: "Hardware", icon: Cpu },
+                  ]
                 : [
                 { value: "dashboard",            label: "Overview",    icon: BarChart3  },
                 { value: "qr-scanner",           label: "QR Scanner",  icon: QrCode     },

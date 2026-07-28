@@ -333,6 +333,7 @@ securityHardwareRouter.post(
 securityHardwareRouter.post("/hardware-event/test", ...authAdmin, async (req: any, res: any) => {
   try {
     const orgId:      number = req.user.organizationId;
+    const role:       string = req.user.role;
     const propertyId: number = parseInt(req.body.propertyId);
     const plate:      string = (req.body.plateNumber ?? "TEST 001").toUpperCase();
     const direction:  string = req.body.direction ?? "in";
@@ -341,11 +342,14 @@ securityHardwareRouter.post("/hardware-event/test", ...authAdmin, async (req: an
       return res.status(400).json({ message: "propertyId required" });
     }
 
-    // Verify property belongs to org
+    // Verify property belongs to org — and, for a landlord, that they own it.
+    const propCondition = role === "landlord"
+      ? and(eq(properties.id, propertyId), eq(properties.organizationId, orgId), eq(properties.ownerId, req.user.id))
+      : and(eq(properties.id, propertyId), eq(properties.organizationId, orgId));
     const [prop] = await db
       .select({ id: properties.id })
       .from(properties)
-      .where(and(eq(properties.id, propertyId), eq(properties.organizationId, orgId)))
+      .where(propCondition)
       .limit(1);
 
     if (!prop) return res.status(404).json({ message: "Property not found" });
@@ -374,17 +378,22 @@ securityHardwareRouter.post("/hardware-event/test", ...authAdmin, async (req: an
 securityHardwareRouter.get("/hardware-config/:propertyId", ...authGuardOrAdmin, async (req: any, res: any) => {
   try {
     const orgId:      number = req.user.organizationId;
+    const role:       string = req.user.role;
     const propertyId: number = parseInt(req.params.propertyId);
 
     // Guards may only query their own assigned property
-    if (req.user.role === "guard" && req.user.propertyId !== propertyId) {
+    if (role === "guard" && req.user.propertyId !== propertyId) {
       return res.status(403).json({ message: "Guards may only view config for their assigned property" });
     }
+
+    const propCondition = role === "landlord"
+      ? and(eq(properties.id, propertyId), eq(properties.organizationId, orgId), eq(properties.ownerId, req.user.id))
+      : and(eq(properties.id, propertyId), eq(properties.organizationId, orgId));
 
     const [prop] = await db
       .select({ siteSettings: properties.siteSettings })
       .from(properties)
-      .where(and(eq(properties.id, propertyId), eq(properties.organizationId, orgId)))
+      .where(propCondition)
       .limit(1);
 
     if (!prop) return res.status(404).json({ message: "Property not found" });
@@ -414,17 +423,22 @@ securityHardwareRouter.get("/hardware-config/:propertyId", ...authGuardOrAdmin, 
 securityHardwareRouter.put("/hardware-config/:propertyId", ...authGuardOrAdmin, async (req: any, res: any) => {
   try {
     const orgId:      number = req.user.organizationId;
+    const role:       string = req.user.role;
     const propertyId: number = parseInt(req.params.propertyId);
 
     // Guards cannot modify hardware configuration — read-only access
-    if (req.user.role === "guard") {
+    if (role === "guard") {
       return res.status(403).json({ message: "Guards cannot modify hardware configuration. Contact your property manager." });
     }
+
+    const propCondition = role === "landlord"
+      ? and(eq(properties.id, propertyId), eq(properties.organizationId, orgId), eq(properties.ownerId, req.user.id))
+      : and(eq(properties.id, propertyId), eq(properties.organizationId, orgId));
 
     const [prop] = await db
       .select({ id: properties.id, siteSettings: properties.siteSettings })
       .from(properties)
-      .where(and(eq(properties.id, propertyId), eq(properties.organizationId, orgId)))
+      .where(propCondition)
       .limit(1);
 
     if (!prop) return res.status(404).json({ message: "Property not found" });

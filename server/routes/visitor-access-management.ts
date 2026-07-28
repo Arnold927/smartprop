@@ -12,7 +12,7 @@ import { db } from "../db";
 import { visitors, visitorLog, tenants, units, properties,
   parkingAssignments,
 } from "@shared/schema";
-import { eq, and, desc } from "drizzle-orm";
+import { eq, and, desc, inArray } from "drizzle-orm";
 import { authenticateJWT } from "../middleware/auth";
 import { requireOrg } from "../middleware/requireOrg";
 import { storage } from "../storage";
@@ -27,6 +27,17 @@ function safeUuid(id: string | undefined | null): string | null {
 
 const router = Router();
 const auth = [authenticateJWT as any, requireOrg as any];
+
+/** Property ids this caller may touch: every property in the org, or — for
+ *  a landlord — only the ones they own. Mirrors the same helper already
+ *  built for caretakers.ts/gate-pins.ts. */
+async function accessiblePropertyIds(orgId: number, role: string, userId: string): Promise<number[]> {
+  const condition = role === "landlord"
+    ? and(eq(properties.organizationId, orgId), eq(properties.ownerId, userId))
+    : eq(properties.organizationId, orgId);
+  const rows = await db.select({ id: properties.id }).from(properties).where(condition);
+  return rows.map(r => r.id);
+}
 
 /** Generate a short unique visitor code like VAC-A1B2C3 */
 function generateVisitorCode(): string {
@@ -88,9 +99,19 @@ router.get("/", ...auth, async (req: any, res: any) => {
       caretakerPropertyId = caretaker.propertyId;
     }
 
+    // Landlords are scoped to properties they own — previously they saw
+    // every visitor across the whole org, same as admin/manager.
+    let landlordPropertyIds: number[] | null = null;
+    if (role === "landlord") {
+      landlordPropertyIds = await accessiblePropertyIds(orgId, role, userId);
+      if (landlordPropertyIds.length === 0) return res.json([]);
+    }
+
     const whereClause = caretakerPropertyId !== null
       ? and(eq(properties.organizationId, orgId), eq(visitors.propertyId, caretakerPropertyId))
-      : eq(properties.organizationId, orgId);
+      : landlordPropertyIds !== null
+        ? and(eq(properties.organizationId, orgId), inArray(visitors.propertyId, landlordPropertyIds))
+        : eq(properties.organizationId, orgId);
 
     const rows = await db
       .select({
@@ -157,11 +178,16 @@ router.post("/", ...auth, async (req: any, res: any) => {
       });
     }
 
-    // Verify property belongs to caller's org
+    // Verify property belongs to caller's org — and, for a landlord, that
+    // they specifically own it.
+    const role: string = req.user.role ?? "manager";
+    const propCondition = role === "landlord"
+      ? and(eq(properties.id, parseInt(propertyId)), eq(properties.organizationId, orgId), eq(properties.ownerId, userId))
+      : and(eq(properties.id, parseInt(propertyId)), eq(properties.organizationId, orgId));
     const [prop] = await db
       .select({ id: properties.id, name: properties.name })
       .from(properties)
-      .where(and(eq(properties.id, parseInt(propertyId)), eq(properties.organizationId, orgId)))
+      .where(propCondition)
       .limit(1);
 
     if (!prop) {
@@ -197,17 +223,46 @@ router.post("/", ...auth, async (req: any, res: any) => {
   }
 });
 
+/** Resolves a visitor by access code for this specific caller — org-scoped
+ *  for everyone, further narrowed to their own assigned property for a
+ *  caretaker, or their own owned property for a landlord. Returns null if
+ *  the visitor doesn't exist, belongs to a different org, or (for
+ *  caretaker/landlord) isn't at a property they're scoped to. */
+async function resolveVisitorForCaller(code: string, orgId: number, role: string, userId: string) {
+  const [row] = await db
+    .select({ id: visitors.id, propertyId: visitors.propertyId })
+    .from(visitors)
+    .innerJoin(properties, eq(visitors.propertyId, properties.id))
+    .where(and(eq(visitors.accessCode, code), eq(properties.organizationId, orgId)))
+    .limit(1);
+  if (!row) return null;
+
+  if (role === "caretaker") {
+    const caretaker = await storage.getCaretakerByUserId(userId);
+    if (!caretaker?.propertyId || caretaker.propertyId !== row.propertyId) return null;
+  } else if (role === "landlord") {
+    const [prop] = await db.select({ id: properties.id }).from(properties)
+      .where(and(eq(properties.id, row.propertyId), eq(properties.ownerId, userId)))
+      .limit(1);
+    if (!prop) return null;
+  }
+
+  return row;
+}
+
 // ── PATCH /api/visitor-access-management/:code/check-in ───────────────────────
 router.patch("/:code/check-in", ...auth, async (req: any, res: any) => {
   try {
     const { code } = req.params;
     const { location } = req.body;
+    const orgId: number  = req.user.organizationId;
+    const role:  string  = req.user.role ?? "manager";
+    const userId: string = String(req.user.id ?? req.user.userId ?? "");
 
-    const [visitor] = await db
-      .select()
-      .from(visitors)
-      .where(eq(visitors.accessCode, code))
-      .limit(1);
+    // Previously zero scoping at all here — any authenticated user, from
+    // any organisation, could check in any visitor on the platform just by
+    // knowing (or guessing) an access code.
+    const visitor = await resolveVisitorForCaller(code, orgId, role, userId);
 
     if (!visitor) {
       return res.status(404).json({ message: "Visitor not found" });
@@ -244,12 +299,12 @@ router.patch("/:code/check-out", ...auth, async (req: any, res: any) => {
   try {
     const { code } = req.params;
     const { location } = req.body;
+    const orgId: number  = req.user.organizationId;
+    const role:  string  = req.user.role ?? "manager";
+    const userId: string = String(req.user.id ?? req.user.userId ?? "");
 
-    const [visitor] = await db
-      .select()
-      .from(visitors)
-      .where(eq(visitors.accessCode, code))
-      .limit(1);
+    // Same gap as check-in above — previously zero scoping at all.
+    const visitor = await resolveVisitorForCaller(code, orgId, role, userId);
 
     if (!visitor) {
       return res.status(404).json({ message: "Visitor not found" });
@@ -299,12 +354,12 @@ router.patch("/:code/check-out", ...auth, async (req: any, res: any) => {
 router.patch("/:code/approve", ...auth, async (req: any, res: any) => {
   try {
     const { code } = req.params;
+    const orgId: number  = req.user.organizationId;
+    const role:  string  = req.user.role ?? "manager";
+    const userId: string = String(req.user.id ?? req.user.userId ?? "");
 
-    const [visitor] = await db
-      .select()
-      .from(visitors)
-      .where(eq(visitors.accessCode, code))
-      .limit(1);
+    // Same gap as check-in/check-out above — previously zero scoping at all.
+    const visitor = await resolveVisitorForCaller(code, orgId, role, userId);
 
     if (!visitor) {
       return res.status(404).json({ message: "Visitor not found" });
@@ -332,17 +387,14 @@ router.patch("/:code/approve", ...auth, async (req: any, res: any) => {
 router.patch("/:code/revoke", ...auth, async (req: any, res: any) => {
   try {
     const { code } = req.params;
-    const orgId: number = req.user.organizationId;
+    const orgId: number  = req.user.organizationId;
+    const role:  string  = req.user.role ?? "manager";
+    const userId: string = String(req.user.id ?? req.user.userId ?? "");
     const reason: string | undefined = req.body?.reason;
 
-    // Scope the lookup to the caller's org via the visitor's property, matching
-    // the same org-safety check used by GET / and POST /.
-    const [visitor] = await db
-      .select({ id: visitors.id })
-      .from(visitors)
-      .innerJoin(properties, eq(visitors.propertyId, properties.id))
-      .where(and(eq(visitors.accessCode, code), eq(properties.organizationId, orgId)))
-      .limit(1);
+    // Upgraded to the shared resolver — previously org-only, now also
+    // narrowed to a caretaker's own property or a landlord's own properties.
+    const visitor = await resolveVisitorForCaller(code, orgId, role, userId);
 
     if (!visitor) {
       return res.status(404).json({ message: "Visitor not found" });
@@ -374,14 +426,11 @@ router.patch("/:code/revoke", ...auth, async (req: any, res: any) => {
 router.delete("/:code", ...auth, async (req: any, res: any) => {
   try {
     const { code } = req.params;
-    const orgId: number = req.user.organizationId;
+    const orgId: number  = req.user.organizationId;
+    const role:  string  = req.user.role ?? "manager";
+    const userId: string = String(req.user.id ?? req.user.userId ?? "");
 
-    const [visitor] = await db
-      .select({ id: visitors.id })
-      .from(visitors)
-      .innerJoin(properties, eq(visitors.propertyId, properties.id))
-      .where(and(eq(visitors.accessCode, code), eq(properties.organizationId, orgId)))
-      .limit(1);
+    const visitor = await resolveVisitorForCaller(code, orgId, role, userId);
 
     if (!visitor) {
       return res.status(404).json({ message: "Visitor not found" });

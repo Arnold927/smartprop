@@ -83,7 +83,7 @@ const accessMethods = [
 ];
 
 export default function VisitorManagement() {
-  const guard = useRoleGuard(["admin", "manager", "caretaker"]);
+  const guard = useRoleGuard(["admin", "manager", "caretaker", "landlord"]);
   if (guard.gate) return guard.gate;
   const { user } = useAuth();
 

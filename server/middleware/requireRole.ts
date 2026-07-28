@@ -125,7 +125,7 @@ export const ROUTE_POLICY: Record<string, AppRole[]> = {
   '/api/prospects':                  ADMIN_MANAGER_STAFF,    // letting pipeline
   '/api/time-tracking':              ADMIN_MANAGER_STAFF,
   '/api/visitor-access-management':  VISITOR_ACCESS_ALLOWED,
-  '/api/security':                   [...ADMIN_MANAGER_STAFF, 'guard'], // security-hardware.ts already has correct guard-property scoping internally; was unreachable
+  '/api/security':                   [...ADMIN_MANAGER_STAFF, 'guard', 'landlord'], // security-hardware.ts has correct guard+landlord property/ownership scoping internally
   '/api/parking-spaces':             ADMIN_MANAGER_STAFF,
   '/api/registered-vehicles':        [...ADMIN_MANAGER_STAFF, 'guard'], // already auto-flags guard submissions as pending_approval internally; was unreachable
   '/api/parking-assignments':        ADMIN_MANAGER_STAFF,
