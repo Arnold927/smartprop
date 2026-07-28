@@ -370,7 +370,7 @@ authRouter.get("/verify", (req: any, res: any) => {
 // ══════════════════════════════════════════════════════════════════════════════
 // GUARD MIDDLEWARE — use in guest-checkin routes to accept guard tokens
 // ══════════════════════════════════════════════════════════════════════════════
-export function authenticateGuard(req: any, res: any, next: any) {
+export async function authenticateGuard(req: any, res: any, next: any) {
   try {
     const authHeader = req.headers.authorization;
     if (!authHeader?.startsWith("Bearer ")) {
@@ -382,6 +382,22 @@ export function authenticateGuard(req: any, res: any, next: any) {
 
     // Accept EITHER a guard token OR a full admin/manager JWT
     if (decoded.role === "guard") {
+      // Re-check the PIN's current status on every request — previously
+      // this trusted the token's own claims indefinitely once issued.
+      // Deactivating a PIN (e.g. a guard who no longer works there) would
+      // block future logins, but an already-issued session — up to 12
+      // hours old, the token's TTL — kept working regardless, since
+      // nothing here ever looked at the PIN's live isActive state again.
+      const [pin] = await db
+        .select({ isActive: gatePins.isActive })
+        .from(gatePins)
+        .where(eq(gatePins.id, decoded.pinId))
+        .limit(1);
+
+      if (!pin || !pin.isActive) {
+        return res.status(401).json({ message: "This PIN has been deactivated. Please see your manager." });
+      }
+
       req.user = {
         id:             `guard-pin-${decoded.pinId}`,
         userId:         `guard-pin-${decoded.pinId}`,
