@@ -170,6 +170,23 @@ router.post("/adhoc-pass", ...guard, async (req: any, res: any) => {
       return res.status(400).json({ message: "purpose is required" });
     }
 
+    // Verify tenantId/unitId actually belong to this guard's own property —
+    // previously trusted blindly from the request body, letting a guard
+    // attribute an adhoc pass to any arbitrary tenant/unit on the platform.
+    if (unitId) {
+      const [unitRow] = await db.select({ id: units.id }).from(units)
+        .where(and(eq(units.id, parseInt(unitId)), eq(units.propertyId, propertyId)))
+        .limit(1);
+      if (!unitRow) return res.status(404).json({ message: "Unit not found at your property" });
+    }
+    if (tenantId) {
+      const [tenantRow] = await db.select({ id: tenants.id }).from(tenants)
+        .innerJoin(units, eq(tenants.unitId, units.id))
+        .where(and(eq(tenants.id, parseInt(tenantId)), eq(units.propertyId, propertyId)))
+        .limit(1);
+      if (!tenantRow) return res.status(404).json({ message: "Tenant not found at your property" });
+    }
+
     const accessCode = generateVisitorCode();
     const now = new Date();
 
@@ -305,6 +322,14 @@ router.get("/admin/vehicle-log", authenticateJWT as any, requireOrg as any, asyn
     const dateStr    = req.query.date as string; // YYYY-MM-DD, defaults to today
 
     if (!propertyId) return res.status(400).json({ message: "propertyId is required" });
+
+    // Third instance of the same gap found in gate-passes/blacklist above —
+    // propertyId taken from the query with zero verification it belonged to
+    // the caller's own org.
+    const [prop] = await db.select({ id: properties.id }).from(properties)
+      .where(and(eq(properties.id, propertyId), eq(properties.organizationId, req.user.organizationId)))
+      .limit(1);
+    if (!prop) return res.status(404).json({ message: "Property not found in your organisation" });
 
     const base = dateStr ? new Date(dateStr) : new Date();
     const start = new Date(base); start.setHours(0, 0, 0, 0);

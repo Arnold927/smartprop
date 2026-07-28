@@ -427,7 +427,20 @@ authRouter.post("/end-shift", async (req: any, res: any) => {
     const { shiftId } = req.body;
 
     if (shiftId) {
-      // Close the specific shift row by ID
+      // Verify this shift actually belongs to the calling guard's own
+      // property/pin before closing it — previously any shiftId was
+      // accepted with zero check, letting a guard end another guard's
+      // shift at a completely different property.
+      const [shift] = await db.select({ id: guardShifts.id })
+        .from(guardShifts)
+        .where(and(
+          eq(guardShifts.id, parseInt(shiftId)),
+          eq(guardShifts.propertyId, decoded.propertyId),
+          eq(guardShifts.pinId, decoded.pinId),
+        ))
+        .limit(1);
+      if (!shift) return res.status(404).json({ message: "Shift not found" });
+
       await db
         .update(guardShifts)
         .set({ shiftEnd: new Date() as any })
@@ -448,9 +461,32 @@ authRouter.post("/end-shift", async (req: any, res: any) => {
     return res.json({ success: true, shiftEnd: new Date().toISOString() });
   } catch (err: any) {
     if (err.name === "TokenExpiredError") {
-      // Token expired but we still want to record end — try by shiftId alone
+      // Token expired but we still want to record end — try by shiftId,
+      // still verified against the token's own property/pin. jwt.decode
+      // (unverified) is safe here specifically because TokenExpiredError
+      // only fires once jwt.verify has already confirmed the signature is
+      // genuine — only expiry failed. A forged/tampered token throws
+      // JsonWebTokenError instead and never reaches this branch, so this
+      // isn't trusting an unverified payload from an arbitrary caller.
       const { shiftId } = req.body;
       if (shiftId) {
+        const authHeader = req.headers.authorization;
+        const token = authHeader?.startsWith("Bearer ") ? authHeader.substring(7) : null;
+        const decoded = token ? (jwt.decode(token) as any) : null;
+        if (!decoded?.propertyId || !decoded?.pinId) {
+          return res.status(401).json({ message: "Guard token required" });
+        }
+
+        const [shift] = await db.select({ id: guardShifts.id })
+          .from(guardShifts)
+          .where(and(
+            eq(guardShifts.id, parseInt(shiftId)),
+            eq(guardShifts.propertyId, decoded.propertyId),
+            eq(guardShifts.pinId, decoded.pinId),
+          ))
+          .limit(1);
+        if (!shift) return res.status(404).json({ message: "Shift not found" });
+
         await db.update(guardShifts)
           .set({ shiftEnd: new Date() as any })
           .where(eq(guardShifts.id, parseInt(shiftId)));

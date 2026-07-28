@@ -326,10 +326,20 @@ parkingAssignmentsRouter.post("/", ...auth, async (req: any, res: any) => {
     if (!space || !propIds.includes(space.propertyId)) {
       return res.status(403).json({ message: "Parking space does not belong to your organisation" });
     }
+
+    // Previously only the space was checked — vehicleId was used directly
+    // with no verification, letting an assignment reference a vehicle
+    // registered to a completely different organisation.
+    const vehicleId = parseInt(req.body.vehicleId);
+    const [vehicle] = await db.select({ propertyId: registeredVehicles.propertyId }).from(registeredVehicles).where(eq(registeredVehicles.id, vehicleId)).limit(1);
+    if (!vehicle || !propIds.includes(vehicle.propertyId)) {
+      return res.status(403).json({ message: "Vehicle does not belong to your organisation" });
+    }
+
     const assignment = await storage.createParkingAssignment({
       ...req.body,
       parkingSpaceId: spaceId,
-      vehicleId: parseInt(req.body.vehicleId),
+      vehicleId,
       tenantId: req.body.tenantId ? parseInt(req.body.tenantId) : null,
       monthlyFee: req.body.monthlyFee ? parseFloat(req.body.monthlyFee) : null,
       assignedBy: req.user?.id ?? "00000000-0000-0000-0000-000000000000",

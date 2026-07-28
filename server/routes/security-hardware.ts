@@ -277,25 +277,24 @@ securityHardwareRouter.post(
       }
 
       // Verify HMAC signature when a secret is configured.
-      // NOTE: Express JSON body parser runs before this route, so req.rawBody
-      // is only available if the app registers express.raw() with a `verify`
-      // callback that stashes the raw buffer. We prefer req.rawBody when set;
-      // otherwise we fall back to re-serialising the parsed body. The fallback
-      // is safe for well-behaved devices that produce canonical JSON, but may
-      // fail for devices that use non-canonical key ordering. If you see
-      // spurious HMAC failures, add `express.raw({ type: '*/*', verify:
-      // (req, _res, buf) => { (req as any).rawBody = buf; } })` before this
-      // router in server/index.ts.
-      if (hw.webhookSecret) {
-        const sigHeader = req.headers["x-webhook-signature"] as string | undefined;
-        const rawBody   = (req as any).rawBody instanceof Buffer
-          ? (req as any).rawBody
-          : Buffer.from(JSON.stringify(req.body));
-        const valid     = verifySignature(rawBody, sigHeader, hw.webhookSecret);
-        if (!valid) {
-          console.warn(`[HardwareEvent] HMAC verification failed for property #${propertyId}`);
-          return res.status(401).json({ message: "Invalid webhook signature" });
-        }
+      if (!hw.webhookSecret) {
+        // Should no longer be reachable for newly-saved configs (the PUT
+        // handler now requires a secret whenever enabled=true), but kept as
+        // a defensive rejection for any pre-existing config saved before
+        // that requirement existed — previously this silently skipped
+        // verification entirely and accepted the event unauthenticated.
+        console.warn(`[HardwareEvent] property #${propertyId} is enabled with no webhook secret configured — rejecting`);
+        return res.status(403).json({ message: "Hardware integration is enabled but no webhook secret is configured. Set one in property settings." });
+      }
+
+      const sigHeader = req.headers["x-webhook-signature"] as string | undefined;
+      const rawBody   = (req as any).rawBody instanceof Buffer
+        ? (req as any).rawBody
+        : Buffer.from(JSON.stringify(req.body));
+      const valid     = verifySignature(rawBody, sigHeader, hw.webhookSecret);
+      if (!valid) {
+        console.warn(`[HardwareEvent] HMAC verification failed for property #${propertyId}`);
+        return res.status(401).json({ message: "Invalid webhook signature" });
       }
 
       // Adapt payload to normalised event
@@ -435,16 +434,26 @@ securityHardwareRouter.put("/hardware-config/:propertyId", ...authGuardOrAdmin, 
     const currentSettings = (prop.siteSettings as any) ?? {};
     const existingHw      = currentSettings.hardwareIntegration ?? {};
 
+    const resolvedSecret = webhookSecret?.trim()
+      ? webhookSecret.trim()
+      : existingHw.webhookSecret ?? null;
+
+    // The webhook endpoint (POST /hardware-event) skips signature
+    // verification entirely whenever no secret is configured — an
+    // enabled-but-secret-less property would accept unauthenticated events
+    // from anyone who could guess its numeric id. Require one whenever
+    // integration is being enabled, rather than allowing that combination.
+    if (Boolean(enabled) && !resolvedSecret) {
+      return res.status(400).json({ message: "A webhook secret is required to enable hardware integration." });
+    }
+
     const updatedHw = {
       ...existingHw,
       enabled:       Boolean(enabled),
       vendor:        vendor ?? existingHw.vendor ?? "generic",
       deviceLabel:   deviceLabel ?? existingHw.deviceLabel ?? "",
       notes:         notes ?? existingHw.notes ?? "",
-      // Only update secret if a new one is provided (non-empty)
-      webhookSecret: webhookSecret?.trim()
-        ? webhookSecret.trim()
-        : existingHw.webhookSecret ?? null,
+      webhookSecret: resolvedSecret,
     };
 
     await db
