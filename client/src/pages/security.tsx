@@ -63,6 +63,8 @@ import {
 
 function HardwareIntegrationPanel({ properties: props }: { properties: any[] }) {
   const { toast } = useToast();
+  const { user } = useAuth();
+  const isTechnicalAudience = user?.role !== "manager" && user?.role !== "landlord";
   const qc = useQueryClient();
   const [selectedPropId, setSelectedPropId] = useState<number | null>(null);
   const [form, setForm] = useState({ enabled: false, vendor: "generic", deviceLabel: "", webhookSecret: "", notes: "" });
@@ -276,7 +278,9 @@ function HardwareIntegrationPanel({ properties: props }: { properties: any[] }) 
         </CardContent>
       </Card>
 
-      {/* Vendor setup guides */}
+      {/* Vendor setup guides — technical installer documentation, not
+          something manager/landlord need to see day to day */}
+      {isTechnicalAudience && (
       <Card>
         <CardHeader className="pb-3">
           <h3 className="text-sm font-semibold text-slate-900">Setup Guides</h3>
@@ -305,6 +309,7 @@ function HardwareIntegrationPanel({ properties: props }: { properties: any[] }) 
           </div>
         </CardContent>
       </Card>
+      )}
     </div>
   );
 }
