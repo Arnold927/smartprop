@@ -46,26 +46,36 @@ function sanitizePin(row: any) {
   };
 }
 
+/** Verifies the caller may manage guard PINs for this property: any
+ *  property in the org for admin/manager, but only properties a landlord
+ *  actually owns — matching the same ownership pattern used for
+ *  caretakers.ts, since a self-managing landlord with no management
+ *  company needs to be able to create/disable their own gate PINs without
+ *  seeing or touching any other landlord's properties. */
+async function canManagePinsFor(propertyId: number, orgId: number, role: string, userId: string): Promise<boolean> {
+  const condition = role === "landlord"
+    ? and(eq(properties.id, propertyId), eq(properties.organizationId, orgId), eq(properties.ownerId, userId))
+    : and(eq(properties.id, propertyId), eq(properties.organizationId, orgId));
+  const [prop] = await db.select({ id: properties.id }).from(properties).where(condition).limit(1);
+  return !!prop;
+}
+
 // ══════════════════════════════════════════════════════════════════════════════
 // ADMIN: GET /api/gate-pins?propertyId=X
 // ══════════════════════════════════════════════════════════════════════════════
 adminRouter.get("/", ...auth, async (req: any, res: any) => {
   try {
     const orgId      = req.user.organizationId as number;
+    const role       = req.user.role as string;
     const propertyId = parseInt(req.query.propertyId as string);
 
     if (!propertyId) {
       return res.status(400).json({ message: "propertyId is required" });
     }
 
-    // Verify property belongs to org
-    const [prop] = await db
-      .select({ id: properties.id })
-      .from(properties)
-      .where(and(eq(properties.id, propertyId), eq(properties.organizationId, orgId)))
-      .limit(1);
-
-    if (!prop) return res.status(404).json({ message: "Property not found" });
+    if (!(await canManagePinsFor(propertyId, orgId, role, req.user.id))) {
+      return res.status(404).json({ message: "Property not found" });
+    }
 
     const pins = await db
       .select()
@@ -87,6 +97,7 @@ adminRouter.get("/", ...auth, async (req: any, res: any) => {
 adminRouter.post("/", ...auth, async (req: any, res: any) => {
   try {
     const orgId    = req.user.organizationId as number;
+    const role     = req.user.role as string;
     const userId   = req.user.id as string;
     const { propertyId, label, pin, expiresAt, guardPhone } = req.body;
 
@@ -97,11 +108,15 @@ adminRouter.post("/", ...auth, async (req: any, res: any) => {
     if (pin.length > 8)     return res.status(400).json({ message: "PIN must be at most 8 digits" });
     if (!/^\d+$/.test(pin)) return res.status(400).json({ message: "PIN must contain digits only" });
 
-    // Verify property belongs to org
+    // Verify property belongs to org — and, for a self-managing landlord,
+    // that they specifically own it.
+    const propCondition = role === "landlord"
+      ? and(eq(properties.id, parseInt(propertyId)), eq(properties.organizationId, orgId), eq(properties.ownerId, userId))
+      : and(eq(properties.id, parseInt(propertyId)), eq(properties.organizationId, orgId));
     const [prop] = await db
       .select({ id: properties.id, name: properties.name })
       .from(properties)
-      .where(and(eq(properties.id, parseInt(propertyId)), eq(properties.organizationId, orgId)))
+      .where(propCondition)
       .limit(1);
 
     if (!prop) return res.status(404).json({ message: "Property not found" });
@@ -167,6 +182,7 @@ adminRouter.patch("/:id/toggle", ...auth, async (req: any, res: any) => {
   try {
     const id    = parseInt(req.params.id);
     const orgId = req.user.organizationId as number;
+    const role  = req.user.role as string;
 
     // Verify ownership via property join
     const [existing] = await db
@@ -177,13 +193,9 @@ adminRouter.patch("/:id/toggle", ...auth, async (req: any, res: any) => {
 
     if (!existing) return res.status(404).json({ message: "PIN not found" });
 
-    const [prop] = await db
-      .select({ id: properties.id })
-      .from(properties)
-      .where(and(eq(properties.id, existing.propertyId), eq(properties.organizationId, orgId)))
-      .limit(1);
-
-    if (!prop) return res.status(403).json({ message: "Access denied" });
+    if (!(await canManagePinsFor(existing.propertyId, orgId, role, req.user.id))) {
+      return res.status(403).json({ message: "Access denied" });
+    }
 
     const [updated] = await db
       .update(gatePins)
@@ -205,6 +217,7 @@ adminRouter.delete("/:id", ...auth, async (req: any, res: any) => {
   try {
     const id    = parseInt(req.params.id);
     const orgId = req.user.organizationId as number;
+    const role  = req.user.role as string;
 
     const [existing] = await db
       .select({ id: gatePins.id, propertyId: gatePins.propertyId })
@@ -214,13 +227,9 @@ adminRouter.delete("/:id", ...auth, async (req: any, res: any) => {
 
     if (!existing) return res.status(404).json({ message: "PIN not found" });
 
-    const [prop] = await db
-      .select({ id: properties.id })
-      .from(properties)
-      .where(and(eq(properties.id, existing.propertyId), eq(properties.organizationId, orgId)))
-      .limit(1);
-
-    if (!prop) return res.status(403).json({ message: "Access denied" });
+    if (!(await canManagePinsFor(existing.propertyId, orgId, role, req.user.id))) {
+      return res.status(403).json({ message: "Access denied" });
+    }
 
     await db.delete(gatePins).where(eq(gatePins.id, id));
 

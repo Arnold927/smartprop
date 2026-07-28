@@ -95,7 +95,7 @@ export const ROUTE_POLICY: Record<string, AppRole[]> = {
   '/api/construction-updates':       ADMIN_MANAGER,
   '/api/diaspora-certificates':      ADMIN_MANAGER,
   '/api/dashboard':                  ADMIN_MANAGER,
-  '/api/gate-pins':                  ADMIN_MANAGER,
+  '/api/gate-pins':                  [...ADMIN_MANAGER, 'landlord'], // landlord scoped to their own properties internally — self-managing landlords need to create/disable their own guard PINs
 
   // ── Admin / manager / landlord ───────────────────────────────────────────────
   '/api/landlord-portal':            ADMIN_MANAGER_LANDLORD,

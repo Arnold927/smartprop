@@ -30,6 +30,7 @@ export const ROLES = {
   ADMIN_MANAGER:           ["admin", "manager"] as AppRole[],
   ADMIN_MANAGER_STAFF:     ["admin", "manager", "staff"] as AppRole[],
   ADMIN_MANAGER_LANDLORD:  ["admin", "manager", "landlord"] as AppRole[],
+  ADMIN_MANAGER_STAFF_LANDLORD: ["admin", "manager", "staff", "landlord"] as AppRole[],
   STAFF_AND_ABOVE:         ["admin", "manager", "landlord", "staff"] as AppRole[],
   CARETAKER_ALLOWED:       ["admin", "manager", "landlord", "staff", "caretaker"] as AppRole[],
   ALL_AUTHENTICATED:       ["admin", "manager", "landlord", "staff", "caretaker", "tenant", "guard", "contractor"] as AppRole[],

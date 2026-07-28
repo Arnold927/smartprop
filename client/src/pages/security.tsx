@@ -660,9 +660,10 @@ function AdminVehicleLog({ properties: props }: { properties: any[] }) {
 }
 
 export default function SecurityPage() {
-  const guard = useRoleGuard(ROLES.ADMIN_MANAGER_STAFF);
+  const guard = useRoleGuard(ROLES.ADMIN_MANAGER_STAFF_LANDLORD);
   if (guard.gate) return guard.gate;
   const { user } = useAuth();
+  const isLandlord = user?.role === "landlord";
 
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -672,8 +673,14 @@ export default function SecurityPage() {
       const params = new URLSearchParams(window.location.search);
       const t = params.get("tab");
       const valid = ["dashboard", "qr-scanner", "visitor-management", "gate-pass", "vehicle-registration", "gate-pins", "vehicle-log", "hardware"];
+      // A self-managing landlord only has Gate PINs scoped/verified for
+      // their own properties on the backend — the other tabs' endpoints
+      // haven't been extended for landlord use, so default (and restrict)
+      // them there rather than risk a half-broken experience on tabs that
+      // would silently fail.
+      if (isLandlord) return "gate-pins";
       return t && valid.includes(t) ? t : "dashboard";
-    } catch { return "dashboard"; }
+    } catch { return isLandlord ? "gate-pins" : "dashboard"; }
   })();
   const [activeTab, setActiveTab] = useState(initialTab);
 
@@ -1363,7 +1370,9 @@ export default function SecurityPage() {
         <Tabs value={activeTab} onValueChange={setActiveTab}>
           <div className="overflow-x-auto pb-px mb-6">
             <TabsList className="inline-flex h-10 items-center bg-muted rounded-xl p-1 gap-0.5 min-w-max">
-              {[
+              {(isLandlord
+                ? [{ value: "gate-pins", label: "Gate PINs", icon: Shield }]
+                : [
                 { value: "dashboard",            label: "Overview",    icon: BarChart3  },
                 { value: "qr-scanner",           label: "QR Scanner",  icon: QrCode     },
                 { value: "visitor-management",   label: "Visitors",    icon: Users      },
@@ -1372,7 +1381,7 @@ export default function SecurityPage() {
                 { value: "gate-pins",            label: "Gate PINs",   icon: Shield     },
                 { value: "vehicle-log",          label: "Vehicle Log", icon: Activity   },
                 { value: "hardware",             label: "Hardware",    icon: Cpu        },
-              ].map(({ value, label, icon: Icon }) => (
+              ]).map(({ value, label, icon: Icon }) => (
                 <TabsTrigger key={value} value={value}
                   className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg whitespace-nowrap data-[state=active]:bg-emerald-600 data-[state=active]:text-white data-[state=active]:shadow-sm">
                   <Icon className="w-3.5 h-3.5" />
