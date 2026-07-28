@@ -337,10 +337,21 @@ router.get("/admin/vehicle-log", authenticateJWT as any, requireOrg as any, asyn
 // ══════════════════════════════════════════════════════════════════════════════
 router.get("/gate-passes", ...guard, async (req: any, res: any) => {
   try {
-    // Guard tokens have propertyId in the token; admin/manager pass it as a query param
+    // Guard tokens have propertyId in the token; admin/manager pass it as a
+    // query param — but that path had no org check at all, letting any
+    // admin/manager token view gate passes for any property on the
+    // platform. Verified against their own org now.
     const propertyId: number = req.user.propertyId
       ?? (req.query.propertyId ? parseInt(req.query.propertyId as string) : null);
     if (!propertyId) return res.status(400).json({ message: "propertyId is required" });
+
+    if (!req.user.propertyId) {
+      const [prop] = await db.select({ id: properties.id }).from(properties)
+        .where(and(eq(properties.id, propertyId), eq(properties.organizationId, req.user.organizationId)))
+        .limit(1);
+      if (!prop) return res.status(404).json({ message: "Property not found in your organisation" });
+    }
+
     const search = ((req.query.search as string) ?? "").trim();
 
     const rows = await db
@@ -397,9 +408,19 @@ router.get("/gate-passes", ...guard, async (req: any, res: any) => {
 // ══════════════════════════════════════════════════════════════════════════════
 router.get("/blacklist", ...guard, async (req: any, res: any) => {
   try {
+    // Same gap as gate-passes above — the admin/manager fallback had no
+    // org check at all.
     const propertyId: number = req.user.propertyId
       ?? (req.query.propertyId ? parseInt(req.query.propertyId as string) : null);
     if (!propertyId) return res.status(400).json({ message: "propertyId is required" });
+
+    if (!req.user.propertyId) {
+      const [prop] = await db.select({ id: properties.id }).from(properties)
+        .where(and(eq(properties.id, propertyId), eq(properties.organizationId, req.user.organizationId)))
+        .limit(1);
+      if (!prop) return res.status(404).json({ message: "Property not found in your organisation" });
+    }
+
     const plate = ((req.query.plate as string) ?? "").trim().toUpperCase().replace(/\s+/g, "");
 
     const rows = await db
