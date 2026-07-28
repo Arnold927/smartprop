@@ -127,7 +127,7 @@ export const ROUTE_POLICY: Record<string, AppRole[]> = {
   '/api/visitor-access-management':  VISITOR_ACCESS_ALLOWED,
   '/api/security':                   [...ADMIN_MANAGER_STAFF, 'guard', 'landlord'], // security-hardware.ts has correct guard+landlord property/ownership scoping internally
   '/api/parking-spaces':             ADMIN_MANAGER_STAFF,
-  '/api/registered-vehicles':        [...ADMIN_MANAGER_STAFF, 'guard'], // already auto-flags guard submissions as pending_approval internally; was unreachable
+  '/api/registered-vehicles':        [...ADMIN_MANAGER_STAFF, 'guard', 'landlord'], // landlord scoped to owned properties internally via vehicleAccessPropertyIds
   '/api/parking-assignments':        ADMIN_MANAGER_STAFF,
   '/api/utility-providers':          ADMIN_MANAGER_STAFF,    // landlord removed — Utility Management trimmed from landlord nav, see roleNav.ts
   '/api/utility-accounts':           ADMIN_MANAGER_STAFF,    // landlord removed — same reason
@@ -160,7 +160,7 @@ export const ROUTE_POLICY: Record<string, AppRole[]> = {
   '/api/visitors':                   CARETAKER_ALLOWED,
 
   // ── Guard / Caretaker ─────────────────────────────────────────────────────────
-  '/api/guard':                      ['admin', 'manager', 'staff', 'caretaker', 'guard'],
+  '/api/guard':                      ['admin', 'manager', 'staff', 'caretaker', 'guard', 'landlord'],
   '/api/contractor-portal':          ['contractor', 'admin', 'manager'],
   '/api/guest-checkin':              ['admin', 'manager', 'staff', 'caretaker', 'guard'],
 

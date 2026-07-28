@@ -53,6 +53,13 @@ function todayRange() {
 // ══════════════════════════════════════════════════════════════════════════════
 router.get("/tenants", ...guard, async (req: any, res: any) => {
   try {
+    // Guard-only — landlord now passes the outer /api/guard gate (added for
+    // /admin/vehicle-log below), but this relies on req.user.propertyId, a
+    // field only guard tokens carry. Reject explicitly rather than let it
+    // silently return nothing for a landlord's full JWT.
+    if (req.user.role === "landlord") {
+      return res.status(403).json({ message: "Not available for this role." });
+    }
     const propertyId: number = req.user.propertyId;
 
     const rows = await db
@@ -89,6 +96,9 @@ router.get("/tenants", ...guard, async (req: any, res: any) => {
 // ══════════════════════════════════════════════════════════════════════════════
 router.get("/expected-today", ...guard, async (req: any, res: any) => {
   try {
+    if (req.user.role === "landlord") {
+      return res.status(403).json({ message: "Not available for this role." });
+    }
     const propertyId: number = req.user.propertyId;
     const { start, end } = todayRange();
 
@@ -151,6 +161,9 @@ router.get("/expected-today", ...guard, async (req: any, res: any) => {
 // ══════════════════════════════════════════════════════════════════════════════
 router.post("/adhoc-pass", ...guard, async (req: any, res: any) => {
   try {
+    if (req.user.role === "landlord") {
+      return res.status(403).json({ message: "Not available for this role." });
+    }
     const propertyId: number = req.user.propertyId;
     const guardLabel: string = req.user.label ?? "Guard";
 
@@ -238,6 +251,9 @@ router.post("/adhoc-pass", ...guard, async (req: any, res: any) => {
 // ══════════════════════════════════════════════════════════════════════════════
 router.post("/vehicle-log", ...guard, async (req: any, res: any) => {
   try {
+    if (req.user.role === "landlord") {
+      return res.status(403).json({ message: "Not available for this role." });
+    }
     const propertyId: number = req.user.propertyId;
     const guardLabel: string = req.user.label ?? "Guard";
 
@@ -289,6 +305,12 @@ router.post("/vehicle-log", ...guard, async (req: any, res: any) => {
 // ══════════════════════════════════════════════════════════════════════════════
 router.get("/vehicle-log", ...guard, async (req: any, res: any) => {
   try {
+    // Landlords use /admin/vehicle-log below instead (query-param based,
+    // properly ownership-scoped) — this variant relies on the guard
+    // token's own propertyId field, which a landlord's JWT doesn't have.
+    if (req.user.role === "landlord") {
+      return res.status(403).json({ message: "Not available for this role." });
+    }
     const propertyId: number = req.user.propertyId;
     const { start, end } = todayRange();
 
@@ -320,14 +342,20 @@ router.get("/admin/vehicle-log", authenticateJWT as any, requireOrg as any, asyn
   try {
     const propertyId = parseInt(req.query.propertyId as string);
     const dateStr    = req.query.date as string; // YYYY-MM-DD, defaults to today
+    const role: string = req.user.role;
 
     if (!propertyId) return res.status(400).json({ message: "propertyId is required" });
 
     // Third instance of the same gap found in gate-passes/blacklist above —
     // propertyId taken from the query with zero verification it belonged to
-    // the caller's own org.
+    // the caller's own org. Now also scoped to ownership for a landlord —
+    // this is the endpoint a landlord uses to see vehicle plates at their
+    // own properties.
+    const propCondition = role === "landlord"
+      ? and(eq(properties.id, propertyId), eq(properties.organizationId, req.user.organizationId), eq(properties.ownerId, req.user.id))
+      : and(eq(properties.id, propertyId), eq(properties.organizationId, req.user.organizationId));
     const [prop] = await db.select({ id: properties.id }).from(properties)
-      .where(and(eq(properties.id, propertyId), eq(properties.organizationId, req.user.organizationId)))
+      .where(propCondition)
       .limit(1);
     if (!prop) return res.status(404).json({ message: "Property not found in your organisation" });
 
@@ -362,6 +390,13 @@ router.get("/admin/vehicle-log", authenticateJWT as any, requireOrg as any, asyn
 // ══════════════════════════════════════════════════════════════════════════════
 router.get("/gate-passes", ...guard, async (req: any, res: any) => {
   try {
+    // Not extended to landlord — visitor-access-management.ts already
+    // gives them a properly ownership-scoped view of their own visitors;
+    // this endpoint's admin/manager fallback is only org-scoped, not
+    // ownership-scoped, so opening it here would be a narrower gap.
+    if (req.user.role === "landlord") {
+      return res.status(403).json({ message: "Not available for this role." });
+    }
     // Guard tokens have propertyId in the token; admin/manager pass it as a
     // query param — but that path had no org check at all, letting any
     // admin/manager token view gate passes for any property on the
@@ -433,6 +468,9 @@ router.get("/gate-passes", ...guard, async (req: any, res: any) => {
 // ══════════════════════════════════════════════════════════════════════════════
 router.get("/blacklist", ...guard, async (req: any, res: any) => {
   try {
+    if (req.user.role === "landlord") {
+      return res.status(403).json({ message: "Not available for this role." });
+    }
     // Same gap as gate-passes above — the admin/manager fallback had no
     // org check at all.
     const propertyId: number = req.user.propertyId

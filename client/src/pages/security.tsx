@@ -683,7 +683,7 @@ export default function SecurityPage() {
       // backend — the other tabs' endpoints haven't been extended for
       // landlord use, so restrict them to those three rather than risk a
       // half-broken experience on tabs that would silently fail.
-      const landlordValidTabs = ["visitor-management", "gate-pins", "hardware"];
+      const landlordValidTabs = ["visitor-management", "gate-pins", "hardware", "vehicle-log"];
       if (isLandlord) return t && landlordValidTabs.includes(t) ? t : "gate-pins";
       return t && valid.includes(t) ? t : "dashboard";
     } catch { return isLandlord ? "gate-pins" : "dashboard"; }
@@ -1381,6 +1381,7 @@ export default function SecurityPage() {
                     { value: "visitor-management", label: "Visitors", icon: Users },
                     { value: "gate-pins",          label: "Gate PINs", icon: Shield },
                     { value: "hardware",           label: "Hardware", icon: Cpu },
+                    { value: "vehicle-log",        label: "Vehicle Log", icon: Activity },
                   ]
                 : [
                 { value: "dashboard",            label: "Overview",    icon: BarChart3  },

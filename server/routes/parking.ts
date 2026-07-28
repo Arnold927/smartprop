@@ -145,10 +145,23 @@ parkingSpacesRouter.delete("/:id", ...auth, async (req: any, res: any) => {
 // REGISTERED VEHICLES  (scoped via propertyId → properties.organizationId)
 // ════════════════════════════════════════════════════════════════════════════
 
+/** Property IDs this caller may touch: every org property, or — for a
+ *  landlord — only ones they own. Scoped to registeredVehiclesRouter only;
+ *  kept separate from orgPropertyIds so parkingSpacesRouter and
+ *  parkingAssignmentsRouter (not reviewed for landlord use) are unaffected. */
+async function vehicleAccessPropertyIds(orgId: number, role: string, userId: string): Promise<number[]> {
+  const condition = role === "landlord"
+    ? and(eq(properties.organizationId, orgId), eq(properties.ownerId, userId))
+    : eq(properties.organizationId, orgId);
+  const rows = await db.select({ id: properties.id }).from(properties).where(condition);
+  return rows.map(r => r.id);
+}
+
 registeredVehiclesRouter.get("/", ...auth, async (req: any, res: any) => {
   try {
     const orgId: number = req.user.organizationId;
-    const propIds = await orgPropertyIds(orgId);
+    const role:  string = req.user.role;
+    const propIds = await vehicleAccessPropertyIds(orgId, role, req.user.id);
     if (propIds.length === 0) return res.json([]);
 
     const vehicles = await db
@@ -166,7 +179,8 @@ registeredVehiclesRouter.get("/", ...auth, async (req: any, res: any) => {
 registeredVehiclesRouter.get("/:id", ...auth, async (req: any, res: any) => {
   try {
     const orgId: number = req.user.organizationId;
-    const propIds = await orgPropertyIds(orgId);
+    const role:  string = req.user.role;
+    const propIds = await vehicleAccessPropertyIds(orgId, role, req.user.id);
     const [vehicle] = await db
       .select()
       .from(registeredVehicles)
@@ -187,14 +201,14 @@ registeredVehiclesRouter.get("/:id", ...auth, async (req: any, res: any) => {
 registeredVehiclesRouter.post("/", ...auth, async (req: any, res: any) => {
   try {
     const orgId: number = req.user.organizationId;
-    const propIds = await orgPropertyIds(orgId);
+    const role  = req.user?.role ?? "guard";
+    const propIds = await vehicleAccessPropertyIds(orgId, role, req.user.id);
     const propertyId = parseInt(req.body.propertyId);
     if (!propIds.includes(propertyId)) {
       return res.status(403).json({ message: "Property does not belong to your organisation" });
     }
-    // Always enforce pending_approval for guards; managers can approve immediately.
-    const role = req.user?.role ?? "guard";
-    const autoApprove = ["admin","manager"].includes(role);
+    // Always enforce pending_approval for guards; managers/landlords can approve immediately.
+    const autoApprove = ["admin", "manager", "landlord"].includes(role);
     const vehicle = await storage.createRegisteredVehicle({
       ...req.body,
       propertyId,
@@ -211,7 +225,8 @@ registeredVehiclesRouter.post("/", ...auth, async (req: any, res: any) => {
 registeredVehiclesRouter.put("/:id", ...auth, async (req: any, res: any) => {
   try {
     const orgId: number = req.user.organizationId;
-    const propIds = await orgPropertyIds(orgId);
+    const role:  string = req.user.role;
+    const propIds = await vehicleAccessPropertyIds(orgId, role, req.user.id);
     const id = parseInt(req.params.id);
     const [existing] = await db.select({ propertyId: registeredVehicles.propertyId }).from(registeredVehicles).where(eq(registeredVehicles.id, id)).limit(1);
     if (!existing || !propIds.includes(existing.propertyId)) {
@@ -232,7 +247,8 @@ registeredVehiclesRouter.put("/:id", ...auth, async (req: any, res: any) => {
 registeredVehiclesRouter.patch("/:id/status", ...auth, async (req: any, res: any) => {
   try {
     const orgId: number = req.user.organizationId;
-    const propIds = await orgPropertyIds(orgId);
+    const role:  string = req.user.role;
+    const propIds = await vehicleAccessPropertyIds(orgId, role, req.user.id);
     const id = parseInt(req.params.id);
     const { status } = req.body;
     const allowed = ["active", "inactive", "pending_approval", "blacklisted"];
@@ -254,7 +270,8 @@ registeredVehiclesRouter.patch("/:id/status", ...auth, async (req: any, res: any
 registeredVehiclesRouter.delete("/:id", ...auth, async (req: any, res: any) => {
   try {
     const orgId: number = req.user.organizationId;
-    const propIds = await orgPropertyIds(orgId);
+    const role:  string = req.user.role;
+    const propIds = await vehicleAccessPropertyIds(orgId, role, req.user.id);
     const id = parseInt(req.params.id);
     const [existing] = await db.select({ propertyId: registeredVehicles.propertyId }).from(registeredVehicles).where(eq(registeredVehicles.id, id)).limit(1);
     if (!existing || !propIds.includes(existing.propertyId)) {
