@@ -5,10 +5,14 @@
  *  - All 8 roles represented: Admin, Manager, Landlord, Staff,
  *    Caretaker, Tenant, Guard, Contractor
  *  - Stronger Kenya-specific hero headline
- *  - Dedicated KRA compliance section
  *  - Guard & Caretaker explicitly called out in WhoItsFor
  *  - More specific "How it works" steps
  *  - Tighter, more credible copy throughout
+ *
+ * No mention of KRA or specific tax authorities anywhere on this page —
+ * deliberate: could be misread as government affiliation and cost trust
+ * with prospective clients. Compliance features still exist in-app for
+ * signed-up customers; this page just doesn't lead with them.
  */
 
 import { useState, useEffect, useRef } from "react";
@@ -81,7 +85,7 @@ const NAV_LINKS = [
   { label: "Features",     href: "#features" },
   { label: "How it works", href: "#how" },
   { label: "Who it's for", href: "#who" },
-  { label: "Compliance",   href: "#compliance" },
+  { label: "Records",      href: "#compliance" },
   { label: "Contact",      href: "#contact" },
 ];
 
@@ -125,8 +129,8 @@ const FEATURES = [
   {
     icon: Scale, color: "text-indigo-600", bg: "bg-indigo-50 dark:bg-indigo-950/30",
     border: "hover:border-t-indigo-500",
-    title: "KRA Compliance Suite",
-    desc: "eTIMS invoicing, WHT at 10%/30%, Stamp Duty Cap 480, CGT 15%, CBK deposit interest, ARMA service charges, and RRT notices — all seven statutory obligations in one place.",
+    title: "M-Pesa Payment Automation",
+    desc: "STK Push and Paybill/Till reconciliation matched automatically to the right tenant and invoice. Per-landlord payment configuration for multi-owner portfolios — no manual matching, ever.",
   },
   {
     icon: Globe, color: "text-sky-600", bg: "bg-sky-50 dark:bg-sky-950/30",
@@ -147,7 +151,7 @@ const ROLES = [
       "All properties, units, leases, and finances in one view",
       "Multi-property and multi-landlord support with full audit trail",
       "Assign roles, manage staff access, and control permissions",
-      "eTIMS invoicing and KRA returns pre-filled from live data",
+      "Digital leases, document storage, and audit-ready records for every unit",
     ],
   },
   {
@@ -265,39 +269,39 @@ const HOW_STEPS = [
 
 const COMPLIANCE_MODULES = [
   {
-    icon: Receipt,
-    title: "KRA eTIMS Invoicing",
-    desc: "Every rent invoice and receipt carries a valid KRA eTIMS invoice ID. VAT-registered landlords are compliant by default — no separate invoicing system required.",
+    icon: Landmark,
+    title: "Security Deposit Tracking",
+    desc: "Deposits held, interest accrued, and end-of-tenancy settlements calculated automatically — shown on every tenant statement, no spreadsheet required.",
     color: "text-emerald-600", bg: "bg-emerald-50 dark:bg-emerald-950/30",
   },
   {
-    icon: DollarSign,
-    title: "Withholding Tax (WHT)",
-    desc: "WHT calculated automatically at 10% for resident landlords and 30% for non-residents on every payment. All records ready for iTax submission.",
+    icon: FileText,
+    title: "Digital Lease Lifecycle",
+    desc: "Generate, sign, and store leases digitally. Renewal reminders fire automatically before expiry, and every signed document lives in one searchable vault.",
     color: "text-indigo-600", bg: "bg-indigo-50 dark:bg-indigo-950/30",
   },
   {
-    icon: FileText,
-    title: "Stamp Duty Cap 480",
-    desc: "Leases requiring stamp duty are automatically identified — residential leases over 3 years, commercial over 2. Due-date alerts and payment records included.",
+    icon: TrendingUp,
+    title: "Portfolio Analytics",
+    desc: "Occupancy, arrears, and performance across your entire portfolio — or drilled down to a single property — in one live dashboard.",
     color: "text-violet-600", bg: "bg-violet-50 dark:bg-violet-950/30",
   },
   {
-    icon: TrendingUp,
-    title: "Capital Gains Tax (CGT)",
-    desc: "Property valuations tracked for CGT readiness. CGT at 15% on disposal (Finance Act 2023) calculated from your recorded cost basis vs. sale price.",
+    icon: UserCheck,
+    title: "Caretaker & Staff Roles",
+    desc: "On-site caretakers and staff get access scoped to exactly their assigned property — nothing more. Assign, reassign, or disable access in seconds.",
     color: "text-amber-600", bg: "bg-amber-50 dark:bg-amber-950/30",
   },
   {
-    icon: Landmark,
-    title: "CBK Deposit Interest",
-    desc: "Security deposit interest accrued at the CBK base rate as required by the Landlord and Tenant Act. Shown on tenant statements and end-of-tenancy settlements.",
+    icon: Bell,
+    title: "Automated Rent Reminders",
+    desc: "WhatsApp nudges before rent is due and again if it's late — before an arrears conversation ever needs to happen.",
     color: "text-sky-600", bg: "bg-sky-50 dark:bg-sky-950/30",
   },
   {
     icon: Scale,
-    title: "ARMA & RRT Notices",
-    desc: "ARMA service charge accounts and sinking fund management. Rent Restriction Tribunal notices tracked under Cap 296 with statutory deadlines and escalation alerts.",
+    title: "Audit-Ready Records",
+    desc: "Every payment, maintenance job, and lease change is logged with a timestamp and an owner. Produce a full history for any unit in seconds.",
     color: "text-rose-600", bg: "bg-rose-50 dark:bg-rose-950/30",
   },
 ];
@@ -536,12 +540,12 @@ function Hero({ containerRef }: { containerRef: React.RefObject<HTMLElement> }) 
             <h1 className="text-4xl sm:text-5xl lg:text-[3.2rem] font-bold tracking-tight text-white leading-[1.1] mb-5">
               Every Paybill payment.<br />
               Every WhatsApp request.<br />
-              <span className="text-emerald-400">Every KRA return. One place.</span>
+              <span className="text-emerald-400">Every property, one place.</span>
             </h1>
 
             <p className="text-lg text-white/55 leading-relaxed mb-3 max-w-xl">
               SmartProp handles your M-Pesa C2B reconciliation, digital leases,
-              WhatsApp maintenance, KRA eTIMS invoices, gate security, and owner
+              WhatsApp maintenance, gate security, and owner
               statements — so your whole team runs from a single system, not a
               group of WhatsApp threads.
             </p>
@@ -565,7 +569,7 @@ function Hero({ containerRef }: { containerRef: React.RefObject<HTMLElement> }) 
             <div className="flex flex-wrap gap-2">
               {[
                 { icon: Zap,           text: "STK push & Paybill" },
-                { icon: Scale,         text: "KRA eTIMS" },
+                { icon: Scale,         text: "Digital leases" },
                 { icon: MessageSquare, text: "WhatsApp native" },
                 { icon: Shield,        text: "ODPC compliant" },
                 { icon: Lock,          text: "Data encrypted" },
@@ -630,8 +634,8 @@ function PainStrip() {
     },
     {
       icon: Scale,
-      before: "KRA audit season arriving with no records prepared",
-      after: "eTIMS invoices and WHT records maintained in real time",
+      before: "Digging through paper files when a record is needed urgently",
+      after: "Every payment and document searchable, in seconds",
     },
     {
       icon: Shield,
@@ -990,34 +994,34 @@ function ComplianceSection() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-14 items-start mb-16">
             <div>
               <Badge className="mb-4 bg-indigo-50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-800">
-                KRA Compliance Built In
+                Everything In One System
               </Badge>
               <h2 className="text-3xl sm:text-4xl font-bold text-foreground mb-4 leading-tight">
-                Audit season is no longer{" "}
-                <span className="text-emerald-600">a crisis.</span>
+                Month-end is no longer{" "}
+                <span className="text-emerald-600">a scramble.</span>
               </h2>
               <p className="text-muted-foreground text-lg leading-relaxed mb-4">
-                SmartProp is the only property management platform that covers all seven
-                of Kenya's statutory obligations — not as an add-on, but baked into
-                every rent payment, lease, and transaction from day one.
+                SmartProp keeps every payment, lease, and maintenance record organised
+                from the moment it happens — not bolted on afterwards, but built into
+                every transaction from day one.
               </p>
               <p className="text-muted-foreground text-base leading-relaxed">
-                No separate invoicing system for eTIMS. No manual WHT calculator.
-                No scramble at year-end. Every record is maintained in real time
-                and ready for iTax the moment you need it.
+                No separate spreadsheet for deposits. No manual reconciliation.
+                No scramble assembling records at month-end. Everything is
+                maintained in real time and ready the moment you need it.
               </p>
             </div>
             <div className="bg-white dark:bg-gray-900 rounded-2xl border border-border p-6 shadow-sm">
-              <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-4">All 7 statutory obligations covered</p>
+              <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-4">Everything tracked automatically</p>
               <div className="space-y-2.5">
                 {[
-                  { label: "KRA eTIMS Invoicing",        status: "Active on every transaction" },
-                  { label: "Rental Income WHT",          status: "10% resident · 30% non-resident" },
-                  { label: "Stamp Duty Cap 480",         status: "Auto-detected per lease type" },
-                  { label: "Capital Gains Tax (15%)",    status: "Finance Act 2023 compliant" },
-                  { label: "CBK Deposit Interest",       status: "Accrued per Landlord & Tenant Act" },
-                  { label: "ARMA Service Charges",       status: "Budget vs actuals tracked" },
-                  { label: "RRT Notices Cap 296",        status: "Deadlines tracked & alerted" },
+                  { label: "M-Pesa Reconciliation",      status: "Matched on every transaction" },
+                  { label: "Security Deposits",          status: "Interest accrued automatically" },
+                  { label: "Digital Leases",             status: "Signed & stored per unit" },
+                  { label: "Owner Statements",            status: "Auto-generated monthly" },
+                  { label: "Maintenance History",        status: "Photo trail per job" },
+                  { label: "Staff & Caretaker Access",    status: "Scoped per property" },
+                  { label: "Visitor & Gate Logs",         status: "Timestamped & searchable" },
                 ].map(item => (
                   <div key={item.label} className="flex items-center justify-between gap-3 py-2 border-b border-border last:border-0">
                     <div className="flex items-center gap-2.5">
@@ -1146,7 +1150,7 @@ function FounderNote() {
                 on WhatsApp threads and Excel sheets.{" "}
                 <span className="text-white/40">
                   Rent paid. Screenshot forwarded. Excel updated. Guard writing names in a book.
-                  KRA season arriving with no records. Repeat every month.
+                  Month-end arriving with no records pulled together. Repeat every month.
                 </span>
               </p>
               <p className="text-lg text-emerald-400 font-medium">
@@ -1259,12 +1263,12 @@ function Footer() {
           <a href="#features"    className="hover:text-white transition-colors">Features</a>
           <a href="#how"         className="hover:text-white transition-colors">How it works</a>
           <a href="#who"         className="hover:text-white transition-colors">Who it's for</a>
-          <a href="#compliance"  className="hover:text-white transition-colors">Compliance</a>
+          <a href="#compliance"  className="hover:text-white transition-colors">Records</a>
           <a href="#contact"     className="hover:text-white transition-colors">Contact</a>
         </div>
         <div className="flex items-center gap-2 text-xs text-white/30">
           <Shield className="w-3 h-3" />
-          <span>ODPC · KRA eTIMS · Built in Kenya 🇰🇪</span>
+          <span>ODPC compliant · Built in Kenya 🇰🇪</span>
         </div>
       </div>
     </footer>

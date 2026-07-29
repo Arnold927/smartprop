@@ -27,7 +27,16 @@ export async function refreshAccessToken(): Promise<string | null> {
     const store = localStorage.getItem("access_token") ? localStorage : sessionStorage;
     try {
       const res = await fetch(`/api/auth/refresh`, { method: "POST", credentials: "include", headers: { "Content-Type": "application/json" } });
-      if (!res.ok) { store.removeItem("access_token"); store.removeItem("refresh_token"); window.location.href = "/auth"; return null; }
+      if (!res.ok) {
+        store.removeItem("access_token"); store.removeItem("refresh_token");
+        // Previously redirected unconditionally, even when already on the
+        // login or landing page — forcing a full reload there too, which
+        // could repeat if the stale-token condition wasn't actually cleared
+        // by the reload. Now matches the catch branch below.
+        const isOnAuthPage = window.location.pathname.startsWith("/auth") || window.location.pathname === "/";
+        if (!isOnAuthPage) window.location.href = "/auth";
+        return null;
+      }
       const data = await res.json();
       if (data.success && (data.accessToken || data.access_token)) { const token = data.accessToken || data.access_token; store.setItem("access_token", token); return token; }
       return null;

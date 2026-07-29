@@ -123,7 +123,7 @@ function MobileTrustStrip() {
       <div className="grid grid-cols-3 gap-3">
         {[
           { icon: Smartphone, label: "M-Pesa C2B",      sub: "Auto-reconciled" },
-          { icon: Scale,      label: "KRA eTIMS",        sub: "Every invoice" },
+          { icon: Scale,      label: "Digital leases",  sub: "Signed & stored" },
           { icon: ShieldCheck,label: "ODPC compliant",   sub: "Data encrypted" },
         ].map(({ icon: Icon, label, sub }) => (
           <div key={label} className="flex flex-col items-center text-center gap-1.5 p-3 rounded-xl bg-slate-50 border border-slate-100">
@@ -264,12 +264,12 @@ export default function AuthPage() {
             <h1 className="text-[2.6rem] font-bold text-white leading-[1.15] tracking-tight">
               Every payment matched.<br />
               Every tenant managed.<br />
-              <span className="text-emerald-400">Every KRA return ready.</span>
+              <span className="text-emerald-400">Every property, one system.</span>
             </h1>
             <p className="text-white/55 text-base mt-4 leading-relaxed max-w-sm">
-              From M-Pesa C2B reconciliation to eTIMS invoices, digital leases to gate
-              security — SmartProp is the one system your whole team runs on.
-              No WhatsApp threads. No Excel arrears sheets. No audit panic.
+              From M-Pesa C2B reconciliation to digital leases, gate
+              security to owner statements — SmartProp is the one system your whole team runs on.
+              No WhatsApp threads. No Excel arrears sheets. No month-end panic.
             </p>
           </div>
 
@@ -282,8 +282,8 @@ export default function AuthPage() {
             />
             <FeatureCard
               icon={Scale}
-              title="All 7 KRA obligations — covered"
-              desc="eTIMS invoices, WHT at 10%/30%, Stamp Duty, CGT, CBK deposit interest, ARMA, and RRT. Maintained in real time, ready for iTax."
+              title="Security deposits & gate access — tracked"
+              desc="Deposit interest accrued automatically, visitor QR passes, guard PINs, and vehicle logs — all timestamped and searchable."
             />
             <FeatureCard
               icon={FileText}
@@ -297,7 +297,7 @@ export default function AuthPage() {
         <div className="relative z-10 flex items-center gap-2.5 pt-5 border-t border-white/10">
           <Shield className="w-3.5 h-3.5 text-white/30 flex-shrink-0" />
           <p className="text-white/30 text-xs">
-            ODPC compliant · KRA integrated · Data encrypted at rest
+            ODPC compliant · Data encrypted at rest
           </p>
         </div>
       </div>
