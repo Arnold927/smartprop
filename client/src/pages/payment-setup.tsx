@@ -19,10 +19,12 @@
  */
 
 import { useState } from "react";
+import { useLocation } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import { useRoleGuard, ROLES } from "@/hooks/useRoleGuard";
 import { useAuth } from "@/hooks/useAuth";
 import { apiRequest } from "@/lib/queryClient";
+import { getOrgIdFromSearch, withOrgParam } from "@/lib/platformOrgContext";
 import PaymentConfigPanel from "@/components/payment-config-panel";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
@@ -37,11 +39,13 @@ interface LandlordRow {
 }
 
 export default function PaymentSetupPage() {
-  const guard = useRoleGuard(ROLES.ADMIN_MANAGER_LANDLORD);
+  const guard = useRoleGuard([...ROLES.ADMIN_MANAGER_LANDLORD, "platform_admin"]);
   if (guard.gate) return guard.gate;
 
   const { user } = useAuth();
   const isLandlord = user?.role === "landlord";
+  const [location] = useLocation();
+  const orgIdParam = getOrgIdFromSearch(location.includes("?") ? location.slice(location.indexOf("?")) : window.location.search);
 
   // Radix's Select reserves the empty string for "clear selection" — it
   // throws if a SelectItem uses value="". Use a sentinel for the default
@@ -50,9 +54,9 @@ export default function PaymentSetupPage() {
   const [selectedOwnerId, setSelectedOwnerId] = useState<string>(ORG_DEFAULT);
 
   const { data: landlords = [] } = useQuery<LandlordRow[]>({
-    queryKey: ["/api/payment-config/landlord"],
+    queryKey: ["/api/payment-config/landlord", orgIdParam],
     queryFn: async () => {
-      const r = await apiRequest("/api/payment-config/landlord");
+      const r = await apiRequest(withOrgParam("/api/payment-config/landlord", orgIdParam));
       return r.json();
     },
     enabled: !isLandlord,
@@ -103,9 +107,9 @@ export default function PaymentSetupPage() {
       {isLandlord ? (
         <PaymentConfigPanel scope="mine" />
       ) : selectedOwnerId !== ORG_DEFAULT ? (
-        <PaymentConfigPanel key={selectedOwnerId} scope="landlord" landlordOwnerId={selectedOwnerId} />
+        <PaymentConfigPanel key={selectedOwnerId} scope="landlord" landlordOwnerId={selectedOwnerId} organizationId={orgIdParam} />
       ) : (
-        <PaymentConfigPanel key="org" scope="org" />
+        <PaymentConfigPanel key="org" scope="org" organizationId={orgIdParam} />
       )}
     </div>
   );

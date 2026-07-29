@@ -232,7 +232,7 @@ router.post("/mine/test-stk", async (req: any, res: any) => {
 // ── GET / — admin/manager: roster of landlords + configured status ───────────
 router.get("/", async (req: any, res: any) => {
   try {
-    if (!["admin", "manager"].includes(req.user.role)) {
+    if (!["admin", "manager", "platform_admin"].includes(req.user.role)) {
       return res.status(403).json({ message: "Not permitted." });
     }
     const orgId: number = req.user.organizationId;
@@ -260,7 +260,7 @@ router.get("/", async (req: any, res: any) => {
 // ── GET /:ownerId — admin/manager view a specific landlord's settings ────────
 router.get("/:ownerId", async (req: any, res: any) => {
   try {
-    if (!["admin", "manager"].includes(req.user.role)) {
+    if (!["admin", "manager", "platform_admin"].includes(req.user.role)) {
       return res.status(403).json({ message: "Not permitted." });
     }
     const orgId: number = req.user.organizationId;
@@ -291,7 +291,7 @@ router.get("/:ownerId", async (req: any, res: any) => {
 // ── PUT /:ownerId — admin/manager edit on a landlord's behalf ────────────────
 router.put("/:ownerId", async (req: any, res: any) => {
   try {
-    if (!["admin", "manager"].includes(req.user.role)) {
+    if (!["admin", "manager", "platform_admin"].includes(req.user.role)) {
       return res.status(403).json({ message: "Not permitted." });
     }
     const orgId: number = req.user.organizationId;
@@ -322,7 +322,7 @@ router.put("/:ownerId", async (req: any, res: any) => {
 // ── POST /:ownerId/test-stk — admin/manager test a specific landlord's credentials ──
 router.post("/:ownerId/test-stk", async (req: any, res: any) => {
   try {
-    if (!["admin", "manager"].includes(req.user.role)) {
+    if (!["admin", "manager", "platform_admin"].includes(req.user.role)) {
       return res.status(403).json({ message: "Not permitted." });
     }
     const orgId: number = req.user.organizationId;

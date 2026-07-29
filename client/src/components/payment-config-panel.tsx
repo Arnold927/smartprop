@@ -25,6 +25,7 @@ import {
 } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
+import { withOrgParam } from "@/lib/platformOrgContext";
 import {
   Smartphone, Building2, CreditCard, Save, CheckCircle2,
   Loader2, Info, Banknote, Copy, AlertTriangle, KeyRound,
@@ -57,11 +58,17 @@ interface PaymentConfigPanelProps {
   /** "org" (default) edits the org-wide default via /api/payment-config.
    *  "mine" edits the calling landlord's own override via
    *  /api/payment-config/landlord/mine.
-   *  "landlord" (admin/manager only) edits a SPECIFIC landlord's override
-   *  on their behalf via /api/payment-config/landlord/:landlordOwnerId —
-   *  requires landlordOwnerId to be set. */
+   *  "landlord" (admin/manager/platform_admin only) edits a SPECIFIC
+   *  landlord's override on their behalf via
+   *  /api/payment-config/landlord/:landlordOwnerId — requires
+   *  landlordOwnerId to be set. */
   scope?: "org" | "mine" | "landlord";
   landlordOwnerId?: string;
+  /** Required when the caller is platform_admin (not scoped to a single
+   *  org) — carried as ?organizationId=X on every request this component
+   *  makes. Ignored (and unnecessary) for every other role, whose org
+   *  already comes from their own JWT. */
+  organizationId?: string | null;
 }
 
 const emptyAccount = (): PaymentAccount => ({
@@ -490,13 +497,14 @@ function DarajaCredentialsSection({ endpoint, testEndpoint }: { endpoint: string
   );
 }
 
-export default function PaymentConfigPanel({ scope = "org", landlordOwnerId }: PaymentConfigPanelProps = {}) {
+export default function PaymentConfigPanel({ scope = "org", landlordOwnerId, organizationId }: PaymentConfigPanelProps = {}) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const endpoint =
+  const baseEndpoint =
     scope === "mine"     ? "/api/payment-config/landlord/mine" :
     scope === "landlord" ? `/api/payment-config/landlord/${landlordOwnerId}` :
     "/api/payment-config";
+  const endpoint = withOrgParam(baseEndpoint, organizationId);
 
   const { data: config, isLoading } = useQuery<PaymentConfig>({
     queryKey: [endpoint],
@@ -774,7 +782,10 @@ export default function PaymentConfigPanel({ scope = "org", landlordOwnerId }: P
       {scope !== "org" && (
         <DarajaCredentialsSection
           endpoint={endpoint}
-          testEndpoint={scope === "mine" ? "/api/payment-config/landlord/mine/test-stk" : `/api/payment-config/landlord/${landlordOwnerId}/test-stk`}
+          testEndpoint={withOrgParam(
+            scope === "mine" ? "/api/payment-config/landlord/mine/test-stk" : `/api/payment-config/landlord/${landlordOwnerId}/test-stk`,
+            organizationId
+          )}
         />
       )}
 
