@@ -15,12 +15,6 @@ interface STKPushRequest {
   amount: number;
   accountReference: string;
   transactionDesc: string;
-  /** Override the shortcode for this specific push.
-   *  When supplied (from the org's Payment Setup config), this takes
-   *  precedence over the MPESA_BUSINESS_SHORTCODE env var so that
-   *  money always goes to the Paybill/Till the admin configured in the UI.
-   */
-  shortCodeOverride?: string;
 }
 
 interface STKPushResponse {
@@ -114,14 +108,13 @@ export class MPesaService {
     const accessToken = await this.getAccessToken();
     const timestamp = this.getTimestamp();
 
-    // Use the DB-configured shortcode (from Payment Setup) when provided.
-    // This ensures STK Push money always lands in the same account the
-    // admin set in the UI. Falls back to the env var shortcode.
-    const shortCode = request.shortCodeOverride ?? this.config.businessShortCode;
-
-    if (request.shortCodeOverride) {
-      console.log(`[MPesa] STK Push using DB-configured shortcode: ${shortCode} (env fallback: ${this.config.businessShortCode})`);
-    }
+    // This instance's own configured shortcode — callers needing a
+    // different shortcode+passkey pairing (e.g. a landlord's own Daraja
+    // credentials) get a separate instance from createMPesaServiceForOverrides()
+    // rather than overriding a single shared instance's shortcode per-request,
+    // which previously risked using the wrong passkey for the shortcode being
+    // charged (each shortcode has its own passkey issued by Safaricom).
+    const shortCode = this.config.businessShortCode;
 
     // Password must be generated with the actual shortcode being charged
     const data = shortCode + this.config.passkey + timestamp;
@@ -288,4 +281,44 @@ export function getMPesaServiceOrThrow(): MPesaService {
     );
   }
   return svc;
+}
+
+/**
+ * Creates a fresh MPesaService instance for a specific landlord's own Daraja
+ * credentials, falling back to the env-var defaults for any field the
+ * landlord hasn't configured themselves.
+ *
+ * Always returns a NEW instance rather than mutating the shared singleton
+ * from getMPesaService() — each landlord's credentials need their own OAuth
+ * token cache (a token fetched under one consumerKey/consumerSecret pair
+ * isn't valid for another), and mutating a shared instance's config in
+ * place was a real race condition: two concurrent STK Push requests for
+ * different landlords could clobber each other's shortcode mid-flight.
+ *
+ * Pass only the fields the landlord has actually configured; anything
+ * undefined/empty falls back to the env-var default so a landlord who's
+ * only entered a Paybill number (no full Daraja credentials) still gets a
+ * working service using the env-var passkey for that shortcode override —
+ * callers are still responsible for deciding whether that combination is
+ * actually valid (see mpesa-actions.ts's shortcode/passkey-pairing check).
+ */
+export function createMPesaServiceForOverrides(overrides: {
+  consumerKey?: string;
+  consumerSecret?: string;
+  businessShortCode?: string;
+  passkey?: string;
+  environment?: 'sandbox' | 'production';
+}): MPesaService | null {
+  const consumerKey       = overrides.consumerKey       || process.env.MPESA_CONSUMER_KEY;
+  const consumerSecret    = overrides.consumerSecret    || process.env.MPESA_CONSUMER_SECRET;
+  const businessShortCode = overrides.businessShortCode || process.env.MPESA_BUSINESS_SHORTCODE;
+  const passkey           = overrides.passkey           || process.env.MPESA_PASSKEY;
+  const callbackUrl       = process.env.MPESA_CALLBACK_URL;
+  const environment       = overrides.environment || (process.env.MPESA_ENVIRONMENT as 'sandbox' | 'production') || 'sandbox';
+
+  if (!consumerKey || !consumerSecret || !businessShortCode || !passkey || !callbackUrl) {
+    return null;
+  }
+
+  return new MPesaService({ consumerKey, consumerSecret, businessShortCode, passkey, callbackUrl, environment });
 }

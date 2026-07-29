@@ -27,7 +27,7 @@ import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import {
   Smartphone, Building2, CreditCard, Save, CheckCircle2,
-  Loader2, Info, Banknote, Copy, AlertTriangle,
+  Loader2, Info, Banknote, Copy, AlertTriangle, KeyRound,
 } from "lucide-react";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -326,6 +326,170 @@ function PaymentMethodSection({
 
 // ── Main component ─────────────────────────────────────────────────────────────
 
+/** Different landlords very likely have independently-registered Safaricom
+ *  shortcodes — each needs its own passkey, since you can't authenticate an
+ *  STK Push to one shortcode using another shortcode's passkey. This lets a
+ *  landlord (or an admin on their behalf) provide their own full Daraja
+ *  credentials, enabling genuine automatic STK Push prompts for their own
+ *  tenants rather than falling back to manual Paybill/Till payment. */
+function DarajaCredentialsSection({ endpoint, testEndpoint }: { endpoint: string; testEndpoint: string }) {
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const [consumerKey, setConsumerKey] = useState("");
+  const [consumerSecret, setConsumerSecret] = useState("");
+  const [passkey, setPasskey] = useState("");
+  const [environment, setEnvironment] = useState<"sandbox" | "production">("production");
+  const [testPhone, setTestPhone] = useState("");
+  const [showTestDialog, setShowTestDialog] = useState(false);
+
+  const { data: status } = useQuery<{
+    configured: boolean; environment: string; verified: boolean; verifiedAt?: string; consumerKeyMasked: string | null;
+  }>({
+    queryKey: [endpoint, "credentials-status"],
+    queryFn: async () => {
+      const r = await apiRequest(endpoint);
+      const data = await r.json();
+      return data.mpesaCredentials;
+    },
+  });
+
+  const save = useMutation({
+    mutationFn: async () => {
+      // Fetch current display-info config first — this endpoint requires
+      // rentPayment on every save, and we don't want a credentials-only
+      // save to accidentally wipe the Paybill/Till/bank fields.
+      const current = await (await apiRequest(endpoint)).json();
+      const r = await apiRequest(endpoint, {
+        method: "PUT",
+        data: {
+          rentPayment: current.rentPayment,
+          utilityPayment: current.utilityPayment,
+          mpesaCredentials: { consumerKey, consumerSecret, passkey, environment },
+        },
+      });
+      return r.json();
+    },
+    onSuccess: () => {
+      toast({ title: "Daraja credentials saved", description: "Run a test push before relying on this in production." });
+      setConsumerSecret(""); setPasskey(""); // never keep raw secrets in state after a successful save
+      queryClient.invalidateQueries({ queryKey: [endpoint] });
+    },
+    onError: (err: any) => toast({ title: "Failed to save credentials", description: err.message, variant: "destructive" }),
+  });
+
+  const test = useMutation({
+    mutationFn: async () => {
+      const r = await apiRequest(testEndpoint, { method: "POST", data: { phoneNumber: testPhone } });
+      return r.json();
+    },
+    onSuccess: (data) => {
+      toast({ title: "Test prompt sent", description: data.message });
+      setShowTestDialog(false);
+      queryClient.invalidateQueries({ queryKey: [endpoint] });
+    },
+    onError: (err: any) => toast({ title: "Test failed", description: err.message, variant: "destructive" }),
+  });
+
+  return (
+    <Card className="border-indigo-100">
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2 text-base">
+          <KeyRound className="w-4 h-4 text-indigo-600" /> Daraja API Credentials
+        </CardTitle>
+        <CardDescription>
+          Only needed for automatic M-Pesa prompts (STK Push). Without these, tenants can still pay manually
+          using the Paybill/Till shown above — this just enables the one-tap "Pay Now" prompt for this
+          specific landlord's own shortcode.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {status?.configured && (
+          <div className={`flex items-center gap-2 rounded-lg p-3 text-sm ${status.verified ? "bg-green-50 border border-green-100 text-green-800" : "bg-amber-50 border border-amber-100 text-amber-800"}`}>
+            {status.verified ? <CheckCircle2 className="w-4 h-4 shrink-0" /> : <AlertTriangle className="w-4 h-4 shrink-0" />}
+            <span>
+              Consumer key <span className="font-mono font-medium">{status.consumerKeyMasked}</span> saved
+              {status.verified ? " and verified with a successful test push." : " but not yet tested — run a test push below."}
+            </span>
+          </div>
+        )}
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div>
+            <Label className="text-xs">Consumer Key</Label>
+            <Input value={consumerKey} onChange={e => setConsumerKey(e.target.value)} placeholder={status?.configured ? "Leave blank to keep current" : "From Daraja app"} />
+          </div>
+          <div>
+            <Label className="text-xs">Environment</Label>
+            <select
+              className="w-full h-9 rounded-md border border-input bg-background px-3 text-sm"
+              value={environment}
+              onChange={e => setEnvironment(e.target.value as "sandbox" | "production")}
+            >
+              <option value="production">Production</option>
+              <option value="sandbox">Sandbox (testing only)</option>
+            </select>
+          </div>
+          <div>
+            <Label className="text-xs">Consumer Secret</Label>
+            <Input type="password" value={consumerSecret} onChange={e => setConsumerSecret(e.target.value)} placeholder={status?.configured ? "Leave blank to keep current" : "From Daraja app"} />
+          </div>
+          <div>
+            <Label className="text-xs">Passkey</Label>
+            <Input type="password" value={passkey} onChange={e => setPasskey(e.target.value)} placeholder={status?.configured ? "Leave blank to keep current" : "Lipa Na M-Pesa Online passkey"} />
+          </div>
+        </div>
+
+        <p className="text-xs text-muted-foreground">
+          The passkey must be issued by Safaricom specifically for the Paybill/Till number entered above —
+          a passkey from a different shortcode will be rejected when tested.
+        </p>
+
+        <div className="flex gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => save.mutate()}
+            disabled={save.isPending || (!consumerKey && !consumerSecret && !passkey)}
+          >
+            {save.isPending ? <Loader2 className="w-3.5 h-3.5 mr-2 animate-spin" /> : <Save className="w-3.5 h-3.5 mr-2" />}
+            Save Credentials
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setShowTestDialog(true)}
+            disabled={!status?.configured}
+          >
+            <Smartphone className="w-3.5 h-3.5 mr-2" /> Send Test Push
+          </Button>
+        </div>
+      </CardContent>
+
+      <Dialog open={showTestDialog} onOpenChange={setShowTestDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Send a KES 1 test prompt</DialogTitle>
+            <DialogDescription>
+              Confirms your consumer key, consumer secret, and passkey are all valid for the Paybill/Till entered above.
+            </DialogDescription>
+          </DialogHeader>
+          <div>
+            <Label className="text-xs">Your phone number</Label>
+            <Input value={testPhone} onChange={e => setTestPhone(e.target.value)} placeholder="07XXXXXXXX" />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowTestDialog(false)}>Cancel</Button>
+            <Button onClick={() => test.mutate()} disabled={test.isPending || !testPhone.trim()}>
+              {test.isPending ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
+              Send Test Push
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </Card>
+  );
+}
+
 export default function PaymentConfigPanel({ scope = "org", landlordOwnerId }: PaymentConfigPanelProps = {}) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -606,6 +770,13 @@ export default function PaymentConfigPanel({ scope = "org", landlordOwnerId }: P
           </CardContent>
         )}
       </Card>
+
+      {scope !== "org" && (
+        <DarajaCredentialsSection
+          endpoint={endpoint}
+          testEndpoint={scope === "mine" ? "/api/payment-config/landlord/mine/test-stk" : `/api/payment-config/landlord/${landlordOwnerId}/test-stk`}
+        />
+      )}
 
       <Button
         onClick={handleSaveClick}

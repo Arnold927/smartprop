@@ -19,12 +19,26 @@
 import { db } from "../db";
 import { tenants, units, properties, organizationSettings, landlordPaymentSettings } from "@shared/schema";
 import { eq, and } from "drizzle-orm";
+import { decryptSecret } from "./credentialEncryption";
+
+export interface ResolvedMpesaCredentials {
+  consumerKey: string;
+  consumerSecret: string;
+  passkey: string;
+  businessShortCode: string;
+  environment: "sandbox" | "production";
+}
 
 export interface ResolvedPaymentConfig {
   rentPayment: any;
   utilityPayment: any;
   resolvedFrom: "landlord" | "org-default";
   landlordOwnerId: string | null;
+  /** Present only when this landlord has their own full Daraja credentials
+   *  configured — lets the caller instantiate a properly-paired
+   *  MPesaService via createMPesaServiceForOverrides() rather than falling
+   *  back to the server's single env-var credential set. */
+  mpesaCredentials: ResolvedMpesaCredentials | null;
 }
 
 const DEFAULT_ACCOUNT_SHAPE = {
@@ -89,21 +103,53 @@ async function resolveFromUnitId(unitId: number | null, orgId: number): Promise<
 
   if (ownerId) {
     const [override] = await db
-      .select({ rentPayment: landlordPaymentSettings.rentPayment, utilityPayment: landlordPaymentSettings.utilityPayment })
+      .select({
+        rentPayment: landlordPaymentSettings.rentPayment,
+        utilityPayment: landlordPaymentSettings.utilityPayment,
+        mpesaConsumerKey: landlordPaymentSettings.mpesaConsumerKey,
+        mpesaConsumerSecretEncrypted: landlordPaymentSettings.mpesaConsumerSecretEncrypted,
+        mpesaPasskeyEncrypted: landlordPaymentSettings.mpesaPasskeyEncrypted,
+        mpesaEnvironment: landlordPaymentSettings.mpesaEnvironment,
+      })
       .from(landlordPaymentSettings)
       .where(and(eq(landlordPaymentSettings.organizationId, orgId), eq(landlordPaymentSettings.ownerId, ownerId)))
       .limit(1);
 
     if (override) {
+      const rentPayment = override.rentPayment ?? { useSingleAccount: true, ...DEFAULT_ACCOUNT_SHAPE };
+
+      // Only treat this landlord as having real STK Push credentials if all
+      // three secret/key pieces are present — a landlord who's only entered
+      // a Paybill number for manual-payment display doesn't have these.
+      let mpesaCredentials: ResolvedMpesaCredentials | null = null;
+      const shortCode = (rentPayment as any)?.mpesaPaybill || (rentPayment as any)?.mpesaTill;
+      if (override.mpesaConsumerKey && override.mpesaConsumerSecretEncrypted && override.mpesaPasskeyEncrypted && shortCode) {
+        try {
+          mpesaCredentials = {
+            consumerKey: override.mpesaConsumerKey,
+            consumerSecret: decryptSecret(override.mpesaConsumerSecretEncrypted),
+            passkey: decryptSecret(override.mpesaPasskeyEncrypted),
+            businessShortCode: shortCode,
+            environment: (override.mpesaEnvironment as "sandbox" | "production") ?? "production",
+          };
+        } catch (err) {
+          // Decryption failure (e.g. key rotated without re-encrypting) —
+          // fail safe to manual-payment-only for this landlord rather than
+          // throwing and breaking the whole payment page.
+          console.error(`[resolvePaymentConfig] Failed to decrypt Daraja credentials for landlord ${ownerId}:`, err);
+        }
+      }
+
       return {
-        rentPayment: override.rentPayment ?? { useSingleAccount: true, ...DEFAULT_ACCOUNT_SHAPE },
+        rentPayment,
         utilityPayment: override.utilityPayment ?? { sameAsRent: true, ...DEFAULT_ACCOUNT_SHAPE },
         resolvedFrom: "landlord",
         landlordOwnerId: ownerId,
+        mpesaCredentials,
       };
     }
   }
 
   const orgDefault = await getOrgDefault(orgId);
-  return { ...orgDefault, resolvedFrom: "org-default", landlordOwnerId: ownerId };
+  return { ...orgDefault, resolvedFrom: "org-default", landlordOwnerId: ownerId, mpesaCredentials: null };
 }

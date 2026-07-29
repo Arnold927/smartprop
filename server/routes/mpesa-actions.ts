@@ -25,7 +25,7 @@ import { rentPayments, tenants, mpesaTransactions, utilityBills } from '@shared/
 import { eq, and, or, like, gte, lte, isNull }     from 'drizzle-orm';
 import { authenticateJWT } from '../middleware/auth';
 import { safaricomIpOnly } from '../middleware/safaricomIp';
-import { getMPesaService, isMpesaConfigured } from '../services/mpesa';
+import { getMPesaService, isMpesaConfigured, createMPesaServiceForOverrides } from '../services/mpesa';
 import { storage }         from '../storage';
 import { notifyPaymentConfirmed } from '../ws';
 import { whatsappService } from '../whatsapp';
@@ -352,13 +352,15 @@ router.post('/initiate', authenticateJWT, async (req: any, res) => {
       ?? (utilityBillId ? buildUtilityAccountReference(utilityBillId) : rentPaymentId ? buildRentAccountReference(rentPaymentId) : 'RENT');
     const desc = description ?? (utilityBillId ? 'Utility Payment' : 'Rent Payment');
 
-    // ── Resolve shortcode from Payment Setup ─────────────────────────────────
-    // Use the Paybill/Till configured for this tenant's specific landlord if
-    // one exists (multi-landlord orgs), else the org-wide default, else the
-    // MPESA_BUSINESS_SHORTCODE env var. Same resolution chain as the
-    // tenant-facing GET /api/payment-config/public, so STK Push money always
-    // lands wherever the tenant was actually told to pay.
+    // ── Resolve shortcode + credentials from Payment Setup ───────────────────
+    // Use the Paybill/Till (and, if configured, the full Daraja credentials)
+    // for this tenant's specific landlord if one exists (multi-landlord
+    // orgs), else the org-wide default, else the MPESA_BUSINESS_SHORTCODE
+    // env var. Same resolution chain as the tenant-facing
+    // GET /api/payment-config/public, so STK Push money always lands
+    // wherever the tenant was actually told to pay.
     let resolvedShortCode: string | undefined;
+    let landlordMpesaService: ReturnType<typeof createMPesaServiceForOverrides> = null;
     try {
       const orgId: number | undefined = req.user?.organizationId;
       if (orgId) {
@@ -381,54 +383,56 @@ router.post('/initiate', authenticateJWT, async (req: any, res) => {
         } else {
           console.log(`[MPesa] No Payment Setup shortcode for org ${orgId} — using env MPESA_BUSINESS_SHORTCODE`);
         }
+
+        // If this landlord has their own full Daraja credentials (not just
+        // a display Paybill number), build a properly-paired service
+        // instance for them — different landlords, or the same management
+        // company acting on behalf of different owners, very likely have
+        // independently-registered shortcodes, each needing its own passkey.
+        if (resolved?.mpesaCredentials) {
+          landlordMpesaService = createMPesaServiceForOverrides(resolved.mpesaCredentials);
+          if (landlordMpesaService) {
+            console.log(`[MPesa] Using landlord ${resolved.landlordOwnerId}'s own Daraja credentials for shortcode ${resolved.mpesaCredentials.businessShortCode}`);
+          }
+        }
       }
     } catch (lookupErr: any) {
       console.warn('[MPesa] Could not read Payment Setup config, using env shortcode:', lookupErr.message);
     }
 
-    // Apply the resolved shortcode to the service config before the STK call,
-    // then restore it immediately after — works with any version of mpesa.ts.
-    const svcConfig = (mpesaService as any).config;
-    const originalShortCode: string | undefined = svcConfig?.businessShortCode;
+    // Use the landlord's own properly-paired service if we built one above;
+    // otherwise fall back to the server-default instance.
+    const activeMpesaService = landlordMpesaService ?? mpesaService;
+    const originalShortCode: string | undefined = (mpesaService as any)?.config?.businessShortCode;
 
-    // Safety guard: the server's single MPESA_PASSKEY env var is issued by
-    // Safaricom specifically for originalShortCode. If a landlord or the org
-    // has configured a DIFFERENT Paybill/Till for manual payment display,
-    // that's fine for showing tenants where to pay manually — but attempting
-    // an automated STK Push with a mismatched shortcode+passkey pair doesn't
-    // just fail, it fails with a cryptic Safaricom authentication error after
-    // the tenant has already been prompted. Refuse it up front instead, with
-    // an actionable message, and let them use the manual Paybill/Till shown
-    // on screen (which needs no passkey — it works for any shortcode).
-    if (resolvedShortCode && originalShortCode && resolvedShortCode !== originalShortCode) {
+    // Safety guard for the remaining case: a landlord/org has configured a
+    // DIFFERENT Paybill/Till for manual payment display, but hasn't (or
+    // can't) provide full Daraja credentials for it — the server's single
+    // MPESA_PASSKEY env var is issued by Safaricom specifically for
+    // originalShortCode, and attempting an automated STK Push with a
+    // mismatched shortcode+passkey pair doesn't just fail, it fails with a
+    // cryptic Safaricom authentication error after the tenant has already
+    // been prompted. Refuse it up front instead, with an actionable
+    // message, and let them use the manual Paybill/Till shown on screen
+    // (which needs no passkey — it works for any shortcode).
+    if (!landlordMpesaService && resolvedShortCode && originalShortCode && resolvedShortCode !== originalShortCode) {
       return res.status(409).json({
         message:
           "Automatic M-Pesa prompts (STK Push) aren't available for this specific payment destination yet — " +
           "please pay using the Paybill or Till number and steps shown on screen instead. " +
           "(This account uses a different Paybill/Till than the one STK Push is currently set up for; " +
-          "ask your administrator to register it for Lipa Na M-Pesa Online to enable automatic prompts here.)",
+          "ask your administrator to add full Daraja API credentials for it, or register it for Lipa Na M-Pesa Online, to enable automatic prompts here.)",
         code: "STK_SHORTCODE_MISMATCH",
       });
     }
 
-    if (resolvedShortCode && svcConfig) {
-      svcConfig.businessShortCode = resolvedShortCode;
-    }
-
     let stkResponse: any;
-    try {
-      stkResponse = await mpesaService.initiateSTKPush({
-        phoneNumber,
-        amount,
-        accountReference: ref.slice(0, 12),
-        transactionDesc:  desc.slice(0, 13),
-      });
-    } finally {
-      // Always restore so other concurrent requests are unaffected
-      if (resolvedShortCode && svcConfig && originalShortCode) {
-        svcConfig.businessShortCode = originalShortCode;
-      }
-    }
+    stkResponse = await activeMpesaService.initiateSTKPush({
+      phoneNumber,
+      amount,
+      accountReference: ref.slice(0, 12),
+      transactionDesc:  desc.slice(0, 13),
+    });
 
     const transaction = await storage.createMpesaTransaction({
       phoneNumber,

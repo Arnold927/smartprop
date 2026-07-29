@@ -25,6 +25,8 @@ import { landlordPaymentSettings, users } from "@shared/schema";
 import { eq, and } from "drizzle-orm";
 import { authenticateJWT } from "../middleware/auth";
 import { requireOrg } from "../middleware/requireOrg";
+import { encryptSecret, maskSecret, encryptionConfigured } from "../utils/credentialEncryption";
+import { createMPesaServiceForOverrides } from "../services/mpesa";
 
 const router = Router();
 router.use(authenticateJWT as any, requireOrg as any);
@@ -47,24 +49,58 @@ function emptyShape() {
   };
 }
 
-async function upsert(orgId: number, ownerId: string, rentPayment: any, utilityPayment: any) {
+/** Never return raw secrets — just enough for the UI to show "configured,
+ *  ending in ****1234" without ever re-exposing the actual passkey/secret. */
+function credentialsStatus(row: {
+  mpesaConsumerKey: string | null;
+  mpesaConsumerSecretEncrypted: string | null;
+  mpesaPasskeyEncrypted: string | null;
+  mpesaEnvironment: string | null;
+  stkPushVerifiedAt: Date | null;
+} | undefined) {
+  if (!row || !row.mpesaConsumerKey || !row.mpesaConsumerSecretEncrypted || !row.mpesaPasskeyEncrypted) {
+    return { configured: false, environment: "production", verified: false, consumerKeyMasked: null };
+  }
+  return {
+    configured: true,
+    environment: row.mpesaEnvironment ?? "production",
+    verified: !!row.stkPushVerifiedAt,
+    verifiedAt: row.stkPushVerifiedAt,
+    consumerKeyMasked: maskSecret(row.mpesaConsumerKey),
+  };
+}
+
+async function upsert(orgId: number, ownerId: string, rentPayment: any, utilityPayment: any, mpesaCreds?: {
+  consumerKey?: string; consumerSecret?: string; passkey?: string; environment?: string;
+}) {
   const [existing] = await db
     .select({ id: landlordPaymentSettings.id })
     .from(landlordPaymentSettings)
     .where(and(eq(landlordPaymentSettings.organizationId, orgId), eq(landlordPaymentSettings.ownerId, ownerId)))
     .limit(1);
 
+  // Only touch credential fields if the caller actually sent new ones —
+  // never overwrite a saved passkey/secret with blank just because a
+  // display-info-only save didn't include them.
+  const credFields: Record<string, any> = {};
+  if (mpesaCreds?.consumerKey?.trim())    credFields.mpesaConsumerKey = mpesaCreds.consumerKey.trim();
+  if (mpesaCreds?.consumerSecret?.trim()) credFields.mpesaConsumerSecretEncrypted = encryptSecret(mpesaCreds.consumerSecret.trim());
+  if (mpesaCreds?.passkey?.trim())        credFields.mpesaPasskeyEncrypted = encryptSecret(mpesaCreds.passkey.trim());
+  if (mpesaCreds?.environment)            credFields.mpesaEnvironment = mpesaCreds.environment;
+  // Any credential change invalidates the previous verification — re-test required.
+  if (Object.keys(credFields).length > 0) credFields.stkPushVerifiedAt = null;
+
   if (existing) {
     const [updated] = await db
       .update(landlordPaymentSettings)
-      .set({ rentPayment, utilityPayment, updatedAt: new Date() })
+      .set({ rentPayment, utilityPayment, ...credFields, updatedAt: new Date() })
       .where(eq(landlordPaymentSettings.id, existing.id))
       .returning();
     return updated;
   }
   const [created] = await db
     .insert(landlordPaymentSettings)
-    .values({ organizationId: orgId, ownerId, rentPayment, utilityPayment })
+    .values({ organizationId: orgId, ownerId, rentPayment, utilityPayment, ...credFields })
     .returning();
   return created;
 }
@@ -83,9 +119,14 @@ router.get("/mine", async (req: any, res: any) => {
       .limit(1);
 
     if (!row) {
-      return res.json({ configured: false, ...emptyShape() });
+      return res.json({ configured: false, ...emptyShape(), mpesaCredentials: credentialsStatus(undefined) });
     }
-    return res.json({ configured: true, rentPayment: row.rentPayment, utilityPayment: row.utilityPayment });
+    return res.json({
+      configured: true,
+      rentPayment: row.rentPayment,
+      utilityPayment: row.utilityPayment,
+      mpesaCredentials: credentialsStatus(row),
+    });
   } catch (err) {
     console.error("[landlord-payment-config] GET /mine:", err);
     res.status(500).json({ message: "Failed to fetch payment settings" });
@@ -98,14 +139,93 @@ router.put("/mine", async (req: any, res: any) => {
     if (req.user.role !== "landlord") {
       return res.status(403).json({ message: "This endpoint is for landlords. Use /api/payment-config for the org default." });
     }
-    const { rentPayment, utilityPayment } = req.body;
+    const { rentPayment, utilityPayment, mpesaCredentials } = req.body;
     if (!rentPayment) return res.status(400).json({ message: "rentPayment is required" });
 
-    const updated = await upsert(req.user.organizationId, req.user.id, rentPayment, utilityPayment ?? null);
-    return res.json({ success: true, rentPayment: updated.rentPayment, utilityPayment: updated.utilityPayment });
+    if (mpesaCredentials && (mpesaCredentials.consumerSecret || mpesaCredentials.passkey) && !encryptionConfigured()) {
+      return res.status(503).json({ message: "Credential storage isn't configured on this server yet. Contact your platform administrator." });
+    }
+
+    const updated = await upsert(req.user.organizationId, req.user.id, rentPayment, utilityPayment ?? null, mpesaCredentials);
+    return res.json({
+      success: true,
+      rentPayment: updated.rentPayment,
+      utilityPayment: updated.utilityPayment,
+      mpesaCredentials: credentialsStatus(updated),
+    });
   } catch (err) {
     console.error("[landlord-payment-config] PUT /mine:", err);
     res.status(500).json({ message: "Failed to update payment settings" });
+  }
+});
+
+// ── POST /mine/test-stk — verify saved credentials with a real (tiny) STK Push ──
+// Sends a KES 1 STK Push to the landlord's own phone to confirm their
+// consumerKey/consumerSecret/passkey/shortcode combination is genuinely
+// valid, rather than just trusting whatever they typed in. Marks
+// stkPushVerifiedAt on a successful prompt (Safaricom accepting the
+// request) — this confirms the credentials authenticate correctly; it
+// doesn't require the landlord to actually enter their PIN and complete
+// the payment.
+router.post("/mine/test-stk", async (req: any, res: any) => {
+  try {
+    if (req.user.role !== "landlord") {
+      return res.status(403).json({ message: "This endpoint is for landlords." });
+    }
+    const { phoneNumber } = req.body;
+    if (!phoneNumber?.trim()) return res.status(400).json({ message: "phoneNumber is required to send the test prompt" });
+
+    const orgId: number = req.user.organizationId;
+    const [row] = await db
+      .select({
+        mpesaConsumerKey: landlordPaymentSettings.mpesaConsumerKey,
+        mpesaConsumerSecretEncrypted: landlordPaymentSettings.mpesaConsumerSecretEncrypted,
+        mpesaPasskeyEncrypted: landlordPaymentSettings.mpesaPasskeyEncrypted,
+        mpesaEnvironment: landlordPaymentSettings.mpesaEnvironment,
+        rentPayment: landlordPaymentSettings.rentPayment,
+      })
+      .from(landlordPaymentSettings)
+      .where(and(eq(landlordPaymentSettings.organizationId, orgId), eq(landlordPaymentSettings.ownerId, req.user.id)))
+      .limit(1);
+
+    if (!row?.mpesaConsumerKey || !row.mpesaConsumerSecretEncrypted || !row.mpesaPasskeyEncrypted) {
+      return res.status(400).json({ message: "Save your consumer key, consumer secret, and passkey first." });
+    }
+    const shortCode = (row.rentPayment as any)?.mpesaPaybill || (row.rentPayment as any)?.mpesaTill;
+    if (!shortCode) {
+      return res.status(400).json({ message: "Save a Paybill or Till number first — the passkey must match it." });
+    }
+
+    const { decryptSecret } = await import("../utils/credentialEncryption");
+    const service = createMPesaServiceForOverrides({
+      consumerKey: row.mpesaConsumerKey,
+      consumerSecret: decryptSecret(row.mpesaConsumerSecretEncrypted),
+      passkey: decryptSecret(row.mpesaPasskeyEncrypted),
+      businessShortCode: shortCode,
+      environment: (row.mpesaEnvironment as "sandbox" | "production") ?? "production",
+    });
+    if (!service) {
+      return res.status(500).json({ message: "Could not build a service instance from the saved credentials — try re-entering them." });
+    }
+
+    await service.initiateSTKPush({
+      phoneNumber,
+      amount: 1,
+      accountReference: "TEST",
+      transactionDesc: "Setup test",
+    });
+
+    await db.update(landlordPaymentSettings)
+      .set({ stkPushVerifiedAt: new Date() })
+      .where(and(eq(landlordPaymentSettings.organizationId, orgId), eq(landlordPaymentSettings.ownerId, req.user.id)));
+
+    res.json({ success: true, message: "Test prompt sent — check your phone. Your Daraja credentials are working." });
+  } catch (err: any) {
+    console.error("[landlord-payment-config] POST /mine/test-stk:", err);
+    res.status(400).json({
+      message: "Safaricom rejected the test prompt — double check your consumer key, consumer secret, passkey, and shortcode are all for the same Paybill/Till.",
+      detail: err?.message,
+    });
   }
 });
 
@@ -155,8 +275,13 @@ router.get("/:ownerId", async (req: any, res: any) => {
       .where(and(eq(landlordPaymentSettings.organizationId, orgId), eq(landlordPaymentSettings.ownerId, ownerId)))
       .limit(1);
 
-    if (!row) return res.json({ configured: false, ...emptyShape() });
-    return res.json({ configured: true, rentPayment: row.rentPayment, utilityPayment: row.utilityPayment });
+    if (!row) return res.json({ configured: false, ...emptyShape(), mpesaCredentials: credentialsStatus(undefined) });
+    return res.json({
+      configured: true,
+      rentPayment: row.rentPayment,
+      utilityPayment: row.utilityPayment,
+      mpesaCredentials: credentialsStatus(row),
+    });
   } catch (err) {
     console.error("[landlord-payment-config] GET /:ownerId:", err);
     res.status(500).json({ message: "Failed to fetch payment settings" });
@@ -171,17 +296,93 @@ router.put("/:ownerId", async (req: any, res: any) => {
     }
     const orgId: number = req.user.organizationId;
     const { ownerId } = req.params;
-    const { rentPayment, utilityPayment } = req.body;
+    const { rentPayment, utilityPayment, mpesaCredentials } = req.body;
     if (!rentPayment) return res.status(400).json({ message: "rentPayment is required" });
+
+    if (mpesaCredentials && (mpesaCredentials.consumerSecret || mpesaCredentials.passkey) && !encryptionConfigured()) {
+      return res.status(503).json({ message: "Credential storage isn't configured on this server yet. Contact your platform administrator." });
+    }
 
     const [landlord] = await db.select({ id: users.id }).from(users).where(and(eq(users.id, ownerId), eq(users.organizationId, orgId), eq(users.role, "landlord"))).limit(1);
     if (!landlord) return res.status(404).json({ message: "Landlord not found in your organisation" });
 
-    const updated = await upsert(orgId, ownerId, rentPayment, utilityPayment ?? null);
-    return res.json({ success: true, rentPayment: updated.rentPayment, utilityPayment: updated.utilityPayment });
+    const updated = await upsert(orgId, ownerId, rentPayment, utilityPayment ?? null, mpesaCredentials);
+    return res.json({
+      success: true,
+      rentPayment: updated.rentPayment,
+      utilityPayment: updated.utilityPayment,
+      mpesaCredentials: credentialsStatus(updated),
+    });
   } catch (err) {
     console.error("[landlord-payment-config] PUT /:ownerId:", err);
     res.status(500).json({ message: "Failed to update payment settings" });
+  }
+});
+
+// ── POST /:ownerId/test-stk — admin/manager test a specific landlord's credentials ──
+router.post("/:ownerId/test-stk", async (req: any, res: any) => {
+  try {
+    if (!["admin", "manager"].includes(req.user.role)) {
+      return res.status(403).json({ message: "Not permitted." });
+    }
+    const orgId: number = req.user.organizationId;
+    const { ownerId } = req.params;
+    const { phoneNumber } = req.body;
+    if (!phoneNumber?.trim()) return res.status(400).json({ message: "phoneNumber is required to send the test prompt" });
+
+    const [landlord] = await db.select({ id: users.id }).from(users).where(and(eq(users.id, ownerId), eq(users.organizationId, orgId), eq(users.role, "landlord"))).limit(1);
+    if (!landlord) return res.status(404).json({ message: "Landlord not found in your organisation" });
+
+    const [row] = await db
+      .select({
+        mpesaConsumerKey: landlordPaymentSettings.mpesaConsumerKey,
+        mpesaConsumerSecretEncrypted: landlordPaymentSettings.mpesaConsumerSecretEncrypted,
+        mpesaPasskeyEncrypted: landlordPaymentSettings.mpesaPasskeyEncrypted,
+        mpesaEnvironment: landlordPaymentSettings.mpesaEnvironment,
+        rentPayment: landlordPaymentSettings.rentPayment,
+      })
+      .from(landlordPaymentSettings)
+      .where(and(eq(landlordPaymentSettings.organizationId, orgId), eq(landlordPaymentSettings.ownerId, ownerId)))
+      .limit(1);
+
+    if (!row?.mpesaConsumerKey || !row.mpesaConsumerSecretEncrypted || !row.mpesaPasskeyEncrypted) {
+      return res.status(400).json({ message: "This landlord hasn't saved consumer key, consumer secret, and passkey yet." });
+    }
+    const shortCode = (row.rentPayment as any)?.mpesaPaybill || (row.rentPayment as any)?.mpesaTill;
+    if (!shortCode) {
+      return res.status(400).json({ message: "Save a Paybill or Till number for this landlord first — the passkey must match it." });
+    }
+
+    const { decryptSecret } = await import("../utils/credentialEncryption");
+    const service = createMPesaServiceForOverrides({
+      consumerKey: row.mpesaConsumerKey,
+      consumerSecret: decryptSecret(row.mpesaConsumerSecretEncrypted),
+      passkey: decryptSecret(row.mpesaPasskeyEncrypted),
+      businessShortCode: shortCode,
+      environment: (row.mpesaEnvironment as "sandbox" | "production") ?? "production",
+    });
+    if (!service) {
+      return res.status(500).json({ message: "Could not build a service instance from the saved credentials." });
+    }
+
+    await service.initiateSTKPush({
+      phoneNumber,
+      amount: 1,
+      accountReference: "TEST",
+      transactionDesc: "Setup test",
+    });
+
+    await db.update(landlordPaymentSettings)
+      .set({ stkPushVerifiedAt: new Date() })
+      .where(and(eq(landlordPaymentSettings.organizationId, orgId), eq(landlordPaymentSettings.ownerId, ownerId)));
+
+    res.json({ success: true, message: "Test prompt sent — check the phone number entered. Credentials are working." });
+  } catch (err: any) {
+    console.error("[landlord-payment-config] POST /:ownerId/test-stk:", err);
+    res.status(400).json({
+      message: "Safaricom rejected the test prompt — double check the consumer key, consumer secret, passkey, and shortcode are all for the same Paybill/Till.",
+      detail: err?.message,
+    });
   }
 });
 

@@ -233,6 +233,20 @@ export const landlordPaymentSettings = pgTable(
     ownerId: uuid("owner_id").references(() => users.id).notNull(),
     rentPayment: jsonb("rent_payment").default({}),
     utilityPayment: jsonb("utility_payment").default({}),
+    // Per-landlord Daraja (Lipa Na M-Pesa Online) API credentials — separate
+    // from the freeform display-info JSONB above because these are secrets,
+    // not display data. Different landlords (or the same management company
+    // acting for different owners) very likely have independently-registered
+    // Safaricom shortcodes, each requiring its own passkey and often its own
+    // consumer key/secret — you cannot use one shortcode's passkey to
+    // authenticate an STK Push against a different shortcode. Secret fields
+    // are encrypted at rest (see server/utils/credentialEncryption.ts) and
+    // never returned in plaintext by any API response.
+    mpesaConsumerKey: varchar("mpesa_consumer_key"),
+    mpesaConsumerSecretEncrypted: text("mpesa_consumer_secret_encrypted"),
+    mpesaPasskeyEncrypted: text("mpesa_passkey_encrypted"),
+    mpesaEnvironment: varchar("mpesa_environment").default("production"), // sandbox | production
+    stkPushVerifiedAt: timestamp("stk_push_verified_at"), // set after a successful test push
     updatedAt: timestamp("updated_at").defaultNow(),
   },
   (t) => ({
