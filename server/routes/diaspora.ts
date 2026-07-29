@@ -212,7 +212,11 @@ async function recalcContractBalance(contractId: number): Promise<void> {
       remainingBalance:     String(newRemaining.toFixed(2)),
       completionPercentage: String(Math.min(100, completionPct).toFixed(2)),
       paymentsMade,
-      contractStatus,
+      // Schema column is 'status', not 'contractStatus' — the previous
+      // wrong field name was silently swallowed by the `as any` cast below,
+      // meaning a contract never actually got marked "completed" in the
+      // database even once fully paid off.
+      status:               contractStatus,
       updatedAt:            new Date(),
     } as any)
     .where(eq(diasporaContracts.id, contractId));

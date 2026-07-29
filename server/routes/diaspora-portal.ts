@@ -5,9 +5,9 @@
  * frontend page.  Every response is filtered to contracts where
  * buyerUserId = req.user.id — a buyer can never see another buyer's data.
  *
- * Allowed roles: all authenticated users (TENANT_AND_ABOVE in ROUTE_POLICY).
- * In practice only users with role='landlord' who are linked as a buyer will
- * have any contracts; everyone else gets an empty list.
+ * Allowed roles: all authenticated users (ALL_AUTHENTICATED in ROUTE_POLICY).
+ * In practice, buyers are created (or linked) with role='tenant' — see
+ * diaspora.ts's contract-creation flow. Anyone else simply gets an empty list.
  *
  * Endpoints:
  *   GET /api/diaspora-portal/contracts           — buyer's contracts
@@ -363,14 +363,19 @@ router.get("/documents", ...auth, async (req: any, res: any) => {
 
     const propertyIds = contracts.map(c => c.propertyId).filter(Boolean) as number[];
 
-    // Fetch documents linked to those properties (shared by PM with this buyer)
+    // Fetch documents linked to those properties (shared by PM with this buyer).
+    // Previously this returned every document tagged to the property with no
+    // further filter — including other tenants' private lease documents, ID
+    // copies, and other records (anything with tenantId set), since this
+    // buyer has no relationship with those tenants and shouldn't see their
+    // paperwork. Restricted to property-level documents (tenantId IS NULL).
     let docs: any[] = [];
     if (propertyIds.length > 0) {
-      const { inArray } = await import("drizzle-orm");
+      const { inArray, isNull } = await import("drizzle-orm");
       docs = await db
         .select()
         .from(documents)
-        .where(inArray(documents.propertyId, propertyIds))
+        .where(and(inArray(documents.propertyId, propertyIds), isNull(documents.tenantId)))
         .orderBy(desc(documents.createdAt))
         .limit(50);
     }
