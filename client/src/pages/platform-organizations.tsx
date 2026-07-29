@@ -15,8 +15,9 @@ import { useLocation } from "wouter";
 import { apiRequest } from "@/lib/queryClient";
 import { useRoleGuard, ROLES } from "@/hooks/useRoleGuard";
 import { Card, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Building2, Users, Home, ChevronRight, CreditCard } from "lucide-react";
+import { Building2, Users, Home, ChevronRight, CreditCard, Wallet } from "lucide-react";
 
 interface OrgRow {
   id: number;
@@ -148,6 +149,17 @@ export default function PlatformOrganizationsPage() {
                     <CreditCard className="h-3.5 w-3.5" />
                     <span>{fmtKES(org.revenueThisMonth)} <span className="text-xs opacity-70">/ {fmtKES(org.revenueTotal)} total</span></span>
                   </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-7 text-xs gap-1.5"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      navigate(`/payment-setup?organizationId=${org.id}`);
+                    }}
+                  >
+                    <Wallet className="h-3.5 w-3.5" /> Payment Setup
+                  </Button>
                   <ChevronRight className="h-4 w-4" />
                 </div>
               </CardContent>
