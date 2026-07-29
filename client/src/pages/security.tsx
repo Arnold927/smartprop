@@ -669,6 +669,7 @@ export default function SecurityPage() {
   if (guard.gate) return guard.gate;
   const { user } = useAuth();
   const isLandlord = user?.role === "landlord";
+  const isStaff = user?.role === "staff";
 
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -685,6 +686,9 @@ export default function SecurityPage() {
       // half-broken experience on tabs that would silently fail.
       const landlordValidTabs = ["visitor-management", "gate-pins", "hardware", "vehicle-log"];
       if (isLandlord) return t && landlordValidTabs.includes(t) ? t : "gate-pins";
+      // Staff shouldn't manage vehicles or guard PINs — the backend now
+      // rejects both, so don't let a direct ?tab= link land them there.
+      if (isStaff && (t === "vehicle-registration" || t === "gate-pins")) return "dashboard";
       return t && valid.includes(t) ? t : "dashboard";
     } catch { return isLandlord ? "gate-pins" : "dashboard"; }
   })();
@@ -1392,7 +1396,8 @@ export default function SecurityPage() {
                 { value: "gate-pins",            label: "Gate PINs",   icon: Shield     },
                 { value: "vehicle-log",          label: "Vehicle Log", icon: Activity   },
                 { value: "hardware",             label: "Hardware",    icon: Cpu        },
-              ]).map(({ value, label, icon: Icon }) => (
+              ].filter(tab => !isStaff || !["vehicle-registration", "gate-pins"].includes(tab.value))
+              ).map(({ value, label, icon: Icon }) => (
                 <TabsTrigger key={value} value={value}
                   className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg whitespace-nowrap data-[state=active]:bg-emerald-600 data-[state=active]:text-white data-[state=active]:shadow-sm">
                   <Icon className="w-3.5 h-3.5" />

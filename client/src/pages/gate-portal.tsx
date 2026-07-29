@@ -303,7 +303,7 @@ function HardwarePanel({ session }: { session: GuardSession }) {
 
           <div>
             <label className="text-xs text-muted-foreground mb-1.5 block">Hardware vendor</label>
-            <div className="grid grid-cols-3 gap-2">
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
               {(["hikvision", "zkteco", "generic"] as const).map(v => (
                 <button key={v} type="button"
                   onClick={() => setFormState(s => ({ ...s, vendor: v }))}
@@ -1108,7 +1108,7 @@ export default function GatePortal() {
 
               <div>
                 <label className="text-xs text-muted-foreground mb-1.5 block">Vehicle Type</label>
-                <div className="grid grid-cols-3 gap-2">
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                   {["car", "motorcycle", "van", "truck", "bicycle", "other"].map(t => (
                     <button key={t} type="button"
                       onClick={() => setVehicleForm(v => ({ ...v, type: t }))}
@@ -1122,7 +1122,7 @@ export default function GatePortal() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-3 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 {(["make", "model", "color"] as const).map(field => (
                   <div key={field}>
                     <label className="text-xs text-muted-foreground mb-1.5 block capitalize">{field}</label>

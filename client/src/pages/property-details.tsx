@@ -585,7 +585,7 @@ export default function PropertyDetailsPage() {
               <Card className="rounded-2xl shadow-none border-border dark:border-gray-800 md:col-span-2">
                 <CardContent className="p-5 h-full flex flex-col justify-between">
                   <p className="text-[11px] uppercase tracking-widest text-muted-foreground font-semibold mb-3">Revenue breakdown</p>
-                  <div className="grid grid-cols-2 gap-6 flex-1">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 flex-1">
                     <div>
                       <p className="text-xs text-muted-foreground">Potential (full occupancy)</p>
                       <p className="text-2xl font-semibold text-foreground mt-0.5">KES {totalMonthlyRent.toLocaleString()}</p>

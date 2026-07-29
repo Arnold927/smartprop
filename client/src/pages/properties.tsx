@@ -165,7 +165,7 @@ export default function Properties() {
     return (
       <div className="p-6 space-y-5 animate-pulse">
         <div className="h-8 bg-muted dark:bg-gray-700 rounded w-48" />
-        <div className="grid grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           {[...Array(3)].map((_, i) => <div key={i} className="h-24 bg-muted dark:bg-gray-700 rounded-2xl" />)}
         </div>
         <div className="h-64 bg-muted dark:bg-gray-700 rounded-2xl" />
@@ -199,7 +199,7 @@ export default function Properties() {
       <div className="max-w-7xl mx-auto px-8 py-8 space-y-7">
 
         {/* ── KPI strip ── */}
-        <div className="grid grid-cols-3 gap-5">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
           {[
             { icon: Building2, label: "Properties",  value: properties.length,          bg: "bg-emerald-50 dark:bg-emerald-950/40", fg: "text-emerald-600" },
             { icon: Home,      label: "Total units",  value: allUnits.length || totalUnits, bg: "bg-sky-50 dark:bg-sky-950/40",     fg: "text-sky-600" },

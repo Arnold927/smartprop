@@ -73,7 +73,7 @@ export default function PlatformOrganizationsPage() {
       </div>
 
       {!isLoading && !error && orgs.length > 0 && (
-        <div className="grid grid-cols-2 gap-3 mb-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-6">
           <Card>
             <CardContent className="py-4">
               <p className="text-xs text-muted-foreground">Revenue this month — all organisations</p>
@@ -111,7 +111,7 @@ export default function PlatformOrganizationsPage() {
               className="cursor-pointer hover:border-emerald-300 dark:hover:border-emerald-800 transition-colors"
               onClick={() => navigate(`/properties?organizationId=${org.id}`)}
             >
-              <CardContent className="py-4 flex items-center justify-between gap-4">
+              <CardContent className="py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <div className="flex items-center gap-3 min-w-0">
                   <div className="rounded-lg bg-muted dark:bg-gray-800 p-2 shrink-0">
                     <Building2 className="h-4 w-4 text-muted-foreground" />
@@ -135,7 +135,7 @@ export default function PlatformOrganizationsPage() {
                   </div>
                 </div>
 
-                <div className="flex items-center gap-4 shrink-0 text-sm text-muted-foreground">
+                <div className="flex items-center flex-wrap gap-x-4 gap-y-1.5 text-sm text-muted-foreground pl-11 sm:pl-0">
                   <div className="flex items-center gap-1.5">
                     <Home className="h-3.5 w-3.5" />
                     <span>{org.propertyCount}{org.maxProperties ? ` / ${org.maxProperties}` : ""}</span>
