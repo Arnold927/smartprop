@@ -339,7 +339,7 @@ function PaymentMethodSection({
  *  landlord (or an admin on their behalf) provide their own full Daraja
  *  credentials, enabling genuine automatic STK Push prompts for their own
  *  tenants rather than falling back to manual Paybill/Till payment. */
-function DarajaCredentialsSection({ endpoint, testEndpoint }: { endpoint: string; testEndpoint: string }) {
+function DarajaCredentialsSection({ endpoint, testEndpoint, scope }: { endpoint: string; testEndpoint: string; scope: "org" | "landlord" }) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [consumerKey, setConsumerKey] = useState("");
@@ -405,8 +405,8 @@ function DarajaCredentialsSection({ endpoint, testEndpoint }: { endpoint: string
         </CardTitle>
         <CardDescription>
           Only needed for automatic M-Pesa prompts (STK Push). Without these, tenants can still pay manually
-          using the Paybill/Till shown above — this just enables the one-tap "Pay Now" prompt for this
-          specific landlord's own shortcode.
+          using the Paybill/Till shown above — this just enables the one-tap "Pay Now" prompt for
+          {scope === "org" ? " this organisation's shortcode." : " this specific landlord's own shortcode."}
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -779,10 +779,11 @@ export default function PaymentConfigPanel({ scope = "org", landlordOwnerId, org
         )}
       </Card>
 
-      {scope === "landlord" && (
+      {(scope === "landlord" || scope === "org") && (
         <DarajaCredentialsSection
           endpoint={endpoint}
-          testEndpoint={withOrgParam(`/api/payment-config/landlord/${landlordOwnerId}/test-stk`, organizationId)}
+          scope={scope}
+          testEndpoint={scope === "org" ? withOrgParam("/api/payment-config/test-stk", organizationId) : withOrgParam(`/api/payment-config/landlord/${landlordOwnerId}/test-stk`, organizationId)}
         />
       )}
 

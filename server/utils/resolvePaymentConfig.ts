@@ -54,7 +54,13 @@ const DEFAULT_ACCOUNT_SHAPE = {
 
 async function getOrgDefault(orgId: number) {
   const [settings] = await db
-    .select({ paymentSettings: organizationSettings.paymentSettings })
+    .select({
+      paymentSettings: organizationSettings.paymentSettings,
+      mpesaConsumerKey: organizationSettings.mpesaConsumerKey,
+      mpesaConsumerSecretEncrypted: organizationSettings.mpesaConsumerSecretEncrypted,
+      mpesaPasskeyEncrypted: organizationSettings.mpesaPasskeyEncrypted,
+      mpesaEnvironment: organizationSettings.mpesaEnvironment,
+    })
     .from(organizationSettings)
     .where(eq(organizationSettings.organizationId, orgId))
     .limit(1);
@@ -62,10 +68,28 @@ async function getOrgDefault(orgId: number) {
   const paymentSettings = (settings?.paymentSettings as any) ?? {};
   const serverShortcode = process.env.MPESA_BUSINESS_SHORTCODE ?? "";
 
-  return {
-    rentPayment: paymentSettings.rentPayment ?? { useSingleAccount: true, ...DEFAULT_ACCOUNT_SHAPE, mpesaPaybill: serverShortcode },
-    utilityPayment: paymentSettings.utilityPayment ?? { sameAsRent: true, ...DEFAULT_ACCOUNT_SHAPE, mpesaPaybill: serverShortcode },
-  };
+  const rentPayment = paymentSettings.rentPayment ?? { useSingleAccount: true, ...DEFAULT_ACCOUNT_SHAPE, mpesaPaybill: serverShortcode };
+  const utilityPayment = paymentSettings.utilityPayment ?? { sameAsRent: true, ...DEFAULT_ACCOUNT_SHAPE, mpesaPaybill: serverShortcode };
+
+  // Org-level credentials — the fallback tier for the common single-landlord
+  // (or landlord-less) org, where a landlord-specific override never exists.
+  let mpesaCredentials: ResolvedMpesaCredentials | null = null;
+  const orgShortCode = rentPayment?.mpesaPaybill || rentPayment?.mpesaTill;
+  if (settings?.mpesaConsumerKey && settings.mpesaConsumerSecretEncrypted && settings.mpesaPasskeyEncrypted && orgShortCode) {
+    try {
+      mpesaCredentials = {
+        consumerKey: settings.mpesaConsumerKey,
+        consumerSecret: decryptSecret(settings.mpesaConsumerSecretEncrypted),
+        passkey: decryptSecret(settings.mpesaPasskeyEncrypted),
+        businessShortCode: orgShortCode,
+        environment: (settings.mpesaEnvironment as "sandbox" | "production") ?? "production",
+      };
+    } catch (err) {
+      console.error(`[resolvePaymentConfig] Failed to decrypt org-level Daraja credentials for org ${orgId}:`, err);
+    }
+  }
+
+  return { rentPayment, utilityPayment, mpesaCredentials };
 }
 
 /** Resolve by tenantId directly (used when the caller already knows it, e.g. mpesa-actions.ts). */
@@ -151,5 +175,5 @@ async function resolveFromUnitId(unitId: number | null, orgId: number): Promise<
   }
 
   const orgDefault = await getOrgDefault(orgId);
-  return { ...orgDefault, resolvedFrom: "org-default", landlordOwnerId: ownerId, mpesaCredentials: null };
+  return { ...orgDefault, resolvedFrom: "org-default", landlordOwnerId: ownerId };
 }

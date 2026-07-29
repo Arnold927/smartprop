@@ -207,6 +207,16 @@ export const organizationSettings = pgTable("organization_settings", {
   // Falls back to WHATSAPP_PHONE_NUMBER_ID / WHATSAPP_API_KEY env vars when null.
   whatsappSettings: jsonb("whatsapp_settings").default({}),
   paymentSettings: jsonb("payment_settings").default({}),
+  // Org-level Daraja (Lipa Na M-Pesa Online) API credentials — the fallback
+  // tier for the common case of a single-landlord (or landlord-less) org,
+  // where there's no separate landlord account to attach per-landlord
+  // credentials to (see landlordPaymentSettings for that case). Same
+  // encryption approach: secrets never stored or returned in plaintext.
+  mpesaConsumerKey: varchar("mpesa_consumer_key"),
+  mpesaConsumerSecretEncrypted: text("mpesa_consumer_secret_encrypted"),
+  mpesaPasskeyEncrypted: text("mpesa_passkey_encrypted"),
+  mpesaEnvironment: varchar("mpesa_environment").default("production"),
+  stkPushVerifiedAt: timestamp("stk_push_verified_at"),
   customFields: jsonb("custom_fields").default({}),
   integrations: jsonb("integrations").default({}),
   updatedAt: timestamp("updated_at").defaultNow(),
