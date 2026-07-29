@@ -779,13 +779,10 @@ export default function PaymentConfigPanel({ scope = "org", landlordOwnerId, org
         )}
       </Card>
 
-      {scope !== "org" && (
+      {scope === "landlord" && (
         <DarajaCredentialsSection
           endpoint={endpoint}
-          testEndpoint={withOrgParam(
-            scope === "mine" ? "/api/payment-config/landlord/mine/test-stk" : `/api/payment-config/landlord/${landlordOwnerId}/test-stk`,
-            organizationId
-          )}
+          testEndpoint={withOrgParam(`/api/payment-config/landlord/${landlordOwnerId}/test-stk`, organizationId)}
         />
       )}
 

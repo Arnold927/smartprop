@@ -139,14 +139,16 @@ router.put("/mine", async (req: any, res: any) => {
     if (req.user.role !== "landlord") {
       return res.status(403).json({ message: "This endpoint is for landlords. Use /api/payment-config for the org default." });
     }
-    const { rentPayment, utilityPayment, mpesaCredentials } = req.body;
+    const { rentPayment, utilityPayment } = req.body;
     if (!rentPayment) return res.status(400).json({ message: "rentPayment is required" });
 
-    if (mpesaCredentials && (mpesaCredentials.consumerSecret || mpesaCredentials.passkey) && !encryptionConfigured()) {
-      return res.status(503).json({ message: "Credential storage isn't configured on this server yet. Contact your platform administrator." });
-    }
-
-    const updated = await upsert(req.user.organizationId, req.user.id, rentPayment, utilityPayment ?? null, mpesaCredentials);
+    // Daraja credentials (consumer key/secret/passkey) are deliberately NOT
+    // settable here — most landlords aren't going to know what those terms
+    // even mean. That's handled entirely by admin/manager/platform_admin
+    // on the landlord's behalf via PUT /:ownerId below. Ignored even if a
+    // request somehow includes it, rather than trusting the frontend alone
+    // to keep this hidden.
+    const updated = await upsert(req.user.organizationId, req.user.id, rentPayment, utilityPayment ?? null);
     return res.json({
       success: true,
       rentPayment: updated.rentPayment,
@@ -156,76 +158,6 @@ router.put("/mine", async (req: any, res: any) => {
   } catch (err) {
     console.error("[landlord-payment-config] PUT /mine:", err);
     res.status(500).json({ message: "Failed to update payment settings" });
-  }
-});
-
-// ── POST /mine/test-stk — verify saved credentials with a real (tiny) STK Push ──
-// Sends a KES 1 STK Push to the landlord's own phone to confirm their
-// consumerKey/consumerSecret/passkey/shortcode combination is genuinely
-// valid, rather than just trusting whatever they typed in. Marks
-// stkPushVerifiedAt on a successful prompt (Safaricom accepting the
-// request) — this confirms the credentials authenticate correctly; it
-// doesn't require the landlord to actually enter their PIN and complete
-// the payment.
-router.post("/mine/test-stk", async (req: any, res: any) => {
-  try {
-    if (req.user.role !== "landlord") {
-      return res.status(403).json({ message: "This endpoint is for landlords." });
-    }
-    const { phoneNumber } = req.body;
-    if (!phoneNumber?.trim()) return res.status(400).json({ message: "phoneNumber is required to send the test prompt" });
-
-    const orgId: number = req.user.organizationId;
-    const [row] = await db
-      .select({
-        mpesaConsumerKey: landlordPaymentSettings.mpesaConsumerKey,
-        mpesaConsumerSecretEncrypted: landlordPaymentSettings.mpesaConsumerSecretEncrypted,
-        mpesaPasskeyEncrypted: landlordPaymentSettings.mpesaPasskeyEncrypted,
-        mpesaEnvironment: landlordPaymentSettings.mpesaEnvironment,
-        rentPayment: landlordPaymentSettings.rentPayment,
-      })
-      .from(landlordPaymentSettings)
-      .where(and(eq(landlordPaymentSettings.organizationId, orgId), eq(landlordPaymentSettings.ownerId, req.user.id)))
-      .limit(1);
-
-    if (!row?.mpesaConsumerKey || !row.mpesaConsumerSecretEncrypted || !row.mpesaPasskeyEncrypted) {
-      return res.status(400).json({ message: "Save your consumer key, consumer secret, and passkey first." });
-    }
-    const shortCode = (row.rentPayment as any)?.mpesaPaybill || (row.rentPayment as any)?.mpesaTill;
-    if (!shortCode) {
-      return res.status(400).json({ message: "Save a Paybill or Till number first — the passkey must match it." });
-    }
-
-    const { decryptSecret } = await import("../utils/credentialEncryption");
-    const service = createMPesaServiceForOverrides({
-      consumerKey: row.mpesaConsumerKey,
-      consumerSecret: decryptSecret(row.mpesaConsumerSecretEncrypted),
-      passkey: decryptSecret(row.mpesaPasskeyEncrypted),
-      businessShortCode: shortCode,
-      environment: (row.mpesaEnvironment as "sandbox" | "production") ?? "production",
-    });
-    if (!service) {
-      return res.status(500).json({ message: "Could not build a service instance from the saved credentials — try re-entering them." });
-    }
-
-    await service.initiateSTKPush({
-      phoneNumber,
-      amount: 1,
-      accountReference: "TEST",
-      transactionDesc: "Setup test",
-    });
-
-    await db.update(landlordPaymentSettings)
-      .set({ stkPushVerifiedAt: new Date() })
-      .where(and(eq(landlordPaymentSettings.organizationId, orgId), eq(landlordPaymentSettings.ownerId, req.user.id)));
-
-    res.json({ success: true, message: "Test prompt sent — check your phone. Your Daraja credentials are working." });
-  } catch (err: any) {
-    console.error("[landlord-payment-config] POST /mine/test-stk:", err);
-    res.status(400).json({
-      message: "Safaricom rejected the test prompt — double check your consumer key, consumer secret, passkey, and shortcode are all for the same Paybill/Till.",
-      detail: err?.message,
-    });
   }
 });
 
