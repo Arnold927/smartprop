@@ -12,7 +12,6 @@
  *    mark a contractor as verified.
  */
 import { Router } from "express";
-import { randomUUID } from "crypto";
 import { authenticateJWT } from "../middleware/auth";
 import { requireOrg } from "../middleware/requireOrg";
 import { db } from "../db";
@@ -21,8 +20,6 @@ import {
   serviceContracts,
   contractorsRegistry,
   properties,
-  users,
-  organizations,
   contractors,
 } from "../../shared/schema";
 import {
@@ -31,7 +28,6 @@ import {
 } from "@shared/schema";
 import { eq, inArray } from "drizzle-orm";
 import { z } from "zod";
-import { sendContractorInviteEmail } from "../lib/email";
 
 // ─── Contractor Categories ────────────────────────────────────────────────────
 // These are a global reference table (shared across orgs).
@@ -297,87 +293,16 @@ contractorRegistryListRouter.get("/", authenticateJWT, async (_req: any, res) =>
   }
 });
 
-// ─── Contractor creation hook — auto-invite user account ─────────────────────
-// This router runs BEFORE the CRUD router on POST /api/contractors.
-// It wraps res.json to intercept the 201 response and fire a non-blocking
-// invite after the CRUD router has written the contractor row to the DB.
+// ─── Contractor creation — no user account, by design ────────────────────────
+// Contractors are deliberately record-only in this system: a contact/rate
+// entry for assignment and billing purposes (see the contractors table —
+// no userId, no login). There is no contractor portal and none is planned.
+// This router is a pass-through kept only so POST /api/contractors still
+// reaches the actual CRUD router mounted alongside it.
 
 export const contractorCreateHookRouter = Router();
 
 contractorCreateHookRouter.post("/", authenticateJWT, requireOrg, async (req: any, res, next) => {
-  const origJson = res.json.bind(res);
-  res.json = function (body: any) {
-    // Only fire on successful creation and when the contractor has an email
-    if (res.statusCode === 201 && body?.id && body?.email) {
-      const orgId: number = req.user.organizationId;
-      const contractorEmail: string = body.email.toLowerCase();
-      const contractorName: string = body.name || body.companyName || "Contractor";
-      const specialty: string = body.specialty || "General Services";
-
-      (async () => {
-        try {
-          // Look up org name for the email
-          const [org] = await db
-            .select({ name: organizations.name })
-            .from(organizations)
-            .where(eq(organizations.id, orgId))
-            .limit(1);
-          const orgName = org?.name ?? undefined;
-
-          // Create or re-invite the user account
-          const inviteToken = randomUUID();
-          const inviteExpiresAt = new Date(Date.now() + 1000 * 60 * 60 * 24); // 24 h
-
-          // Split name into first/last for the user record
-          const nameParts = contractorName.trim().split(/\s+/);
-          const firstName = nameParts[0] ?? contractorName;
-          const lastName = nameParts.slice(1).join(" ") || undefined;
-
-          await db
-            .insert(users)
-            .values({
-              id: randomUUID(),
-              email: contractorEmail,
-              role: "contractor",
-              organizationId: orgId,
-              firstName,
-              lastName,
-              passwordHash: "",
-              emailVerified: false,
-              invitedAt: new Date(),
-              invitedBy: req.user.id ?? req.user.userId,
-              emailVerificationToken: inviteToken,
-              emailVerificationExpiresAt: inviteExpiresAt,
-            } as any)
-            .onConflictDoUpdate({
-              target: [users.organizationId, users.email],
-              set: {
-                role: "contractor",
-                invitedAt: new Date(),
-                emailVerificationToken: inviteToken,
-                emailVerificationExpiresAt: inviteExpiresAt,
-              },
-            });
-
-          const inviteLink = `${process.env.APP_URL || "http://localhost:5173"}/accept-invite/${inviteToken}`;
-
-          await sendContractorInviteEmail({
-            to: contractorEmail,
-            inviteLink,
-            contractorName,
-            specialty,
-            orgName,
-          });
-
-          console.log(`[contractors] Invite sent to contractor ${contractorEmail}`);
-        } catch (err) {
-          // Non-fatal — contractor row is already created, just log the failure
-          console.warn(`[contractors] Failed to auto-invite contractor ${contractorEmail}:`, err);
-        }
-      })();
-    }
-    return origJson(body);
-  };
   next();
 });
 
