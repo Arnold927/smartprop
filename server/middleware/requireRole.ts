@@ -153,6 +153,7 @@ export const ROUTE_POLICY: Record<string, AppRole[]> = {
   '/api/invoices':                   STAFF_AND_ABOVE,
   '/api/mpesa-transactions':         STAFF_AND_ABOVE,
   '/api/payment-config':             ADMIN_MANAGER_STAFF,    // org-wide default/fallback; landlords use /api/payment-config/landlord/mine instead
+  '/api/external-landlords':         [...ADMIN_MANAGER, 'platform_admin'], // landlords with no user account — staff excluded, matching internal checks
   '/api/payment-config/landlord':    ADMIN_MANAGER_LANDLORD, // per-landlord override (multi-landlord orgs) — /mine for landlords, /:ownerId for admin/manager on their behalf
   // Tenants can submit and view their own maintenance requests.
   // The route handler scopes results to the tenant's own records.

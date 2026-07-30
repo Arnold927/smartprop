@@ -62,9 +62,13 @@ interface PaymentConfigPanelProps {
    *  "landlord" (admin/manager/platform_admin only) edits a SPECIFIC
    *  landlord's override on their behalf via
    *  /api/payment-config/landlord/:landlordOwnerId — requires
-   *  landlordOwnerId to be set. */
-  scope?: "org" | "mine" | "landlord";
+   *  landlordOwnerId to be set.
+   *  "external" (admin/manager/platform_admin only) edits a landlord who
+   *  has no user account via /api/external-landlords/:externalLandlordId —
+   *  requires externalLandlordId to be set. */
+  scope?: "org" | "mine" | "landlord" | "external";
   landlordOwnerId?: string;
+  externalLandlordId?: number | string;
   /** Required when the caller is platform_admin (not scoped to a single
    *  org) — carried as ?organizationId=X on every request this component
    *  makes. Ignored (and unnecessary) for every other role, whose org
@@ -340,7 +344,7 @@ function PaymentMethodSection({
  *  landlord (or an admin on their behalf) provide their own full Daraja
  *  credentials, enabling genuine automatic STK Push prompts for their own
  *  tenants rather than falling back to manual Paybill/Till payment. */
-function DarajaCredentialsSection({ endpoint, testEndpoint, scope }: { endpoint: string; testEndpoint: string; scope: "org" | "landlord" }) {
+function DarajaCredentialsSection({ endpoint, testEndpoint, scope }: { endpoint: string; testEndpoint: string; scope: "org" | "landlord" | "external" }) {
   const { toast } = useToast();
   const { user } = useAuth();
   // Restricted to admin/platform_admin — not manager, and not staff. This is
@@ -417,7 +421,7 @@ function DarajaCredentialsSection({ endpoint, testEndpoint, scope }: { endpoint:
         <CardDescription>
           Only needed for automatic M-Pesa prompts (STK Push). Without these, tenants can still pay manually
           using the Paybill/Till shown above — this just enables the one-tap "Pay Now" prompt for
-          {scope === "org" ? " this organisation's shortcode." : " this specific landlord's own shortcode."}
+          {scope === "org" ? " this organisation's shortcode." : scope === "external" ? " this landlord's own shortcode." : " this specific landlord's own shortcode."}
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -508,18 +512,19 @@ function DarajaCredentialsSection({ endpoint, testEndpoint, scope }: { endpoint:
   );
 }
 
-export default function PaymentConfigPanel({ scope = "org", landlordOwnerId, organizationId }: PaymentConfigPanelProps = {}) {
+export default function PaymentConfigPanel({ scope = "org", landlordOwnerId, externalLandlordId, organizationId }: PaymentConfigPanelProps = {}) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const baseEndpoint =
     scope === "mine"     ? "/api/payment-config/landlord/mine" :
     scope === "landlord" ? `/api/payment-config/landlord/${landlordOwnerId}` :
+    scope === "external" ? `/api/external-landlords/${externalLandlordId}` :
     "/api/payment-config";
   const endpoint = withOrgParam(baseEndpoint, organizationId);
 
   const { data: config, isLoading } = useQuery<PaymentConfig>({
     queryKey: [endpoint],
-    enabled: scope !== "landlord" || !!landlordOwnerId,
+    enabled: (scope !== "landlord" || !!landlordOwnerId) && (scope !== "external" || !!externalLandlordId),
   });
 
   const [rent, setRent] = useState<PaymentAccount>(emptyAccount());
@@ -601,6 +606,13 @@ export default function PaymentConfigPanel({ scope = "org", landlordOwnerId, org
     return (
       <div className="flex items-center gap-2 text-sm text-muted-foreground py-6">
         <Info className="w-4 h-4" /> Select a landlord above to view or edit their payment details.
+      </div>
+    );
+  }
+  if (scope === "external" && !externalLandlordId) {
+    return (
+      <div className="flex items-center gap-2 text-sm text-muted-foreground py-6">
+        <Info className="w-4 h-4" /> Select an external landlord above to view or edit their payment details.
       </div>
     );
   }
@@ -790,11 +802,15 @@ export default function PaymentConfigPanel({ scope = "org", landlordOwnerId, org
         )}
       </Card>
 
-      {(scope === "landlord" || scope === "org") && (
+      {(scope === "landlord" || scope === "org" || scope === "external") && (
         <DarajaCredentialsSection
           endpoint={endpoint}
           scope={scope}
-          testEndpoint={scope === "org" ? withOrgParam("/api/payment-config/test-stk", organizationId) : withOrgParam(`/api/payment-config/landlord/${landlordOwnerId}/test-stk`, organizationId)}
+          testEndpoint={
+            scope === "org"      ? withOrgParam("/api/payment-config/test-stk", organizationId) :
+            scope === "external" ? withOrgParam(`/api/external-landlords/${externalLandlordId}/test-stk`, organizationId) :
+            withOrgParam(`/api/payment-config/landlord/${landlordOwnerId}/test-stk`, organizationId)
+          }
         />
       )}
 

@@ -311,6 +311,11 @@ export const properties = pgTable("properties", {
   address: text("address").notNull(),
   totalUnits: integer("total_units").notNull(),
   ownerId: uuid("owner_id"),
+  // For a landlord who doesn't (and may never) have a user account in the
+  // system — a real-world common case, not an edge case. Set instead of
+  // ownerId; resolvePaymentConfig checks ownerId first, then this. See
+  // externalLandlords below for the payment/credential details this points to.
+  externalLandlordId: integer("external_landlord_id").references(() => externalLandlords.id),
   description: text("description"),
   imageUrl: varchar("image_url"),
   galleryImages: jsonb('gallery_images').default([]),
@@ -320,6 +325,31 @@ export const properties = pgTable("properties", {
   estimatedValue: decimal("estimated_value", { precision: 15, scale: 2 }),
   estimatedValueCurrency: varchar("estimated_value_currency", { length: 3 }).default("KES"),
   estimatedValueNote: varchar("estimated_value_note", { length: 255 }),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// A landlord who doesn't have (and may never have) a user account in the
+// system — genuinely common: management companies often handle owners who
+// never log into anything themselves. Properties link here via
+// properties.externalLandlordId instead of ownerId. Mirrors
+// landlordPaymentSettings' shape closely (same rentPayment/utilityPayment
+// JSONB, same encrypted Daraja credential columns) so the resolution logic
+// and the admin-facing UI can reuse the same patterns.
+export const externalLandlords = pgTable("external_landlords", {
+  id: serial("id").primaryKey(),
+  organizationId: integer("organization_id").references(() => organizations.id).notNull(),
+  name: varchar("name").notNull(),
+  phone: varchar("phone"),
+  email: varchar("email"),
+  notes: text("notes"),
+  rentPayment: jsonb("rent_payment").default({}),
+  utilityPayment: jsonb("utility_payment").default({}),
+  mpesaConsumerKey: varchar("mpesa_consumer_key"),
+  mpesaConsumerSecretEncrypted: text("mpesa_consumer_secret_encrypted"),
+  mpesaPasskeyEncrypted: text("mpesa_passkey_encrypted"),
+  mpesaEnvironment: varchar("mpesa_environment").default("production"),
+  stkPushVerifiedAt: timestamp("stk_push_verified_at"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });

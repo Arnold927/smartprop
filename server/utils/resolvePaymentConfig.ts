@@ -17,7 +17,7 @@
  */
 
 import { db } from "../db";
-import { tenants, units, properties, organizationSettings, landlordPaymentSettings } from "@shared/schema";
+import { tenants, units, properties, organizationSettings, landlordPaymentSettings, externalLandlords } from "@shared/schema";
 import { eq, and } from "drizzle-orm";
 import { decryptSecret } from "./credentialEncryption";
 
@@ -116,12 +116,58 @@ export async function resolvePaymentConfigForTenantUser(userId: string, orgId: n
 
 async function resolveFromUnitId(unitId: number | null, orgId: number): Promise<ResolvedPaymentConfig> {
   let ownerId: string | null = null;
+  let externalLandlordId: number | null = null;
 
   if (unitId != null) {
     const [unit] = await db.select({ propertyId: units.propertyId }).from(units).where(eq(units.id, unitId)).limit(1);
     if (unit?.propertyId) {
-      const [prop] = await db.select({ ownerId: properties.ownerId }).from(properties).where(eq(properties.id, unit.propertyId)).limit(1);
+      const [prop] = await db.select({ ownerId: properties.ownerId, externalLandlordId: properties.externalLandlordId }).from(properties).where(eq(properties.id, unit.propertyId)).limit(1);
       ownerId = prop?.ownerId ?? null;
+      externalLandlordId = prop?.externalLandlordId ?? null;
+    }
+  }
+
+  // A landlord with no user account — checked when there's no ownerId to
+  // look up in landlordPaymentSettings. Genuinely common case, not a rare
+  // one: management companies frequently handle owners who never log in.
+  if (!ownerId && externalLandlordId) {
+    const [ext] = await db
+      .select({
+        rentPayment: externalLandlords.rentPayment,
+        utilityPayment: externalLandlords.utilityPayment,
+        mpesaConsumerKey: externalLandlords.mpesaConsumerKey,
+        mpesaConsumerSecretEncrypted: externalLandlords.mpesaConsumerSecretEncrypted,
+        mpesaPasskeyEncrypted: externalLandlords.mpesaPasskeyEncrypted,
+        mpesaEnvironment: externalLandlords.mpesaEnvironment,
+      })
+      .from(externalLandlords)
+      .where(and(eq(externalLandlords.organizationId, orgId), eq(externalLandlords.id, externalLandlordId)))
+      .limit(1);
+
+    if (ext) {
+      const rentPayment = ext.rentPayment ?? { useSingleAccount: true, ...DEFAULT_ACCOUNT_SHAPE };
+      let mpesaCredentials: ResolvedMpesaCredentials | null = null;
+      const shortCode = (rentPayment as any)?.mpesaPaybill || (rentPayment as any)?.mpesaTill;
+      if (ext.mpesaConsumerKey && ext.mpesaConsumerSecretEncrypted && ext.mpesaPasskeyEncrypted && shortCode) {
+        try {
+          mpesaCredentials = {
+            consumerKey: ext.mpesaConsumerKey,
+            consumerSecret: decryptSecret(ext.mpesaConsumerSecretEncrypted),
+            passkey: decryptSecret(ext.mpesaPasskeyEncrypted),
+            businessShortCode: shortCode,
+            environment: (ext.mpesaEnvironment as "sandbox" | "production") ?? "production",
+          };
+        } catch (err) {
+          console.error(`[resolvePaymentConfig] Failed to decrypt Daraja credentials for external landlord ${externalLandlordId}:`, err);
+        }
+      }
+      return {
+        rentPayment,
+        utilityPayment: ext.utilityPayment ?? { sameAsRent: true, ...DEFAULT_ACCOUNT_SHAPE },
+        resolvedFrom: "landlord",
+        landlordOwnerId: null,
+        mpesaCredentials,
+      };
     }
   }
 

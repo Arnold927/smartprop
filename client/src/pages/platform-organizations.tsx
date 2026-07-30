@@ -160,6 +160,17 @@ export default function PlatformOrganizationsPage() {
                   >
                     <Wallet className="h-3.5 w-3.5" /> Payment Setup
                   </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-7 text-xs gap-1.5"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      navigate(`/external-landlords?organizationId=${org.id}`);
+                    }}
+                  >
+                    <Building2 className="h-3.5 w-3.5" /> External Landlords
+                  </Button>
                   <ChevronRight className="h-4 w-4" />
                 </div>
               </CardContent>

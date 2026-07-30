@@ -58,6 +58,7 @@ import {
 import { utilityBillSenderRouter } from "./utility-bill-sender";
 import utilityMeterReadingsRouter from "./utility-meter-readings";
 import { paymentConfigRouter } from "./payment-config";
+import externalLandlordsRouter from "./external-landlords";
 import platformAdminRouter from "./platform-admin";
 import landlordPaymentConfigRouter from "./landlord-payment-config";
 import { parkingSpacesRouter, registeredVehiclesRouter, parkingAssignmentsRouter } from "./parking";
@@ -264,6 +265,7 @@ export function registerModularRoutes(app: Express) {
   mount(app, "/api/maintenance-requests",              maintenanceRouter);
   mount(app, "/api/maintenance-requests",              maintenanceActionsRouter);
   mount(app, "/api/payment-config",                    paymentConfigRouter);
+  mount(app, "/api/external-landlords",                externalLandlordsRouter);
   mount(app, "/api/platform",                          platformAdminRouter);
   mount(app, "/api/payment-config/landlord",           landlordPaymentConfigRouter);
 

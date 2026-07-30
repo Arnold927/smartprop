@@ -42,9 +42,20 @@ const addPropertySchema = z.object({
   description: z.string().optional(),
   imageUrl: z.string().optional(),
   ownerId: z.string().optional(),
+  // Mutually exclusive with ownerId — for a landlord with no user account.
+  // Only one of the two is ever set; selecting one in the combined picker
+  // clears the other.
+  externalLandlordId: z.number().nullable().optional(),
   titleDeedNumber: z.string().optional(),
   estimatedValue: z.string().optional(),             // stored as decimal string
-  estimatedValueCurrency: z.string().default("KES"),
+  // No .default() here — the form's own defaultValues already supplies
+  // "KES" at every reset point (initial, edit-mode, new-mode). A zod
+  // .default() creates a real input/output type asymmetry (the field is
+  // optional going in, but required coming out of .parse()), which is what
+  // was actually breaking zodResolver's generic type inference here — not
+  // the externalLandlordId addition, which just tipped a pre-existing
+  // borderline case into an outright mismatch.
+  estimatedValueCurrency: z.string().optional(),
   estimatedValueNote: z.string().optional(),
 });
 
@@ -66,6 +77,7 @@ export interface EditableProperty {
   description?: string | null;
   imageUrl?: string | null;
   ownerId?: string | null;
+  externalLandlordId?: number | null;
   titleDeedNumber?: string | null;
   siteSettings?: any;
   estimatedValue?: string | null;
@@ -95,6 +107,7 @@ export default function AddPropertyModal({ isOpen, onClose, onSuccess, property,
  description: "",
  imageUrl: "",
  ownerId: "",
+ externalLandlordId: null,
  titleDeedNumber: "",
  estimatedValue: "",
  estimatedValueCurrency: "KES",
@@ -111,6 +124,7 @@ export default function AddPropertyModal({ isOpen, onClose, onSuccess, property,
  description: property.description ?? "",
  imageUrl: property.imageUrl ?? "",
  ownerId: property.ownerId ?? "",
+ externalLandlordId: property.externalLandlordId ?? null,
  titleDeedNumber: property.titleDeedNumber ?? "",
  estimatedValue: property.estimatedValue ?? "",
  estimatedValueCurrency: property.estimatedValueCurrency ?? "KES",
@@ -124,6 +138,7 @@ export default function AddPropertyModal({ isOpen, onClose, onSuccess, property,
  description: "",
  imageUrl: "",
  ownerId: user?.role === "landlord" ? (user?.id ?? "") : "",
+ externalLandlordId: null,
  titleDeedNumber: "",
  estimatedValue: "",
  estimatedValueCurrency: "KES",
@@ -148,6 +163,19 @@ export default function AddPropertyModal({ isOpen, onClose, onSuccess, property,
    enabled: user?.role !== "landlord",
  });
 
+ // Fetch external landlords too — landlords with no user account, an
+ // alternative to picking from landlordUsers above
+ const { data: externalLandlordOptions = [] } = useQuery<any[]>({
+   queryKey: ["/api/external-landlords"],
+   queryFn: async () => {
+     const { apiRequest } = await import("@/lib/queryClient");
+     const res = await apiRequest("/api/external-landlords");
+     if (!res.ok) return [];
+     return res.json();
+   },
+   enabled: user?.role !== "landlord",
+ });
+
  const addPropertyMutation = useMutation({
  mutationFn: async (data: AddPropertyForm) => {
  const organizationId = user?.organizationId;
@@ -159,7 +187,9 @@ export default function AddPropertyModal({ isOpen, onClose, onSuccess, property,
  const payload = {
  ...data,
  organizationId,
+ // Mutually exclusive — selecting one in the combined picker clears the other.
  ownerId: data.ownerId || null,
+ externalLandlordId: data.ownerId ? null : (data.externalLandlordId || null),
  };
 
  const res = await apiRequest("/api/properties", {
@@ -206,6 +236,7 @@ export default function AddPropertyModal({ isOpen, onClose, onSuccess, property,
  const payload = {
  ...data,
  ownerId: data.ownerId || null,
+ externalLandlordId: data.ownerId ? null : (data.externalLandlordId || null),
  };
 
  await apiRequest(`/api/properties/${property.id}`, {
@@ -345,17 +376,46 @@ export default function AddPropertyModal({ isOpen, onClose, onSuccess, property,
  <input type="hidden" name={field.name} value={user?.id ?? ""} onChange={field.onChange} />
  </div>
  ) : (
- <Select value={field.value || "none"} onValueChange={(v) => field.onChange(v === "none" ? "" : v)}>
+ <Select
+ value={field.value ? `user:${field.value}` : (form.watch("externalLandlordId") ? `external:${form.watch("externalLandlordId")}` : "none")}
+ onValueChange={(v) => {
+ if (v === "none") {
+ field.onChange("");
+ form.setValue("externalLandlordId", null);
+ } else if (v.startsWith("external:")) {
+ field.onChange("");
+ form.setValue("externalLandlordId", parseInt(v.slice("external:".length)));
+ } else {
+ field.onChange(v.slice("user:".length));
+ form.setValue("externalLandlordId", null);
+ }
+ }}
+ >
  <SelectTrigger className="bg-card text-foreground border-border">
  <SelectValue placeholder="Select the property owner (landlord)…" />
  </SelectTrigger>
  <SelectContent>
  <SelectItem value="none">— No owner assigned —</SelectItem>
+ {landlordUsers.length > 0 && (
+ <>
+ <div className="px-2 py-1.5 text-xs font-medium text-muted-foreground">Landlord accounts</div>
  {landlordUsers.map((u: any) => (
- <SelectItem key={u.id} value={u.id}>
+ <SelectItem key={`user:${u.id}`} value={`user:${u.id}`}>
  {u.firstName} {u.lastName} · {u.email}
  </SelectItem>
  ))}
+ </>
+ )}
+ {externalLandlordOptions.length > 0 && (
+ <>
+ <div className="px-2 py-1.5 text-xs font-medium text-muted-foreground">External landlords (no account)</div>
+ {externalLandlordOptions.map((l: any) => (
+ <SelectItem key={`external:${l.id}`} value={`external:${l.id}`}>
+ {l.name}{l.phone ? ` · ${l.phone}` : ""}
+ </SelectItem>
+ ))}
+ </>
+ )}
  </SelectContent>
  </Select>
  )}
