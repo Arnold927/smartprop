@@ -161,14 +161,19 @@ function UsageBar({ used, max, label }: { used: number; max: number; label: stri
 /* ─── Invite User Dialog ─────────────────────────────────────────────────────── */
 
 // All invitable roles. Admin option is filtered out for non-admin users at render time.
+// Kept in sync with the backend's real allowed list (see the role schema
+// in server/routes/users.ts's POST / handler) — tenant, contractor, and
+// caretaker are deliberately excluded here. Each has its own dedicated
+// invite flow elsewhere that correctly links the login to a business
+// record; inviting any of them through this general flow would create a
+// login with nothing behind it, and the backend rejects the request
+// outright if attempted.
 const ROLE_OPTIONS = [
   { value: "admin",       label: "Admin" },
   { value: "manager",     label: "Property Manager" },
   { value: "landlord",    label: "Landlord" },
   { value: "staff",       label: "Staff" },
-  { value: "caretaker",   label: "Caretaker" },
   { value: "guard",       label: "Guard" },
-  { value: "tenant",      label: "Tenant" },
 ];
 
 function InviteUserDialog({
