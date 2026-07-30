@@ -28,7 +28,8 @@ import { getOrgIdFromSearch, withOrgParam } from "@/lib/platformOrgContext";
 import PaymentConfigPanel from "@/components/payment-config-panel";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { CreditCard } from "lucide-react";
+import { CreditCard, ArrowLeft } from "lucide-react";
+import { Button } from "@/components/ui/button";
 
 interface LandlordRow {
   id: string;
@@ -44,7 +45,7 @@ export default function PaymentSetupPage() {
 
   const { user } = useAuth();
   const isLandlord = user?.role === "landlord";
-  const [location] = useLocation();
+  const [location, navigate] = useLocation();
   const orgIdParam = getOrgIdFromSearch(location.includes("?") ? location.slice(location.indexOf("?")) : window.location.search);
 
   // Radix's Select reserves the empty string for "clear selection" — it
@@ -64,6 +65,18 @@ export default function PaymentSetupPage() {
 
   return (
     <div className="max-w-4xl mx-auto px-4 py-6 md:py-8">
+      {/* Only shown when we arrived here via platform_admin selecting an
+          org — otherwise there was no way back to Organisations at all. */}
+      {orgIdParam && (
+        <Button
+          variant="ghost"
+          size="sm"
+          className="-ml-2 mb-2 text-muted-foreground hover:text-foreground h-8 text-xs"
+          onClick={() => navigate("/organisations")}
+        >
+          <ArrowLeft className="h-3.5 w-3.5 mr-1.5" /> Back to Organisations
+        </Button>
+      )}
       <div className="flex items-center gap-3 mb-6">
         <div className="rounded-xl bg-emerald-500/10 p-2.5">
           <CreditCard className="h-5 w-5 text-emerald-600" />

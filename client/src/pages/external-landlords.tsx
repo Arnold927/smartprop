@@ -47,7 +47,7 @@ export default function ExternalLandlordsPage() {
 
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const [location] = useLocation();
+  const [location, navigate] = useLocation();
   const orgIdParam = getOrgIdFromSearch(location.includes("?") ? location.slice(location.indexOf("?")) : window.location.search);
 
   const [selectedId, setSelectedId] = useState<number | null>(null);
@@ -99,6 +99,18 @@ export default function ExternalLandlordsPage() {
 
   return (
     <div className="max-w-5xl mx-auto px-4 py-6 md:py-8">
+      {/* Only shown when we arrived here via platform_admin selecting an
+          org — otherwise there was no way back to Organisations at all. */}
+      {orgIdParam && (
+        <Button
+          variant="ghost"
+          size="sm"
+          className="-ml-2 mb-2 text-muted-foreground hover:text-foreground h-8 text-xs"
+          onClick={() => navigate("/organisations")}
+        >
+          <ArrowLeft className="h-3.5 w-3.5 mr-1.5" /> Back to Organisations
+        </Button>
+      )}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6">
         <div className="flex items-center gap-3">
           <div className="rounded-xl bg-indigo-500/10 p-2.5">
