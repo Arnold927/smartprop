@@ -11,7 +11,7 @@ export default function MobileHeader({ onMenuClick }: MobileHeaderProps) {
  if (!isMobile) return null;
 
  return (
- <div className="lg:hidden fixed top-0 left-0 right-0 bg-card dark:bg-gray-900 shadow-sm z-40 border-b border-border dark:border-gray-800 ">
+ <div className="lg:hidden fixed top-0 left-0 right-0 bg-card shadow-sm z-40 border-b border-border ">
  <div className="flex items-center justify-between px-4 h-14">
  {/* Logo */}
  <div className="flex items-center gap-2">

@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { db } from "../db";
-import { users, organizations } from "@shared/schema";
-import { eq, and } from "drizzle-orm";
+import { users, organizations, auditLogs } from "@shared/schema";
+import { eq, and, desc } from "drizzle-orm";
 import { authenticateJWT } from "../middleware/auth";
 import { requireOrg } from "../middleware/requireOrg";
 import { auditLog } from "../middleware/auditLog";
@@ -314,9 +314,29 @@ router.patch("/me", authenticateJWT, async (req: any, res) => {
       lastName:          z.string().min(1).max(100).optional(),
       phoneNumber:       z.string().max(30).optional().nullable(),
       preferredCurrency: z.enum(["KES", "USD", "GBP", "EUR", "UGX", "TZS"]).optional(),
+      // Only ever applied below if the caller is platform_admin — accepted
+      // here so the schema doesn't reject the request, not because every
+      // caller may set these. A non-platform_admin sending these fields
+      // (e.g. by editing the request directly) has them silently dropped,
+      // not rejected — the rest of the update still goes through.
+      email: z.string().email().optional(),
+      role:  z.enum(["platform_admin", "admin", "manager"]).optional(),
     });
 
-    const updates = schema.parse(req.body);
+    const parsed = schema.parse(req.body);
+    const isPlatformAdmin = req.user.role === "platform_admin";
+    const { email, role, ...updates } = parsed;
+
+    if (isPlatformAdmin) {
+      if (email && email !== req.user.email) {
+        const [existing] = await db.select({ id: users.id }).from(users).where(eq(users.email, email)).limit(1);
+        if (existing && existing.id !== req.user.id) {
+          return res.status(409).json({ message: "That email is already in use." });
+        }
+        (updates as any).email = email;
+      }
+      if (role) (updates as any).role = role;
+    }
 
     const [updated] = await db
       .update(users)
@@ -343,6 +363,34 @@ router.patch("/me", authenticateJWT, async (req: any, res) => {
     }
     logger.error("Update profile error:", err);
     res.status(500).json({ message: "Failed to update profile" });
+  }
+});
+
+// GET /api/users/me/activity — the caller's own recent activity.
+// audit_logs already records every successful mutation across the app
+// (see auditLog middleware) — this just surfaces it for the person who
+// actually performed the actions, nothing new is tracked here.
+router.get("/me/activity", authenticateJWT, async (req: any, res: any) => {
+  try {
+    const limit = Math.min(parseInt(req.query.limit as string) || 30, 100);
+    const rows = await db
+      .select({
+        id:         auditLogs.id,
+        entityType: auditLogs.entityType,
+        entityId:   auditLogs.entityId,
+        action:     auditLogs.action,
+        timestamp:  auditLogs.timestamp,
+        metadata:   auditLogs.metadata,
+      })
+      .from(auditLogs)
+      .where(eq(auditLogs.userId, req.user.id))
+      .orderBy(desc(auditLogs.timestamp))
+      .limit(limit);
+
+    res.json(rows);
+  } catch (err) {
+    logger.error("Fetch own activity error:", err);
+    res.status(500).json({ message: "Failed to fetch activity" });
   }
 });
 

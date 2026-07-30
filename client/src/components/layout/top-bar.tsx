@@ -90,6 +90,28 @@ function NotificationBell() {
   const { t } = useTranslation();
   const [, setLocation] = useLocation();
   const { toast } = useToast();
+  const { user } = useAuth();
+  const isPlatformAdmin = user?.role === "platform_admin";
+  // platform_admin gets a second view here — their own recent activity,
+  // surfaced from the audit log that already records every mutation across
+  // the app. Not shown for other roles, who don't have a "Notifications" vs
+  // "My Activity" distinction requested of them.
+  const [view, setView] = React.useState<"notifications" | "activity">("notifications");
+
+  const { data: activity = [], isLoading: activityLoading } = useQuery<any[]>({
+    queryKey: ["/api/users/me/activity"],
+    queryFn: async () => {
+      const r = await apiRequest("/api/users/me/activity?limit=30");
+      return r.json();
+    },
+    enabled: isPlatformAdmin && dropdownOpen && view === "activity",
+  });
+
+  function activityLabel(a: { entityType: string; action: string; entityId: string }) {
+    const verb = a.action === "CREATE" ? "Created" : a.action === "UPDATE" ? "Updated" : a.action === "DELETE" ? "Deleted" : "Acted on";
+    const entity = a.entityType.replace(/_/g, " ");
+    return `${verb} ${entity} #${a.entityId}`;
+  }
 
   const visible = showAll
     ? notifications
@@ -166,8 +188,43 @@ function NotificationBell() {
           </div>
         </div>
 
+        {isPlatformAdmin && (
+          <div className="flex items-center gap-1 px-3 pt-2 border-b border-border">
+            {(["notifications", "activity"] as const).map(v => (
+              <button
+                key={v}
+                onClick={() => setView(v)}
+                className={cn(
+                  "text-xs px-2.5 py-1.5 rounded-t-md font-medium transition-colors",
+                  view === v ? "bg-muted text-foreground border-b-2 border-primary" : "text-muted-foreground hover:text-foreground"
+                )}
+              >
+                {v === "notifications" ? "Notifications" : "My Activity"}
+              </button>
+            ))}
+          </div>
+        )}
+
         {/* List */}
-        {notifications.length === 0 || visible.length === 0 ? (
+        {view === "activity" ? (
+          activityLoading ? (
+            <div className="px-4 py-8 text-center text-sm text-muted-foreground">Loading…</div>
+          ) : activity.length === 0 ? (
+            <div className="px-4 py-8 text-center">
+              <Bell className="w-8 h-8 text-muted-foreground/20 mx-auto mb-2" />
+              <p className="text-sm text-muted-foreground">No activity recorded yet.</p>
+            </div>
+          ) : (
+            <div className="divide-y divide-border max-h-[420px] overflow-y-auto">
+              {activity.map((a: any) => (
+                <div key={a.id} className="px-4 py-2.5 text-sm">
+                  <p className="text-foreground">{activityLabel(a)}</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">{timeAgo(a.timestamp)}</p>
+                </div>
+              ))}
+            </div>
+          )
+        ) : notifications.length === 0 || visible.length === 0 ? (
           <div className="px-4 py-8 text-center">
             <Bell className="w-8 h-8 text-muted-foreground/20 mx-auto mb-2" />
             <p className="text-sm text-muted-foreground">{t("topBar.allCaughtUp")}</p>
@@ -341,7 +398,7 @@ export default function TopBar() {
  const { t } = useTranslation();
 
  return (
- <div className="hidden lg:flex bg-card dark:bg-gray-900 px-4 py-2.5 border-b border-border dark:border-gray-800 items-center gap-2">
+ <div className="hidden lg:flex bg-card px-4 py-2.5 border-b border-border items-center gap-2">
  {/* Search */}
  <GlobalSearch />
 

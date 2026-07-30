@@ -73,6 +73,7 @@ export default function ProfilePage() {
   const { user, refetch } = useAuth();
   const { toast } = useToast();
   const qc = useQueryClient();
+  const isPlatformAdmin = user?.role === "platform_admin";
 
   // ── Profile form ─────────────────────────────────────────────────────────────
   const [profile, setProfile] = useState({
@@ -80,13 +81,23 @@ export default function ProfilePage() {
     lastName:          user?.lastName  ?? "",
     phoneNumber:       (user as any)?.phoneNumber ?? "",
     preferredCurrency: (user as any)?.preferredCurrency ?? "KES",
+    // Only meaningfully editable for platform_admin — see the render section
+    // below and the server-side enforcement in PATCH /api/users/me, which
+    // silently ignores these fields from anyone else regardless of what's
+    // sent in the request body.
+    email: user?.email ?? "",
+    role:  user?.role ?? "",
   });
   const [savingProfile, setSavingProfile] = useState(false);
 
   async function saveProfile() {
     setSavingProfile(true);
     try {
-      await apiRequest("/api/users/me", { method: "PATCH", data: profile });
+      const data = isPlatformAdmin ? profile : {
+        firstName: profile.firstName, lastName: profile.lastName,
+        phoneNumber: profile.phoneNumber, preferredCurrency: profile.preferredCurrency,
+      };
+      await apiRequest("/api/users/me", { method: "PATCH", data });
       await refetch();
       qc.invalidateQueries({ queryKey: ["/api/auth/user"] });
       toast({ title: "Profile updated" });
@@ -195,18 +206,45 @@ export default function ProfilePage() {
         </CardHeader>
         <CardContent className="space-y-4">
 
-          {/* Read-only: email & role */}
+          {/* Email & role — editable only for platform_admin, who has no
+              organisation admin above them to "contact" for these changes */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pb-4 border-b">
-            <ReadOnlyField
-              label="Email address"
-              value={user.email ?? ""}
-              hint="To change your email, contact an admin."
-            />
-            <ReadOnlyField
-              label="Role"
-              value={user.role ? user.role.charAt(0).toUpperCase() + user.role.slice(1) : ""}
-              hint="Managed by your organisation admin."
-            />
+            {isPlatformAdmin ? (
+              <div>
+                <Label className="text-xs">Email address</Label>
+                <Input
+                  type="email"
+                  value={profile.email}
+                  onChange={(e) => setProfile(p => ({ ...p, email: e.target.value }))}
+                />
+              </div>
+            ) : (
+              <ReadOnlyField
+                label="Email address"
+                value={user.email ?? ""}
+                hint="To change your email, contact an admin."
+              />
+            )}
+            {isPlatformAdmin ? (
+              <div>
+                <Label className="text-xs">Role</Label>
+                <Select value={profile.role} onValueChange={(v) => setProfile(p => ({ ...p, role: v }))}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="platform_admin">Platform Admin</SelectItem>
+                    <SelectItem value="admin">Admin</SelectItem>
+                    <SelectItem value="manager">Manager</SelectItem>
+                  </SelectContent>
+                </Select>
+                <p className="text-[11px] text-muted-foreground mt-1">Changing this away from Platform Admin removes your platform-wide access.</p>
+              </div>
+            ) : (
+              <ReadOnlyField
+                label="Role"
+                value={user.role ? user.role.charAt(0).toUpperCase() + user.role.slice(1) : ""}
+                hint="Managed by your organisation admin."
+              />
+            )}
           </div>
 
           {/* Editable fields */}

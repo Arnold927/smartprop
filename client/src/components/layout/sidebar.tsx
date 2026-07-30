@@ -233,8 +233,8 @@ export default function Sidebar({ isOpen, onClose, isCollapsed = false, onToggle
         <div className="fixed inset-0 bg-black/50 z-20 lg:hidden backdrop-blur-sm" onClick={onClose} />
       )}
       <div className={`
-        fixed left-0 top-0 h-full bg-slate-900 
-        border-r border-slate-800 z-30 flex flex-col
+        fixed left-0 top-0 h-full bg-card 
+        border-r border-border z-30 flex flex-col
         transition-all duration-200 ease-in-out
         ${isCollapsed ? "w-16" : "w-64"}
         ${isMobile ? (isOpen ? "translate-x-0" : "-translate-x-full") : "translate-x-0"}
@@ -434,7 +434,7 @@ export default function Sidebar({ isOpen, onClose, isCollapsed = false, onToggle
                 </Tooltip>
               )}
 
-              <div className="h-px bg-slate-800 my-1 w-full" />
+              <div className="h-px bg-border dark:bg-gray-700 my-1 w-full" />
 
               {/* Contact support — replaces the floating WhatsApp FAB */}
               {!isCollapsed ? (
@@ -465,7 +465,7 @@ export default function Sidebar({ isOpen, onClose, isCollapsed = false, onToggle
             </>
           )}
 
-          <div className="h-px bg-slate-800 my-1 w-full" />
+          <div className="h-px bg-border dark:bg-gray-700 my-1 w-full" />
 
           <Button
             variant="ghost"
