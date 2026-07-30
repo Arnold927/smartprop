@@ -29,7 +29,7 @@
 
 import { Router } from "express";
 import { db } from "../db";
-import { organizations, properties, users, rentPayments, utilityBills, tenants } from "@shared/schema";
+import { organizations, properties, users, rentPayments, utilityBills, tenants, units } from "@shared/schema";
 import { eq, and, gte, lt, sql } from "drizzle-orm";
 import { authenticateJWT } from "../middleware/auth";
 
@@ -169,6 +169,56 @@ router.get("/organizations/:id/properties", async (req: any, res: any) => {
   } catch (err: any) {
     console.error("[platform-admin] GET /organizations/:id/properties:", err);
     res.status(500).json({ message: "Failed to fetch properties", detail: err?.message ?? String(err) });
+  }
+});
+
+// ── GET /search — find anything across every organisation ────────────────────
+// The actual point of this feature: a platform_admin fielding a support
+// request ("tenant X can't log in", "property Y's payments look wrong")
+// previously had no way to find them without opening every org one at a
+// time. Every result includes which org it belongs to, since that's the
+// one piece of context platform_admin doesn't already have.
+router.get("/search", async (req: any, res: any) => {
+  try {
+    const q = (req.query.q as string ?? "").trim();
+    if (q.length < 2) return res.json({ properties: [], tenants: [], users: [], organizations: [] });
+
+    const like = `%${q}%`;
+    const orgRows = await db.select({ id: organizations.id, name: organizations.name }).from(organizations);
+    const orgNameMap = new Map(orgRows.map(o => [o.id, o.name]));
+
+    const [propertyRows, tenantRows, userRows, matchedOrgs] = await Promise.all([
+      db.select({ id: properties.id, name: properties.name, address: properties.address, organizationId: properties.organizationId })
+        .from(properties)
+        .where(sql`${properties.name} ILIKE ${like} OR ${properties.address} ILIKE ${like}`)
+        .limit(10),
+
+      db.select({ id: tenants.id, firstName: tenants.firstName, lastName: tenants.lastName, email: tenants.email, phone: tenants.phone, organizationId: tenants.organizationId, propertyId: units.propertyId })
+        .from(tenants)
+        .leftJoin(units, eq(tenants.unitId, units.id))
+        .where(sql`${tenants.firstName} ILIKE ${like} OR ${tenants.lastName} ILIKE ${like} OR ${tenants.email} ILIKE ${like} OR ${tenants.phone} ILIKE ${like}`)
+        .limit(10),
+
+      db.select({ id: users.id, firstName: users.firstName, lastName: users.lastName, email: users.email, role: users.role, organizationId: users.organizationId })
+        .from(users)
+        .where(sql`${users.firstName} ILIKE ${like} OR ${users.lastName} ILIKE ${like} OR ${users.email} ILIKE ${like}`)
+        .limit(10),
+
+      db.select({ id: organizations.id, name: organizations.name })
+        .from(organizations)
+        .where(sql`${organizations.name} ILIKE ${like}`)
+        .limit(5),
+    ]);
+
+    res.json({
+      properties: propertyRows.map(p => ({ ...p, organizationName: orgNameMap.get(p.organizationId) ?? "Unknown org" })),
+      tenants: tenantRows.map(t => ({ ...t, organizationName: orgNameMap.get(t.organizationId) ?? "Unknown org" })),
+      users: userRows.map(u => ({ ...u, organizationName: u.organizationId ? (orgNameMap.get(u.organizationId) ?? "Unknown org") : "Platform-wide" })),
+      organizations: matchedOrgs,
+    });
+  } catch (err: any) {
+    console.error("[platform-admin] GET /search:", err);
+    res.status(500).json({ message: "Search failed", detail: err?.message ?? String(err) });
   }
 });
 
