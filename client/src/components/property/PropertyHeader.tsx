@@ -2,6 +2,7 @@ import { Button } from "@/components/ui/button";
 import { ArrowLeft, MapPin, Plus, Users, Home, TrendingUp, DollarSign, MoreHorizontal, Pencil, Trash2 } from "lucide-react";
 import { useLocation } from "wouter";
 import { getPropertyGradient } from "@/lib/propertyGradient";
+import { getOrgIdFromSearch, withOrgParam } from "@/lib/platformOrgContext";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem,
   DropdownMenuSeparator, DropdownMenuTrigger,
@@ -22,6 +23,11 @@ function fmt(n: number) {
 
 export function PropertyHeader({ property, onAddUnit, onAddTenant, onEdit, onDelete, isManager = true }: PropertyHeaderProps) {
   const [, setLocation] = useLocation();
+  // Preserve the platform_admin org context on the way back — previously
+  // this was dropped entirely, landing on a bare /properties with no
+  // organizationId, which for platform_admin (no fixed org of their own)
+  // meant the properties list came back empty.
+  const orgIdParam = getOrgIdFromSearch(window.location.search);
 
   const units   = property.units   ?? [];
   const tenants = property.tenants ?? [];
@@ -63,7 +69,7 @@ export function PropertyHeader({ property, onAddUnit, onAddTenant, onEdit, onDel
             variant="ghost"
             size="sm"
             className="-ml-2 text-muted-foreground hover:text-foreground h-8 text-xs"
-            onClick={() => setLocation("/properties")}
+            onClick={() => setLocation(withOrgParam("/properties", orgIdParam))}
           >
             <ArrowLeft className="h-3.5 w-3.5 mr-1.5" />
             Back to Properties

@@ -7,7 +7,7 @@ import { useToast } from "@/hooks/use-toast";
 import {
   Plus, Search, Home, MapPin, Users, MoreVertical,
   Eye, Edit, Trash2, Download, Building2, TrendingUp,
-  Filter, X, ChevronRight, ChevronLeft,
+  Filter, X, ChevronRight, ChevronLeft, ArrowLeft,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -177,7 +177,20 @@ export default function Properties() {
     <PageShell>
       {/* ── Page header ── */}
       <div className="bg-card dark:bg-gray-900 border-b border-border dark:border-gray-800 px-8 py-6">
-        <div className="max-w-7xl mx-auto flex items-center justify-between">
+        <div className="max-w-7xl mx-auto">
+          {/* Only shown when we arrived here via platform_admin selecting an
+              org — previously there was no way back to Organisations at all. */}
+          {orgIdParam && (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="-ml-2 mb-2 text-muted-foreground hover:text-foreground h-8 text-xs"
+              onClick={() => navigate("/organisations")}
+            >
+              <ArrowLeft className="w-3.5 h-3.5 mr-1.5" /> Back to Organisations
+            </Button>
+          )}
+        <div className="flex items-center justify-between">
           <div>
             <h1 className="text-2xl font-bold text-foreground tracking-tight">Properties</h1>
             <p className="text-sm text-muted-foreground mt-1">
@@ -193,6 +206,7 @@ export default function Properties() {
               <Plus className="w-4 h-4 mr-1.5" /> Add property
             </Button>
           </div>
+        </div>
         </div>
       </div>
 
