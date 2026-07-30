@@ -167,7 +167,6 @@ const ROLE_OPTIONS = [
   { value: "landlord",    label: "Landlord" },
   { value: "staff",       label: "Staff" },
   { value: "caretaker",   label: "Caretaker" },
-  { value: "contractor",  label: "Contractor" },
   { value: "guard",       label: "Guard" },
   { value: "tenant",      label: "Tenant" },
 ];
