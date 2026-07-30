@@ -34,7 +34,7 @@ function DashboardSwitcherDivider() {
   };
   const count = Object.values(ALLOWED).filter(roles => roles.includes(role)).length;
   if (!user || count <= 1) return null;
-  return <div className="w-px h-5 bg-muted dark:bg-gray-700 mx-1" />;
+  return <div className="w-px h-5 bg-muted mx-1" />;
 }
 import { CommandPalette } from "./command-palette";
 import { useTranslation } from "react-i18next";
@@ -51,7 +51,7 @@ function GlobalSearch() {
       <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
       <button
         onClick={() => setOpen(true)}
-        className="w-full flex items-center h-10 pl-9 pr-4 bg-muted/60 dark:bg-gray-800 border border-border dark:border-gray-700 rounded-xl text-muted-foreground text-sm hover:bg-muted transition-colors text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/30"
+        className="w-full flex items-center h-10 pl-9 pr-4 bg-muted/60 border border-border rounded-xl text-muted-foreground text-sm hover:bg-muted transition-colors text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/30"
       >
         {t("topBar.searchPlaceholder")}
         <kbd className="ml-auto pointer-events-none inline-flex h-5 select-none items-center gap-1 rounded border bg-muted px-1.5 font-mono text-[10px] font-medium text-muted-foreground opacity-100">
@@ -69,7 +69,7 @@ const notifColors: Record<string, string> = {
  payment: "bg-amber-100 dark:bg-amber-950/50 text-amber-600 dark:text-amber-400",
  lease: "bg-blue-100 dark:bg-blue-950/50 text-blue-600 dark:text-blue-400",
  message: "bg-emerald-100 dark:bg-emerald-950/50 text-emerald-600 dark:text-emerald-400",
- general: "bg-muted dark:bg-gray-800 text-muted-foreground",
+ general: "bg-muted text-muted-foreground",
 };
 const notifIcons: Record<string, any> = {
   maintenance: Wrench,
@@ -148,7 +148,7 @@ function NotificationBell() {
       if (!open) { setReplyingTo(null); setReplyText(""); }
     }}>
       <DropdownMenuTrigger asChild>
-        <Button variant="ghost" size="sm" className="relative h-9 w-9 p-0 rounded-lg hover:bg-muted dark:hover:bg-gray-800">
+        <Button variant="ghost" size="sm" className="relative h-9 w-9 p-0 rounded-lg hover:bg-muted">
           <Bell className="h-4 w-4 text-muted-foreground" />
           {unreadCount > 0 && (
             <span className="absolute -top-0.5 -right-0.5 w-4 h-4 rounded-full bg-destructive text-destructive-foreground text-[10px] font-bold flex items-center justify-center shadow-sm">
@@ -398,7 +398,7 @@ export default function TopBar() {
  const { t } = useTranslation();
 
  return (
- <div className="hidden lg:flex bg-card px-4 py-2.5 border-b border-border items-center gap-2">
+ <div className="hidden lg:flex chrome-scope bg-background px-4 py-2.5 border-b border-border items-center gap-2">
  {/* Search */}
  <GlobalSearch />
 
@@ -413,7 +413,7 @@ export default function TopBar() {
  <Button
  variant="ghost" size="sm"
  onClick={toggleTheme}
- className="h-9 w-9 p-0 rounded-lg hover:bg-muted dark:hover:bg-gray-800 "
+ className="h-9 w-9 p-0 rounded-lg hover:bg-muted "
  title={theme === "light" ? t("topBar.switchToGray") : theme === "gray" ? t("topBar.switchToDark") : t("topBar.switchToLight")}
  >
  {theme === "light"
@@ -428,12 +428,12 @@ export default function TopBar() {
  <NotificationBell />
 
 
- <div className="w-px h-5 bg-muted dark:bg-gray-700 mx-1" />
+ <div className="w-px h-5 bg-muted mx-1" />
 
  {/* User menu */}
  <DropdownMenu>
  <DropdownMenuTrigger asChild>
- <Button variant="ghost" className="flex items-center gap-2 px-2 h-9 rounded-lg hover:bg-muted dark:hover:bg-gray-800">
+ <Button variant="ghost" className="flex items-center gap-2 px-2 h-9 rounded-lg hover:bg-muted">
  <div className={`w-7 h-7 rounded-full bg-gradient-to-br ${getRoleAvatar(user?.role).bg} flex items-center justify-center shadow-sm flex-shrink-0`}>
  <span className="text-white font-semibold text-xs">
  {user?.firstName?.[0] || "U"}{user?.lastName?.[0] || ""}
@@ -447,7 +447,7 @@ export default function TopBar() {
  </DropdownMenuTrigger>
  <DropdownMenuContent align="end" className="w-52 shadow-xl border-border dark:border-gray-700 rounded-xl">
  <div className="px-3 py-2 border-b border-border dark:border-gray-800" >
- <p className="text-sm font-semibold text-slate-900">{user?.firstName} {user?.lastName}</p>
+ <p className="text-sm font-semibold text-foreground">{user?.firstName} {user?.lastName}</p>
  <p className="text-xs text-muted-foreground dark:text-muted-foreground capitalize mt-0.5 flex items-center gap-1.5">
               <span className={`inline-block w-2 h-2 rounded-full bg-gradient-to-br ${getRoleAvatar(user?.role).bg}`} />
               {getRoleAvatar(user?.role).label}

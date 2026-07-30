@@ -388,14 +388,6 @@ export default function Properties() {
                               isSandbox={(p.siteSettings as any)?.titleVerification?.isSandbox}
                               encumbrances={(p.siteSettings as any)?.titleVerification?.encumbrances}
                             /> */}
-                        <a
-                          href="https://ardhisasa.lands.go.ke"
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="inline-flex items-center gap-1 text-[10px] text-amber-700 dark:text-amber-400 underline hover:text-amber-900"
-                        >
-                          Verify title on Ardhisasa
-                        </a>
                       </div>
                       <OccupancyBar pct={stats.pct} />
 

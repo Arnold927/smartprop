@@ -11,14 +11,14 @@ export default function MobileHeader({ onMenuClick }: MobileHeaderProps) {
  if (!isMobile) return null;
 
  return (
- <div className="lg:hidden fixed top-0 left-0 right-0 bg-card shadow-sm z-40 border-b border-border ">
+ <div className="lg:hidden fixed top-0 left-0 right-0 chrome-scope bg-background shadow-sm z-40 border-b border-border ">
  <div className="flex items-center justify-between px-4 h-14">
  {/* Logo */}
  <div className="flex items-center gap-2">
  <div className="w-7 h-7 bg-blue-600 rounded-lg flex items-center justify-center">
  <Home className="w-4 h-4 text-white" />
  </div>
- <span className="text-base font-bold text-slate-900 tracking-tight">SmartProp</span>
+ <span className="text-base font-bold text-foreground tracking-tight">SmartProp</span>
  </div>
 
  {/* Right side: notifications + menu (for deep nav access) */}

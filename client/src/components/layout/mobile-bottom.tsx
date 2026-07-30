@@ -222,7 +222,7 @@ export default function MobileBottomNav() {
   return (
     <>
       {/* Bottom bar */}
-      <nav className="fixed bottom-0 left-0 right-0 z-50 bg-card/95 backdrop-blur-md border-t border-border"
+      <nav className="fixed bottom-0 left-0 right-0 z-50 chrome-scope bg-background/95 backdrop-blur-md border-t border-border"
         style={{ paddingBottom: "env(safe-area-inset-bottom, 0px)" }}
       >
         <div className="flex items-stretch h-16 px-1">
@@ -278,7 +278,7 @@ export default function MobileBottomNav() {
             className="fixed inset-0 bg-black/40 z-[55] backdrop-blur-sm"
             onClick={() => setSheetOpen(false)}
           />
-          <div className="fixed bottom-0 left-0 right-0 z-[60] bg-card rounded-t-2xl border-t border-border pb-safe max-h-[75vh] overflow-y-auto">
+          <div className="fixed bottom-0 left-0 right-0 z-[60] chrome-scope bg-background rounded-t-2xl border-t border-border pb-safe max-h-[75vh] overflow-y-auto">
             {/* Handle */}
             <div className="flex justify-center pt-3 pb-1">
               <div className="w-10 h-1 bg-muted-foreground/30 rounded-full" />

@@ -233,7 +233,7 @@ export default function Sidebar({ isOpen, onClose, isCollapsed = false, onToggle
         <div className="fixed inset-0 bg-black/50 z-20 lg:hidden backdrop-blur-sm" onClick={onClose} />
       )}
       <div className={`
-        fixed left-0 top-0 h-full bg-card 
+        fixed left-0 top-0 h-full chrome-scope bg-background 
         border-r border-border z-30 flex flex-col
         transition-all duration-200 ease-in-out
         ${isCollapsed ? "w-16" : "w-64"}
@@ -251,8 +251,8 @@ export default function Sidebar({ isOpen, onClose, isCollapsed = false, onToggle
                 <Home className="w-4 h-4 text-primary-foreground" />
               </div>
               <div>
-                <span className="text-sm font-bold text-slate-900 tracking-tight">SmartProp</span>
-                <div className="text-xs text-slate-400 leading-none mt-0.5">Property Management</div>
+                <span className="text-sm font-bold text-foreground tracking-tight">SmartProp</span>
+                <div className="text-xs text-muted-foreground leading-none mt-0.5">Property Management</div>
               </div>
             </div>
           )}
@@ -275,12 +275,12 @@ export default function Sidebar({ isOpen, onClose, isCollapsed = false, onToggle
           {navGroups.map((group) => (
             <div key={group.label}>
               {!isCollapsed && group.label && (
-                <p className="px-3 mb-1 mt-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                <p className="px-3 mb-1 mt-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
                   {group.label}
                 </p>
               )}
               {isCollapsed && group.label && (
-                <div className="w-8 h-px bg-border dark:bg-gray-700 mx-auto mb-2 mt-2" />
+                <div className="w-8 h-px bg-border mx-auto mb-2 mt-2" />
               )}
               <div className={`space-y-0.5 ${isCollapsed ? "flex flex-col items-center" : ""}`}>
                 {group.items.map(item => (
@@ -422,7 +422,7 @@ export default function Sidebar({ isOpen, onClose, isCollapsed = false, onToggle
                       {theme === "light" ? (
                         <Contrast className="w-4 h-4 text-muted-foreground" />
                       ) : theme === "gray" ? (
-                        <Moon className="w-4 h-4 text-slate-400" />
+                        <Moon className="w-4 h-4 text-muted-foreground" />
                       ) : (
                         <Sun className="w-4 h-4 text-amber-400" />
                       )}
@@ -434,7 +434,7 @@ export default function Sidebar({ isOpen, onClose, isCollapsed = false, onToggle
                 </Tooltip>
               )}
 
-              <div className="h-px bg-border dark:bg-gray-700 my-1 w-full" />
+              <div className="h-px bg-border my-1 w-full" />
 
               {/* Contact support — replaces the floating WhatsApp FAB */}
               {!isCollapsed ? (
@@ -465,7 +465,7 @@ export default function Sidebar({ isOpen, onClose, isCollapsed = false, onToggle
             </>
           )}
 
-          <div className="h-px bg-border dark:bg-gray-700 my-1 w-full" />
+          <div className="h-px bg-border my-1 w-full" />
 
           <Button
             variant="ghost"

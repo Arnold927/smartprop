@@ -103,6 +103,44 @@ button, a, input, select, textarea {
   --surface-hover:    hsl(210, 40%, 97%);
 }
 
+/*
+ * "Chrome" scope — the sidebar, topbar, and mobile nav are deliberately
+ * always dark, regardless of the overall light/gray/dark theme. Rather
+ * than replace every text-foreground/bg-muted/border-border class inside
+ * those components individually, this re-scopes the underlying theme
+ * variables themselves within .chrome-scope — so every existing class
+ * inside it automatically renders with dark-appropriate colors, exactly
+ * as if that subtree were permanently in dark mode, no matter what the
+ * rest of the page is doing.
+ *
+ * Default (light theme) values below match the original Tailwind
+ * slate-900/slate-800 exactly, so the un-themed look is unchanged from
+ * before. Gray theme gets a distinct-but-still-dark shade so it's
+ * visibly its own thing. Dark theme reuses the same values as light —
+ * "I don't mind it being the same dark when in dark mode."
+ */
+.chrome-scope {
+  --background: 222 47% 11%;        /* slate-900 */
+  --foreground: 210 20% 98%;
+  --muted: 217 33% 17%;             /* slate-800-ish */
+  --muted-foreground: 217 19% 65%;  /* slate-400-ish */
+  --card: 222 47% 11%;
+  --card-foreground: 210 20% 98%;
+  --border: 215 28% 17%;            /* slate-800 */
+  --input: 215 28% 17%;
+}
+
+.gray .chrome-scope {
+  --background: 222 30% 9%;
+  --foreground: 210 20% 98%;
+  --muted: 220 22% 14%;
+  --muted-foreground: 217 15% 62%;
+  --card: 222 30% 9%;
+  --card-foreground: 210 20% 98%;
+  --border: 220 20% 16%;
+  --input: 220 20% 16%;
+}
+
 .gray {
   --background: 220 16% 22%;
   --foreground: 220 15% 92%;
