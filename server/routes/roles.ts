@@ -83,7 +83,7 @@ router.get(
   async (req: any, res) => {
     try {
       const role: string = req.user?.role ?? "";
-      if (!["admin", "manager"].includes(role)) {
+      if (!["admin", "manager", "platform_admin"].includes(role)) {
         return res.status(403).json({ message: "Admin or manager privileges required" });
       }
 

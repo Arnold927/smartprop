@@ -3,6 +3,7 @@ import { db } from "../db";
 import { users, organizations } from "@shared/schema";
 import { eq, and } from "drizzle-orm";
 import { authenticateJWT } from "../middleware/auth";
+import { requireOrg } from "../middleware/requireOrg";
 import { auditLog } from "../middleware/auditLog";
 import { sendInviteEmail } from "../lib/email";
 import { randomUUID } from "crypto";
@@ -19,18 +20,20 @@ const router = Router();
 // GET /api/users — list users in org
 // Admins see all users; managers may query ?role=landlord to populate
 // owner-picker dropdowns.
-router.get("/", authenticateJWT, async (req: any, res) => {
+router.get("/", authenticateJWT, requireOrg, async (req: any, res) => {
   try {
     const callerRole: string = req.user.role;
     const orgId: number = req.user.organizationId;
     const roleFilter = req.query.role as string | undefined;
 
     // Non-admins may only request the landlord list (for owner pickers).
-    const ALLOWED_NON_ADMIN_ROLES = ["admin", "manager"];
+    // platform_admin gets full access, same as admin — they're viewing on
+    // behalf of an org they've explicitly selected via ?organizationId=.
+    const ALLOWED_NON_ADMIN_ROLES = ["admin", "manager", "platform_admin"];
     if (!ALLOWED_NON_ADMIN_ROLES.includes(callerRole)) {
       return res.status(403).json({ message: "Insufficient permissions" });
     }
-    if (callerRole !== "admin" && roleFilter !== "landlord") {
+    if (callerRole !== "admin" && callerRole !== "platform_admin" && roleFilter !== "landlord") {
       return res.status(403).json({ message: "Non-admin users may only query role=landlord" });
     }
 
@@ -62,7 +65,7 @@ router.get("/", authenticateJWT, async (req: any, res) => {
 });
 
 // GET /api/users/:id
-router.get("/:id", authenticateJWT, async (req: any, res) => {
+router.get("/:id", authenticateJWT, requireOrg, async (req: any, res) => {
   try {
     const { id } = req.params;
     const orgId: number = req.user.organizationId;
@@ -187,6 +190,7 @@ router.post("/", authenticateJWT, requireActiveSubscription as any, enforceUserL
 router.patch(
   "/:id",
   authenticateJWT,
+  requireOrg,
   auditLog("user", "UPDATE"),
   async (req: any, res) => {
     try {
@@ -195,8 +199,8 @@ router.patch(
       const orgId: number      = req.user.organizationId;
       const { id }             = req.params;
 
-      // Only admin and manager may manage other users
-      if (!["admin", "manager"].includes(callerRole)) {
+      // Only admin, manager, and platform_admin may manage other users
+      if (!["admin", "manager", "platform_admin"].includes(callerRole)) {
         return res.status(403).json({ message: "Only admins and managers can manage users." });
       }
 
@@ -251,8 +255,8 @@ router.patch(
         return res.status(403).json({ message: "Managers cannot modify admin accounts." });
       }
 
-      // Only admins can promote someone to admin
-      if (updates.role === "admin" && callerRole !== "admin") {
+      // Only admins (and platform_admin) can promote someone to admin
+      if (updates.role === "admin" && callerRole !== "admin" && callerRole !== "platform_admin") {
         return res.status(403).json({ message: "Only admins can promote users to admin." });
       }
 

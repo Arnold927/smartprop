@@ -1,6 +1,8 @@
 import { useState, useCallback, useEffect, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useLocation } from "wouter";
 import { apiRequest, ensureArray } from "@/lib/queryClient";
+import { getOrgIdFromSearch, withOrgParam } from "@/lib/platformOrgContext";
 import { useToast } from "@/hooks/use-toast";
 import {
   Users, Shield, Search, CheckCircle, XCircle,
@@ -516,9 +518,11 @@ function PermissionsTab() {
 
 // ─── Main Page ────────────────────────────────────────────────────────────────
 export default function UserManagement() {
-  const guard = useRoleGuard(ROLES.ADMIN_MANAGER);
+  const guard = useRoleGuard([...ROLES.ADMIN_MANAGER, "platform_admin"]);
   if (guard.gate) return guard.gate;
   const { user } = useAuth();
+  const [location] = useLocation();
+  const orgIdParam = getOrgIdFromSearch(location.includes("?") ? location.slice(location.indexOf("?")) : window.location.search);
 
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -529,19 +533,20 @@ export default function UserManagement() {
   const [pageSize, setPageSize] = useState(10);
   const [page, setPage] = useState(1);
 
+  const usersEndpoint = withOrgParam("/api/users", orgIdParam);
   const { data: usersRaw = [], isLoading } = useQuery<any>({
-    queryKey: ["/api/users"],
-    queryFn: async () => { const r = await apiRequest("/api/users"); return ensureArray(await r.json()); },
+    queryKey: [usersEndpoint],
+    queryFn: async () => { const r = await apiRequest(usersEndpoint); return ensureArray(await r.json()); },
     retry: false,
   });
   const users: any[] = Array.isArray(usersRaw) ? usersRaw : (usersRaw?.results ?? []);
 
   const updateMutation = useMutation({
     mutationFn: async ({ id, data }: { id: string; data: any }) => {
-      await apiRequest(`/api/users/${id}`, { method: "PATCH", data });
+      await apiRequest(withOrgParam(`/api/users/${id}`, orgIdParam), { method: "PATCH", data });
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/users"] });
+      queryClient.invalidateQueries({ queryKey: [usersEndpoint] });
       toast({ title: "Role updated" });
       setEditingRole(null);
     },

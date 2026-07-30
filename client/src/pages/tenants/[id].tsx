@@ -1,6 +1,7 @@
 import { useState, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useParams, Link } from "wouter";
+import { useParams, Link, useLocation } from "wouter";
+import { getOrgIdFromSearch, withOrgParam } from "@/lib/platformOrgContext";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -116,9 +117,11 @@ function fmtDate(d?: string | null) {
 
 export default function TenantDetails() {
   const { id } = useParams<{ id: string }>();
+  const [location] = useLocation();
+  const orgIdParam = getOrgIdFromSearch(location.includes("?") ? location.slice(location.indexOf("?")) : window.location.search);
   const [activeTab, setActiveTab] = useState("overview");
   const { user } = useAuth();
- const isManager = user?.role === "admin" || user?.role === "manager";
+ const isManager = user?.role === "admin" || user?.role === "manager" || user?.role === "platform_admin";
  // Reverted: every use of this flag on this page creates a request "for" the
  // specific tenant being viewed (preSelectedTenantId below) — that should
  // come from the tenant reporting the issue, not be filed on their behalf by
@@ -144,7 +147,7 @@ export default function TenantDetails() {
   // ── Queries ──
   const { data: tenant, isLoading } = useQuery<Tenant>({
     queryKey: [`/api/tenants/${id}`],
-    queryFn: async () => { const r = await apiRequest(`/api/tenants/${id}`); return r.json(); },
+    queryFn: async () => { const r = await apiRequest(withOrgParam(`/api/tenants/${id}`, orgIdParam)); return r.json(); },
     enabled: !!id,
   });
 
@@ -152,7 +155,7 @@ export default function TenantDetails() {
     queryKey: [`/api/units/${tenant?.unitId}`],
     queryFn: async () => {
       if (!tenant?.unitId) return null;
-      try { const r = await apiRequest(`/api/units/${tenant.unitId}`); return r.json(); }
+      try { const r = await apiRequest(withOrgParam(`/api/units/${tenant.unitId}`, orgIdParam)); return r.json(); }
       catch { return null; }
     },
     enabled: !!tenant?.unitId,
@@ -161,7 +164,7 @@ export default function TenantDetails() {
   const { data: documents = [], isLoading: isLoadingDocuments } = useQuery<Document[]>({
     queryKey: [`/api/tenants/${id}/documents`],
     queryFn: async () => {
-      const r = await apiRequest(`/api/documents?tenantId=${tenant?.id}`);
+      const r = await apiRequest(withOrgParam(`/api/documents?tenantId=${tenant?.id}`, orgIdParam));
       const d = await r.json();
       return Array.isArray(d) ? d : [];
     },
@@ -180,7 +183,7 @@ export default function TenantDetails() {
     queryKey: [`/api/properties/${resolvedPropertyId}/units`],
     queryFn: async () => {
       if (!resolvedPropertyId) return [];
-      const r = await apiRequest(`/api/properties/${resolvedPropertyId}/units`);
+      const r = await apiRequest(withOrgParam(`/api/properties/${resolvedPropertyId}/units`, orgIdParam));
       const d = await r.json();
       return Array.isArray(d) ? d : [];
     },
@@ -190,7 +193,7 @@ export default function TenantDetails() {
   const { data: rentPayments = [] } = useQuery<RentPayment[]>({
     queryKey: [`/api/tenants/${id}/payments`],
     queryFn: async () => {
-      const r = await apiRequest(`/api/tenants/${id}/payments`);
+      const r = await apiRequest(withOrgParam(`/api/tenants/${id}/payments`, orgIdParam));
       const d = await r.json();
       return Array.isArray(d) ? d : [];
     },
@@ -200,7 +203,7 @@ export default function TenantDetails() {
   const { data: maintenanceRequests = [], isLoading: isLoadingMaintenance } = useQuery<MaintenanceRequest[]>({
     queryKey: [`/api/maintenance-requests`, id],
     queryFn: async () => {
-      const r = await apiRequest(`/api/maintenance-requests?tenantId=${id}`);
+      const r = await apiRequest(withOrgParam(`/api/maintenance-requests?tenantId=${id}`, orgIdParam));
       const d = await r.json();
       return Array.isArray(d) ? d : (Array.isArray(d?.results) ? d.results : []);
     },
@@ -224,7 +227,7 @@ export default function TenantDetails() {
         currency: currency,
       };
       if (!payload.unitId) delete payload.unitId;
-      const r = await apiRequest(`/api/tenants/${id}`, { method: "PUT", data: payload });
+      const r = await apiRequest(withOrgParam(`/api/tenants/${id}`, orgIdParam), { method: "PUT", data: payload });
       return r.json();
     },
     onSuccess: () => {
@@ -347,7 +350,7 @@ export default function TenantDetails() {
 
   const handleDownloadDocument = async (doc: Document) => {
     try {
-      const r = await apiRequest(`/api/documents/${doc.id}/download`);
+      const r = await apiRequest(withOrgParam(`/api/documents/${doc.id}/download`, orgIdParam));
       if (!r.ok) throw new Error("Download failed");
       const blob = await r.blob();
       const url = window.URL.createObjectURL(blob);
@@ -391,7 +394,7 @@ export default function TenantDetails() {
         <h3 className="text-lg font-semibold mb-1">Tenant not found</h3>
         <p className="text-sm text-muted-foreground mb-4">This tenant doesn't exist or has been removed.</p>
         <Button asChild variant="outline">
-          <Link href="/tenants"><ArrowLeft className="mr-2 h-4 w-4" />Back to Tenants</Link>
+          <Link href={withOrgParam("/tenants", orgIdParam)}><ArrowLeft className="mr-2 h-4 w-4" />Back to Tenants</Link>
         </Button>
       </div>
     );
@@ -410,7 +413,7 @@ export default function TenantDetails() {
           {/* Back nav */}
           <div className="pt-4 pb-1">
             <Button variant="ghost" size="sm" className="-ml-2 text-muted-foreground hover:text-foreground h-8 text-xs" asChild>
-              <Link href="/tenants"><ArrowLeft className="h-3.5 w-3.5 mr-1.5" />Back to Tenants</Link>
+              <Link href={withOrgParam("/tenants", orgIdParam)}><ArrowLeft className="h-3.5 w-3.5 mr-1.5" />Back to Tenants</Link>
             </Button>
           </div>
 

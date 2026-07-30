@@ -11,6 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
+import { withOrgParam } from "@/lib/platformOrgContext";
 import { User, Zap, Receipt, CreditCard, FileText, Droplets, Flame, Save, Building } from "lucide-react";
 import { z } from "zod";
 
@@ -58,6 +59,10 @@ interface ComprehensiveTenantModalProps {
    *  This eliminates the internal useQuery entirely, removing the only
    *  source of "properties.map is not a function" regardless of API shape. */
   properties?: any[];
+  /** Required when the caller is platform_admin (no fixed org of their
+   *  own) — carried as ?organizationId=X on the submit request. Ignored
+   *  for every other role, whose org already comes from their own JWT. */
+  organizationId?: string | null;
 }
 
 // ─── Utility ──────────────────────────────────────────────────────────────────
@@ -79,7 +84,7 @@ function toArray<T>(data: unknown): T[] {
 
 // ─── Component ───────────────────────────────────────────────────────────────
 
-export default function ComprehensiveTenantModal({ isOpen, onClose, properties: propertiesProp = [] }: ComprehensiveTenantModalProps) {
+export default function ComprehensiveTenantModal({ isOpen, onClose, properties: propertiesProp = [], organizationId }: ComprehensiveTenantModalProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -112,7 +117,7 @@ export default function ComprehensiveTenantModal({ isOpen, onClose, properties: 
 
   const submitOnboardingMutation = useMutation({
     mutationFn: async (data: TenantOnboardingForm) => {
-      return await apiRequest("/api/tenant-onboarding", { method: "POST", data });
+      return await apiRequest(withOrgParam("/api/tenant-onboarding", organizationId), { method: "POST", data });
     },
     onSuccess: () => {
       toast({

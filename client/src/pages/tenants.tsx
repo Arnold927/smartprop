@@ -2,6 +2,7 @@ import { useState, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import { apiRequest, ensureArray } from "@/lib/queryClient";
+import { getOrgIdFromSearch, withOrgParam } from "@/lib/platformOrgContext";
 import { useToast } from "@/hooks/use-toast";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useAuth } from "@/hooks/useAuth";
@@ -174,7 +175,7 @@ function SwipeTenantCard({
 // ─── Main component ───────────────────────────────────────────────────────────
 
 export default function Tenants() {
-  const guard = useRoleGuard(ROLES.STAFF_AND_ABOVE);
+  const guard = useRoleGuard([...ROLES.STAFF_AND_ABOVE, "platform_admin"]);
   if (guard.gate) return guard.gate;
 
   // ── ALL hooks at the top — never after a conditional return ─────────────────
@@ -185,7 +186,8 @@ export default function Tenants() {
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
   const { toast } = useToast();
-  const [, navigate] = useLocation();
+  const [location, navigate] = useLocation();
+  const orgIdParam = getOrgIdFromSearch(location.includes("?") ? location.slice(location.indexOf("?")) : window.location.search);
   const queryClient = useQueryClient();
   const isMobile = useIsMobile();
   const { user } = useAuth();
@@ -195,8 +197,11 @@ export default function Tenants() {
 
   // Include role in the query key so a landlord's scoped results never collide
   // with a manager's full-org results in the shared React Query cache.
-  const tenantQueryKey = ["/api/tenants", user?.role ?? "unknown"];
-  const propertyQueryKey = ["/api/properties", user?.role ?? "unknown"];
+  // Also include orgIdParam so a platform_admin switching between orgs gets
+  // a fresh cache entry per org, not stale results from whichever org they
+  // looked at last.
+  const tenantQueryKey = [withOrgParam("/api/tenants", orgIdParam), user?.role ?? "unknown"];
+  const propertyQueryKey = [withOrgParam("/api/properties", orgIdParam), user?.role ?? "unknown"];
 
   // BUG FIX: do NOT use `= []` as the default value.
   // When the API returns { results: [...] } the default is overwritten with the
@@ -204,7 +209,7 @@ export default function Tenants() {
   // Use `undefined` as default and call toArray() after.
   const { data: tenantsRaw, isLoading } = useQuery<any>({
     queryKey: tenantQueryKey,
-    queryFn: async () => { const r = await apiRequest("/api/tenants"); return ensureArray(await r.json()); },
+    queryFn: async () => { const r = await apiRequest(tenantQueryKey[0] as string); return ensureArray(await r.json()); },
     staleTime: 5 * 60 * 1000,
   });
 
@@ -218,7 +223,7 @@ export default function Tenants() {
 
   const deleteMutation = useMutation({
     mutationFn: async (id: number) => {
-      await apiRequest(`/api/tenants/${id}`, { method: "DELETE" });
+      await apiRequest(withOrgParam(`/api/tenants/${id}`, orgIdParam), { method: "DELETE" });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: tenantQueryKey });
@@ -443,7 +448,7 @@ export default function Tenants() {
                   <SwipeTenantCard
                     key={t.id}
                     t={t}
-                    onView={() => navigate(`/tenants/${t.id}`)}
+                    onView={() => navigate(withOrgParam(`/tenants/${t.id}`, orgIdParam))}
                     onEmail={() => window.open(`mailto:${t.email}`, "_blank")}
                     onCall={() => t.phone && window.open(`tel:${t.phone}`, "_self")}
                     onDelete={() => {
@@ -506,7 +511,7 @@ export default function Tenants() {
                             <td className="px-4 py-3">
                               <div
                                 className="flex items-center gap-3 cursor-pointer"
-                                onClick={() => navigate(`/tenants/${t.id}`)}
+                                onClick={() => navigate(withOrgParam(`/tenants/${t.id}`, orgIdParam))}
                               >
                                 <Avatar className="w-8 h-8 flex-shrink-0">
                                   <AvatarFallback className="bg-blue-100 text-blue-600 text-xs font-medium">
@@ -575,7 +580,7 @@ export default function Tenants() {
                                   </Button>
                                 </DropdownMenuTrigger>
                                 <DropdownMenuContent align="end" className="w-40">
-                                  <DropdownMenuItem onClick={() => navigate(`/tenants/${t.id}`)}>
+                                  <DropdownMenuItem onClick={() => navigate(withOrgParam(`/tenants/${t.id}`, orgIdParam))}>
                                     <Eye className="w-4 h-4 mr-2" /> View
                                   </DropdownMenuItem>
                                   <DropdownMenuItem onClick={() => window.open(`mailto:${t.email}`, "_blank")}>
@@ -667,6 +672,7 @@ export default function Tenants() {
           queryClient.invalidateQueries({ queryKey: tenantQueryKey });
         }}
         properties={Array.isArray(properties) ? properties : []}
+        organizationId={orgIdParam}
       />
     </div>
   );
