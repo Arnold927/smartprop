@@ -7,14 +7,14 @@
  *   2. Fill readings for multiple tenants and send in bulk via email
  */
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, Fragment } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
-  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue, SelectGroup, SelectLabel,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
@@ -120,6 +120,21 @@ export default function UtilityBillSender() {
     queryKey: ["/api/utility-bills/tenants-with-accounts"],
   });
   const tenants: TenantWithAccount[] = ensureArray(rawTenants);
+
+  // Groups the already-sorted tenants list into consecutive runs by
+  // property name — doesn't re-sort, just clusters what the backend
+  // already ordered (properties.name, units.unitNumber), so this stays
+  // correct even if the sort order ever changes without this needing to.
+  const tenantsByProperty = (() => {
+    const groups: { propertyName: string; tenants: TenantWithAccount[] }[] = [];
+    for (const t of tenants) {
+      const name = t.propertyName ?? "Unassigned property";
+      const last = groups[groups.length - 1];
+      if (last && last.propertyName === name) last.tenants.push(t);
+      else groups.push({ propertyName: name, tenants: [t] });
+    }
+    return groups;
+  })();
 
   const selectedUtility = UTILITY_TYPES.find(u => u.value === utilityType) ?? UTILITY_TYPES[0];
   const UtilityIcon = selectedUtility.icon;
@@ -374,13 +389,18 @@ export default function UtilityBillSender() {
                         <SelectValue placeholder={loadingTenants ? "Loading tenants…" : "Choose a tenant…"} />
                       </SelectTrigger>
                       <SelectContent>
-                        {tenants.map(t => (
-                          <SelectItem key={t.tenantId} value={String(t.tenantId)}>
-                            <div className="flex flex-col">
-                              <span className="font-medium">{t.firstName} {t.lastName}</span>
-                              <span className="text-xs text-muted-foreground">{t.propertyName} · Unit {t.unitNumber} · {t.email}</span>
-                            </div>
-                          </SelectItem>
+                        {tenantsByProperty.map(group => (
+                          <SelectGroup key={group.propertyName}>
+                            <SelectLabel>{group.propertyName}</SelectLabel>
+                            {group.tenants.map(t => (
+                              <SelectItem key={t.tenantId} value={String(t.tenantId)}>
+                                <div className="flex flex-col">
+                                  <span className="font-medium">{t.firstName} {t.lastName}</span>
+                                  <span className="text-xs text-muted-foreground">Unit {t.unitNumber} · {t.email}</span>
+                                </div>
+                              </SelectItem>
+                            ))}
+                          </SelectGroup>
                         ))}
                       </SelectContent>
                     </Select>
@@ -524,14 +544,27 @@ export default function UtilityBillSender() {
                     <p className="text-sm text-muted-foreground py-6 text-center">No active tenants with assigned units found.</p>
                   ) : (
                     <div className="space-y-3 max-h-[500px] overflow-y-auto pr-1">
-                      {tenants.map(t => {
+                      {tenants.map((t, i) => {
                         const isSelected = selectedTenantIds.has(t.tenantId);
                         const row = readingRows.get(t.tenantId);
                         const rowTotal = isSelected && row ? calcTotal(row.previousReading, row.currentReading, unitCost) : null;
+                        // Tenants are already sorted by property, then unit
+                        // (see the backend query) — this just adds a visible
+                        // header at the point the property actually changes,
+                        // rather than re-sorting or re-grouping anything.
+                        const showPropertyHeader = i === 0 || tenants[i - 1].propertyName !== t.propertyName;
 
                         return (
+                          <Fragment key={t.tenantId}>
+                            {showPropertyHeader && (
+                              <div className="flex items-center gap-2 pt-2 pb-1 first:pt-0">
+                                <Building2 className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                                <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                                  {t.propertyName ?? "Unassigned property"}
+                                </span>
+                              </div>
+                            )}
                           <div
-                            key={t.tenantId}
                             className={`rounded-xl border p-4 transition-all ${
                               isSelected
                                 ? "border-emerald-300 bg-emerald-50 dark:bg-emerald-950/20 dark:border-emerald-800"
@@ -585,6 +618,7 @@ export default function UtilityBillSender() {
                               </div>
                             </div>
                           </div>
+                          </Fragment>
                         );
                       })}
                     </div>
