@@ -10,6 +10,7 @@
  * always has for admin/manager/landlord.
  */
 
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import { apiRequest } from "@/lib/queryClient";
@@ -17,6 +18,7 @@ import { useRoleGuard, ROLES } from "@/hooks/useRoleGuard";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Building2, Users, Home, ChevronRight, CreditCard, Wallet } from "lucide-react";
 
 interface OrgRow {
@@ -38,16 +40,31 @@ interface OrgRow {
 const fmtKES = (n: number) =>
   `KES ${n.toLocaleString("en-KE", { maximumFractionDigits: 0 })}`;
 
+/** Last 12 months as {value: "YYYY-MM", label: "July 2026"} options, newest first. */
+function recentMonthOptions(): { value: string; label: string }[] {
+  const opts: { value: string; label: string }[] = [];
+  const now = new Date();
+  for (let i = 0; i < 12; i++) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    const value = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+    const label = d.toLocaleDateString("en-US", { month: "long", year: "numeric" });
+    opts.push({ value, label });
+  }
+  return opts;
+}
+
 export default function PlatformOrganizationsPage() {
   const guard = useRoleGuard(ROLES.PLATFORM_ADMIN_ONLY);
   if (guard.gate) return guard.gate;
 
   const [, navigate] = useLocation();
+  const monthOptions = recentMonthOptions();
+  const [selectedMonth, setSelectedMonth] = useState(monthOptions[0].value);
 
   const { data: orgs = [], isLoading, error } = useQuery<OrgRow[]>({
-    queryKey: ["/api/platform/organizations"],
+    queryKey: ["/api/platform/organizations", selectedMonth],
     queryFn: async () => {
-      const r = await apiRequest("/api/platform/organizations");
+      const r = await apiRequest(`/api/platform/organizations?month=${selectedMonth}`);
       if (!r.ok) {
         const body = await r.json().catch(() => ({}));
         throw new Error(body.detail || body.message || `Request failed (${r.status})`);
@@ -74,19 +91,35 @@ export default function PlatformOrganizationsPage() {
       </div>
 
       {!isLoading && !error && orgs.length > 0 && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-6">
-          <Card>
-            <CardContent className="py-4">
-              <p className="text-xs text-muted-foreground">Revenue this month — all organisations</p>
-              <p className="text-xl font-semibold mt-1">{fmtKES(totalRevenueThisMonth)}</p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="py-4">
-              <p className="text-xs text-muted-foreground">Revenue all-time — all organisations</p>
-              <p className="text-xl font-semibold mt-1">{fmtKES(totalRevenueAllTime)}</p>
-            </CardContent>
-          </Card>
+        <div className="space-y-3 mb-6">
+          <div className="flex items-center justify-end">
+            <Select value={selectedMonth} onValueChange={setSelectedMonth}>
+              <SelectTrigger className="w-[180px] h-8 text-xs">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {monthOptions.map(m => (
+                  <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <Card>
+              <CardContent className="py-4">
+                <p className="text-xs text-muted-foreground">
+                  Revenue in {monthOptions.find(m => m.value === selectedMonth)?.label} — all organisations
+                </p>
+                <p className="text-xl font-semibold mt-1">{fmtKES(totalRevenueThisMonth)}</p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="py-4">
+                <p className="text-xs text-muted-foreground">Revenue all-time — all organisations</p>
+                <p className="text-xl font-semibold mt-1">{fmtKES(totalRevenueAllTime)}</p>
+              </CardContent>
+            </Card>
+          </div>
         </div>
       )}
 
@@ -145,7 +178,7 @@ export default function PlatformOrganizationsPage() {
                     <Users className="h-3.5 w-3.5" />
                     <span>{org.userCount}{org.maxUsers ? ` / ${org.maxUsers}` : ""}</span>
                   </div>
-                  <div className="flex items-center gap-1.5" title="Revenue this month / all-time">
+                  <div className="flex items-center gap-1.5" title={`Revenue in ${monthOptions.find(m => m.value === selectedMonth)?.label} / all-time`}>
                     <CreditCard className="h-3.5 w-3.5" />
                     <span>{fmtKES(org.revenueThisMonth)} <span className="text-xs opacity-70">/ {fmtKES(org.revenueTotal)} total</span></span>
                   </div>

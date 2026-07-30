@@ -30,7 +30,7 @@
 import { Router } from "express";
 import { db } from "../db";
 import { organizations, properties, users, rentPayments, utilityBills, tenants } from "@shared/schema";
-import { eq, and, gte, sql } from "drizzle-orm";
+import { eq, and, gte, lt, sql } from "drizzle-orm";
 import { authenticateJWT } from "../middleware/auth";
 
 const router = Router();
@@ -45,14 +45,30 @@ function requirePlatformAdmin(req: any, res: any, next: any) {
 router.use(requirePlatformAdmin);
 
 /** First day of the current calendar month, as a YYYY-MM-DD string. */
-function startOfMonthStr(): string {
-  const d = new Date();
-  d.setDate(1);
-  return d.toISOString().slice(0, 10);
+/** Returns the [start, end) bounds for a given month, defaulting to the
+ *  current month if no param is given. Accepts "YYYY-MM" (e.g. "2026-06").
+ *  Bounded on both ends (not just gte) so this works correctly for past
+ *  months too, not just "from the 1st of this month to now". */
+function monthRange(monthParam?: string): { start: string; end: string } {
+  let year: number, month: number; // month is 0-indexed for Date, but we take 1-indexed input
+  if (monthParam && /^\d{4}-\d{2}$/.test(monthParam)) {
+    const [y, m] = monthParam.split("-").map(Number);
+    year = y; month = m - 1;
+  } else {
+    const now = new Date();
+    year = now.getFullYear(); month = now.getMonth();
+  }
+  const start = new Date(Date.UTC(year, month, 1));
+  const end = new Date(Date.UTC(year, month + 1, 1));
+  return { start: start.toISOString().slice(0, 10), end: end.toISOString().slice(0, 10) };
 }
 
-router.get("/organizations", async (_req: any, res: any) => {
+router.get("/organizations", async (req: any, res: any) => {
   try {
+    // ?month=YYYY-MM lets the caller view revenue for any specific month,
+    // not just the current one. Defaults to the current month if omitted.
+    const { start: monthStart, end: monthEnd } = monthRange(req.query.month as string | undefined);
+
     const orgs = await db
       .select({
         id: organizations.id,
@@ -83,9 +99,7 @@ router.get("/organizations", async (_req: any, res: any) => {
       .from(users)
       .groupBy(users.organizationId);
 
-    const monthStart = startOfMonthStr();
-
-    // Rent revenue — all-time and this month, by org (via tenantId -> tenants.organizationId)
+    // Rent revenue — all-time and for the selected month, by org (via tenantId -> tenants.organizationId)
     const rentAllTime = await db
       .select({ organizationId: tenants.organizationId, total: sql<number>`COALESCE(SUM(${rentPayments.amount}::numeric), 0)` })
       .from(rentPayments)
@@ -97,7 +111,7 @@ router.get("/organizations", async (_req: any, res: any) => {
       .select({ organizationId: tenants.organizationId, total: sql<number>`COALESCE(SUM(${rentPayments.amount}::numeric), 0)` })
       .from(rentPayments)
       .innerJoin(tenants, eq(rentPayments.tenantId, tenants.id))
-      .where(and(eq(rentPayments.status, "paid"), gte(rentPayments.paidDate, monthStart)))
+      .where(and(eq(rentPayments.status, "paid"), gte(rentPayments.paidDate, monthStart), lt(rentPayments.paidDate, monthEnd)))
       .groupBy(tenants.organizationId);
 
     // Utility revenue — same shape. utilityBills.amount is a varchar column
@@ -114,7 +128,7 @@ router.get("/organizations", async (_req: any, res: any) => {
       .select({ organizationId: tenants.organizationId, total: sql<number>`COALESCE(SUM(${utilityBills.amount}::numeric), 0)` })
       .from(utilityBills)
       .innerJoin(tenants, eq(utilityBills.tenantId, tenants.id))
-      .where(and(eq(utilityBills.status, "paid"), gte(utilityBills.paidDate, new Date(monthStart))))
+      .where(and(eq(utilityBills.status, "paid"), gte(utilityBills.paidDate, new Date(monthStart)), lt(utilityBills.paidDate, new Date(monthEnd))))
       .groupBy(tenants.organizationId);
 
     const propCountMap = new Map(propertyCounts.map(r => [r.organizationId, Number(r.count)]));
