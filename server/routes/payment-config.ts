@@ -133,7 +133,7 @@ paymentConfigRouter.put("/", requireOrg as any, async (req: any, res: any) => {
     // admin/manager/platform_admin even though staff can edit the regular
     // Paybill/Till display fields via this same route — same reasoning as
     // the per-landlord case: these are API secrets, not display data.
-    if (mpesaCredentials && !["admin", "manager", "platform_admin"].includes(req.user.role)) {
+    if (mpesaCredentials && !["admin", "platform_admin"].includes(req.user.role)) {
       return res.status(403).json({ message: "Only an admin, manager, or platform admin can set Daraja API credentials." });
     }
     if (mpesaCredentials && (mpesaCredentials.consumerSecret || mpesaCredentials.passkey) && !encryptionConfigured()) {
@@ -179,7 +179,7 @@ paymentConfigRouter.put("/", requireOrg as any, async (req: any, res: any) => {
 // ── POST /api/payment-config/test-stk — verify org-level credentials ─────────
 paymentConfigRouter.post("/test-stk", requireOrg as any, async (req: any, res: any) => {
   try {
-    if (!["admin", "manager", "platform_admin"].includes(req.user.role)) {
+    if (!["admin", "platform_admin"].includes(req.user.role)) {
       return res.status(403).json({ message: "Not permitted." });
     }
     const orgId: number = req.user.organizationId;

@@ -24,6 +24,7 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
 } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/hooks/useAuth";
 import { apiRequest } from "@/lib/queryClient";
 import { withOrgParam } from "@/lib/platformOrgContext";
 import {
@@ -341,6 +342,13 @@ function PaymentMethodSection({
  *  tenants rather than falling back to manual Paybill/Till payment. */
 function DarajaCredentialsSection({ endpoint, testEndpoint, scope }: { endpoint: string; testEndpoint: string; scope: "org" | "landlord" }) {
   const { toast } = useToast();
+  const { user } = useAuth();
+  // Restricted to admin/platform_admin — not manager, and not staff. This is
+  // deliberately narrower than who can edit the regular Paybill/Till display
+  // fields via the rest of this panel; Daraja API credentials are sensitive
+  // secrets, and the person managing them should be the most trusted role
+  // available, not whoever happens to have day-to-day operational access.
+  const isAuthorized = user?.role === "admin" || user?.role === "platform_admin";
   const queryClient = useQueryClient();
   const [consumerKey, setConsumerKey] = useState("");
   const [consumerSecret, setConsumerSecret] = useState("");
@@ -358,6 +366,7 @@ function DarajaCredentialsSection({ endpoint, testEndpoint, scope }: { endpoint:
       const data = await r.json();
       return data.mpesaCredentials;
     },
+    enabled: isAuthorized,
   });
 
   const save = useMutation({
@@ -396,6 +405,8 @@ function DarajaCredentialsSection({ endpoint, testEndpoint, scope }: { endpoint:
     },
     onError: (err: any) => toast({ title: "Test failed", description: err.message, variant: "destructive" }),
   });
+
+  if (!isAuthorized) return null;
 
   return (
     <Card className="border-indigo-100">

@@ -231,6 +231,13 @@ router.put("/:ownerId", async (req: any, res: any) => {
     const { rentPayment, utilityPayment, mpesaCredentials } = req.body;
     if (!rentPayment) return res.status(400).json({ message: "rentPayment is required" });
 
+    // Credentials specifically are narrower than the rest of this endpoint —
+    // manager can still update a landlord's regular Paybill/Till/bank
+    // display info, but Daraja API credentials are restricted to
+    // admin/platform_admin, the same as the frontend now enforces.
+    if (mpesaCredentials && !["admin", "platform_admin"].includes(req.user.role)) {
+      return res.status(403).json({ message: "Only an admin or platform admin can set Daraja API credentials." });
+    }
     if (mpesaCredentials && (mpesaCredentials.consumerSecret || mpesaCredentials.passkey) && !encryptionConfigured()) {
       return res.status(503).json({ message: "Credential storage isn't configured on this server yet. Contact your platform administrator." });
     }
@@ -251,10 +258,13 @@ router.put("/:ownerId", async (req: any, res: any) => {
   }
 });
 
-// ── POST /:ownerId/test-stk — admin/manager test a specific landlord's credentials ──
+// ── POST /:ownerId/test-stk — admin/platform_admin test a specific landlord's credentials ──
+// Restricted to admin/platform_admin only (not manager) — this endpoint is
+// exclusively about credentials, unlike PUT /:ownerId above which also
+// handles display info manager can still touch.
 router.post("/:ownerId/test-stk", async (req: any, res: any) => {
   try {
-    if (!["admin", "manager", "platform_admin"].includes(req.user.role)) {
+    if (!["admin", "platform_admin"].includes(req.user.role)) {
       return res.status(403).json({ message: "Not permitted." });
     }
     const orgId: number = req.user.organizationId;
