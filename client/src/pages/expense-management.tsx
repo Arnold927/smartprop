@@ -365,7 +365,6 @@ export default function ExpenseManagement() {
   const [editingExpense, setEditingExpense]     = useState<PropertyExpense | null>(null);
   const [editPropertyId, setEditPropertyId]     = useState("");
   const [editCategory, setEditCategory]         = useState("");
-  const [editContractorId, setEditContractorId] = useState("");
   const [editRecurringFrequency, setEditRecurringFrequency] = useState("");
   const [editIsRecurring, setEditIsRecurring]   = useState(false);
 
@@ -373,7 +372,6 @@ export default function ExpenseManagement() {
     setEditingExpense(expense);
     setEditPropertyId(expense.propertyId.toString());
     setEditCategory(expense.category);
-    setEditContractorId(expense.contractorId?.toString() || "none");
     setEditRecurringFrequency(expense.recurringFrequency || "");
     setEditIsRecurring(expense.isRecurring);
   };
@@ -382,7 +380,6 @@ export default function ExpenseManagement() {
     setEditingExpense(null);
     setEditPropertyId("");
     setEditCategory("");
-    setEditContractorId("");
     setEditRecurringFrequency("");
     setEditIsRecurring(false);
   };
@@ -390,7 +387,6 @@ export default function ExpenseManagement() {
   // ── Add-Expense form controlled fields (Radix Select doesn't write to FormData) ──
   const [formPropertyId, setFormPropertyId]             = useState("");
   const [formCategory, setFormCategory]                 = useState("");
-  const [formContractorId, setFormContractorId]         = useState("");
   const [formRecurringFrequency, setFormRecurringFrequency] = useState("");
   const [formIsRecurring, setFormIsRecurring]           = useState(false);
 
@@ -398,7 +394,6 @@ export default function ExpenseManagement() {
   const resetForm = () => {
     setFormPropertyId("");
     setFormCategory("");
-    setFormContractorId("");
     setFormRecurringFrequency("");
     setFormIsRecurring(false);
   };
@@ -427,17 +422,6 @@ export default function ExpenseManagement() {
     enabled: !!user,
   });
 
-  // Contractors are ADMIN_MANAGER_STAFF — landlords get 403.
-  // Disable the query for landlords; the contractor picker won't show.
-  const { data: contractorsRaw = [], isLoading: loadingContractors } = useQuery({
-    queryKey: ["/api/contractors"],
-    queryFn: async () => {
-      try { const r = await apiRequest("/api/contractors"); if (!r.ok) return []; const d = await r.json(); return ensureArray(d); }
-      catch (e) { return []; }
-    },
-    enabled: !isLandlord,
-  });
-
   const { data: expensesRaw = [], isLoading: loadingExpenses } = useQuery({
     queryKey: ["/api/property-expenses"],
     queryFn: async () => {
@@ -457,7 +441,6 @@ export default function ExpenseManagement() {
   });
 
   const properties      = ensureArray(propertiesRaw);
-  const contractors     = ensureArray(contractorsRaw);
   const expenses        = ensureArray(expensesRaw);
   const serviceContracts = ensureArray(serviceContractsRaw);
 
@@ -591,7 +574,6 @@ export default function ExpenseManagement() {
       id: editingExpense.id,
       data: {
         propertyId:         parseInt(editPropertyId),
-        contractorId:       editContractorId && editContractorId !== "none" ? parseInt(editContractorId) : null,
         vendorName:         formData.get("vendorName") as string,
         description:        formData.get("description") as string,
         amount:             formData.get("amount") as string,
@@ -623,7 +605,6 @@ export default function ExpenseManagement() {
     createExpenseMutation.mutate({
       expenseNumber:      `EXP-${Date.now()}`,
       propertyId:         parseInt(formPropertyId),
-      contractorId:       formContractorId && formContractorId !== "none" ? parseInt(formContractorId) : undefined,
       vendorName:         formData.get("vendorName") as string,
       description:        formData.get("description") as string,
       amount:             formData.get("amount") as string,
@@ -639,7 +620,7 @@ export default function ExpenseManagement() {
     });
   };
 
-  if (loadingProperties || loadingContractors) {
+  if (loadingProperties) {
     return (
       <div className="flex items-center justify-center h-96">
         <div className="text-center">
@@ -702,18 +683,6 @@ export default function ExpenseManagement() {
               <div className="space-y-2">
                 <Label htmlFor="vendorName">Vendor/Supplier *</Label>
                 <Input id="vendorName" name="vendorName" required />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="contractorId">Contractor (Optional)</Label>
-                <Select value={formContractorId} onValueChange={setFormContractorId}>
-                  <SelectTrigger><SelectValue placeholder="Select contractor" /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">None</SelectItem>
-                    {contractors.map((c: any) => (
-                      <SelectItem key={c.id} value={c.id.toString()}>{c.name}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
               </div>
               <div className="space-y-2">
                 <Label htmlFor="description">Description *</Label>
@@ -1271,18 +1240,6 @@ export default function ExpenseManagement() {
               <div className="space-y-2">
                 <Label htmlFor="edit-vendorName">Vendor/Supplier *</Label>
                 <Input id="edit-vendorName" name="vendorName" defaultValue={editingExpense.vendorName} required />
-              </div>
-              <div className="space-y-2">
-                <Label>Contractor (Optional)</Label>
-                <Select value={editContractorId} onValueChange={setEditContractorId}>
-                  <SelectTrigger><SelectValue placeholder="Select contractor" /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">None</SelectItem>
-                    {contractors.map((c: any) => (
-                      <SelectItem key={c.id} value={c.id.toString()}>{c.name}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
               </div>
               <div className="space-y-2">
                 <Label htmlFor="edit-description">Description *</Label>
