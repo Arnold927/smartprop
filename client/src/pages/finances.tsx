@@ -1,10 +1,11 @@
 import { useState } from "react";
+import { useLocation } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import { apiRequest, ensureArray } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import {
  TrendingUp, TrendingDown, Smartphone, CreditCard,
- Receipt, Search, Download,
+ Receipt, Search, Download, Plus,
  Wallet, BarChart3, ArrowUpRight, ArrowDownLeft,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -38,6 +39,7 @@ export default function Finances() {
   const guard = useRoleGuard(ROLES.STAFF_AND_ABOVE);
   if (guard.gate) return guard.gate;
   const { user } = useAuth();
+  const [, navigate] = useLocation();
 
  const { toast } = useToast();
  const [search, setSearch] = useState("");
@@ -212,6 +214,7 @@ export default function Finances() {
  <p className="text-sm text-muted-foreground mt-0.5">{dateFilter === "today" ? "Today" : dateFilter === "week" ? "Last 7 days" : dateFilter === "month" ? new Date().toLocaleString("default", { month: "long", year: "numeric" }) : "All time"} · Portfolio financial summary</p>
  </div>
  <div className="flex items-center gap-2">
+ <Button variant="outline" size="sm" onClick={() => navigate("/expense-management")}><Plus className="w-4 h-4 mr-1.5" />Manage Expenses</Button>
  <Button variant="outline" size="sm" onClick={handleExport}><Download className="w-4 h-4 mr-1.5" />Export</Button>
  </div>
  </div>
