@@ -21,13 +21,14 @@
 import { Router }          from 'express';
 import { z }               from 'zod';
 import { db }              from '../db';
-import { rentPayments, tenants, mpesaTransactions, utilityBills, tenantShortBookings } from '@shared/schema';
+import { rentPayments, tenants, mpesaTransactions, utilityBills, tenantShortBookings, tenantShortRentals, users } from '@shared/schema';
 import { eq, and, or, like, gte, lte, isNull }     from 'drizzle-orm';
 import { authenticateJWT } from '../middleware/auth';
 import { safaricomIpOnly } from '../middleware/safaricomIp';
 import { getMPesaService, isMpesaConfigured, createMPesaServiceForOverrides } from '../services/mpesa';
 import { storage }         from '../storage';
 import { notifyPaymentConfirmed } from '../ws';
+import { sendBookingConfirmationEmail, sendNewBookingAlertEmail } from '../lib/email';
 import { whatsappService } from '../whatsapp';
 import { resolvePaymentConfigForTenantId } from '../utils/resolvePaymentConfig';
 import { buildRentAccountReference, buildUtilityAccountReference, parseAccountReference } from '@shared/paymentReference';
@@ -488,6 +489,17 @@ router.post('/callback', safaricomIpOnly, async (req, res) => {
         resultDesc,
         callbackData: req.body,
       });
+      // Booking-specific: mark paymentStatus as failed explicitly, distinct
+      // from "still pending" — the frontend polls for exactly this so it
+      // can stop waiting and offer a retry, rather than only ever timing
+      // out generically after 2 minutes. bookingStatus is left alone (not
+      // cancelled) since the guest can still retry payment on the same
+      // booking.
+      if ((transaction as any).shortTermBookingId) {
+        await db.update(tenantShortBookings)
+          .set({ paymentStatus: 'failed', updatedAt: new Date() })
+          .where(eq(tenantShortBookings.id, (transaction as any).shortTermBookingId));
+      }
       console.log(`[M-Pesa] STK failed — code ${resultCode}: ${resultDesc}`);
       return;
     }
@@ -501,6 +513,7 @@ router.post('/callback', safaricomIpOnly, async (req, res) => {
     // below doesn't know about them, so they're confirmed directly here and
     // don't fall through to that logic.
     if ((transaction as any).shortTermBookingId) {
+      const bookingId = (transaction as any).shortTermBookingId;
       await storage.updateMpesaTransaction(transaction.id, {
         status: 'completed',
         mpesaReceiptNumber,
@@ -508,10 +521,64 @@ router.post('/callback', safaricomIpOnly, async (req, res) => {
         resultDesc,
         callbackData: req.body,
       });
-      await db.update(tenantShortBookings)
+      const [updatedBooking] = await db.update(tenantShortBookings)
         .set({ bookingStatus: 'confirmed', paymentStatus: 'paid', updatedAt: new Date() })
-        .where(eq(tenantShortBookings.id, (transaction as any).shortTermBookingId));
-      console.log(`[M-Pesa] Booking ${(transaction as any).shortTermBookingId} confirmed via STK — receipt ${mpesaReceiptNumber}`);
+        .where(eq(tenantShortBookings.id, bookingId))
+        .returning();
+      console.log(`[M-Pesa] Booking ${bookingId} confirmed via STK — receipt ${mpesaReceiptNumber}`);
+
+      // Email notifications — deliberately isolated in their own try/catch.
+      // A Resend outage or bad config shouldn't undo a real, paid booking
+      // confirmation; worst case here is a booking confirms silently
+      // without an email, not a booking that fails to confirm at all.
+      try {
+        const [listing] = await db.select().from(tenantShortRentals)
+          .where(eq(tenantShortRentals.id, updatedBooking.rentalListingId)).limit(1);
+        if (listing && updatedBooking) {
+          const checkInStr = new Date(updatedBooking.checkInDate).toLocaleDateString();
+          const checkOutStr = new Date(updatedBooking.checkOutDate).toLocaleDateString();
+
+          await sendBookingConfirmationEmail({
+            to: updatedBooking.guestEmail,
+            guestName: updatedBooking.guestName,
+            listingTitle: listing.listingTitle,
+            bookingReference: updatedBooking.bookingReference,
+            checkInDate: checkInStr,
+            checkOutDate: checkOutStr,
+            totalAmount: String(updatedBooking.totalAmount),
+            currency: updatedBooking.currency,
+          });
+
+          // Resolve the host's email — a tenant-sublet listing has its own
+          // email on the tenant record directly; an owner-managed listing
+          // needs a lookup through the users table via ownerId.
+          let hostEmail: string | null = null;
+          if (listing.tenantId) {
+            const [tenantRow] = await db.select({ email: tenants.email }).from(tenants).where(eq(tenants.id, listing.tenantId)).limit(1);
+            hostEmail = tenantRow?.email ?? null;
+          } else if (listing.ownerId) {
+            const [ownerRow] = await db.select({ email: users.email }).from(users).where(eq(users.id, listing.ownerId)).limit(1);
+            hostEmail = ownerRow?.email ?? null;
+          }
+          if (hostEmail) {
+            await sendNewBookingAlertEmail({
+              to: hostEmail,
+              listingTitle: listing.listingTitle,
+              guestName: updatedBooking.guestName,
+              guestPhone: updatedBooking.guestPhone,
+              bookingReference: updatedBooking.bookingReference,
+              checkInDate: checkInStr,
+              checkOutDate: checkOutStr,
+              totalAmount: String(updatedBooking.totalAmount),
+              currency: updatedBooking.currency,
+            });
+          } else {
+            console.warn(`[M-Pesa] No host email resolved for listing ${listing.id} — new booking alert not sent`);
+          }
+        }
+      } catch (emailErr) {
+        console.error('[M-Pesa] Booking confirmed, but sending notification email(s) failed:', emailErr);
+      }
       return;
     }
 

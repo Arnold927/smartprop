@@ -23,11 +23,12 @@
 import { Router } from "express";
 import { db } from "../db";
 import { eq, and, ne, lt, gte, sql } from "drizzle-orm";
-import { tenantShortRentals, tenantShortBookings } from "@shared/schema";
+import { tenantShortRentals, tenantShortBookings, listingBlockedDates } from "@shared/schema";
 import { z } from "zod";
 import { resolveFromUnitId } from "../utils/resolvePaymentConfig";
 import { createMPesaServiceForOverrides } from "../services/mpesa";
 import { storage } from "../storage";
+import { hasBlockedDateOverlap } from "./tenant-subletting";
 
 export const publicStaysRouter = Router();
 
@@ -128,7 +129,19 @@ publicStaysRouter.get("/:slug/booked-dates", async (req: any, res: any) => {
         // returning years of past stays to a public caller.
         gte(tenantShortBookings.checkOutDate, sql`now()`),
       ));
-    res.json(bookings);
+
+    // Host-blocked dates count as unavailable too, same as a real booking —
+    // returned in the same shape (checkInDate/checkOutDate) so the frontend
+    // calendar doesn't need to know the difference between the two.
+    const blocks = await db
+      .select({ checkInDate: listingBlockedDates.startDate, checkOutDate: listingBlockedDates.endDate })
+      .from(listingBlockedDates)
+      .where(and(
+        eq(listingBlockedDates.rentalListingId, listing.id),
+        gte(listingBlockedDates.endDate, sql`now()`),
+      ));
+
+    res.json([...bookings, ...blocks]);
   } catch (err) {
     console.error("[public-stays] GET /:slug/booked-dates:", err);
     res.status(500).json({ message: "Failed to load availability" });
@@ -197,6 +210,12 @@ publicStaysRouter.post("/:slug/book", async (req: any, res: any) => {
         code: "BOOKING_DATES_UNAVAILABLE",
       });
     }
+    if (await hasBlockedDateOverlap(listing.id, checkIn, checkOut)) {
+      return res.status(409).json({
+        message: "Those dates are blocked by the host and aren't available for booking.",
+        code: "BOOKING_DATES_UNAVAILABLE",
+      });
+    }
 
     // Every financial figure computed from the listing's own stored rate
     // and configured commission/fee percentages — never from the request
@@ -250,6 +269,33 @@ publicStaysRouter.post("/:slug/book", async (req: any, res: any) => {
   } catch (err) {
     console.error("[public-stays] POST /:slug/book:", err);
     res.status(500).json({ message: "Failed to create booking" });
+  }
+});
+
+// ── GET /api/public/stays/:slug/bookings/:bookingId/status ────────────────────
+// Lightweight polling target for the frontend while waiting on the async
+// STK Push callback — deliberately returns only status fields, nothing else
+// about the booking or guest.
+publicStaysRouter.get("/:slug/bookings/:bookingId/status", async (req: any, res: any) => {
+  try {
+    const bookingId = parseInt(req.params.bookingId);
+    if (isNaN(bookingId)) return res.status(400).json({ message: "Invalid booking." });
+
+    const [listing] = await db.select({ id: tenantShortRentals.id }).from(tenantShortRentals)
+      .where(eq(tenantShortRentals.slug, req.params.slug)).limit(1);
+    if (!listing) return res.status(404).json({ message: "Listing not found." });
+
+    const [booking] = await db
+      .select({ bookingStatus: tenantShortBookings.bookingStatus, paymentStatus: tenantShortBookings.paymentStatus })
+      .from(tenantShortBookings)
+      .where(and(eq(tenantShortBookings.id, bookingId), eq(tenantShortBookings.rentalListingId, listing.id)))
+      .limit(1);
+    if (!booking) return res.status(404).json({ message: "Booking not found." });
+
+    res.json(booking);
+  } catch (err) {
+    console.error("[public-stays] GET /:slug/bookings/:bookingId/status:", err);
+    res.status(500).json({ message: "Failed to check status" });
   }
 });
 

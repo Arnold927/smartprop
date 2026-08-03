@@ -8,6 +8,7 @@
 import { Router } from "express";
 import { db } from "../db";
 import { eq, and, ne, lt, inArray } from "drizzle-orm";
+import { s3Upload, resolveUploadUrl } from "../middleware/s3Upload";
 import { authenticateJWT } from "../middleware/auth";
 import { requireOrg } from "../middleware/requireOrg";
 import {
@@ -15,6 +16,8 @@ import {
   tenantShortBookings,
   insertTenantShortRentalSchema,
   insertTenantShortBookingSchema,
+  listingBlockedDates,
+  insertListingBlockedDateSchema,
   tenants,
   units,
   properties,
@@ -98,6 +101,17 @@ tenantShortRentalsRouter.get("/", async (req: any, res: any) => {
     return res.status(500).json({ message: "Failed to fetch listings" });
   }
 });
+
+/** Whether a date range overlaps any host-blocked range on this listing —
+ *  shared by every booking-creation path (authenticated and public) so
+ *  they can't drift out of sync on what counts as unavailable. */
+export async function hasBlockedDateOverlap(rentalListingId: number, checkIn: Date, checkOut: Date): Promise<boolean> {
+  const blocks = await db
+    .select({ startDate: listingBlockedDates.startDate, endDate: listingBlockedDates.endDate })
+    .from(listingBlockedDates)
+    .where(and(eq(listingBlockedDates.rentalListingId, rentalListingId), lt(listingBlockedDates.startDate, checkOut)));
+  return blocks.some(b => new Date(b.endDate) > checkIn);
+}
 
 /** Whether this user may view/edit/delete a specific listing — same rule
  *  used consistently across GET /:id, PUT /:id, and DELETE /:id, so
@@ -375,6 +389,144 @@ tenantShortRentalsRouter.delete("/:id", async (req: any, res: any) => {
   }
 });
 
+// POST /api/tenant-short-rentals/:id/photos — upload a listing photo
+tenantShortRentalsRouter.post("/:id/photos", s3Upload.single("photo"), async (req: any, res: any) => {
+  try {
+    if (!req.file) return res.status(400).json({ message: "No file uploaded" });
+    const id = parseInt(req.params.id);
+    const orgId: number = req.user.organizationId;
+    const [listing] = await db.select().from(tenantShortRentals)
+      .where(and(eq(tenantShortRentals.id, id), eq(tenantShortRentals.organizationId, orgId))).limit(1);
+    if (!listing) return res.status(404).json({ message: "Not found" });
+    if (!(await canAccessListing(listing, req.user))) return res.status(403).json({ message: "Not permitted." });
+
+    const photoUrl = resolveUploadUrl(req.file as any);
+    const existingPhotos = Array.isArray(listing.listingPhotos) ? listing.listingPhotos : [];
+    const [updated] = await db.update(tenantShortRentals)
+      .set({ listingPhotos: [...existingPhotos, photoUrl], updatedAt: new Date() })
+      .where(eq(tenantShortRentals.id, id))
+      .returning();
+    return res.status(201).json({ url: photoUrl, listing: updated });
+  } catch (err) {
+    console.error("Error uploading listing photo:", err);
+    return res.status(500).json({ message: "Failed to upload photo" });
+  }
+});
+
+// DELETE /api/tenant-short-rentals/:id/photos — remove a specific photo by URL
+tenantShortRentalsRouter.delete("/:id/photos", async (req: any, res: any) => {
+  try {
+    const id = parseInt(req.params.id);
+    const orgId: number = req.user.organizationId;
+    const { url } = req.body;
+    if (!url) return res.status(400).json({ message: "url is required" });
+    const [listing] = await db.select().from(tenantShortRentals)
+      .where(and(eq(tenantShortRentals.id, id), eq(tenantShortRentals.organizationId, orgId))).limit(1);
+    if (!listing) return res.status(404).json({ message: "Not found" });
+    if (!(await canAccessListing(listing, req.user))) return res.status(403).json({ message: "Not permitted." });
+
+    const existingPhotos = Array.isArray(listing.listingPhotos) ? listing.listingPhotos : [];
+    const [updated] = await db.update(tenantShortRentals)
+      .set({ listingPhotos: existingPhotos.filter((p: string) => p !== url), updatedAt: new Date() })
+      .where(eq(tenantShortRentals.id, id))
+      .returning();
+    return res.json(updated);
+  } catch (err) {
+    console.error("Error removing listing photo:", err);
+    return res.status(500).json({ message: "Failed to remove photo" });
+  }
+});
+
+// GET /api/tenant-short-rentals/:id/blocked-dates — host-blocked dates for a listing
+tenantShortRentalsRouter.get("/:id/blocked-dates", async (req: any, res: any) => {
+  try {
+    const id = parseInt(req.params.id);
+    const orgId: number = req.user.organizationId;
+    const [listing] = await db.select().from(tenantShortRentals)
+      .where(and(eq(tenantShortRentals.id, id), eq(tenantShortRentals.organizationId, orgId))).limit(1);
+    if (!listing) return res.status(404).json({ message: "Not found" });
+    if (!(await canAccessListing(listing, req.user))) return res.status(403).json({ message: "Not permitted." });
+
+    const blocks = await db.select().from(listingBlockedDates)
+      .where(eq(listingBlockedDates.rentalListingId, id))
+      .orderBy(listingBlockedDates.startDate);
+    return res.json(blocks);
+  } catch (err) {
+    console.error("Error fetching blocked dates:", err);
+    return res.status(500).json({ message: "Failed to fetch blocked dates" });
+  }
+});
+
+const blockedDateRequestSchema = z.object({
+  startDate: z.string(),
+  endDate: z.string(),
+  reason: z.string().max(200).optional(),
+});
+
+// POST /api/tenant-short-rentals/:id/blocked-dates — host blocks dates for
+// personal use, maintenance, etc. Runs the exact same overlap check as a
+// real booking.
+tenantShortRentalsRouter.post("/:id/blocked-dates", async (req: any, res: any) => {
+  try {
+    const id = parseInt(req.params.id);
+    const orgId: number = req.user.organizationId;
+    const [listing] = await db.select().from(tenantShortRentals)
+      .where(and(eq(tenantShortRentals.id, id), eq(tenantShortRentals.organizationId, orgId))).limit(1);
+    if (!listing) return res.status(404).json({ message: "Not found" });
+    if (!(await canAccessListing(listing, req.user))) return res.status(403).json({ message: "Not permitted." });
+
+    const parsed = blockedDateRequestSchema.safeParse(req.body);
+    if (!parsed.success) return res.status(400).json({ message: "Invalid date range." });
+    const startDate = new Date(parsed.data.startDate);
+    const endDate = new Date(parsed.data.endDate);
+    if (isNaN(startDate.getTime()) || isNaN(endDate.getTime()) || endDate <= startDate) {
+      return res.status(400).json({ message: "End date must be after start date." });
+    }
+
+    const conflictingBookings = await db
+      .select({ id: tenantShortBookings.id, checkInDate: tenantShortBookings.checkInDate, checkOutDate: tenantShortBookings.checkOutDate })
+      .from(tenantShortBookings)
+      .where(and(eq(tenantShortBookings.rentalListingId, id), ne(tenantShortBookings.bookingStatus, "cancelled"), lt(tenantShortBookings.checkInDate, endDate)));
+    if (conflictingBookings.some(b => new Date(b.checkOutDate) > startDate)) {
+      return res.status(409).json({ message: "Those dates already have a guest booking on them." });
+    }
+
+    const payload = insertListingBlockedDateSchema.parse({
+      rentalListingId: id,
+      startDate,
+      endDate,
+      reason: parsed.data.reason,
+      createdBy: req.user.id,
+    });
+    const [created] = await db.insert(listingBlockedDates).values(payload).returning();
+    return res.status(201).json(created);
+  } catch (err) {
+    if (err instanceof z.ZodError) return res.status(400).json({ errors: err.errors });
+    console.error("Error creating blocked dates:", err);
+    return res.status(500).json({ message: "Failed to block dates" });
+  }
+});
+
+// DELETE /api/tenant-short-rentals/:id/blocked-dates/:blockId — unblock a range
+tenantShortRentalsRouter.delete("/:id/blocked-dates/:blockId", async (req: any, res: any) => {
+  try {
+    const id = parseInt(req.params.id);
+    const blockId = parseInt(req.params.blockId);
+    const orgId: number = req.user.organizationId;
+    const [listing] = await db.select().from(tenantShortRentals)
+      .where(and(eq(tenantShortRentals.id, id), eq(tenantShortRentals.organizationId, orgId))).limit(1);
+    if (!listing) return res.status(404).json({ message: "Not found" });
+    if (!(await canAccessListing(listing, req.user))) return res.status(403).json({ message: "Not permitted." });
+
+    await db.delete(listingBlockedDates)
+      .where(and(eq(listingBlockedDates.id, blockId), eq(listingBlockedDates.rentalListingId, id)));
+    return res.status(204).send();
+  } catch (err) {
+    console.error("Error removing blocked dates:", err);
+    return res.status(500).json({ message: "Failed to unblock dates" });
+  }
+});
+
 // ── Short Term Bookings Router ────────────────────────────────────────────────
 export const shortTermBookingsRouter = Router();
 shortTermBookingsRouter.use(authenticateJWT, requireOrg);
@@ -488,6 +640,12 @@ shortTermBookingsRouter.post("/", async (req: any, res: any) => {
         code: "BOOKING_DATES_UNAVAILABLE",
       });
     }
+    if (await hasBlockedDateOverlap(payload.rentalListingId as any, checkIn, checkOut)) {
+      return res.status(409).json({
+        message: "Those dates are blocked by the host and aren't available for booking.",
+        code: "BOOKING_DATES_UNAVAILABLE",
+      });
+    }
 
     const [created] = await db.insert(tenantShortBookings).values(payload).returning();
     return res.status(201).json(created);
@@ -551,6 +709,12 @@ shortTermBookingsRouter.put("/:id", async (req: any, res: any) => {
           code: "BOOKING_DATES_UNAVAILABLE",
         });
       }
+      if (await hasBlockedDateOverlap(existing.rentalListingId, checkIn, checkOut)) {
+        return res.status(409).json({
+          message: "Those dates are blocked by the host and aren't available.",
+          code: "BOOKING_DATES_UNAVAILABLE",
+        });
+      }
     }
 
     const rows = await db
@@ -578,11 +742,26 @@ shortTermBookingsRouter.delete("/:id", async (req: any, res: any) => {
       .where(and(eq(tenantShortBookings.id, id), eq(tenantShortBookings.organizationId, orgId))).limit(1);
     if (!existing) return res.status(404).json({ message: "Not found" });
     if (!(await canAccessBooking(existing, req.user))) return res.status(403).json({ message: "Not permitted." });
+    if (existing.bookingStatus === "cancelled") {
+      return res.status(409).json({ message: "This booking is already cancelled." });
+    }
+    if (existing.bookingStatus === "checked_out") {
+      return res.status(409).json({ message: "A completed stay can't be cancelled." });
+    }
 
-    await db.delete(tenantShortBookings).where(eq(tenantShortBookings.id, id));
-    return res.status(204).send();
+    // Soft-cancel, not a hard delete — preserves the booking's history and
+    // audit trail, and lets other logic (double-booking checks, revenue
+    // reporting) correctly distinguish "never happened" from "was booked,
+    // then cancelled". The dates become available again automatically,
+    // since every overlap check already excludes cancelled bookings.
+    const [updated] = await db
+      .update(tenantShortBookings)
+      .set({ bookingStatus: "cancelled", updatedAt: new Date() })
+      .where(eq(tenantShortBookings.id, id))
+      .returning();
+    return res.json(updated);
   } catch (err) {
-    console.error("Error deleting short term booking:", err);
-    return res.status(500).json({ message: "Failed to delete booking" });
+    console.error("Error cancelling short term booking:", err);
+    return res.status(500).json({ message: "Failed to cancel booking" });
   }
 });

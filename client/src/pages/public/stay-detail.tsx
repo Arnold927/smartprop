@@ -208,6 +208,12 @@ export default function StayDetailPage() {
             clearInterval(interval);
             return;
           }
+          if (data.paymentStatus === "failed") {
+            clearInterval(interval);
+            setPaymentErrorMsg("That payment didn't go through — check the prompt was completed correctly and try again.");
+            setPaymentState("error");
+            return;
+          }
         }
       } catch { /* transient network hiccup — just try again next tick */ }
       if (Date.now() - startedAt > 120_000) {

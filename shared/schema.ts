@@ -4826,6 +4826,21 @@ export type InsertWhatsappMessage = typeof whatsappMessages.$inferInsert;
 export type WhatsappTemplate = typeof whatsappTemplates.$inferSelect;
 export type InsertWhatsappTemplate = typeof whatsappTemplates.$inferInsert;
 // ── Tenant Short-Term Rentals ────────────────────────────────────────────────
+// Host-blocked dates for a short-term listing — personal use, maintenance,
+// etc. Deliberately keyed by rentalListingId (not propertyId, unlike the
+// older propertyAvailability table) so blocking one listing's dates never
+// accidentally affects a different listing on the same property.
+export const listingBlockedDates = pgTable("listing_blocked_dates", {
+  id: serial("id").primaryKey(),
+  rentalListingId: integer("rental_listing_id").notNull(),
+  startDate: timestamp("start_date").notNull(),
+  endDate: timestamp("end_date").notNull(),
+  reason: varchar("reason", { length: 200 }),
+  createdBy: uuid("created_by").references(() => users.id),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+export const insertListingBlockedDateSchema = createInsertSchema(listingBlockedDates).omit({ id: true, createdAt: true });
+
 export const tenantShortRentals = pgTable("tenant_short_rentals", {
   id: serial("id").primaryKey(),
   organizationId: integer("organization_id").references(() => organizations.id).notNull(),

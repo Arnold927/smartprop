@@ -598,3 +598,107 @@ export async function sendContractorInviteEmail({
 
   return data;
 }
+
+export async function sendBookingConfirmationEmail({
+  to,
+  guestName,
+  listingTitle,
+  bookingReference,
+  checkInDate,
+  checkOutDate,
+  totalAmount,
+  currency,
+}: {
+  to: string;
+  guestName: string;
+  listingTitle: string;
+  bookingReference: string;
+  checkInDate: string;
+  checkOutDate: string;
+  totalAmount: string;
+  currency: string;
+}) {
+  const client = getResendClient();
+  const from = getFromEmail();
+
+  const { data, error } = await client.emails.send({
+    from,
+    to,
+    subject: `Your booking at ${listingTitle} — ${bookingReference}`,
+    html: `
+      <div style="font-family: Arial, sans-serif; line-height: 1.6; max-width: 600px; margin: 0 auto;">
+        <h2 style="color: #059669;">Booking Confirmed</h2>
+        <p>Hi ${guestName},</p>
+        <p>Your stay at <strong>${listingTitle}</strong> is confirmed. Keep this email as your record.</p>
+        <div style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:8px;padding:16px;margin:16px 0;">
+          <p style="margin:4px 0;"><strong>Reference:</strong> ${bookingReference}</p>
+          <p style="margin:4px 0;"><strong>Check-in:</strong> ${checkInDate}</p>
+          <p style="margin:4px 0;"><strong>Check-out:</strong> ${checkOutDate}</p>
+          <p style="margin:4px 0;"><strong>Total paid:</strong> ${currency} ${totalAmount}</p>
+        </div>
+        <p style="color:#6b7280;font-size:13px;">Questions about your stay? Reply to this email or contact the host directly.</p>
+      </div>
+    `,
+  });
+
+  if (error) {
+    const msg = (error as any).message ?? JSON.stringify(error);
+    logger.error("[email] Booking confirmation send error:", msg);
+    throw new Error(`Failed to send booking confirmation: ${msg}`);
+  }
+
+  return data;
+}
+
+export async function sendNewBookingAlertEmail({
+  to,
+  listingTitle,
+  guestName,
+  guestPhone,
+  bookingReference,
+  checkInDate,
+  checkOutDate,
+  totalAmount,
+  currency,
+}: {
+  to: string;
+  listingTitle: string;
+  guestName: string;
+  guestPhone: string;
+  bookingReference: string;
+  checkInDate: string;
+  checkOutDate: string;
+  totalAmount: string;
+  currency: string;
+}) {
+  const client = getResendClient();
+  const from = getFromEmail();
+
+  const { data, error } = await client.emails.send({
+    from,
+    to,
+    subject: `New paid booking — ${listingTitle}`,
+    html: `
+      <div style="font-family: Arial, sans-serif; line-height: 1.6; max-width: 600px; margin: 0 auto;">
+        <h2 style="color: #059669;">You have a new booking</h2>
+        <p><strong>${listingTitle}</strong> was just booked and paid for.</p>
+        <div style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:8px;padding:16px;margin:16px 0;">
+          <p style="margin:4px 0;"><strong>Reference:</strong> ${bookingReference}</p>
+          <p style="margin:4px 0;"><strong>Guest:</strong> ${guestName} (${guestPhone})</p>
+          <p style="margin:4px 0;"><strong>Check-in:</strong> ${checkInDate}</p>
+          <p style="margin:4px 0;"><strong>Check-out:</strong> ${checkOutDate}</p>
+          <p style="margin:4px 0;"><strong>Amount paid:</strong> ${currency} ${totalAmount}</p>
+        </div>
+        <p style="color:#6b7280;font-size:13px;">Log in to ${APP_NAME} to see full booking details.</p>
+      </div>
+    `,
+  });
+
+  if (error) {
+    const msg = (error as any).message ?? JSON.stringify(error);
+    logger.error("[email] New booking alert send error:", msg);
+    throw new Error(`Failed to send new booking alert: ${msg}`);
+  }
+
+  return data;
+}

@@ -269,6 +269,7 @@ export default function TenantSubletting() {
   const [editingListing, setEditingListing] = useState<TenantShortRental | null>(null);
   const [calendarMonth, setCalendarMonth] = useState(new Date());
   const [selectedBooking, setSelectedBooking] = useState<ShortTermBooking | null>(null);
+  const [managingBlocksFor, setManagingBlocksFor] = useState<TenantShortRental | null>(null);
   const [bookingSearch, setBookingSearch] = useState("");
   const [bookingStatusFilter, setBookingStatusFilter] = useState("all");
   const [platformFilter, setPlatformFilter] = useState("all");
@@ -368,6 +369,7 @@ export default function TenantSubletting() {
     }
     return Array.from(groups.entries()).map(([propertyName, groupUnits]) => ({ propertyName, units: groupUnits }));
   }, [unitsWithProperty]);
+
   const { data: tenants = [] } = useQuery({
     queryKey: ["/api/tenants"],
     // This endpoint defaults to 20 too (its own custom pagination, capped
@@ -381,6 +383,56 @@ export default function TenantSubletting() {
     queryFn: async () => { const r = await apiRequest("/api/users?role=landlord"); if (!r.ok) return []; return ensureArray(await r.json()); },
     enabled: isManager,
   });
+
+  // A unit has at most one current tenant, and belongs to exactly one
+  // property with exactly one owner — both are fully determined the
+  // moment a unit is picked. Asking for them again separately was
+  // redundant, and a real risk: nothing stopped picking a unit from one
+  // property while manually selecting an unrelated landlord.
+  const tenantByUnitId = useMemo(() => {
+    const map = new Map<number, any>();
+    for (const t of (Array.isArray(tenants) ? tenants : [])) {
+      if (t.unitId) map.set(t.unitId, t);
+    }
+    return map;
+  }, [tenants]);
+
+  const propertyById = useMemo(() => {
+    const map = new Map<number, any>();
+    for (const p of (Array.isArray(properties) ? properties : [])) map.set(p.id, p);
+    return map;
+  }, [properties]);
+
+  const landlordById = useMemo(() => {
+    const map = new Map<string, any>();
+    for (const l of (Array.isArray(landlords) ? landlords : [])) map.set(l.id, l);
+    return map;
+  }, [landlords]);
+
+  // Only units that actually have a current tenant make sense in "tenant"
+  // mode — subletting requires an existing lease, so a vacant unit simply
+  // isn't a valid option there.
+  const unitsByPropertyForMode = useMemo(() => {
+    if (listingMode !== "tenant") return unitsByProperty;
+    return unitsByProperty
+      .map(group => ({ ...group, units: group.units.filter((u: any) => tenantByUnitId.has(u.id)) }))
+      .filter(group => group.units.length > 0);
+  }, [unitsByProperty, listingMode, tenantByUnitId]);
+
+  const derivedTenant = formUnitId ? tenantByUnitId.get(parseInt(formUnitId)) : undefined;
+  const derivedOwnerId = formUnitId
+    ? propertyById.get(unitsWithProperty.find((u: any) => u.id === parseInt(formUnitId))?.propertyId)?.ownerId ?? null
+    : null;
+  const derivedLandlord = derivedOwnerId ? landlordById.get(derivedOwnerId) : undefined;
+
+  // Keep the actual submitted values in sync with what the unit determines
+  // — these are no longer independently chosen, just mirrored from the
+  // derivation above so the existing submit logic doesn't need to change.
+  useEffect(() => {
+    if (listingMode === "tenant" && derivedTenant) setFormTenantId(String(derivedTenant.id));
+    if (listingMode === "owner" && isManager && derivedOwnerId) setFormOwnerId(derivedOwnerId);
+  }, [formUnitId, listingMode, derivedTenant, derivedOwnerId, isManager]);
+
   const { data: listings = [], isLoading: loadingListings } = useQuery({
     queryKey: ["/api/tenant-short-rentals"],
     queryFn: async () => { const r = await apiRequest("/api/tenant-short-rentals"); return ensureArray(await r.json()); },
@@ -515,6 +567,55 @@ export default function TenantSubletting() {
     onError: () => toast({ title: "Error", description: "Failed to delete listing", variant: "destructive" }),
   });
 
+  const cancelBookingMutation = useMutation({
+    mutationFn: (id: number) => apiRequest(`/api/short-term-bookings/${id}`, { method: "DELETE" }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/short-term-bookings"] });
+      toast({ title: "Booking cancelled", description: "The dates are now available again." });
+      setSelectedBooking(null);
+    },
+    onError: (err: any) => toast({ title: "Error", description: err?.message || "Failed to cancel booking", variant: "destructive" }),
+  });
+
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
+  const uploadPhotoMutation = useMutation({
+    mutationFn: async ({ listingId, file }: { listingId: number; file: File }) => {
+      setUploadingPhoto(true);
+      const formData = new FormData();
+      formData.append("photo", file);
+      const token = localStorage.getItem("access_token") || sessionStorage.getItem("access_token");
+      const r = await fetch(`/api/tenant-short-rentals/${listingId}/photos`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+        body: formData,
+      });
+      const data = await r.json();
+      if (!r.ok) throw new Error(data.message || "Upload failed");
+      return data;
+    },
+    onSuccess: (data) => {
+      setUploadingPhoto(false);
+      queryClient.invalidateQueries({ queryKey: ["/api/tenant-short-rentals"] });
+      setEditingListing(data.listing); // keep the open dialog's local copy in sync
+      toast({ title: "Photo uploaded" });
+    },
+    onError: (err: any) => {
+      setUploadingPhoto(false);
+      toast({ title: "Error", description: err?.message || "Failed to upload photo", variant: "destructive" });
+    },
+  });
+
+  const removePhotoMutation = useMutation({
+    mutationFn: ({ listingId, url }: { listingId: number; url: string }) =>
+      apiRequest(`/api/tenant-short-rentals/${listingId}/photos`, { method: "DELETE", data: { url } }),
+    onSuccess: (data: any) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/tenant-short-rentals"] });
+      setEditingListing(data);
+      toast({ title: "Photo removed" });
+    },
+    onError: (err: any) => toast({ title: "Error", description: err?.message || "Failed to remove photo", variant: "destructive" }),
+  });
+
   const handleSubmitListing = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
 
@@ -524,11 +625,11 @@ export default function TenantSubletting() {
       return;
     }
     if (listingMode === "tenant" && !formTenantId) {
-      toast({ title: "Validation Error", description: "Please select a tenant", variant: "destructive" });
+      toast({ title: "Validation Error", description: "This unit doesn't have a current tenant — select a different unit", variant: "destructive" });
       return;
     }
     if (listingMode === "owner" && isManager && !formOwnerId) {
-      toast({ title: "Validation Error", description: "Please select which landlord this listing belongs to", variant: "destructive" });
+      toast({ title: "Validation Error", description: "This unit's property has no assigned landlord — select a different unit", variant: "destructive" });
       return;
     }
 
@@ -759,6 +860,112 @@ export default function TenantSubletting() {
                 <p className="text-muted-foreground">{booking.specialRequests}</p>
               </div>
             )}
+
+            {!["cancelled", "checked_out"].includes(booking.bookingStatus) && (
+              <div className="pt-2 border-t">
+                <Button
+                  variant="outline"
+                  className="text-red-600 border-red-200 hover:bg-red-50 hover:text-red-700"
+                  disabled={cancelBookingMutation.isPending}
+                  onClick={() => {
+                    if (confirm("Cancel this booking? This will free up the dates for someone else.")) {
+                      cancelBookingMutation.mutate(booking.id);
+                    }
+                  }}
+                >
+                  <XCircle className="h-4 w-4 mr-2" /> Cancel Booking
+                </Button>
+              </div>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+    );
+  };
+
+  const BlockedDatesDialog = ({ listing, onClose }: { listing: TenantShortRental; onClose: () => void }) => {
+    const [blockStart, setBlockStart] = useState("");
+    const [blockEnd, setBlockEnd] = useState("");
+    const [blockReason, setBlockReason] = useState("");
+
+    const { data: blocks = [], isLoading: loadingBlocks } = useQuery({
+      queryKey: ["/api/tenant-short-rentals", listing.id, "blocked-dates"],
+      queryFn: async () => { const r = await apiRequest(`/api/tenant-short-rentals/${listing.id}/blocked-dates`); return ensureArray(await r.json()); },
+    });
+
+    const addBlockMutation = useMutation({
+      mutationFn: () => apiRequest(`/api/tenant-short-rentals/${listing.id}/blocked-dates`, {
+        method: "POST",
+        data: { startDate: blockStart, endDate: blockEnd, reason: blockReason || undefined },
+      }),
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: ["/api/tenant-short-rentals", listing.id, "blocked-dates"] });
+        setBlockStart(""); setBlockEnd(""); setBlockReason("");
+        toast({ title: "Dates blocked", description: "Those dates are no longer bookable." });
+      },
+      onError: (err: any) => toast({ title: "Error", description: err?.message || "Failed to block dates", variant: "destructive" }),
+    });
+
+    const removeBlockMutation = useMutation({
+      mutationFn: (blockId: number) => apiRequest(`/api/tenant-short-rentals/${listing.id}/blocked-dates/${blockId}`, { method: "DELETE" }),
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: ["/api/tenant-short-rentals", listing.id, "blocked-dates"] });
+        toast({ title: "Unblocked", description: "Those dates are bookable again." });
+      },
+      onError: (err: any) => toast({ title: "Error", description: err?.message || "Failed to unblock dates", variant: "destructive" }),
+    });
+
+    return (
+      <Dialog open onOpenChange={onClose}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Blocked dates — {listing.listingTitle}</DialogTitle>
+            <DialogDescription>Block dates for personal use or maintenance — guests won't be able to book them.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            {loadingBlocks ? (
+              <p className="text-sm text-muted-foreground">Loading…</p>
+            ) : blocks.length === 0 ? (
+              <p className="text-sm text-muted-foreground">No blocked dates yet.</p>
+            ) : (
+              <div className="space-y-2">
+                {blocks.map((b: any) => (
+                  <div key={b.id} className="flex items-center justify-between rounded-md border p-2 text-sm">
+                    <div>
+                      <p className="font-medium">{format(new Date(b.startDate), "dd MMM yyyy")} – {format(new Date(b.endDate), "dd MMM yyyy")}</p>
+                      {b.reason && <p className="text-xs text-muted-foreground">{b.reason}</p>}
+                    </div>
+                    <Button
+                      size="sm" variant="ghost"
+                      disabled={removeBlockMutation.isPending}
+                      onClick={() => removeBlockMutation.mutate(b.id)}
+                    >
+                      <Trash2 className="h-3.5 w-3.5 text-red-500" />
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            )}
+            <div className="border-t pt-3 space-y-2">
+              <div className="grid grid-cols-2 gap-2">
+                <div className="space-y-1">
+                  <Label className="text-xs">Start date</Label>
+                  <Input type="date" value={blockStart} onChange={e => setBlockStart(e.target.value)} />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs">End date</Label>
+                  <Input type="date" value={blockEnd} onChange={e => setBlockEnd(e.target.value)} />
+                </div>
+              </div>
+              <Input placeholder="Reason (optional) — e.g. personal use, maintenance" value={blockReason} onChange={e => setBlockReason(e.target.value)} />
+              <Button
+                className="w-full bg-emerald-600 hover:bg-emerald-700"
+                disabled={!blockStart || !blockEnd || addBlockMutation.isPending}
+                onClick={() => addBlockMutation.mutate()}
+              >
+                {addBlockMutation.isPending ? "Blocking…" : "Block these dates"}
+              </Button>
+            </div>
           </div>
         </DialogContent>
       </Dialog>
@@ -842,10 +1049,10 @@ export default function TenantSubletting() {
                     onValueChange={setFormUnitId}
                   >
                     <SelectTrigger className={!formUnitId ? "border-red-300" : ""}>
-                      <SelectValue placeholder="Select unit" />
+                      <SelectValue placeholder={listingMode === "tenant" ? "Select occupied unit" : "Select unit"} />
                     </SelectTrigger>
                     <SelectContent>
-                      {unitsByProperty.map(group => (
+                      {unitsByPropertyForMode.map(group => (
                         <SelectGroup key={group.propertyName}>
                           <SelectLabel>{group.propertyName}</SelectLabel>
                           {group.units.map((unit: any) => (
@@ -857,49 +1064,30 @@ export default function TenantSubletting() {
                       ))}
                     </SelectContent>
                   </Select>
+                  {listingMode === "tenant" && (
+                    <p className="text-xs text-muted-foreground">Only units with a current tenant are shown — subletting needs an existing lease.</p>
+                  )}
                   {isLandlord && listingMode === "owner" && (
                     <p className="text-xs text-muted-foreground">Only units in properties you own will be accepted.</p>
                   )}
                 </div>
                 {listingMode === "tenant" ? (
                   <div className="space-y-2">
-                    <Label>Tenant *</Label>
-                    <Select
-                      name="tenantId"
-                      required
-                      value={formTenantId}
-                      onValueChange={setFormTenantId}
-                    >
-                      <SelectTrigger className={!formTenantId ? "border-red-300" : ""}>
-                        <SelectValue placeholder="Select tenant" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {(Array.isArray(tenants) ? tenants : []).map((tenant: any) => (
-                          <SelectItem key={tenant.id} value={tenant.id.toString()}>
-                            {tenant.firstName} {tenant.lastName}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    <Label>Tenant</Label>
+                    <div className={`h-10 flex items-center px-3 rounded-md border text-sm ${derivedTenant ? "bg-muted text-foreground" : "bg-muted text-muted-foreground"}`}>
+                      {derivedTenant ? `${derivedTenant.firstName} ${derivedTenant.lastName}` : "Select a unit first"}
+                    </div>
+                    <p className="text-xs text-muted-foreground">Determined automatically from the unit's current tenant.</p>
                   </div>
                 ) : isManager ? (
                   <div className="space-y-2">
-                    <Label>Landlord *</Label>
-                    <Select
-                      value={formOwnerId}
-                      onValueChange={setFormOwnerId}
-                    >
-                      <SelectTrigger className={!formOwnerId ? "border-red-300" : ""}>
-                        <SelectValue placeholder="Select landlord" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {(Array.isArray(landlords) ? landlords : []).map((landlord: any) => (
-                          <SelectItem key={landlord.id} value={landlord.id}>
-                            {landlord.firstName} {landlord.lastName}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    <Label>Landlord</Label>
+                    <div className={`h-10 flex items-center px-3 rounded-md border text-sm ${derivedLandlord ? "bg-muted text-foreground" : "bg-muted text-muted-foreground"}`}>
+                      {formUnitId
+                        ? (derivedLandlord ? `${derivedLandlord.firstName} ${derivedLandlord.lastName}` : "This property has no assigned landlord account")
+                        : "Select a unit first"}
+                    </div>
+                    <p className="text-xs text-muted-foreground">Determined automatically from the unit's property owner.</p>
                   </div>
                 ) : (
                   <div className="space-y-2">
@@ -957,6 +1145,40 @@ export default function TenantSubletting() {
                 <Label htmlFor="houseRules">House Rules</Label>
                 <Textarea id="houseRules" name="houseRules" rows={3} defaultValue={editingListing?.houseRules} placeholder="No smoking, No parties, Check-out by 11 AM..." />
               </div>
+
+              {editingListing ? (
+                <div className="space-y-2">
+                  <Label>Photos</Label>
+                  {(editingListing.listingPhotos ?? []).length > 0 && (
+                    <div className="grid grid-cols-4 gap-2 mb-2">
+                      {(editingListing.listingPhotos ?? []).map((url: string) => (
+                        <div key={url} className="relative group">
+                          <img src={url} className="w-full h-20 object-cover rounded-md border" />
+                          <button
+                            type="button"
+                            className="absolute top-1 right-1 bg-black/60 rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
+                            onClick={() => removePhotoMutation.mutate({ listingId: editingListing.id, url })}
+                          >
+                            <Trash2 className="h-3 w-3 text-white" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  <Input
+                    type="file" accept="image/*"
+                    disabled={uploadingPhoto}
+                    onChange={e => {
+                      const file = e.target.files?.[0];
+                      if (file) uploadPhotoMutation.mutate({ listingId: editingListing.id, file });
+                      e.target.value = "";
+                    }}
+                  />
+                  {uploadingPhoto && <p className="text-xs text-muted-foreground">Uploading…</p>}
+                </div>
+              ) : (
+                <p className="text-xs text-muted-foreground">Photos can be added once the listing is created — edit it afterward to upload some.</p>
+              )}
 
               <div className="grid grid-cols-3 gap-4">
                 <div className="flex items-center space-x-2">
@@ -1154,7 +1376,10 @@ export default function TenantSubletting() {
                                 <DropdownMenuItem onClick={() => setEditingListing(listing)}>
                                   <Edit2 className="h-4 w-4 mr-2" /> Edit
                                 </DropdownMenuItem>
-                                {listing.approvalStatus === "pending" && (
+                                <DropdownMenuItem onClick={() => setManagingBlocksFor(listing)}>
+                                  <Lock className="h-4 w-4 mr-2" /> Manage blocked dates
+                                </DropdownMenuItem>
+                                {listing.approvalStatus === "pending" && isManager && (
                                   <>
                                     <DropdownMenuSeparator />
                                     <DropdownMenuItem
@@ -1171,7 +1396,7 @@ export default function TenantSubletting() {
                                     </DropdownMenuItem>
                                   </>
                                 )}
-                                {listing.approvalStatus === "rejected" && (
+                                {listing.approvalStatus === "rejected" && isManager && (
                                   <>
                                     <DropdownMenuSeparator />
                                     <DropdownMenuItem
@@ -1803,6 +2028,9 @@ export default function TenantSubletting() {
       {/* Booking detail modal */}
       {selectedBooking && (
         <BookingDetailDialog booking={selectedBooking} onClose={() => setSelectedBooking(null)} />
+      )}
+      {managingBlocksFor && (
+        <BlockedDatesDialog listing={managingBlocksFor} onClose={() => setManagingBlocksFor(null)} />
       )}
     </div>
   );
