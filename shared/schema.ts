@@ -4837,9 +4837,39 @@ export const listingBlockedDates = pgTable("listing_blocked_dates", {
   endDate: timestamp("end_date").notNull(),
   reason: varchar("reason", { length: 200 }),
   createdBy: uuid("created_by").references(() => users.id),
+  // "manual" (host blocked it directly) vs the external platform a synced
+  // block came from — kept distinct so re-syncing can safely replace only
+  // its own previously-synced blocks without touching ones the host added
+  // by hand.
+  source: varchar("source", { length: 20 }).notNull().default("manual"),
+  // The external calendar feed this block came from, if synced — lets a
+  // re-sync clean up only its own prior blocks, not another feed's.
+  externalFeedId: integer("external_feed_id"),
+  // The external event's own UID, for idempotent re-syncing — the same
+  // Airbnb reservation shouldn't create a duplicate block every time the
+  // feed is re-fetched.
+  externalEventUid: varchar("external_event_uid", { length: 255 }),
   createdAt: timestamp("created_at").defaultNow(),
 });
 export const insertListingBlockedDateSchema = createInsertSchema(listingBlockedDates).omit({ id: true, createdAt: true });
+
+// Tracks an external platform's calendar feed URL that a host has added so
+// its bookings can be imported as blocked dates here — the other half of
+// sync, alongside this listing's own exported feed that platforms read.
+export const externalCalendarFeeds = pgTable("external_calendar_feeds", {
+  id: serial("id").primaryKey(),
+  rentalListingId: integer("rental_listing_id").notNull(),
+  platform: varchar("platform", { length: 20 }).notNull(), // airbnb, vrbo, booking, google, other
+  feedUrl: text("feed_url").notNull(),
+  lastSyncedAt: timestamp("last_synced_at"),
+  lastSyncStatus: varchar("last_sync_status", { length: 20 }), // success, error
+  lastSyncError: text("last_sync_error"),
+  createdBy: uuid("created_by").references(() => users.id),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+export const insertExternalCalendarFeedSchema = createInsertSchema(externalCalendarFeeds).omit({
+  id: true, createdAt: true, lastSyncedAt: true, lastSyncStatus: true, lastSyncError: true,
+});
 
 export const tenantShortRentals = pgTable("tenant_short_rentals", {
   id: serial("id").primaryKey(),
@@ -4864,6 +4894,16 @@ export const tenantShortRentals = pgTable("tenant_short_rentals", {
   checkInTime: varchar("check_in_time", { length: 10 }).notNull().default("14:00"),
   checkOutTime: varchar("check_out_time", { length: 10 }).notNull().default("11:00"),
   listingPhotos: jsonb("listing_photos").$type<string[]>().default([]),
+  // Genuine capacity, not cosmetic — used to validate the guest count a
+  // booking can actually request, not just displayed. Defaults to a
+  // reasonable studio/1BR size; hosts adjust it per listing.
+  maxGuests: integer("max_guests").notNull().default(2),
+  // Secret token embedded in this listing's public iCal export URL
+  // (/api/ical/:listingId/:token.ics) — external platforms like Airbnb
+  // fetch a plain URL on a schedule with no custom auth headers, so the
+  // token itself is the access control, the same pattern Google Calendar
+  // uses for its own "secret address in iCal format" sharing.
+  icalExportToken: varchar("ical_export_token", { length: 64 }),
   isActive: boolean("is_active").notNull().default(true),
   // Separate from isActive — controls whether this listing appears in the
   // cross-organisation public marketplace search. A listing can be active
@@ -4878,6 +4918,15 @@ export const tenantShortRentals = pgTable("tenant_short_rentals", {
   approvalStatus: varchar("approval_status", { length: 20 }).notNull().default("pending"), // pending, approved, rejected
   approvedBy: varchar("approved_by", { length: 100 }),
   approvedAt: timestamp("approved_at"),
+  // Relevant specifically for tenant-created sublets — the actual property
+  // owner carries real liability for what happens in their unit and should
+  // never find out about a sublet listing after the fact. landlordNotifiedAt
+  // tracks when the automatic heads-up email actually went out; the
+  // consent flag is a separate, explicit admin/manager confirmation during
+  // approval — an email having been sent isn't the same as someone having
+  // actually verified the landlord is aware and not objecting.
+  landlordNotifiedAt: timestamp("landlord_notified_at"),
+  landlordConsentConfirmed: boolean("landlord_consent_confirmed").notNull().default(false),
   calendarSyncEnabled: boolean("calendar_sync_enabled").notNull().default(false),
   autoPricingEnabled: boolean("auto_pricing_enabled").notNull().default(false),
   instantBookingEnabled: boolean("instant_booking_enabled").notNull().default(false),
@@ -4919,7 +4968,18 @@ export const tenantShortBookings = pgTable("tenant_short_bookings", {
   tenantPayout: decimal("tenant_payout", { precision: 12, scale: 2 }).notNull(),
   currency: varchar("currency", { length: 10 }).notNull().default("KES"),
   bookingStatus: varchar("booking_status", { length: 20 }).notNull().default("confirmed"), // pending, confirmed, checked_in, checked_out, cancelled
-  paymentStatus: varchar("payment_status", { length: 20 }).notNull().default("pending"), // pending, paid, partial, refunded
+  paymentStatus: varchar("payment_status", { length: 20 }).notNull().default("pending"), // pending, paid, partial, refunded, failed
+  // Real refund tracking, not fake automation — a genuine M-Pesa B2C refund
+  // needs a security credential encrypted with Safaricom's own certificate,
+  // which isn't something this system can generate or fabricate safely.
+  // This tracks that a refund is owed, notifies the right people, and
+  // records who actually sent it and when, rather than silently letting a
+  // cancelled, paid booking's money just disappear with no trail at all.
+  refundStatus: varchar("refund_status", { length: 20 }).notNull().default("none"), // none, owed, completed
+  refundAmount: decimal("refund_amount", { precision: 10, scale: 2 }),
+  refundedBy: uuid("refunded_by").references(() => users.id),
+  refundedAt: timestamp("refunded_at"),
+  refundNotes: text("refund_notes"),
   platformSource: varchar("platform_source", { length: 30 }).notNull().default("direct"), // airbnb, booking.com, direct
   specialRequests: text("special_requests"),
   checkInCode: varchar("check_in_code", { length: 20 }),

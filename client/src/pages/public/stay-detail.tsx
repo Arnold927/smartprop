@@ -9,9 +9,9 @@
  * legible, since that's the one thing a guest needs before anything else.
  */
 import { useState, useMemo, useEffect } from "react";
-import { useParams } from "wouter";
+import { useParams, useSearch } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { ChevronLeft, ChevronRight, Check, Loader2, Users as UsersIcon, Home } from "lucide-react";
+import { ChevronLeft, ChevronRight, Check, Loader2, Users as UsersIcon, Home, MapPin } from "lucide-react";
 
 interface PublicListing {
   id: number;
@@ -27,6 +27,11 @@ interface PublicListing {
   checkInTime: string;
   checkOutTime: string;
   listingPhotos: string[];
+  bedrooms: number | null;
+  bathrooms: string | null;
+  sqft: number | null;
+  maxGuests: number;
+  generalArea: string;
 }
 interface BookedRange { checkInDate: string; checkOutDate: string; }
 
@@ -95,10 +100,21 @@ function MonthGrid({
 
 export default function StayDetailPage() {
   const { slug } = useParams<{ slug: string }>();
+  const searchString = useSearch();
   const [monthOffset, setMonthOffset] = useState(0);
-  const [selection, setSelection] = useState<{ start: Date | null; end: Date | null }>({ start: null, end: null });
+  const [selection, setSelection] = useState<{ start: Date | null; end: Date | null }>(() => {
+    const params = new URLSearchParams(searchString);
+    const ciRaw = params.get("checkIn");
+    const coRaw = params.get("checkOut");
+    if (!ciRaw || !coRaw) return { start: null, end: null };
+    const ci = new Date(ciRaw);
+    const co = new Date(coRaw);
+    if (isNaN(ci.getTime()) || isNaN(co.getTime()) || co <= ci) return { start: null, end: null };
+    return { start: ci, end: co };
+  });
   const [guest, setGuest] = useState({ guestName: "", guestEmail: "", guestPhone: "", guestCount: 1, specialRequests: "" });
   const [confirmed, setConfirmed] = useState<any>(null);
+  const [activePhoto, setActivePhoto] = useState(0);
   const [formError, setFormError] = useState<string | null>(null);
   const [paymentPhone, setPaymentPhone] = useState("");
   // idle: awaiting phone number. initiating: STK request in flight.
@@ -261,13 +277,36 @@ export default function StayDetailPage() {
       </header>
 
       <div style={{
-        aspectRatio: "21 / 8", background: listing.listingPhotos?.[0] ? `url(${listing.listingPhotos[0]}) center/cover` : "linear-gradient(135deg, #d1fae5, #a7f3d0)",
+        aspectRatio: "21 / 8", background: listing.listingPhotos?.[activePhoto]
+          ? `url(${listing.listingPhotos[activePhoto]}) center/cover`
+          : "linear-gradient(135deg, #d1fae5, #a7f3d0)",
       }} />
+      {(listing.listingPhotos?.length ?? 0) > 1 && (
+        <div className="stays-sans" style={{ maxWidth: 1120, margin: "0 auto", padding: "10px 24px 0", display: "flex", gap: 8, overflowX: "auto" }}>
+          {listing.listingPhotos.map((url, i) => (
+            <button
+              key={url + i}
+              onClick={() => setActivePhoto(i)}
+              style={{
+                flex: "0 0 auto", width: 72, height: 54, borderRadius: 8, border: i === activePhoto ? "2px solid #059669" : "2px solid transparent",
+                background: `url(${url}) center/cover`, cursor: "pointer", padding: 0, opacity: i === activePhoto ? 1 : 0.7,
+              }}
+              aria-label={`View photo ${i + 1}`}
+            />
+          ))}
+        </div>
+      )}
 
       <div className="stay-layout stays-sans" style={{ maxWidth: 1120, margin: "0 auto", padding: "36px 24px 80px", display: "grid", gridTemplateColumns: "1.5fr 1fr", gap: 48 }}>
         {/* Left: details + calendar */}
         <div>
-          <h1 className="stays-serif" style={{ fontSize: 30, fontWeight: 600, marginBottom: 8 }}>{listing.listingTitle}</h1>
+          <h1 className="stays-serif" style={{ fontSize: 30, fontWeight: 600, marginBottom: 6 }}>{listing.listingTitle}</h1>
+          <p style={{ fontSize: 14, color: "#6B6560", marginBottom: 6, display: "flex", alignItems: "center", gap: 5 }}>
+            <MapPin className="w-3.5 h-3.5" style={{ flexShrink: 0 }} /> {listing.generalArea}
+            {listing.bedrooms != null && <> · {listing.bedrooms} bedroom{listing.bedrooms === 1 ? "" : "s"}</>}
+            {listing.bathrooms != null && <> · {listing.bathrooms} bathroom{Number(listing.bathrooms) === 1 ? "" : "s"}</>}
+            {listing.sqft != null && <> · {listing.sqft} sqft</>}
+          </p>
           <p style={{ fontSize: 14, color: "#6B6560", marginBottom: 4 }}>
             Check-in {listing.checkInTime} · Check-out {listing.checkOutTime} · {listing.minimumNights}–{listing.maximumNights} night stays
           </p>
@@ -321,9 +360,11 @@ export default function StayDetailPage() {
                     </div>
                     <h3 className="stays-serif" style={{ fontSize: 18, fontWeight: 600, marginBottom: 6 }}>Payment confirmed</h3>
                     <p style={{ fontSize: 14, color: "#6B6560", marginBottom: 4 }}>Reference: <strong>{confirmed.bookingReference}</strong></p>
-                    <p style={{ fontSize: 14, color: "#6B6560" }}>
+                    <p style={{ fontSize: 14, color: "#6B6560", marginBottom: 8 }}>
                       {confirmed.numberOfNights} night(s) · {listing.currency} {Number(confirmed.totalAmount).toLocaleString()} paid
                     </p>
+                    <p style={{ fontSize: 12.5, color: "#6B6560" }}>The exact address will be shared with you directly by the host ahead of your stay.</p>
+                    <a href="/manage-booking" style={{ fontSize: 12.5, color: "#059669", display: "block", marginTop: 8 }}>Need to view or cancel this later? Manage your booking →</a>
                   </>
                 ) : paymentState === "waiting" ? (
                   <>
@@ -382,8 +423,13 @@ export default function StayDetailPage() {
                   <input className="book-input" placeholder="Phone (e.g. 07XXXXXXXX)" value={guest.guestPhone} onChange={e => setGuest(g => ({ ...g, guestPhone: e.target.value }))} />
                   <div className="flex items-center gap-2">
                     <UsersIcon className="w-4 h-4" color="#6B6560" />
-                    <input className="book-input" type="number" min={1} placeholder="Guests" value={guest.guestCount} onChange={e => setGuest(g => ({ ...g, guestCount: Number(e.target.value) }))} />
+                    <input
+                      className="book-input" type="number" min={1} max={listing.maxGuests} placeholder="Guests"
+                      value={guest.guestCount}
+                      onChange={e => setGuest(g => ({ ...g, guestCount: Math.min(Number(e.target.value), listing.maxGuests) }))}
+                    />
                   </div>
+                  <p style={{ fontSize: 12, color: "#6B6560", marginTop: -4 }}>Sleeps up to {listing.maxGuests} guest{listing.maxGuests === 1 ? "" : "s"}.</p>
                   <textarea className="book-input" placeholder="Special requests (optional)" rows={2} value={guest.specialRequests} onChange={e => setGuest(g => ({ ...g, specialRequests: e.target.value }))} />
                 </div>
                 {formError && <p style={{ color: "#B91C1C", fontSize: 13, marginTop: 10 }}>{formError}</p>}

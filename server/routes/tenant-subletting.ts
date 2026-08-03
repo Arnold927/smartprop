@@ -9,8 +9,11 @@ import { Router } from "express";
 import { db } from "../db";
 import { eq, and, ne, lt, inArray } from "drizzle-orm";
 import { s3Upload, resolveUploadUrl } from "../middleware/s3Upload";
+import { sendSubletNoticeToLandlordEmail, sendRefundOwedEmail, sendRefundProcessedEmail } from "../lib/email";
 import { authenticateJWT } from "../middleware/auth";
 import { requireOrg } from "../middleware/requireOrg";
+import crypto from "crypto";
+import * as ical from "node-ical";
 import {
   tenantShortRentals,
   tenantShortBookings,
@@ -18,6 +21,8 @@ import {
   insertTenantShortBookingSchema,
   listingBlockedDates,
   insertListingBlockedDateSchema,
+  externalCalendarFeeds,
+  insertExternalCalendarFeedSchema,
   tenants,
   units,
   properties,
@@ -105,6 +110,27 @@ tenantShortRentalsRouter.get("/", async (req: any, res: any) => {
 /** Whether a date range overlaps any host-blocked range on this listing —
  *  shared by every booking-creation path (authenticated and public) so
  *  they can't drift out of sync on what counts as unavailable. */
+/** A pending, unpaid booking that's been sitting for a while is very
+ *  unlikely to ever complete — but without this, it blocks those dates
+ *  forever, since nothing else ever revisits it. Actively expiring stale
+ *  ones here (called before every overlap check, in every booking-creation
+ *  path) is self-healing — no separate background job/cron needed. 30
+ *  minutes gives real buffer beyond the frontend's 2-minute payment-polling
+ *  window, covering a guest who's slow to pay or retries once.
+ *  "expired" is kept distinct from "cancelled" for reporting — it means
+ *  "never paid," not "a guest actively cancelled" — but is treated
+ *  identically everywhere dates-availability is checked. */
+export async function expireStalePendingBookings(rentalListingId: number): Promise<void> {
+  const cutoff = new Date(Date.now() - 30 * 60 * 1000);
+  await db.update(tenantShortBookings)
+    .set({ bookingStatus: "expired", updatedAt: new Date() })
+    .where(and(
+      eq(tenantShortBookings.rentalListingId, rentalListingId),
+      eq(tenantShortBookings.bookingStatus, "pending"),
+      lt(tenantShortBookings.createdAt, cutoff),
+    ));
+}
+
 export async function hasBlockedDateOverlap(rentalListingId: number, checkIn: Date, checkOut: Date): Promise<boolean> {
   const blocks = await db
     .select({ startDate: listingBlockedDates.startDate, endDate: listingBlockedDates.endDate })
@@ -238,6 +264,36 @@ tenantShortRentalsRouter.post("/", async (req: any, res: any) => {
       isPubliclyListed: false,
     });
     const [created] = await db.insert(tenantShortRentals).values(payload).returning();
+
+    // The actual property owner should never learn about a sublet on their
+    // unit after the fact — notify them the moment it's created, separate
+    // from whether admin/manager has reviewed it yet. Isolated in its own
+    // try/catch: an email failure shouldn't block the listing itself.
+    if (isTenant) {
+      try {
+        const [unitRow] = await db.select({ propertyId: units.propertyId, unitNumber: units.unitNumber }).from(units).where(eq(units.id, created.unitId)).limit(1);
+        const [propRow] = unitRow ? await db.select({ ownerId: properties.ownerId }).from(properties).where(eq(properties.id, unitRow.propertyId)).limit(1) : [];
+        if (propRow?.ownerId) {
+          const [ownerRow] = await db.select({ email: users.email, firstName: users.firstName, lastName: users.lastName }).from(users).where(eq(users.id, propRow.ownerId)).limit(1);
+          const [tenantRow] = await db.select({ firstName: tenants.firstName, lastName: tenants.lastName }).from(tenants).where(eq(tenants.id, created.tenantId as number)).limit(1);
+          if (ownerRow?.email) {
+            await sendSubletNoticeToLandlordEmail({
+              to: ownerRow.email,
+              landlordName: `${ownerRow.firstName ?? ""} ${ownerRow.lastName ?? ""}`.trim() || "there",
+              tenantName: tenantRow ? `${tenantRow.firstName} ${tenantRow.lastName}` : "Your tenant",
+              unitLabel: unitRow ? `Unit ${unitRow.unitNumber}` : "their unit",
+              listingTitle: created.listingTitle,
+              nightlyRate: String(created.nightlyRate),
+              currency: created.currency,
+            });
+            await db.update(tenantShortRentals).set({ landlordNotifiedAt: new Date() }).where(eq(tenantShortRentals.id, created.id));
+          }
+        }
+      } catch (emailErr) {
+        console.error("Listing created, but sending landlord sublet notice failed:", emailErr);
+      }
+    }
+
     return res.status(201).json(created);
   } catch (err) {
     if (err instanceof z.ZodError) {
@@ -311,9 +367,25 @@ tenantShortRentalsRouter.patch("/:id/status", async (req: any, res: any) => {
     }
     const id = parseInt(req.params.id);
     const orgId: number = req.user.organizationId;
-    const { status } = req.body;
+    const { status, landlordConsentConfirmed } = req.body;
     if (!["pending", "approved", "rejected"].includes(status)) {
       return res.status(400).json({ message: "status must be pending, approved, or rejected." });
+    }
+
+    const [existing] = await db.select({ tenantId: tenantShortRentals.tenantId, landlordNotifiedAt: tenantShortRentals.landlordNotifiedAt })
+      .from(tenantShortRentals)
+      .where(and(eq(tenantShortRentals.id, id), eq(tenantShortRentals.organizationId, orgId))).limit(1);
+    if (!existing) return res.status(404).json({ message: "Not found" });
+
+    // A tenant sublet shouldn't be approvable on the strength of "an email
+    // went out" alone — admin/manager has to explicitly confirm they've
+    // verified the landlord is actually aware and not objecting.
+    if (status === "approved" && existing.tenantId && landlordConsentConfirmed !== true) {
+      return res.status(409).json({
+        message: "This is a tenant sublet — confirm the landlord is aware and hasn't objected before approving.",
+        code: "LANDLORD_CONSENT_REQUIRED",
+        landlordNotifiedAt: existing.landlordNotifiedAt,
+      });
     }
 
     const rows = await db
@@ -322,6 +394,7 @@ tenantShortRentalsRouter.patch("/:id/status", async (req: any, res: any) => {
         approvalStatus: status,
         approvedBy: status === "approved" ? req.user.id : null,
         approvedAt: status === "approved" ? new Date() : null,
+        ...(status === "approved" && existing.tenantId ? { landlordConsentConfirmed: true } : {}),
         // Rejecting or un-approving a listing pulls it off the public
         // marketplace immediately — it can't stay publicly bookable while
         // failing review.
@@ -381,11 +454,33 @@ tenantShortRentalsRouter.delete("/:id", async (req: any, res: any) => {
     if (!existing) return res.status(404).json({ message: "Not found" });
     if (!(await canAccessListing(existing, req.user))) return res.status(403).json({ message: "Not permitted." });
 
-    await db.delete(tenantShortRentals).where(eq(tenantShortRentals.id, id));
-    return res.status(204).send();
+    const activeBookings = await db.select({ id: tenantShortBookings.id })
+      .from(tenantShortBookings)
+      .where(and(
+        eq(tenantShortBookings.rentalListingId, id),
+        inArray(tenantShortBookings.bookingStatus, ["pending", "confirmed", "checked_in"]),
+      ));
+    if (activeBookings.length > 0) {
+      return res.status(409).json({
+        message: `This listing has ${activeBookings.length} active booking(s) — cancel or wait for them to complete before removing it.`,
+        code: "LISTING_HAS_ACTIVE_BOOKINGS",
+      });
+    }
+
+    // Soft-deactivate, not a hard delete — a listing with any booking
+    // history at all (even old, cancelled ones) is protected by a real
+    // foreign key at the database level, so a hard delete here would
+    // either fail confusingly or require destroying that history to work
+    // around it. Deactivating removes it from the marketplace and direct
+    // link while preserving every past booking's record intact.
+    const [deactivated] = await db.update(tenantShortRentals)
+      .set({ isActive: false, isPubliclyListed: false, updatedAt: new Date() })
+      .where(eq(tenantShortRentals.id, id))
+      .returning();
+    return res.json(deactivated);
   } catch (err) {
-    console.error("Error deleting tenant short rental:", err);
-    return res.status(500).json({ message: "Failed to delete listing" });
+    console.error("Error deactivating tenant short rental:", err);
+    return res.status(500).json({ message: "Failed to remove listing" });
   }
 });
 
@@ -483,10 +578,16 @@ tenantShortRentalsRouter.post("/:id/blocked-dates", async (req: any, res: any) =
       return res.status(400).json({ message: "End date must be after start date." });
     }
 
+    await expireStalePendingBookings(id);
     const conflictingBookings = await db
       .select({ id: tenantShortBookings.id, checkInDate: tenantShortBookings.checkInDate, checkOutDate: tenantShortBookings.checkOutDate })
       .from(tenantShortBookings)
-      .where(and(eq(tenantShortBookings.rentalListingId, id), ne(tenantShortBookings.bookingStatus, "cancelled"), lt(tenantShortBookings.checkInDate, endDate)));
+      .where(and(
+        eq(tenantShortBookings.rentalListingId, id),
+        ne(tenantShortBookings.bookingStatus, "cancelled"),
+        ne(tenantShortBookings.bookingStatus, "expired"),
+        lt(tenantShortBookings.checkInDate, endDate),
+      ));
     if (conflictingBookings.some(b => new Date(b.checkOutDate) > startDate)) {
       return res.status(409).json({ message: "Those dates already have a guest booking on them." });
     }
@@ -524,6 +625,164 @@ tenantShortRentalsRouter.delete("/:id/blocked-dates/:blockId", async (req: any, 
   } catch (err) {
     console.error("Error removing blocked dates:", err);
     return res.status(500).json({ message: "Failed to unblock dates" });
+  }
+});
+
+// GET /api/tenant-short-rentals/:id/export-info — this listing's own iCal
+// export URL, auto-generating its secret token on first request.
+tenantShortRentalsRouter.get("/:id/export-info", async (req: any, res: any) => {
+  try {
+    const id = parseInt(req.params.id);
+    const orgId: number = req.user.organizationId;
+    const [listing] = await db.select().from(tenantShortRentals)
+      .where(and(eq(tenantShortRentals.id, id), eq(tenantShortRentals.organizationId, orgId))).limit(1);
+    if (!listing) return res.status(404).json({ message: "Not found" });
+    if (!(await canAccessListing(listing, req.user))) return res.status(403).json({ message: "Not permitted." });
+
+    let token = listing.icalExportToken;
+    if (!token) {
+      token = crypto.randomBytes(24).toString("hex");
+      await db.update(tenantShortRentals).set({ icalExportToken: token }).where(eq(tenantShortRentals.id, id));
+    }
+    res.json({ exportUrl: `/api/ical/${id}/${token}.ics` });
+  } catch (err) {
+    console.error("Error getting export info:", err);
+    res.status(500).json({ message: "Failed to get export info" });
+  }
+});
+
+// GET /api/tenant-short-rentals/:id/ical-feeds — external feeds this host has added
+tenantShortRentalsRouter.get("/:id/ical-feeds", async (req: any, res: any) => {
+  try {
+    const id = parseInt(req.params.id);
+    const orgId: number = req.user.organizationId;
+    const [listing] = await db.select().from(tenantShortRentals)
+      .where(and(eq(tenantShortRentals.id, id), eq(tenantShortRentals.organizationId, orgId))).limit(1);
+    if (!listing) return res.status(404).json({ message: "Not found" });
+    if (!(await canAccessListing(listing, req.user))) return res.status(403).json({ message: "Not permitted." });
+
+    const feeds = await db.select().from(externalCalendarFeeds)
+      .where(eq(externalCalendarFeeds.rentalListingId, id))
+      .orderBy(externalCalendarFeeds.createdAt);
+    res.json(feeds);
+  } catch (err) {
+    console.error("Error fetching ical feeds:", err);
+    res.status(500).json({ message: "Failed to fetch calendar feeds" });
+  }
+});
+
+const addFeedSchema = z.object({
+  platform: z.enum(["airbnb", "vrbo", "booking", "google", "other"]),
+  feedUrl: z.string().url(),
+});
+
+// POST /api/tenant-short-rentals/:id/ical-feeds — add an external feed to import from
+tenantShortRentalsRouter.post("/:id/ical-feeds", async (req: any, res: any) => {
+  try {
+    const id = parseInt(req.params.id);
+    const orgId: number = req.user.organizationId;
+    const [listing] = await db.select().from(tenantShortRentals)
+      .where(and(eq(tenantShortRentals.id, id), eq(tenantShortRentals.organizationId, orgId))).limit(1);
+    if (!listing) return res.status(404).json({ message: "Not found" });
+    if (!(await canAccessListing(listing, req.user))) return res.status(403).json({ message: "Not permitted." });
+
+    const parsed = addFeedSchema.safeParse(req.body);
+    if (!parsed.success) return res.status(400).json({ message: "A valid platform and feed URL are required." });
+
+    const payload = insertExternalCalendarFeedSchema.parse({
+      rentalListingId: id,
+      platform: parsed.data.platform,
+      feedUrl: parsed.data.feedUrl,
+      createdBy: req.user.id,
+    });
+    const [created] = await db.insert(externalCalendarFeeds).values(payload).returning();
+    res.status(201).json(created);
+  } catch (err) {
+    if (err instanceof z.ZodError) return res.status(400).json({ errors: err.errors });
+    console.error("Error adding ical feed:", err);
+    res.status(500).json({ message: "Failed to add calendar feed" });
+  }
+});
+
+// DELETE /api/tenant-short-rentals/:id/ical-feeds/:feedId
+tenantShortRentalsRouter.delete("/:id/ical-feeds/:feedId", async (req: any, res: any) => {
+  try {
+    const id = parseInt(req.params.id);
+    const feedId = parseInt(req.params.feedId);
+    const orgId: number = req.user.organizationId;
+    const [listing] = await db.select().from(tenantShortRentals)
+      .where(and(eq(tenantShortRentals.id, id), eq(tenantShortRentals.organizationId, orgId))).limit(1);
+    if (!listing) return res.status(404).json({ message: "Not found" });
+    if (!(await canAccessListing(listing, req.user))) return res.status(403).json({ message: "Not permitted." });
+
+    await db.delete(externalCalendarFeeds).where(and(eq(externalCalendarFeeds.id, feedId), eq(externalCalendarFeeds.rentalListingId, id)));
+    // Clean up blocks that came from this feed too — an unwatched feed
+    // shouldn't leave stale blocked dates behind indefinitely.
+    await db.delete(listingBlockedDates).where(and(eq(listingBlockedDates.externalFeedId, feedId), eq(listingBlockedDates.rentalListingId, id)));
+    res.status(204).send();
+  } catch (err) {
+    console.error("Error removing ical feed:", err);
+    res.status(500).json({ message: "Failed to remove calendar feed" });
+  }
+});
+
+// POST /api/tenant-short-rentals/:id/ical-feeds/:feedId/sync — fetch and
+// parse the external feed now, replacing this feed's own previously-synced
+// blocks with whatever it currently reports. Manual-trigger for now
+// (called from the UI); the same function is what a scheduled job would
+// call later if periodic auto-sync is added.
+tenantShortRentalsRouter.post("/:id/ical-feeds/:feedId/sync", async (req: any, res: any) => {
+  try {
+    const id = parseInt(req.params.id);
+    const feedId = parseInt(req.params.feedId);
+    const orgId: number = req.user.organizationId;
+    const [listing] = await db.select().from(tenantShortRentals)
+      .where(and(eq(tenantShortRentals.id, id), eq(tenantShortRentals.organizationId, orgId))).limit(1);
+    if (!listing) return res.status(404).json({ message: "Not found" });
+    if (!(await canAccessListing(listing, req.user))) return res.status(403).json({ message: "Not permitted." });
+
+    const [feed] = await db.select().from(externalCalendarFeeds)
+      .where(and(eq(externalCalendarFeeds.id, feedId), eq(externalCalendarFeeds.rentalListingId, id))).limit(1);
+    if (!feed) return res.status(404).json({ message: "Feed not found" });
+
+    try {
+      const parsed = await ical.async.fromURL(feed.feedUrl);
+      const events = Object.values(parsed).filter((e: any) => e.type === "VEVENT" && e.start && e.end);
+
+      // Replace this feed's own prior blocks — never touches a host's
+      // manually-added ones or another feed's, since both are scoped by
+      // externalFeedId.
+      await db.delete(listingBlockedDates).where(and(eq(listingBlockedDates.externalFeedId, feedId), eq(listingBlockedDates.rentalListingId, id)));
+
+      if (events.length > 0) {
+        await db.insert(listingBlockedDates).values(
+          events.map((e: any) => ({
+            rentalListingId: id,
+            startDate: new Date(e.start),
+            endDate: new Date(e.end),
+            reason: `Synced from ${feed.platform}`,
+            source: feed.platform,
+            externalFeedId: feedId,
+            externalEventUid: String(e.uid ?? ""),
+          }))
+        );
+      }
+
+      const [updated] = await db.update(externalCalendarFeeds)
+        .set({ lastSyncedAt: new Date(), lastSyncStatus: "success", lastSyncError: null })
+        .where(eq(externalCalendarFeeds.id, feedId))
+        .returning();
+      res.json({ feed: updated, eventsImported: events.length });
+    } catch (fetchErr: any) {
+      const [updated] = await db.update(externalCalendarFeeds)
+        .set({ lastSyncedAt: new Date(), lastSyncStatus: "error", lastSyncError: fetchErr?.message || "Failed to fetch or parse feed" })
+        .where(eq(externalCalendarFeeds.id, feedId))
+        .returning();
+      res.status(502).json({ message: "Could not fetch or parse that calendar feed. Double-check the URL.", feed: updated });
+    }
+  } catch (err) {
+    console.error("Error syncing ical feed:", err);
+    res.status(500).json({ message: "Failed to sync calendar feed" });
   }
 });
 
@@ -614,6 +873,13 @@ shortTermBookingsRouter.post("/", async (req: any, res: any) => {
       organizationId: orgId,
     });
 
+    const [targetListing] = await db.select({ maxGuests: tenantShortRentals.maxGuests })
+      .from(tenantShortRentals).where(eq(tenantShortRentals.id, payload.rentalListingId as any)).limit(1);
+    if (!targetListing) return res.status(404).json({ message: "Listing not found." });
+    if (payload.guestCount && payload.guestCount > targetListing.maxGuests) {
+      return res.status(400).json({ message: `This listing sleeps a maximum of ${targetListing.maxGuests} guest(s).` });
+    }
+
     // Double-booking prevention — the actual core requirement of any
     // booking system, previously entirely missing here. Two stays overlap
     // if one starts before the other ends, in both directions. Cancelled
@@ -625,12 +891,14 @@ shortTermBookingsRouter.post("/", async (req: any, res: any) => {
     if (checkOut <= checkIn) {
       return res.status(400).json({ message: "Check-out date must be after check-in date." });
     }
+    await expireStalePendingBookings(payload.rentalListingId as any);
     const conflicting = await db
       .select({ id: tenantShortBookings.id, checkInDate: tenantShortBookings.checkInDate, checkOutDate: tenantShortBookings.checkOutDate })
       .from(tenantShortBookings)
       .where(and(
         eq(tenantShortBookings.rentalListingId, payload.rentalListingId as any),
         ne(tenantShortBookings.bookingStatus, "cancelled"),
+        ne(tenantShortBookings.bookingStatus, "expired"),
         lt(tenantShortBookings.checkInDate, checkOut),
       ));
     const hasOverlap = conflicting.some(b => new Date(b.checkOutDate) > checkIn);
@@ -649,9 +917,19 @@ shortTermBookingsRouter.post("/", async (req: any, res: any) => {
 
     const [created] = await db.insert(tenantShortBookings).values(payload).returning();
     return res.status(201).json(created);
-  } catch (err) {
+  } catch (err: any) {
     if (err instanceof z.ZodError) {
       return res.status(400).json({ errors: err.errors });
+    }
+    // Postgres exclusion-constraint violation (code 23P01) — the
+    // application-level check above is "look, then write", so a genuinely
+    // concurrent request can still slip past it; this is the database's
+    // own guarantee catching what the check alone couldn't.
+    if (err?.code === "23P01") {
+      return res.status(409).json({
+        message: "Those dates were just booked by someone else — please pick different dates.",
+        code: "BOOKING_DATES_UNAVAILABLE",
+      });
     }
     console.error("Error creating short term booking:", err);
     return res.status(500).json({ message: "Failed to create booking" });
@@ -693,6 +971,7 @@ shortTermBookingsRouter.put("/:id", async (req: any, res: any) => {
       if (checkOut <= checkIn) {
         return res.status(400).json({ message: "Check-out date must be after check-in date." });
       }
+      await expireStalePendingBookings(existing.rentalListingId);
       const conflicting = await db
         .select({ id: tenantShortBookings.id, checkInDate: tenantShortBookings.checkInDate, checkOutDate: tenantShortBookings.checkOutDate })
         .from(tenantShortBookings)
@@ -700,6 +979,7 @@ shortTermBookingsRouter.put("/:id", async (req: any, res: any) => {
           eq(tenantShortBookings.rentalListingId, existing.rentalListingId),
           ne(tenantShortBookings.id, id),
           ne(tenantShortBookings.bookingStatus, "cancelled"),
+          ne(tenantShortBookings.bookingStatus, "expired"),
           lt(tenantShortBookings.checkInDate, checkOut),
         ));
       const hasOverlap = conflicting.some(b => new Date(b.checkOutDate) > checkIn);
@@ -754,14 +1034,95 @@ shortTermBookingsRouter.delete("/:id", async (req: any, res: any) => {
     // reporting) correctly distinguish "never happened" from "was booked,
     // then cancelled". The dates become available again automatically,
     // since every overlap check already excludes cancelled bookings.
+    const wasPaid = existing.paymentStatus === "paid";
     const [updated] = await db
       .update(tenantShortBookings)
-      .set({ bookingStatus: "cancelled", updatedAt: new Date() })
+      .set({
+        bookingStatus: "cancelled",
+        ...(wasPaid ? { refundStatus: "owed", refundAmount: existing.totalAmount } : {}),
+        updatedAt: new Date(),
+      })
       .where(eq(tenantShortBookings.id, id))
       .returning();
+
+    // A guest who already paid shouldn't just lose that money silently —
+    // notify whoever needs to actually send the refund. Isolated in its
+    // own try/catch, same reasoning as every other notification email
+    // here: an email failure shouldn't undo the cancellation itself.
+    if (wasPaid) {
+      try {
+        const [listingRow] = await db.select().from(tenantShortRentals).where(eq(tenantShortRentals.id, existing.rentalListingId)).limit(1);
+        let hostEmail: string | null = null;
+        let hostName = "there";
+        if (listingRow?.tenantId) {
+          const [tenantRow] = await db.select({ email: tenants.email, firstName: tenants.firstName }).from(tenants).where(eq(tenants.id, listingRow.tenantId)).limit(1);
+          hostEmail = tenantRow?.email ?? null;
+          hostName = tenantRow?.firstName ?? hostName;
+        } else if (listingRow?.ownerId) {
+          const [ownerRow] = await db.select({ email: users.email, firstName: users.firstName }).from(users).where(eq(users.id, listingRow.ownerId)).limit(1);
+          hostEmail = ownerRow?.email ?? null;
+          hostName = ownerRow?.firstName ?? hostName;
+        }
+        if (hostEmail) {
+          await sendRefundOwedEmail({
+            to: hostEmail,
+            hostName,
+            guestName: existing.guestName,
+            guestPhone: existing.guestPhone,
+            bookingReference: existing.bookingReference,
+            amount: String(existing.totalAmount),
+            currency: existing.currency,
+          });
+        }
+      } catch (emailErr) {
+        console.error("Booking cancelled, but refund-owed notice failed to send:", emailErr);
+      }
+    }
+
     return res.json(updated);
   } catch (err) {
     console.error("Error cancelling short term booking:", err);
     return res.status(500).json({ message: "Failed to cancel booking" });
+  }
+});
+
+// POST /api/short-term-bookings/:id/mark-refunded — records that a refund
+// owed on this booking has actually been sent (manually, via the host's
+// own M-Pesa), and who confirmed it. This is the accountability half of
+// refund tracking — a refund isn't done until someone attests it's done.
+shortTermBookingsRouter.post("/:id/mark-refunded", async (req: any, res: any) => {
+  try {
+    const id = parseInt(req.params.id);
+    const orgId: number = req.user.organizationId;
+    const { notes } = req.body;
+    const [existing] = await db.select().from(tenantShortBookings)
+      .where(and(eq(tenantShortBookings.id, id), eq(tenantShortBookings.organizationId, orgId))).limit(1);
+    if (!existing) return res.status(404).json({ message: "Not found" });
+    if (!(await canAccessBooking(existing, req.user))) return res.status(403).json({ message: "Not permitted." });
+    if (existing.refundStatus !== "owed") {
+      return res.status(409).json({ message: "This booking doesn't currently have a refund owed." });
+    }
+
+    const [updated] = await db.update(tenantShortBookings)
+      .set({ refundStatus: "completed", refundedBy: req.user.id, refundedAt: new Date(), refundNotes: notes || null, updatedAt: new Date() })
+      .where(eq(tenantShortBookings.id, id))
+      .returning();
+
+    try {
+      await sendRefundProcessedEmail({
+        to: existing.guestEmail,
+        guestName: existing.guestName,
+        bookingReference: existing.bookingReference,
+        amount: String(existing.refundAmount ?? existing.totalAmount),
+        currency: existing.currency,
+      });
+    } catch (emailErr) {
+      console.error("Refund marked complete, but confirmation email to guest failed:", emailErr);
+    }
+
+    res.json(updated);
+  } catch (err) {
+    console.error("Error marking refund complete:", err);
+    res.status(500).json({ message: "Failed to mark refund complete" });
   }
 });

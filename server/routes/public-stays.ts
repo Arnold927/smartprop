@@ -23,12 +23,25 @@
 import { Router } from "express";
 import { db } from "../db";
 import { eq, and, ne, lt, gte, sql } from "drizzle-orm";
-import { tenantShortRentals, tenantShortBookings, listingBlockedDates } from "@shared/schema";
+import { tenantShortRentals, tenantShortBookings, listingBlockedDates, units, properties, tenants, users } from "@shared/schema";
 import { z } from "zod";
 import { resolveFromUnitId } from "../utils/resolvePaymentConfig";
 import { createMPesaServiceForOverrides } from "../services/mpesa";
 import { storage } from "../storage";
-import { hasBlockedDateOverlap } from "./tenant-subletting";
+import { hasBlockedDateOverlap, expireStalePendingBookings } from "./tenant-subletting";
+import { sendRefundOwedEmail } from "../lib/email";
+
+/** Derives a general area from a full address — e.g. "12 Riverside Drive,
+ *  Kilimani, Nairobi" becomes "Kilimani, Nairobi". A guest browsing or
+ *  deciding whether to book shouldn't see a host's exact address; that's
+ *  shared only once a stay is actually confirmed and paid for, the same
+ *  safety practice real booking platforms follow. Falls back to the full
+ *  string if it isn't comma-separated into that shape. */
+function generalAreaFromAddress(address: string): string {
+  const parts = address.split(",").map(p => p.trim()).filter(Boolean);
+  if (parts.length <= 1) return address;
+  return parts.slice(-2).join(", ");
+}
 
 export const publicStaysRouter = Router();
 
@@ -60,6 +73,7 @@ const PUBLIC_LISTING_FIELDS = {
   checkInTime: tenantShortRentals.checkInTime,
   checkOutTime: tenantShortRentals.checkOutTime,
   listingPhotos: tenantShortRentals.listingPhotos,
+  maxGuests: tenantShortRentals.maxGuests,
   instantBookingEnabled: tenantShortRentals.instantBookingEnabled,
 };
 
@@ -67,18 +81,64 @@ const PUBLIC_LISTING_FIELDS = {
 // Only listings that are approved, active, AND have explicitly opted into
 // the shared marketplace. A listing can be perfectly bookable via its own
 // direct link (see /:slug below) without ever appearing here.
+//
+// Optional ?checkIn=&checkOut= narrows results to listings actually free
+// for those dates — the core "where + when" search any real booking site
+// is built around, not just a browsable list with no way to search by date.
 publicStaysRouter.get("/", async (req: any, res: any) => {
   try {
     const rows = await db
-      .select(PUBLIC_LISTING_FIELDS)
+      .select({
+        ...PUBLIC_LISTING_FIELDS,
+        bedrooms: units.bedrooms,
+        bathrooms: units.bathrooms,
+        sqft: units.sqft,
+        address: properties.address,
+      })
       .from(tenantShortRentals)
+      .innerJoin(units, eq(tenantShortRentals.unitId, units.id))
+      .innerJoin(properties, eq(units.propertyId, properties.id))
       .where(and(
         eq(tenantShortRentals.isPubliclyListed, true),
         eq(tenantShortRentals.approvalStatus, "approved"),
         eq(tenantShortRentals.isActive, true),
       ))
       .orderBy(tenantShortRentals.createdAt);
-    res.json(rows);
+
+    // Never the exact address pre-booking — same reasoning as the single
+    // listing endpoint below.
+    const withGeneralArea = rows.map(({ address, ...rest }) => ({ ...rest, generalArea: generalAreaFromAddress(address) }));
+
+    const { checkIn, checkOut } = req.query;
+    if (!checkIn || !checkOut) {
+      return res.json(withGeneralArea);
+    }
+    const checkInDate = new Date(checkIn as string);
+    const checkOutDate = new Date(checkOut as string);
+    if (isNaN(checkInDate.getTime()) || isNaN(checkOutDate.getTime()) || checkOutDate <= checkInDate) {
+      return res.json(withGeneralArea); // invalid dates — fall back to unfiltered results rather than error
+    }
+
+    // Proportionate for a marketplace at this scale — one overlap check per
+    // candidate listing, reusing the exact logic every other booking path
+    // already uses, rather than duplicating it in a bigger single query.
+    const available: typeof withGeneralArea = [];
+    for (const listing of withGeneralArea) {
+      const conflicting = await db
+        .select({ checkInDate: tenantShortBookings.checkInDate, checkOutDate: tenantShortBookings.checkOutDate })
+        .from(tenantShortBookings)
+        .where(and(
+          eq(tenantShortBookings.rentalListingId, listing.id),
+          ne(tenantShortBookings.bookingStatus, "cancelled"),
+          ne(tenantShortBookings.bookingStatus, "expired"),
+          lt(tenantShortBookings.checkInDate, checkOutDate),
+        ));
+      const hasBookingOverlap = conflicting.some(b => new Date(b.checkOutDate) > checkInDate);
+      if (hasBookingOverlap) continue;
+      if (await hasBlockedDateOverlap(listing.id, checkInDate, checkOutDate)) continue;
+      available.push(listing);
+    }
+    res.json(available);
   } catch (err) {
     console.error("[public-stays] GET /:", err);
     res.status(500).json({ message: "Failed to load listings" });
@@ -93,8 +153,16 @@ publicStaysRouter.get("/", async (req: any, res: any) => {
 publicStaysRouter.get("/:slug", async (req: any, res: any) => {
   try {
     const [listing] = await db
-      .select(PUBLIC_LISTING_FIELDS)
+      .select({
+        ...PUBLIC_LISTING_FIELDS,
+        bedrooms: units.bedrooms,
+        bathrooms: units.bathrooms,
+        sqft: units.sqft,
+        address: properties.address,
+      })
       .from(tenantShortRentals)
+      .innerJoin(units, eq(tenantShortRentals.unitId, units.id))
+      .innerJoin(properties, eq(units.propertyId, properties.id))
       .where(and(
         eq(tenantShortRentals.slug, req.params.slug),
         eq(tenantShortRentals.approvalStatus, "approved"),
@@ -102,7 +170,8 @@ publicStaysRouter.get("/:slug", async (req: any, res: any) => {
       ))
       .limit(1);
     if (!listing) return res.status(404).json({ message: "Listing not found." });
-    res.json(listing);
+    const { address, ...safeListing } = listing;
+    res.json({ ...safeListing, generalArea: generalAreaFromAddress(address) });
   } catch (err) {
     console.error("[public-stays] GET /:slug:", err);
     res.status(500).json({ message: "Failed to load listing" });
@@ -119,12 +188,14 @@ publicStaysRouter.get("/:slug/booked-dates", async (req: any, res: any) => {
       .limit(1);
     if (!listing) return res.status(404).json({ message: "Listing not found." });
 
+    await expireStalePendingBookings(listing.id);
     const bookings = await db
       .select({ checkInDate: tenantShortBookings.checkInDate, checkOutDate: tenantShortBookings.checkOutDate })
       .from(tenantShortBookings)
       .where(and(
         eq(tenantShortBookings.rentalListingId, listing.id),
         ne(tenantShortBookings.bookingStatus, "cancelled"),
+        ne(tenantShortBookings.bookingStatus, "expired"),
         // Only future/current bookings matter for availability — no point
         // returning years of past stays to a public caller.
         gte(tenantShortBookings.checkOutDate, sql`now()`),
@@ -191,16 +262,21 @@ publicStaysRouter.post("/:slug/book", async (req: any, res: any) => {
     if (numberOfNights > listing.maximumNights) {
       return res.status(400).json({ message: `This listing allows a maximum stay of ${listing.maximumNights} night(s).` });
     }
+    if (body.guestCount > listing.maxGuests) {
+      return res.status(400).json({ message: `This listing sleeps a maximum of ${listing.maxGuests} guest(s).` });
+    }
 
     // Double-booking prevention — same rule as the authenticated booking
     // endpoint, checked again here since this is a genuinely separate
     // entry point into the same table.
+    await expireStalePendingBookings(listing.id);
     const conflicting = await db
       .select({ id: tenantShortBookings.id, checkInDate: tenantShortBookings.checkInDate, checkOutDate: tenantShortBookings.checkOutDate })
       .from(tenantShortBookings)
       .where(and(
         eq(tenantShortBookings.rentalListingId, listing.id),
         ne(tenantShortBookings.bookingStatus, "cancelled"),
+        ne(tenantShortBookings.bookingStatus, "expired"),
         lt(tenantShortBookings.checkInDate, checkOut),
       ));
     const hasOverlap = conflicting.some(b => new Date(b.checkOutDate) > checkIn);
@@ -266,7 +342,13 @@ publicStaysRouter.post("/:slug/book", async (req: any, res: any) => {
     });
 
     res.status(201).json(created);
-  } catch (err) {
+  } catch (err: any) {
+    if (err?.code === "23P01") {
+      return res.status(409).json({
+        message: "Those dates were just booked by someone else — please pick different dates.",
+        code: "BOOKING_DATES_UNAVAILABLE",
+      });
+    }
     console.error("[public-stays] POST /:slug/book:", err);
     res.status(500).json({ message: "Failed to create booking" });
   }
@@ -381,5 +463,116 @@ publicStaysRouter.post("/:slug/bookings/:bookingId/pay", async (req: any, res: a
   } catch (err: any) {
     console.error("[public-stays] POST /:slug/bookings/:bookingId/pay:", err);
     res.status(502).json({ message: err.message || "Failed to initiate payment" });
+  }
+});
+
+const lookupSchema = z.object({
+  bookingReference: z.string().min(1),
+  guestEmail: z.string().email(),
+});
+
+// GET /api/public/stays/bookings/lookup?bookingReference=&guestEmail=
+// A guest's only identity is their reference number — verification
+// requires it together with the email they booked with, so a guessed or
+// leaked reference number alone can't be used to view someone else's
+// booking or personal details.
+publicStaysRouter.get("/bookings/lookup", async (req: any, res: any) => {
+  try {
+    const parsed = lookupSchema.safeParse(req.query);
+    if (!parsed.success) return res.status(400).json({ message: "A booking reference and the email you booked with are required." });
+
+    const [booking] = await db.select().from(tenantShortBookings)
+      .where(and(
+        eq(tenantShortBookings.bookingReference, parsed.data.bookingReference),
+        eq(tenantShortBookings.guestEmail, parsed.data.guestEmail.toLowerCase()),
+      )).limit(1);
+    if (!booking) return res.status(404).json({ message: "No booking found with that reference and email." });
+
+    const [listing] = await db.select({ listingTitle: tenantShortRentals.listingTitle, slug: tenantShortRentals.slug })
+      .from(tenantShortRentals).where(eq(tenantShortRentals.id, booking.rentalListingId)).limit(1);
+
+    res.json({
+      bookingReference: booking.bookingReference,
+      listingTitle: listing?.listingTitle ?? "Listing",
+      listingSlug: listing?.slug ?? null,
+      checkInDate: booking.checkInDate,
+      checkOutDate: booking.checkOutDate,
+      numberOfNights: booking.numberOfNights,
+      totalAmount: booking.totalAmount,
+      currency: booking.currency,
+      bookingStatus: booking.bookingStatus,
+      paymentStatus: booking.paymentStatus,
+      refundStatus: booking.refundStatus,
+    });
+  } catch (err) {
+    console.error("[public-stays] GET /bookings/lookup:", err);
+    res.status(500).json({ message: "Failed to look up booking" });
+  }
+});
+
+// POST /api/public/stays/bookings/:reference/cancel — guest cancels their
+// own booking, same reference+email verification as lookup. Mirrors the
+// authenticated cancel endpoint's soft-cancel and refund-tracking logic,
+// since this is a genuinely separate entry point into the same table.
+publicStaysRouter.post("/bookings/:reference/cancel", async (req: any, res: any) => {
+  try {
+    const { guestEmail } = req.body;
+    if (!guestEmail || typeof guestEmail !== "string") {
+      return res.status(400).json({ message: "The email you booked with is required to cancel." });
+    }
+
+    const [booking] = await db.select().from(tenantShortBookings)
+      .where(and(
+        eq(tenantShortBookings.bookingReference, req.params.reference),
+        eq(tenantShortBookings.guestEmail, guestEmail.toLowerCase()),
+      )).limit(1);
+    if (!booking) return res.status(404).json({ message: "No booking found with that reference and email." });
+    if (booking.bookingStatus === "cancelled") return res.status(409).json({ message: "This booking is already cancelled." });
+    if (booking.bookingStatus === "checked_out") return res.status(409).json({ message: "A completed stay can't be cancelled." });
+
+    const wasPaid = booking.paymentStatus === "paid";
+    const [updated] = await db.update(tenantShortBookings)
+      .set({
+        bookingStatus: "cancelled",
+        ...(wasPaid ? { refundStatus: "owed", refundAmount: booking.totalAmount } : {}),
+        updatedAt: new Date(),
+      })
+      .where(eq(tenantShortBookings.id, booking.id))
+      .returning();
+
+    if (wasPaid) {
+      try {
+        const [listingRow] = await db.select().from(tenantShortRentals).where(eq(tenantShortRentals.id, booking.rentalListingId)).limit(1);
+        let hostEmail: string | null = null;
+        let hostName = "there";
+        if (listingRow?.tenantId) {
+          const [tenantRow] = await db.select({ email: tenants.email, firstName: tenants.firstName }).from(tenants).where(eq(tenants.id, listingRow.tenantId)).limit(1);
+          hostEmail = tenantRow?.email ?? null;
+          hostName = tenantRow?.firstName ?? hostName;
+        } else if (listingRow?.ownerId) {
+          const [ownerRow] = await db.select({ email: users.email, firstName: users.firstName }).from(users).where(eq(users.id, listingRow.ownerId)).limit(1);
+          hostEmail = ownerRow?.email ?? null;
+          hostName = ownerRow?.firstName ?? hostName;
+        }
+        if (hostEmail) {
+          await sendRefundOwedEmail({
+            to: hostEmail,
+            hostName,
+            guestName: booking.guestName,
+            guestPhone: booking.guestPhone,
+            bookingReference: booking.bookingReference,
+            amount: String(booking.totalAmount),
+            currency: booking.currency,
+          });
+        }
+      } catch (emailErr) {
+        console.error("Guest cancelled a paid booking, but refund-owed notice failed to send:", emailErr);
+      }
+    }
+
+    res.json({ bookingStatus: updated.bookingStatus, refundStatus: updated.refundStatus });
+  } catch (err) {
+    console.error("[public-stays] POST /bookings/:reference/cancel:", err);
+    res.status(500).json({ message: "Failed to cancel booking" });
   }
 });

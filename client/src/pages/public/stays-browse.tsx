@@ -10,7 +10,7 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "wouter";
-import { Search, MapPin, Users as UsersIcon, Loader2, Home } from "lucide-react";
+import { Search, MapPin, Users as UsersIcon, Loader2, Home, Calendar, Camera } from "lucide-react";
 
 interface PublicListing {
   id: number;
@@ -23,6 +23,10 @@ interface PublicListing {
   maximumNights: number;
   amenities: string[];
   listingPhotos: string[];
+  bedrooms: number | null;
+  bathrooms: string | null;
+  maxGuests: number;
+  generalArea: string;
 }
 
 const FONT_IMPORT = "https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600&family=Inter:wght@400;500;600&display=swap";
@@ -34,11 +38,21 @@ function fmtPrice(rate: string, currency: string) {
 
 export default function StaysBrowsePage() {
   const [search, setSearch] = useState("");
+  const [checkIn, setCheckIn] = useState("");
+  const [checkOut, setCheckOut] = useState("");
+  const datesInvalid = !!checkIn && !!checkOut && checkOut <= checkIn;
 
   const { data: listings = [], isLoading } = useQuery<PublicListing[]>({
-    queryKey: ["/api/public/stays"],
+    // Dates are part of the cache key deliberately — different date
+    // ranges are genuinely different result sets, not the same query
+    // re-rendered.
+    queryKey: ["/api/public/stays", checkIn, checkOut],
     queryFn: async () => {
-      const r = await fetch("/api/public/stays");
+      const hasValidDates = checkIn && checkOut && !datesInvalid;
+      const url = hasValidDates
+        ? `/api/public/stays?checkIn=${checkIn}&checkOut=${checkOut}`
+        : "/api/public/stays";
+      const r = await fetch(url);
       if (!r.ok) return [];
       return r.json();
     },
@@ -50,6 +64,10 @@ export default function StaysBrowsePage() {
     l.description.toLowerCase().includes(search.toLowerCase())
   );
 
+  // Carried through to the detail page so a guest who already picked dates
+  // here doesn't have to re-select them on the next page.
+  const dateParams = (checkIn && checkOut && !datesInvalid) ? `?checkIn=${checkIn}&checkOut=${checkOut}` : "";
+
   return (
     <div style={{ background: "#FBF9F4", height: "100vh", overflowY: "auto", color: "#1C1917" }}>
       <a href="/" style={{ display: "block", padding: "10px 24px", fontSize: 13, color: "#6B6560", textDecoration: "none", borderBottom: "1px solid #E7E2D9" }}>← Back to SmartProp</a>
@@ -60,6 +78,7 @@ export default function StaysBrowsePage() {
         .stay-card { transition: transform 0.18s ease, box-shadow 0.18s ease; }
         .stay-card:hover { transform: translateY(-3px); box-shadow: 0 12px 28px rgba(28,25,23,0.12); }
         .stay-card:focus-within { outline: 2px solid #059669; outline-offset: 3px; }
+        .stays-date-input { font-family: 'Inter', sans-serif; }
       `}</style>
 
       {/* Header */}
@@ -83,20 +102,45 @@ export default function StaysBrowsePage() {
         <p style={{ fontSize: 16, color: "#6B6560", maxWidth: 520, marginBottom: 28 }}>
           Every listing here is managed and confirmed by its actual owner — no anonymous hosts, no surprise fees at checkout.
         </p>
-        <div style={{ position: "relative", maxWidth: 480 }}>
-          <Search className="w-4 h-4" style={{ position: "absolute", left: 16, top: 14, color: "#6B6560" }} />
-          <input
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-            placeholder="Search by name or description…"
-            style={{
-              width: "100%", padding: "12px 16px 12px 44px", borderRadius: 12,
-              border: "1px solid #E7E2D9", background: "white", fontSize: 15, outline: "none",
-            }}
-            onFocus={e => e.currentTarget.style.borderColor = "#059669"}
-            onBlur={e => e.currentTarget.style.borderColor = "#E7E2D9"}
-          />
+
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 10, maxWidth: 720 }}>
+          <div style={{ position: "relative", flex: "1 1 260px" }}>
+            <Search className="w-4 h-4" style={{ position: "absolute", left: 16, top: 14, color: "#6B6560" }} />
+            <input
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              placeholder="Search by name or description…"
+              style={{
+                width: "100%", padding: "12px 16px 12px 44px", borderRadius: 12,
+                border: "1px solid #E7E2D9", background: "white", fontSize: 15, outline: "none", boxSizing: "border-box",
+              }}
+              onFocus={e => e.currentTarget.style.borderColor = "#059669"}
+              onBlur={e => e.currentTarget.style.borderColor = "#E7E2D9"}
+            />
+          </div>
+          <div style={{ position: "relative", flex: "1 1 150px" }}>
+            <Calendar className="w-3.5 h-3.5" style={{ position: "absolute", left: 14, top: 15, color: "#6B6560" }} />
+            <input
+              type="date" className="stays-date-input" value={checkIn}
+              onChange={e => setCheckIn(e.target.value)}
+              style={{ width: "100%", padding: "12px 12px 12px 38px", borderRadius: 12, border: "1px solid #E7E2D9", background: "white", fontSize: 14, outline: "none", boxSizing: "border-box" }}
+              aria-label="Check-in date"
+            />
+          </div>
+          <div style={{ position: "relative", flex: "1 1 150px" }}>
+            <Calendar className="w-3.5 h-3.5" style={{ position: "absolute", left: 14, top: 15, color: "#6B6560" }} />
+            <input
+              type="date" className="stays-date-input" value={checkOut}
+              onChange={e => setCheckOut(e.target.value)}
+              style={{ width: "100%", padding: "12px 12px 12px 38px", borderRadius: 12, border: "1px solid #E7E2D9", background: "white", fontSize: 14, outline: "none", boxSizing: "border-box" }}
+              aria-label="Check-out date"
+            />
+          </div>
         </div>
+        {datesInvalid && <p style={{ fontSize: 12.5, color: "#B91C1C", marginTop: 8 }}>Check-out must be after check-in.</p>}
+        {checkIn && checkOut && !datesInvalid && (
+          <p style={{ fontSize: 12.5, color: "#6B6560", marginTop: 8 }}>Showing places free for those dates.</p>
+        )}
       </section>
 
       {/* Listings grid */}
@@ -108,20 +152,36 @@ export default function StaysBrowsePage() {
         ) : filtered.length === 0 ? (
           <div style={{ textAlign: "center", padding: "64px 0", color: "#6B6560" }}>
             <MapPin className="w-8 h-8" style={{ margin: "0 auto 12px", opacity: 0.4 }} />
-            <p>No listings match your search right now.</p>
+            <p>{checkIn && checkOut ? "Nothing's free for those dates right now." : "No listings match your search right now."}</p>
           </div>
         ) : (
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))", gap: 24 }}>
             {filtered.map(listing => (
-              <Link key={listing.id} href={`/stay/${listing.slug}`}>
+              <Link key={listing.id} href={`/stay/${listing.slug}${dateParams}`}>
                 <a className="stay-card" style={{ display: "block", borderRadius: 16, overflow: "hidden", background: "white", border: "1px solid #E7E2D9", textDecoration: "none", color: "inherit" }}>
-                  <div style={{
-                    aspectRatio: "4 / 3", background: listing.listingPhotos?.[0]
-                      ? `url(${listing.listingPhotos[0]}) center/cover`
-                      : "linear-gradient(135deg, #d1fae5, #a7f3d0)",
-                  }} />
+                  <div style={{ position: "relative" }}>
+                    <div style={{
+                      aspectRatio: "4 / 3", background: listing.listingPhotos?.[0]
+                        ? `url(${listing.listingPhotos[0]}) center/cover`
+                        : "linear-gradient(135deg, #d1fae5, #a7f3d0)",
+                    }} />
+                    {(listing.listingPhotos?.length ?? 0) > 1 && (
+                      <span style={{
+                        position: "absolute", bottom: 8, right: 8, background: "rgba(0,0,0,0.6)", color: "white",
+                        fontSize: 11.5, padding: "3px 8px", borderRadius: 20, display: "flex", alignItems: "center", gap: 4,
+                      }}>
+                        <Camera className="w-3 h-3" /> {listing.listingPhotos.length}
+                      </span>
+                    )}
+                  </div>
                   <div style={{ padding: "16px 18px" }}>
-                    <h3 className="stays-serif" style={{ fontSize: 17, fontWeight: 600, marginBottom: 4 }}>{listing.listingTitle}</h3>
+                    <h3 className="stays-serif" style={{ fontSize: 17, fontWeight: 600, marginBottom: 2 }}>{listing.listingTitle}</h3>
+                    <p style={{ fontSize: 12.5, color: "#6B6560", marginBottom: 8, display: "flex", alignItems: "center", gap: 4 }}>
+                      <MapPin className="w-3 h-3" style={{ flexShrink: 0 }} /> {listing.generalArea}
+                      {listing.bedrooms != null && <> · {listing.bedrooms} bed</>}
+                      {listing.bathrooms != null && <> · {listing.bathrooms} bath</>}
+                      {" "}· sleeps {listing.maxGuests}
+                    </p>
                     <p style={{ fontSize: 13.5, color: "#6B6560", marginBottom: 10, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>
                       {listing.description}
                     </p>

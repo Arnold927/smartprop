@@ -41,6 +41,9 @@ interface TenantShortRental {
   currency: CurrencyCode;
   minimumNights: number;
   maximumNights: number;
+  maxGuests: number;
+  landlordNotifiedAt?: string | null;
+  landlordConsentConfirmed: boolean;
   amenities: string[];
   houseRules: string;
   checkInTime: string;
@@ -81,6 +84,9 @@ interface ShortTermBooking {
   currency: CurrencyCode;
   bookingStatus: string;
   paymentStatus: string;
+  refundStatus: string;
+  refundAmount?: string | null;
+  refundedAt?: string | null;
   platformSource: string;
   specialRequests?: string;
   checkInCode?: string;
@@ -270,6 +276,7 @@ export default function TenantSubletting() {
   const [calendarMonth, setCalendarMonth] = useState(new Date());
   const [selectedBooking, setSelectedBooking] = useState<ShortTermBooking | null>(null);
   const [managingBlocksFor, setManagingBlocksFor] = useState<TenantShortRental | null>(null);
+  const [managingSyncFor, setManagingSyncFor] = useState<TenantShortRental | null>(null);
   const [bookingSearch, setBookingSearch] = useState("");
   const [bookingStatusFilter, setBookingStatusFilter] = useState("all");
   const [platformFilter, setPlatformFilter] = useState("all");
@@ -523,13 +530,19 @@ export default function TenantSubletting() {
   });
 
   const updateListingStatusMutation = useMutation({
-    mutationFn: ({ id, status }: { id: number; status: string }) =>
-      apiRequest(`/api/tenant-short-rentals/${id}/status`, { method: "PATCH", data: { status } }),
+    mutationFn: ({ id, status, landlordConsentConfirmed }: { id: number; status: string; landlordConsentConfirmed?: boolean }) =>
+      apiRequest(`/api/tenant-short-rentals/${id}/status`, { method: "PATCH", data: { status, landlordConsentConfirmed } }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/tenant-short-rentals"] });
       toast({ title: "Success", description: "Listing status updated" });
     },
-    onError: () => toast({ title: "Error", description: "Failed to update listing status", variant: "destructive" }),
+    onError: (err: any) => {
+      if (err?.code === "LANDLORD_CONSENT_REQUIRED") {
+        toast({ title: "Landlord consent required", description: err.message, variant: "destructive" });
+        return;
+      }
+      toast({ title: "Error", description: "Failed to update listing status", variant: "destructive" });
+    },
   });
 
   const updateListingVisibilityMutation = useMutation({
@@ -575,6 +588,16 @@ export default function TenantSubletting() {
       setSelectedBooking(null);
     },
     onError: (err: any) => toast({ title: "Error", description: err?.message || "Failed to cancel booking", variant: "destructive" }),
+  });
+
+  const markRefundedMutation = useMutation({
+    mutationFn: ({ id, notes }: { id: number; notes?: string }) =>
+      apiRequest(`/api/short-term-bookings/${id}/mark-refunded`, { method: "POST", data: { notes } }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/short-term-bookings"] });
+      toast({ title: "Refund recorded", description: "The guest has been notified it was sent." });
+    },
+    onError: (err: any) => toast({ title: "Error", description: err?.message || "Failed to record refund", variant: "destructive" }),
   });
 
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
@@ -652,6 +675,7 @@ export default function TenantSubletting() {
       currency: "KES",
       minimumNights: parseInt(data.minimumNights as string),
       maximumNights: parseInt(data.maximumNights as string),
+      maxGuests: parseInt(data.maxGuests as string),
       amenities,
       houseRules: data.houseRules as string,
       checkInTime: data.checkInTime as string,
@@ -861,6 +885,37 @@ export default function TenantSubletting() {
               </div>
             )}
 
+            {booking.refundStatus === "owed" && (
+              <div className="pt-2 border-t space-y-2">
+                <div className="rounded-lg bg-amber-50 border border-amber-200 p-3">
+                  <p className="text-sm font-medium text-amber-800 flex items-center gap-1.5">
+                    <Info className="h-3.5 w-3.5" /> Refund owed
+                  </p>
+                  <p className="text-xs text-amber-700 mt-1">
+                    {booking.currency} {Number(booking.refundAmount ?? booking.totalAmount).toLocaleString()} needs to be sent to {booking.guestName} ({booking.guestPhone})
+                    via M-Pesa. Mark it below once sent.
+                  </p>
+                </div>
+                <Button
+                  className="w-full bg-emerald-600 hover:bg-emerald-700"
+                  disabled={markRefundedMutation.isPending}
+                  onClick={() => {
+                    const notes = prompt("Optional note (e.g. M-Pesa confirmation code):") ?? undefined;
+                    markRefundedMutation.mutate({ id: booking.id, notes });
+                  }}
+                >
+                  <CheckCircle className="h-4 w-4 mr-2" /> {markRefundedMutation.isPending ? "Recording…" : "Mark refund as sent"}
+                </Button>
+              </div>
+            )}
+            {booking.refundStatus === "completed" && booking.refundedAt && (
+              <div className="pt-2 border-t">
+                <p className="text-xs text-muted-foreground flex items-center gap-1.5">
+                  <CheckCircle className="h-3.5 w-3.5 text-emerald-600" /> Refunded on {new Date(booking.refundedAt).toLocaleDateString()}
+                </p>
+              </div>
+            )}
+
             {!["cancelled", "checked_out"].includes(booking.bookingStatus) && (
               <div className="pt-2 border-t">
                 <Button
@@ -964,6 +1019,129 @@ export default function TenantSubletting() {
                 onClick={() => addBlockMutation.mutate()}
               >
                 {addBlockMutation.isPending ? "Blocking…" : "Block these dates"}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+    );
+  };
+
+  const CalendarSyncDialog = ({ listing, onClose }: { listing: TenantShortRental; onClose: () => void }) => {
+    const [platform, setPlatform] = useState<"airbnb" | "vrbo" | "booking" | "google" | "other">("airbnb");
+    const [feedUrl, setFeedUrl] = useState("");
+    const [copied, setCopied] = useState(false);
+
+    const { data: exportInfo } = useQuery({
+      queryKey: ["/api/tenant-short-rentals", listing.id, "export-info"],
+      queryFn: async () => { const r = await apiRequest(`/api/tenant-short-rentals/${listing.id}/export-info`); return r.json(); },
+    });
+    const { data: feeds = [], isLoading: loadingFeeds } = useQuery({
+      queryKey: ["/api/tenant-short-rentals", listing.id, "ical-feeds"],
+      queryFn: async () => { const r = await apiRequest(`/api/tenant-short-rentals/${listing.id}/ical-feeds`); return ensureArray(await r.json()); },
+    });
+
+    const addFeedMutation = useMutation({
+      mutationFn: () => apiRequest(`/api/tenant-short-rentals/${listing.id}/ical-feeds`, { method: "POST", data: { platform, feedUrl } }),
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: ["/api/tenant-short-rentals", listing.id, "ical-feeds"] });
+        setFeedUrl("");
+        toast({ title: "Calendar added", description: "Click Sync now to import its dates." });
+      },
+      onError: (err: any) => toast({ title: "Error", description: err?.message || "Failed to add calendar", variant: "destructive" }),
+    });
+
+    const removeFeedMutation = useMutation({
+      mutationFn: (feedId: number) => apiRequest(`/api/tenant-short-rentals/${listing.id}/ical-feeds/${feedId}`, { method: "DELETE" }),
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: ["/api/tenant-short-rentals", listing.id, "ical-feeds"] });
+        toast({ title: "Calendar removed" });
+      },
+      onError: () => toast({ title: "Error", description: "Failed to remove calendar", variant: "destructive" }),
+    });
+
+    const syncFeedMutation = useMutation({
+      mutationFn: (feedId: number) => apiRequest(`/api/tenant-short-rentals/${listing.id}/ical-feeds/${feedId}/sync`, { method: "POST" }),
+      onSuccess: (data: any) => {
+        queryClient.invalidateQueries({ queryKey: ["/api/tenant-short-rentals", listing.id, "ical-feeds"] });
+        toast({ title: "Synced", description: `Imported ${data.eventsImported ?? 0} date range(s).` });
+      },
+      onError: (err: any) => toast({ title: "Sync failed", description: err?.message || "Could not sync that calendar.", variant: "destructive" }),
+    });
+
+    const platformLabel: Record<string, string> = { airbnb: "🏠 Airbnb", vrbo: "🏡 VRBO", booking: "🌐 Booking.com", google: "📅 Google Calendar", other: "Other" };
+
+    return (
+      <Dialog open onOpenChange={onClose}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Calendar sync — {listing.listingTitle}</DialogTitle>
+            <DialogDescription>Keep this listing's availability in sync with other platforms you list on.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-5">
+            <div className="space-y-2">
+              <Label className="text-xs">Your export link — paste this into Airbnb/VRBO's "import calendar" option</Label>
+              <div className="flex gap-2">
+                <Input readOnly value={exportInfo ? `${window.location.origin}${exportInfo.exportUrl}` : "Loading…"} className="text-xs" />
+                <Button
+                  size="sm" variant="outline"
+                  onClick={() => {
+                    if (!exportInfo) return;
+                    navigator.clipboard.writeText(`${window.location.origin}${exportInfo.exportUrl}`);
+                    setCopied(true);
+                    setTimeout(() => setCopied(false), 2000);
+                  }}
+                >
+                  {copied ? "Copied" : "Copy"}
+                </Button>
+              </div>
+            </div>
+
+            <div className="border-t pt-4 space-y-2">
+              <Label className="text-xs">Import a calendar from another platform</Label>
+              {loadingFeeds ? (
+                <p className="text-sm text-muted-foreground">Loading…</p>
+              ) : feeds.length === 0 ? (
+                <p className="text-sm text-muted-foreground">No calendars connected yet.</p>
+              ) : (
+                <div className="space-y-2">
+                  {feeds.map((feed: any) => (
+                    <div key={feed.id} className="flex items-center justify-between rounded-md border p-2 text-sm">
+                      <div>
+                        <p className="font-medium">{platformLabel[feed.platform] ?? feed.platform}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {feed.lastSyncStatus === "success" && feed.lastSyncedAt && `Synced ${new Date(feed.lastSyncedAt).toLocaleString()}`}
+                          {feed.lastSyncStatus === "error" && <span className="text-red-600">Last sync failed: {feed.lastSyncError}</span>}
+                          {!feed.lastSyncStatus && "Never synced"}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <Button size="sm" variant="ghost" disabled={syncFeedMutation.isPending} onClick={() => syncFeedMutation.mutate(feed.id)}>
+                          <RefreshCw className="h-3.5 w-3.5" />
+                        </Button>
+                        <Button size="sm" variant="ghost" disabled={removeFeedMutation.isPending} onClick={() => removeFeedMutation.mutate(feed.id)}>
+                          <Trash2 className="h-3.5 w-3.5 text-red-500" />
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+              <div className="grid grid-cols-3 gap-2 pt-2">
+                <Select value={platform} onValueChange={(v: any) => setPlatform(v)}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="airbnb">🏠 Airbnb</SelectItem>
+                    <SelectItem value="vrbo">🏡 VRBO</SelectItem>
+                    <SelectItem value="booking">🌐 Booking.com</SelectItem>
+                    <SelectItem value="google">📅 Google Calendar</SelectItem>
+                    <SelectItem value="other">Other</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Input className="col-span-2" placeholder="Paste their calendar export URL" value={feedUrl} onChange={e => setFeedUrl(e.target.value)} />
+              </div>
+              <Button className="w-full bg-emerald-600 hover:bg-emerald-700" disabled={!feedUrl || addFeedMutation.isPending} onClick={() => addFeedMutation.mutate()}>
+                {addFeedMutation.isPending ? "Adding…" : "Add calendar"}
               </Button>
             </div>
           </div>
@@ -1110,7 +1288,7 @@ export default function TenantSubletting() {
                   placeholder="Describe the property, location, and what makes it special..." />
               </div>
 
-              <div className="grid grid-cols-3 gap-4">
+              <div className="grid grid-cols-4 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="nightlyRate">Nightly Rate (KSh) *</Label>
                   <Input type="number" step="0.01" id="nightlyRate" name="nightlyRate" required defaultValue={editingListing?.nightlyRate} />
@@ -1122,6 +1300,10 @@ export default function TenantSubletting() {
                 <div className="space-y-2">
                   <Label htmlFor="maximumNights">Max Nights</Label>
                   <Input type="number" id="maximumNights" name="maximumNights" defaultValue={editingListing?.maximumNights || "30"} />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="maxGuests">Max Guests *</Label>
+                  <Input type="number" min={1} id="maxGuests" name="maxGuests" required defaultValue={editingListing?.maxGuests || "2"} />
                 </div>
               </div>
 
@@ -1379,12 +1561,28 @@ export default function TenantSubletting() {
                                 <DropdownMenuItem onClick={() => setManagingBlocksFor(listing)}>
                                   <Lock className="h-4 w-4 mr-2" /> Manage blocked dates
                                 </DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => setManagingSyncFor(listing)}>
+                                  <RefreshCw className="h-4 w-4 mr-2" /> Calendar sync
+                                </DropdownMenuItem>
                                 {listing.approvalStatus === "pending" && isManager && (
                                   <>
                                     <DropdownMenuSeparator />
                                     <DropdownMenuItem
                                       className="text-emerald-600 focus:text-emerald-600"
-                                      onClick={() => updateListingStatusMutation.mutate({ id: listing.id, status: "approved" })}
+                                      onClick={() => {
+                                        if (listing.tenantId) {
+                                          const notice = listing.landlordNotifiedAt
+                                            ? `The landlord was automatically notified on ${new Date(listing.landlordNotifiedAt).toLocaleDateString()}.`
+                                            : "The automatic landlord notification email does not appear to have gone out.";
+                                          const ok = confirm(
+                                            `This is a tenant sublet listing. ${notice}\n\nConfirm the landlord is aware of this arrangement and hasn't objected before approving.`
+                                          );
+                                          if (!ok) return;
+                                          updateListingStatusMutation.mutate({ id: listing.id, status: "approved", landlordConsentConfirmed: true });
+                                        } else {
+                                          updateListingStatusMutation.mutate({ id: listing.id, status: "approved" });
+                                        }
+                                      }}
                                     >
                                       <CheckCircle className="h-4 w-4 mr-2" /> Approve
                                     </DropdownMenuItem>
@@ -1484,6 +1682,7 @@ export default function TenantSubletting() {
                     <SelectItem value="checked_in">Checked In</SelectItem>
                     <SelectItem value="checked_out">Checked Out</SelectItem>
                     <SelectItem value="cancelled">Cancelled</SelectItem>
+                    <SelectItem value="expired">Expired (never paid)</SelectItem>
                   </SelectContent>
                 </Select>
                 <Select value={platformFilter} onValueChange={setPlatformFilter}>
@@ -1841,33 +2040,13 @@ export default function TenantSubletting() {
 
                   {/* Platform sync */}
                   <div className="mt-6 pt-4 border-t">
-                    <h4 className="text-sm font-semibold mb-3 flex items-center gap-2">
-                      <RefreshCw className="h-4 w-4 text-blue-500" /> Calendar Sync Status
+                    <h4 className="text-sm font-semibold mb-2 flex items-center gap-2">
+                      <RefreshCw className="h-4 w-4 text-blue-500" /> Calendar Sync
                     </h4>
-                    <div className="grid grid-cols-2 gap-3">
-                      {[
-                        { name: "Airbnb", icon: "🏠", color: "text-rose-600", syncEnabled: safeListings.some(l => l.calendarSyncEnabled) },
-                        { name: "Booking.com", icon: "🌐", color: "text-blue-600", syncEnabled: false },
-                        { name: "VRBO", icon: "🏡", color: "text-purple-600", syncEnabled: false },
-                        { name: "Google Calendar", icon: "📅", color: "text-emerald-600", syncEnabled: false },
-                      ].map(({ name, icon, color, syncEnabled }) => (
-                        <div key={name} className={`flex items-center justify-between rounded-lg border p-3 ${syncEnabled ? "bg-emerald-50 border-emerald-200" : "bg-muted/30"}`}>
-                          <div className="flex items-center gap-2">
-                            <span>{icon}</span>
-                            <span className={`text-sm font-medium ${color}`}>{name}</span>
-                          </div>
-                          {syncEnabled ? (
-                            <Badge className="bg-emerald-100 text-emerald-700 border-emerald-200 border text-xs">
-                              <CheckCircle className="h-3 w-3 mr-1" /> Synced
-                            </Badge>
-                          ) : (
-                            <Button size="sm" variant="outline" className="h-6 text-xs">
-                              <ExternalLink className="h-3 w-3 mr-1" /> Connect
-                            </Button>
-                          )}
-                        </div>
-                      ))}
-                    </div>
+                    <p className="text-sm text-muted-foreground">
+                      Calendar sync (export link + connecting Airbnb, VRBO, Booking.com, or Google Calendar) is set up per
+                      listing — open a listing's menu below and choose <strong>Calendar sync</strong> to manage it.
+                    </p>
                   </div>
                 </CardContent>
               </Card>
@@ -2031,6 +2210,9 @@ export default function TenantSubletting() {
       )}
       {managingBlocksFor && (
         <BlockedDatesDialog listing={managingBlocksFor} onClose={() => setManagingBlocksFor(null)} />
+      )}
+      {managingSyncFor && (
+        <CalendarSyncDialog listing={managingSyncFor} onClose={() => setManagingSyncFor(null)} />
       )}
     </div>
   );

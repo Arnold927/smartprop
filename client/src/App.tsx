@@ -41,6 +41,7 @@ import NotFound         from "@/pages/not-found";
 import PayPropLanding   from "@/pages/payprop-landing";
 import StaysBrowsePage  from "@/pages/public/stays-browse";
 import StayDetailPage   from "@/pages/public/stay-detail";
+import ManageBookingPage from "@/pages/public/manage-booking";
 import AuthPage         from "@/pages/auth/login";
 import ForgotPasswordPage from "@/pages/auth/forgot-password";
 import ResetPasswordPage  from "@/pages/auth/reset-password";
@@ -273,11 +274,12 @@ function Router() {
   // unauthenticated Switch's own catch-all NotFound route caught every
   // request here first — the marketplace was only ever reachable by
   // someone already logged in, which defeats the entire point.
-  if (loc === "/stays" || loc.startsWith("/stay/")) {
+  if (loc === "/stays" || loc.startsWith("/stay/") || loc === "/manage-booking") {
     return (
       <Switch>
         <Route path="/stays" component={StaysBrowsePage} />
         <Route path="/stay/:slug" component={StayDetailPage} />
+        <Route path="/manage-booking" component={ManageBookingPage} />
       </Switch>
     );
   }

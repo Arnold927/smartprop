@@ -702,3 +702,144 @@ export async function sendNewBookingAlertEmail({
 
   return data;
 }
+
+export async function sendSubletNoticeToLandlordEmail({
+  to,
+  landlordName,
+  tenantName,
+  unitLabel,
+  listingTitle,
+  nightlyRate,
+  currency,
+}: {
+  to: string;
+  landlordName: string;
+  tenantName: string;
+  unitLabel: string;
+  listingTitle: string;
+  nightlyRate: string;
+  currency: string;
+}) {
+  const client = getResendClient();
+  const from = getFromEmail();
+
+  const { data, error } = await client.emails.send({
+    from,
+    to,
+    subject: `Your tenant wants to sublet ${unitLabel} as a short-term rental`,
+    html: `
+      <div style="font-family: Arial, sans-serif; line-height: 1.6; max-width: 600px; margin: 0 auto;">
+        <h2 style="color: #b45309;">Heads up — a sublet request on your property</h2>
+        <p>Hi ${landlordName},</p>
+        <p>
+          Your tenant, <strong>${tenantName}</strong>, has requested to list <strong>${unitLabel}</strong>
+          as a short-term rental ("${listingTitle}") at ${currency} ${nightlyRate}/night.
+        </p>
+        <p>
+          This listing will not go live until it's reviewed and approved. If you have any concerns
+          about this sublet, please contact your property manager before it's approved.
+        </p>
+        <p style="color:#6b7280;font-size:13px;">
+          This is an automatic notice — you don't need to take any action unless you object to this arrangement.
+        </p>
+      </div>
+    `,
+  });
+
+  if (error) {
+    const msg = (error as any).message ?? JSON.stringify(error);
+    logger.error("[email] Sublet notice send error:", msg);
+    throw new Error(`Failed to send sublet notice: ${msg}`);
+  }
+
+  return data;
+}
+
+export async function sendRefundOwedEmail({
+  to,
+  hostName,
+  guestName,
+  guestPhone,
+  bookingReference,
+  amount,
+  currency,
+}: {
+  to: string;
+  hostName: string;
+  guestName: string;
+  guestPhone: string;
+  bookingReference: string;
+  amount: string;
+  currency: string;
+}) {
+  const client = getResendClient();
+  const from = getFromEmail();
+
+  const { data, error } = await client.emails.send({
+    from,
+    to,
+    subject: `Refund owed — booking ${bookingReference} was cancelled after payment`,
+    html: `
+      <div style="font-family: Arial, sans-serif; line-height: 1.6; max-width: 600px; margin: 0 auto;">
+        <h2 style="color: #b45309;">A refund is owed</h2>
+        <p>Hi ${hostName},</p>
+        <p>
+          Booking <strong>${bookingReference}</strong> was cancelled after the guest had already paid.
+          <strong>${currency} ${amount}</strong> is owed back to <strong>${guestName}</strong> (${guestPhone}).
+        </p>
+        <p>
+          Please send this refund directly via M-Pesa to the guest's number above, then mark it as
+          refunded in ${APP_NAME} so there's a record it was actually paid back.
+        </p>
+        <p style="color:#6b7280;font-size:13px;">This booking will keep showing as owing a refund until it's marked complete.</p>
+      </div>
+    `,
+  });
+
+  if (error) {
+    const msg = (error as any).message ?? JSON.stringify(error);
+    logger.error("[email] Refund owed send error:", msg);
+    throw new Error(`Failed to send refund owed notice: ${msg}`);
+  }
+
+  return data;
+}
+
+export async function sendRefundProcessedEmail({
+  to,
+  guestName,
+  bookingReference,
+  amount,
+  currency,
+}: {
+  to: string;
+  guestName: string;
+  bookingReference: string;
+  amount: string;
+  currency: string;
+}) {
+  const client = getResendClient();
+  const from = getFromEmail();
+
+  const { data, error } = await client.emails.send({
+    from,
+    to,
+    subject: `Refund sent for booking ${bookingReference}`,
+    html: `
+      <div style="font-family: Arial, sans-serif; line-height: 1.6; max-width: 600px; margin: 0 auto;">
+        <h2 style="color: #059669;">Your refund has been sent</h2>
+        <p>Hi ${guestName},</p>
+        <p>Your refund of <strong>${currency} ${amount}</strong> for booking <strong>${bookingReference}</strong> has been sent to your M-Pesa number.</p>
+        <p style="color:#6b7280;font-size:13px;">If you don't see it within a few minutes, please contact the host directly.</p>
+      </div>
+    `,
+  });
+
+  if (error) {
+    const msg = (error as any).message ?? JSON.stringify(error);
+    logger.error("[email] Refund processed send error:", msg);
+    throw new Error(`Failed to send refund processed notice: ${msg}`);
+  }
+
+  return data;
+}

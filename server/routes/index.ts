@@ -75,6 +75,7 @@ import guardFeaturesRouter from "./guard-features";
 import tenantOnboardingRouter from "./tenant-onboarding";
 import { tenantShortRentalsRouter, shortTermBookingsRouter } from "./tenant-subletting";
 import { publicStaysRouter } from "./public-stays";
+import { icalExportRouter } from "./ical-export";
 import {
   rentToOwnAgreementsRouter,
   rentToOwnPaymentsRouter,
@@ -163,6 +164,12 @@ export function registerModularRoutes(app: Express) {
   // deliberately cross-organisation, unauthenticated surface in this app.
   // See public-stays.ts for the specific care taken with what it exposes.
   app.use("/api/public/stays", publicStaysRouter);
+
+  // Public iCal export — external platforms (Airbnb, VRBO, Booking.com)
+  // fetch these URLs on their own schedule to read a listing's booked/
+  // blocked dates. Access control is the listing's own secret token
+  // embedded in the URL, not a JWT — see ical-export.ts.
+  app.use("/api/ical", icalExportRouter);
 
   // ── Role-guarded endpoints ────────────────────────────────────────────────
   // Every mount() call below enforces: authenticate → role check → handler.
