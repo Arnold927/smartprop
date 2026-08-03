@@ -12,7 +12,7 @@ import {
   Shield, UserCog, Users2, Receipt, Building, FileText, Globe,
   ClipboardCheck, BookOpen, MessageCircle, MessageSquare, User,
   FolderOpen, CreditCard, Star, UserPlus, Droplets, Settings, Leaf,
-  Plane, Camera,
+  Plane, Camera, CalendarDays,
 } from "lucide-react";
 
 export type UserRole = "admin" | "manager" | "landlord" | "staff" | "caretaker" | "tenant" | "guard" | "contractor";
@@ -45,6 +45,7 @@ const getCoreManagerItems = (t: (k: string) => string) => [
       { name: t("nav.leases"),           href: "/leases" },
       { name: t("nav.letting_pipeline"), href: "/prospects" },
       { name: t("nav.onboarding"),       href: "/tenant-onboarding" },
+      { name: t("nav.short_term_rentals"), href: "/tenant-subletting" },
       { name: "Diaspora Rent-to-Own",    href: "/diaspora-rent-to-own" },
     ],
   },
@@ -141,6 +142,7 @@ const getLandlordNav = (t: (k: string) => string): NavGroup[] => [
       { name: t("nav.my_tenants"),       href: "/tenants",           icon: Users },
       { name: t("nav.owner_statements"), href: "/owner-statements",  icon: FileText },
       { name: t("nav.leases"),           href: "/leases",            icon: BookOpen },
+      { name: t("nav.short_term_rentals"), href: "/tenant-subletting", icon: CalendarDays },
       { name: t("nav.diaspora_contract"),href: "/diaspora-portal",   icon: Globe, badge: "RTO" },
     ],
   },
@@ -445,7 +447,7 @@ export const ROLE_ALLOWED_ROUTES: Record<string, string[]> = {
     "/finances", "/rent-collection", "/expense-management",
     "/owner-statements",
     "/maintenance", "/inspections", "/documents", "/caretakers", "/security", "/visitor-management",
-    "/utility-bill-sender", "/payment-setup",
+    "/utility-bill-sender", "/payment-setup", "/tenant-subletting",
     "/compliance",
     "/messages", "/profile",
     "/diaspora-portal",

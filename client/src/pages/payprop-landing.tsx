@@ -87,6 +87,7 @@ const NAV_LINKS = [
   { label: "Who it's for", href: "#who" },
   { label: "Records",      href: "#compliance" },
   { label: "Contact",      href: "#contact" },
+  { label: "Find a Stay",  href: "/stays" },
 ];
 
 const FEATURES = [

@@ -16,12 +16,13 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue, SelectGroup, SelectLabel } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/hooks/useAuth";
 import { apiRequest, ensureArray } from "@/lib/queryClient";
 import { formatCurrency } from "@shared/currency";
 import type { CurrencyCode } from "@shared/schema";
@@ -32,7 +33,8 @@ import { PageShell, PageHeader, SectionCard, SPBadge, EmptyState, PrimaryButton,
 interface TenantShortRental {
   id: number;
   unitId: number;
-  tenantId: number;
+  tenantId: number | null;
+  ownerId: string | null;
   listingTitle: string;
   description: string;
   nightlyRate: string;
@@ -45,6 +47,8 @@ interface TenantShortRental {
   checkOutTime: string;
   listingPhotos: string[];
   isActive: boolean;
+  isPubliclyListed: boolean;
+  slug: string | null;
   approvalStatus: string;
   approvedBy?: string;
   approvedAt?: string;
@@ -290,29 +294,92 @@ export default function TenantSubletting() {
   // Controlled values for required Select fields (Radix Select bypasses native `required` validation)
   const [formUnitId, setFormUnitId] = useState<string>("");
   const [formTenantId, setFormTenantId] = useState<string>("");
+  // "tenant" = subletting an existing tenant's own leased unit (the
+  // original flow this page was built for). "owner" = a landlord/admin/
+  // manager listing a property directly, with no tenant behind it — only
+  // offered to roles the backend actually permits to create these.
+  const [listingMode, setListingMode] = useState<"tenant" | "owner">("tenant");
+  const [formOwnerId, setFormOwnerId] = useState<string>("");
 
   // Sync controlled Select state when editingListing is set from the dropdown
   useEffect(() => {
     if (editingListing) {
       setFormUnitId(editingListing.unitId.toString());
-      setFormTenantId(editingListing.tenantId.toString());
+      if (editingListing.tenantId) {
+        setListingMode("tenant");
+        setFormTenantId(editingListing.tenantId.toString());
+        setFormOwnerId("");
+      } else {
+        setListingMode("owner");
+        setFormOwnerId(editingListing.ownerId ?? "");
+        setFormTenantId("");
+      }
     } else {
       setFormUnitId("");
       setFormTenantId("");
+      setFormOwnerId("");
+      setListingMode("tenant");
     }
   }, [editingListing]);
 
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const { user } = useAuth();
+  const isManager = user?.role === "admin" || user?.role === "manager";
+  const isLandlord = user?.role === "landlord";
+  // Only admin/manager/landlord can create an owner-managed listing at all —
+  // a plain tenant only ever sublets their own unit (matches the backend's
+  // own role restrictions in tenant-subletting.ts).
+  const canCreateOwnerManaged = isManager || isLandlord;
 
   // ── Queries ───────────────────────────────────────────────────────────────────
   const { data: units = [] } = useQuery({
     queryKey: ["/api/units"],
-    queryFn: async () => { const r = await apiRequest("/api/units"); return ensureArray(await r.json()); },
+    // The generic CRUD factory backing this endpoint paginates at 20 by
+    // default with no follow-through in this dropdown — an org with more
+    // than 20 units would silently lose access to the rest. Requesting a
+    // high page size here sidesteps that without touching the shared
+    // factory other pages also depend on.
+    queryFn: async () => { const r = await apiRequest("/api/units?page_size=1000"); return ensureArray(await r.json()); },
   });
+  const { data: properties = [] } = useQuery({
+    queryKey: ["/api/properties"],
+    // Needed because /api/units never joins property data — its rows have
+    // no .property.name to read, which is why the unit picker was
+    // rendering "Unit 101 -" with nothing after the dash.
+    queryFn: async () => { const r = await apiRequest("/api/properties?page_size=1000"); return ensureArray(await r.json()); },
+  });
+  // Units enriched with their property's name, joined client-side, plus
+  // grouped by property for the dropdown below — both fixes for the same
+  // underlying gap.
+  const unitsWithProperty = useMemo(() => {
+    const propById = new Map((Array.isArray(properties) ? properties : []).map((p: any) => [p.id, p]));
+    return (Array.isArray(units) ? units : []).map((u: any) => ({
+      ...u,
+      propertyName: propById.get(u.propertyId)?.name ?? "Unknown property",
+    }));
+  }, [units, properties]);
+  const unitsByProperty = useMemo(() => {
+    const groups = new Map<string, any[]>();
+    for (const u of unitsWithProperty) {
+      const key = u.propertyName;
+      if (!groups.has(key)) groups.set(key, []);
+      groups.get(key)!.push(u);
+    }
+    return Array.from(groups.entries()).map(([propertyName, groupUnits]) => ({ propertyName, units: groupUnits }));
+  }, [unitsWithProperty]);
   const { data: tenants = [] } = useQuery({
     queryKey: ["/api/tenants"],
-    queryFn: async () => { const r = await apiRequest("/api/tenants"); return ensureArray(await r.json()); },
+    // This endpoint defaults to 20 too (its own custom pagination, capped
+    // at 100 server-side) — same underlying issue as /api/units above.
+    queryFn: async () => { const r = await apiRequest("/api/tenants?limit=100"); return ensureArray(await r.json()); },
+  });
+  // Only admin/manager need this — a landlord creating an owner-managed
+  // listing is always listing it under themselves, no picker needed.
+  const { data: landlords = [] } = useQuery({
+    queryKey: ["/api/users", "landlords-for-listing"],
+    queryFn: async () => { const r = await apiRequest("/api/users?role=landlord"); if (!r.ok) return []; return ensureArray(await r.json()); },
+    enabled: isManager,
   });
   const { data: listings = [], isLoading: loadingListings } = useQuery({
     queryKey: ["/api/tenant-short-rentals"],
@@ -413,6 +480,21 @@ export default function TenantSubletting() {
     onError: () => toast({ title: "Error", description: "Failed to update listing status", variant: "destructive" }),
   });
 
+  const updateListingVisibilityMutation = useMutation({
+    mutationFn: ({ id, isPubliclyListed }: { id: number; isPubliclyListed: boolean }) =>
+      apiRequest(`/api/tenant-short-rentals/${id}/visibility`, { method: "PATCH", data: { isPubliclyListed } }),
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/tenant-short-rentals"] });
+      toast({
+        title: "Success",
+        description: variables.isPubliclyListed
+          ? "Listing is now visible in the public marketplace"
+          : "Listing removed from the public marketplace — still bookable via its direct link",
+      });
+    },
+    onError: (err: any) => toast({ title: "Error", description: err?.message || "Failed to update visibility", variant: "destructive" }),
+  });
+
   const updateListingMutation = useMutation({
     mutationFn: ({ id, data }: { id: number; data: Partial<TenantShortRental> }) =>
       apiRequest(`/api/tenant-short-rentals/${id}`, { method: "PUT", data }),
@@ -441,8 +523,12 @@ export default function TenantSubletting() {
       toast({ title: "Validation Error", description: "Please select a unit", variant: "destructive" });
       return;
     }
-    if (!formTenantId) {
+    if (listingMode === "tenant" && !formTenantId) {
       toast({ title: "Validation Error", description: "Please select a tenant", variant: "destructive" });
+      return;
+    }
+    if (listingMode === "owner" && isManager && !formOwnerId) {
+      toast({ title: "Validation Error", description: "Please select which landlord this listing belongs to", variant: "destructive" });
       return;
     }
 
@@ -452,7 +538,13 @@ export default function TenantSubletting() {
 
     const payload: any = {
       unitId: parseInt(formUnitId),
-      tenantId: parseInt(formTenantId),
+      // A landlord's ownerId is set automatically server-side regardless of
+      // what's sent here — omitting it for them isn't a gap, the backend
+      // doesn't trust this field from a landlord caller anyway. Only
+      // admin/manager actually need to specify which landlord.
+      ...(listingMode === "tenant"
+        ? { tenantId: parseInt(formTenantId) }
+        : (isManager ? { ownerId: formOwnerId } : {})),
       listingTitle: data.listingTitle as string,
       description: data.description as string,
       nightlyRate: data.nightlyRate as string,
@@ -679,8 +771,8 @@ export default function TenantSubletting() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Tenant Subletting Platform</h1>
-          <p className="text-muted-foreground">Airbnb-style short-term rental management for tenants</p>
+          <h1 className="text-3xl font-bold tracking-tight">Short-Term Rental Listings</h1>
+          <p className="text-muted-foreground">Short-term rental listings — tenant sublets and owner-managed properties</p>
         </div>
         <Dialog open={isAddListingOpen || !!editingListing} onOpenChange={(open) => {
           if (!open) {
@@ -688,9 +780,17 @@ export default function TenantSubletting() {
             setEditingListing(null);
             setFormUnitId("");
             setFormTenantId("");
+            setFormOwnerId("");
+            setListingMode("tenant");
           } else if (editingListing) {
             setFormUnitId(editingListing.unitId.toString());
-            setFormTenantId(editingListing.tenantId.toString());
+            if (editingListing.tenantId) {
+              setListingMode("tenant");
+              setFormTenantId(editingListing.tenantId.toString());
+            } else {
+              setListingMode("owner");
+              setFormOwnerId(editingListing.ownerId ?? "");
+            }
           }
         }}>
           <DialogTrigger asChild>
@@ -702,10 +802,36 @@ export default function TenantSubletting() {
             <DialogHeader>
               <DialogTitle>{editingListing ? "Edit Listing" : "Create Short-Term Rental Listing"}</DialogTitle>
               <DialogDescription>
-                {editingListing ? "Update your listing details" : "Set up a new listing for tenant subletting"}
+                {editingListing
+                  ? "Update your listing details"
+                  : listingMode === "owner"
+                  ? "Set up a new listing for an owner-managed short-term rental property"
+                  : "Set up a new listing for tenant subletting"}
               </DialogDescription>
             </DialogHeader>
             <form onSubmit={handleSubmitListing} className="space-y-4">
+              {canCreateOwnerManaged && !editingListing && (
+                <div className="space-y-2">
+                  <Label>Listing type *</Label>
+                  <div className="flex gap-2">
+                    <Button type="button" variant={listingMode === "tenant" ? "default" : "outline"}
+                      className={listingMode === "tenant" ? "bg-emerald-600 hover:bg-emerald-700" : ""}
+                      onClick={() => setListingMode("tenant")}>
+                      Tenant subletting their unit
+                    </Button>
+                    <Button type="button" variant={listingMode === "owner" ? "default" : "outline"}
+                      className={listingMode === "owner" ? "bg-emerald-600 hover:bg-emerald-700" : ""}
+                      onClick={() => setListingMode("owner")}>
+                      Owner-managed property
+                    </Button>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    {listingMode === "tenant"
+                      ? "An existing tenant lists their own leased unit."
+                      : "A property run directly as a short-term rental, with no regular tenant behind it."}
+                  </p>
+                </div>
+              )}
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label>Unit *</Label>
@@ -719,34 +845,70 @@ export default function TenantSubletting() {
                       <SelectValue placeholder="Select unit" />
                     </SelectTrigger>
                     <SelectContent>
-                      {(Array.isArray(units) ? units : []).map((unit: any) => (
-                        <SelectItem key={unit.id} value={unit.id.toString()}>
-                          Unit {unit.unitNumber} - {unit.property?.name}
-                        </SelectItem>
+                      {unitsByProperty.map(group => (
+                        <SelectGroup key={group.propertyName}>
+                          <SelectLabel>{group.propertyName}</SelectLabel>
+                          {group.units.map((unit: any) => (
+                            <SelectItem key={unit.id} value={unit.id.toString()}>
+                              Unit {unit.unitNumber}
+                            </SelectItem>
+                          ))}
+                        </SelectGroup>
                       ))}
                     </SelectContent>
                   </Select>
+                  {isLandlord && listingMode === "owner" && (
+                    <p className="text-xs text-muted-foreground">Only units in properties you own will be accepted.</p>
+                  )}
                 </div>
-                <div className="space-y-2">
-                  <Label>Tenant *</Label>
-                  <Select
-                    name="tenantId"
-                    required
-                    value={formTenantId}
-                    onValueChange={setFormTenantId}
-                  >
-                    <SelectTrigger className={!formTenantId ? "border-red-300" : ""}>
-                      <SelectValue placeholder="Select tenant" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {(Array.isArray(tenants) ? tenants : []).map((tenant: any) => (
-                        <SelectItem key={tenant.id} value={tenant.id.toString()}>
-                          {tenant.firstName} {tenant.lastName}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
+                {listingMode === "tenant" ? (
+                  <div className="space-y-2">
+                    <Label>Tenant *</Label>
+                    <Select
+                      name="tenantId"
+                      required
+                      value={formTenantId}
+                      onValueChange={setFormTenantId}
+                    >
+                      <SelectTrigger className={!formTenantId ? "border-red-300" : ""}>
+                        <SelectValue placeholder="Select tenant" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {(Array.isArray(tenants) ? tenants : []).map((tenant: any) => (
+                          <SelectItem key={tenant.id} value={tenant.id.toString()}>
+                            {tenant.firstName} {tenant.lastName}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                ) : isManager ? (
+                  <div className="space-y-2">
+                    <Label>Landlord *</Label>
+                    <Select
+                      value={formOwnerId}
+                      onValueChange={setFormOwnerId}
+                    >
+                      <SelectTrigger className={!formOwnerId ? "border-red-300" : ""}>
+                        <SelectValue placeholder="Select landlord" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {(Array.isArray(landlords) ? landlords : []).map((landlord: any) => (
+                          <SelectItem key={landlord.id} value={landlord.id}>
+                            {landlord.firstName} {landlord.lastName}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    <Label>Owner</Label>
+                    <div className="h-10 flex items-center px-3 rounded-md border bg-muted text-sm text-muted-foreground">
+                      Listed under your own account
+                    </div>
+                  </div>
+                )}
               </div>
 
               <div className="space-y-2">
@@ -1016,6 +1178,30 @@ export default function TenantSubletting() {
                                       onClick={() => updateListingStatusMutation.mutate({ id: listing.id, status: "pending" })}
                                     >
                                       <RefreshCw className="h-4 w-4 mr-2" /> Re-submit
+                                    </DropdownMenuItem>
+                                  </>
+                                )}
+                                {listing.approvalStatus === "approved" && listing.slug && (
+                                  <>
+                                    <DropdownMenuSeparator />
+                                    <DropdownMenuItem
+                                      onClick={() => {
+                                        const url = `${window.location.origin}/stay/${listing.slug}`;
+                                        navigator.clipboard.writeText(url);
+                                        toast({ title: "Link copied", description: url });
+                                      }}
+                                    >
+                                      <ExternalLink className="h-4 w-4 mr-2" /> Copy booking link
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem
+                                      disabled={updateListingVisibilityMutation.isPending}
+                                      onClick={() => updateListingVisibilityMutation.mutate({ id: listing.id, isPubliclyListed: !listing.isPubliclyListed })}
+                                    >
+                                      {listing.isPubliclyListed ? (
+                                        <><Lock className="h-4 w-4 mr-2" /> Remove from marketplace</>
+                                      ) : (
+                                        <><Globe className="h-4 w-4 mr-2" /> List in public marketplace</>
+                                      )}
                                     </DropdownMenuItem>
                                   </>
                                 )}

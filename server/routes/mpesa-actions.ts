@@ -21,7 +21,7 @@
 import { Router }          from 'express';
 import { z }               from 'zod';
 import { db }              from '../db';
-import { rentPayments, tenants, mpesaTransactions, utilityBills } from '@shared/schema';
+import { rentPayments, tenants, mpesaTransactions, utilityBills, tenantShortBookings } from '@shared/schema';
 import { eq, and, or, like, gte, lte, isNull }     from 'drizzle-orm';
 import { authenticateJWT } from '../middleware/auth';
 import { safaricomIpOnly } from '../middleware/safaricomIp';
@@ -494,6 +494,24 @@ router.post('/callback', safaricomIpOnly, async (req, res) => {
 
     if (!mpesaReceiptNumber || !amount) {
       console.error('[M-Pesa] STK success but missing receipt/amount', parsed);
+      return;
+    }
+
+    // Short-term stay bookings aren't a rent/utility payment — reconcilePayment
+    // below doesn't know about them, so they're confirmed directly here and
+    // don't fall through to that logic.
+    if ((transaction as any).shortTermBookingId) {
+      await storage.updateMpesaTransaction(transaction.id, {
+        status: 'completed',
+        mpesaReceiptNumber,
+        resultCode: String(resultCode),
+        resultDesc,
+        callbackData: req.body,
+      });
+      await db.update(tenantShortBookings)
+        .set({ bookingStatus: 'confirmed', paymentStatus: 'paid', updatedAt: new Date() })
+        .where(eq(tenantShortBookings.id, (transaction as any).shortTermBookingId));
+      console.log(`[M-Pesa] Booking ${(transaction as any).shortTermBookingId} confirmed via STK — receipt ${mpesaReceiptNumber}`);
       return;
     }
 

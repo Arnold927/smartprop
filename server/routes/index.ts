@@ -74,6 +74,7 @@ import { securityHardwareRouter } from "./security-hardware";
 import guardFeaturesRouter from "./guard-features";
 import tenantOnboardingRouter from "./tenant-onboarding";
 import { tenantShortRentalsRouter, shortTermBookingsRouter } from "./tenant-subletting";
+import { publicStaysRouter } from "./public-stays";
 import {
   rentToOwnAgreementsRouter,
   rentToOwnPaymentsRouter,
@@ -157,6 +158,11 @@ export function registerModularRoutes(app: Express) {
 
   // Payment config public read (tenant portal reads M-Pesa paybill # before auth completes)
   app.get("/api/payment-config/public",  (req, res, next) => paymentConfigRouter(req, res, next));
+
+  // Public short-term stay marketplace + direct-link booking — the one
+  // deliberately cross-organisation, unauthenticated surface in this app.
+  // See public-stays.ts for the specific care taken with what it exposes.
+  app.use("/api/public/stays", publicStaysRouter);
 
   // ── Role-guarded endpoints ────────────────────────────────────────────────
   // Every mount() call below enforces: authenticate → role check → handler.

@@ -929,6 +929,7 @@ export const mpesaTransactions = pgTable("mpesa_transactions", {
   rentPaymentId: integer("rent_payment_id").references(() => rentPayments.id),
   serviceChargeId: integer("service_charge_id").references(() => serviceCharges.id),
   utilityBillId: integer("utility_bill_id").references(() => utilityBills.id),
+  shortTermBookingId: integer("short_term_booking_id").references(() => tenantShortBookings.id),
   transactionId: varchar("transaction_id", { length: 100 }).unique(), // MPesa transaction ID or CheckoutRequestID
   phoneNumber: varchar("phone_number", { length: 20 }).notNull(),
   amount: decimal("amount", { precision: 10, scale: 2 }).notNull(),
@@ -4829,7 +4830,14 @@ export const tenantShortRentals = pgTable("tenant_short_rentals", {
   id: serial("id").primaryKey(),
   organizationId: integer("organization_id").references(() => organizations.id).notNull(),
   unitId: integer("unit_id").references(() => units.id).notNull(),
-  tenantId: integer("tenant_id").references(() => tenants.id).notNull(),
+  // Optional now — a tenant subletting their own leased unit sets this.
+  // An owner/manager running a whole property as dedicated short-term
+  // rental (no regular tenant at all) leaves this null and sets ownerId
+  // instead. Exactly one of the two should be set in practice.
+  tenantId: integer("tenant_id").references(() => tenants.id),
+  // Set for owner-managed listings — the landlord/manager who created and
+  // controls this listing, when there's no tenant behind it.
+  ownerId: uuid("owner_id").references(() => users.id),
   listingTitle: varchar("listing_title", { length: 200 }).notNull(),
   description: text("description").notNull().default(""),
   nightlyRate: decimal("nightly_rate", { precision: 10, scale: 2 }).notNull(),
@@ -4842,6 +4850,16 @@ export const tenantShortRentals = pgTable("tenant_short_rentals", {
   checkOutTime: varchar("check_out_time", { length: 10 }).notNull().default("11:00"),
   listingPhotos: jsonb("listing_photos").$type<string[]>().default([]),
   isActive: boolean("is_active").notNull().default(true),
+  // Separate from isActive — controls whether this listing appears in the
+  // cross-organisation public marketplace search. A listing can be active
+  // and bookable via its own direct link without opting into the shared
+  // marketplace (e.g. a client who doesn't want to appear alongside
+  // others'  listings for their own business reasons).
+  isPubliclyListed: boolean("is_publicly_listed").notNull().default(false),
+  // Unique, URL-safe identifier for this listing's dedicated public page
+  // (e.g. /stay/kings-barini-westlands) — usable as a direct share link
+  // whether or not isPubliclyListed is also true.
+  slug: varchar("slug", { length: 120 }).unique(),
   approvalStatus: varchar("approval_status", { length: 20 }).notNull().default("pending"), // pending, approved, rejected
   approvedBy: varchar("approved_by", { length: 100 }),
   approvedAt: timestamp("approved_at"),

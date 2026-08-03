@@ -39,6 +39,8 @@ import MobileBottomNav  from "@/components/layout/mobile-bottom";
 import WhatsAppWidget   from "@/components/ui/whatsapp-widget"; // kept for future use
 import NotFound         from "@/pages/not-found";
 import PayPropLanding   from "@/pages/payprop-landing";
+import StaysBrowsePage  from "@/pages/public/stays-browse";
+import StayDetailPage   from "@/pages/public/stay-detail";
 import AuthPage         from "@/pages/auth/login";
 import ForgotPasswordPage from "@/pages/auth/forgot-password";
 import ResetPasswordPage  from "@/pages/auth/reset-password";
@@ -262,6 +264,23 @@ function Router() {
   // Gate portal is public — guard enters a PIN here, no main JWT
   const [loc, navigate] = useLocation();
   if (loc === "/gate" || loc.startsWith("/gate?")) return <GatePortal />;
+
+  // Public stays marketplace + booking pages — checked here, before
+  // authentication is considered at all, same reasoning as /gate above.
+  // This MUST run before the isAuthenticated branch below: a genuine guest
+  // browsing for a stay has no account and will always be unauthenticated,
+  // so placing this check after that branch (the original bug) meant the
+  // unauthenticated Switch's own catch-all NotFound route caught every
+  // request here first — the marketplace was only ever reachable by
+  // someone already logged in, which defeats the entire point.
+  if (loc === "/stays" || loc.startsWith("/stay/")) {
+    return (
+      <Switch>
+        <Route path="/stays" component={StaysBrowsePage} />
+        <Route path="/stay/:slug" component={StayDetailPage} />
+      </Switch>
+    );
+  }
 
   const { isAuthenticated, isLoading, user } = useAuth();
   const [sidebarOpen, setSidebarOpen] = useState(false);

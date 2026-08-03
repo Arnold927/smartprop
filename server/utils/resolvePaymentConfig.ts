@@ -114,7 +114,10 @@ export async function resolvePaymentConfigForTenantUser(userId: string, orgId: n
   return resolveFromUnitId(tenant?.unitId ?? null, orgId);
 }
 
-async function resolveFromUnitId(unitId: number | null, orgId: number): Promise<ResolvedPaymentConfig> {
+/** Resolve directly from a unitId — exported for callers that already have
+ *  a unit (e.g. a short-term rental booking, which has no tenant behind it
+ *  for owner-managed listings) rather than a tenant to look up first. */
+export async function resolveFromUnitId(unitId: number | null, orgId: number): Promise<ResolvedPaymentConfig> {
   let ownerId: string | null = null;
   let externalLandlordId: number | null = null;
 
