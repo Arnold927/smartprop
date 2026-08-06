@@ -11,7 +11,7 @@
     "dev:server": "npx tsx watch server/index.ts",
     "client:dev": "cd client && npm install --silent && npx vite",
     "build": "npm run build:client",
-    "build:client": "cd client && npx vite build",
+    "build:client": "cd client && npm install && npx vite build",
     "start": "node dist/server/index.js",
     "db:push": "drizzle-kit push",
     "db:studio": "drizzle-kit studio",
