@@ -91,6 +91,48 @@ function getMigrationFiles(dir: string): string[] {
   return [...numbered, ...handWritten];
 }
 
+// ─── Auto-detect already-existing objects ─────────────────────────────────────
+// Handles databases whose schema was built historically via `drizzle-kit push`
+// (or any means outside this runner) and is only now coming under tracking.
+// If every table/type a migration would create already exists in the database,
+// we treat it as already applied instead of re-running (and failing on) it.
+// Statements this can't reason about (ALTER TABLE, INSERT, etc. with no
+// CREATE TABLE/TYPE in the file) are conservatively treated as "not detectable"
+// and left to run for real.
+
+async function migrationTargetsAlreadyExist(sql: string): Promise<boolean> {
+  const typeNames  = [...sql.matchAll(/CREATE\s+TYPE\s+"?(\w+)"?/gi)].map(m => m[1].toLowerCase());
+  const tableNames = [...sql.matchAll(/CREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?"?(\w+)"?/gi)]
+    .map(m => m[1].toLowerCase());
+
+  if (typeNames.length === 0 && tableNames.length === 0) {
+    return false; // nothing we can safely auto-detect — run it for real
+  }
+
+  for (const name of typeNames) {
+    const { rows } = await pool.query("SELECT 1 FROM pg_type WHERE typname = $1", [name]);
+    if (rows.length === 0) return false;
+  }
+  for (const name of tableNames) {
+    const { rows } = await pool.query(
+      "SELECT 1 FROM information_schema.tables WHERE table_name = $1", [name],
+    );
+    if (rows.length === 0) return false;
+  }
+  return true; // every object this file would create is already there
+}
+
+async function autoBaseline(filepath: string, filename: string): Promise<void> {
+  const sql      = fs.readFileSync(filepath, "utf8");
+  const { createHash } = await import("crypto");
+  const checksum = createHash("sha256").update(sql).digest("hex");
+  await pool.query(
+    "INSERT INTO schema_migrations (filename, checksum, duration_ms) VALUES ($1, $2, $3)",
+    [filename, checksum, 0],
+  );
+  console.log(`  ↷ ${filename} — objects already exist, marked applied without re-running`);
+}
+
 // ─── Run a single migration ───────────────────────────────────────────────────
 
 async function runMigration(filepath: string, filename: string): Promise<void> {
@@ -153,6 +195,42 @@ async function status(): Promise<void> {
   console.log(`Total: ${allFiles.length} files, ${applied.size} applied, ${pending.length} pending\n`);
 }
 
+// ─── Baseline: mark files as applied WITHOUT running them ────────────────────
+// For a database whose schema already exists (e.g. built historically via
+// `drizzle-kit push`) but has never been tracked by this runner before.
+// Run this ONCE per database, then normal `migrate` runs work forever after.
+
+async function baseline(): Promise<void> {
+  const migrationsDir = path.resolve(__dirname, "..", "migrations");
+  const allFiles      = getMigrationFiles(migrationsDir);
+
+  await ensureTrackingTable();
+  const applied = await getApplied();
+  const pending = allFiles.filter(f => !applied.has(f));
+
+  if (pending.length === 0) {
+    console.log("✓ Nothing to baseline — every migration is already tracked.");
+    return;
+  }
+
+  console.log(`\nBaselining ${pending.length} migration${pending.length !== 1 ? "s" : ""} `
+    + `(marking as applied WITHOUT running their SQL)...\n`);
+
+  const { createHash } = await import("crypto");
+  for (const file of pending) {
+    const filepath = path.join(migrationsDir, file);
+    const sql       = fs.readFileSync(filepath, "utf8");
+    const checksum  = createHash("sha256").update(sql).digest("hex");
+    await pool.query(
+      "INSERT INTO schema_migrations (filename, checksum, duration_ms) VALUES ($1, $2, $3)",
+      [file, checksum, 0],
+    );
+    console.log(`  ✓ baselined ${file}`);
+  }
+
+  console.log(`\n✓ Baseline complete — future \`migrate\` runs will only apply NEW files.\n`);
+}
+
 // ─── Main: apply pending migrations ──────────────────────────────────────────
 
 async function migrate(): Promise<void> {
@@ -169,11 +247,17 @@ async function migrate(): Promise<void> {
     return;
   }
 
-  console.log(`\nApplying ${pending.length} pending migration${pending.length !== 1 ? "s" : ""}...\n`);
+  console.log(`\nFound ${pending.length} untracked migration${pending.length !== 1 ? "s" : ""} — checking database for each...\n`);
 
   for (const file of pending) {
     const filepath = path.join(migrationsDir, file);
-    await runMigration(filepath, file);
+    const sql = fs.readFileSync(filepath, "utf8");
+
+    if (await migrationTargetsAlreadyExist(sql)) {
+      await autoBaseline(filepath, file);
+    } else {
+      await runMigration(filepath, file);
+    }
   }
 
   console.log(`\n✓ All migrations applied successfully.\n`);
@@ -187,6 +271,8 @@ const command = process.argv[2] ?? "migrate";
   try {
     if (command === "status") {
       await status();
+    } else if (command === "baseline") {
+      await baseline();
     } else {
       await migrate();
     }
