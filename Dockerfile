@@ -40,6 +40,7 @@ COPY server/ ./server/
 COPY shared/ ./shared/
 COPY tsconfig.json ./
 COPY scripts/ ./scripts/
+COPY migrations/ ./migrations/
 
 # tsx runs TypeScript directly — no compile step, no silent tsc failures
 # This is safe at SmartProp's scale and simplifies the build considerably.
