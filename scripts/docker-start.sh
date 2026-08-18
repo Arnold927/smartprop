@@ -6,7 +6,7 @@
 set -e
 
 echo "Running database migrations..."
-node --loader tsx/esm scripts/migrate.ts
+node --import tsx/esm scripts/migrate.ts
 
 echo "Starting server..."
-exec node --loader tsx/esm server/index.ts
+exec node --import tsx/esm server/index.ts
