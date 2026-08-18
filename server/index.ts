@@ -169,6 +169,15 @@ app.use("/uploads", express.static(path.join(__dirname, "../uploads")));
     // Initialise WebSocket server on the same HTTP server (path /ws)
     initWebSocketServer(httpServer);
 
+    // ── Bind to the port immediately ──────────────────────────────────────────
+    // Platforms like Render start scanning for an open port right after the
+    // container starts, and fail the deploy if none is found in time. Everything
+    // below this point is background startup work — it can take as long as it
+    // needs without ever blocking that readiness check.
+    httpServer.listen(port, "0.0.0.0", () => {
+      log(`Server running on port ${port} [${app.get("env")}]`);
+    });
+
     // ── Pending table migrations ───────────────────────────────────────────────
     await runRegulatoryCertsMigration();
 
@@ -183,10 +192,6 @@ app.use("/uploads", express.static(path.join(__dirname, "../uploads")));
 
     // ── Monthly owner statement email scheduler ────────────────────────────────
     startReportScheduler();
-
-    httpServer.listen(port, "0.0.0.0", () => {
-      log(`Server running on port ${port} [${app.get("env")}]`);
-    });
 
     // Graceful shutdown
     process.on("SIGTERM", () => {
