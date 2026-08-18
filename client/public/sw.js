@@ -223,10 +223,12 @@ self.addEventListener('fetch', (event) => {
       fetch(request.clone())
         .then(async response => {
           if (response.ok) {
-            // Cache successful GET responses for offline viewing
+            // Clone immediately — the awaits below give the browser time to
+            // start consuming the original response, same issue as above.
+            const responseToCache = response.clone();
             const cache = await caches.open(CACHE_API);
             await trimCache(cache, API_CACHE_MAX);
-            cache.put(request, response.clone());
+            cache.put(request, responseToCache);
           }
           return response;
         })
@@ -254,7 +256,12 @@ self.addEventListener('fetch', (event) => {
         if (cached) return cached;
         return fetch(request).then(response => {
           if (response.ok) {
-            caches.open(CACHE_SHELL).then(c => c.put(request, response.clone()));
+            // Clone SYNCHRONOUSLY, right now — caches.open() below is async,
+            // and by the time it resolves the original response's body may
+            // already be mid-consumption by the browser (which we `return`
+            // immediately after). Cloning late causes "body already used".
+            const responseToCache = response.clone();
+            caches.open(CACHE_SHELL).then(c => c.put(request, responseToCache));
           }
           return response;
         });
@@ -268,7 +275,8 @@ self.addEventListener('fetch', (event) => {
     fetch(request)
       .then(response => {
         if (response.ok) {
-          caches.open(CACHE_SHELL).then(c => c.put(request, response.clone()));
+          const responseToCache = response.clone(); // same fix — clone synchronously
+          caches.open(CACHE_SHELL).then(c => c.put(request, responseToCache));
         }
         return response;
       })
