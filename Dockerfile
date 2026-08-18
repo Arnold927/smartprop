@@ -47,6 +47,15 @@ COPY migrations/ ./migrations/
 # Switch to a tsc compile step (without || true) if you outgrow it.
 RUN npm ci --ignore-scripts
 
+# bcrypt ships its native binding via a postinstall script, which the
+# --ignore-scripts installs above deliberately skip (for every other
+# package's sake). Rebuild it explicitly so the compiled .node binding
+# actually exists at runtime. The build toolchain is only needed if no
+# prebuilt musl binary matches — removed immediately after either way.
+RUN apk add --no-cache --virtual .build-deps make gcc g++ python3 \
+  && npm rebuild bcrypt \
+  && apk del .build-deps
+
 # Copy built frontend from stage 1
 COPY --from=frontend-builder /app/dist/public ./dist/public
 
