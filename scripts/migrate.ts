@@ -101,8 +101,13 @@ function getMigrationFiles(dir: string): string[] {
 // and left to run for real.
 
 async function migrationTargetsAlreadyExist(sql: string): Promise<boolean> {
-  const typeNames  = [...sql.matchAll(/CREATE\s+TYPE\s+"?(\w+)"?/gi)].map(m => m[1].toLowerCase());
-  const tableNames = [...sql.matchAll(/CREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?"?(\w+)"?/gi)]
+  // Drizzle schema-qualifies type names, e.g. CREATE TYPE "public"."activity_type" —
+  // the optional (?:"?\w+"?\.)? group consumes that "public". prefix before we
+  // capture the real name. Tables aren't schema-qualified in this codebase, but
+  // the same tolerant pattern is used for both so it degrades gracefully either way.
+  const typeNames  = [...sql.matchAll(/CREATE\s+TYPE\s+(?:"?\w+"?\.)?"?(\w+)"?/gi)]
+    .map(m => m[1].toLowerCase());
+  const tableNames = [...sql.matchAll(/CREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?(?:"?\w+"?\.)?"?(\w+)"?/gi)]
     .map(m => m[1].toLowerCase());
 
   if (typeNames.length === 0 && tableNames.length === 0) {
