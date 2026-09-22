@@ -798,7 +798,7 @@ router.post(
           matchedBy:            userId,
           matchedAt:            new Date().toISOString(),
           reconcileNotes:       body.notes ?? null,
-          updatedAt: new Date(),
+          updatedAt: new Date().toISOString(),
         })
         .where(eq(bankStatementRows.id, rowId));
 
@@ -856,7 +856,7 @@ router.post(
 
       await db
         .update(bankStatementRows)
-        .set({ matchStatus: "ignored", reconcileNotes: notes, updatedAt: new Date() })
+        .set({ matchStatus: "ignored", reconcileNotes: notes, updatedAt: new Date().toISOString() })
         .where(eq(bankStatementRows.id, rowId));
 
       res.json({ success: true });
@@ -901,7 +901,7 @@ router.post(
           matchConfidence:      null,
           matchMethod:          null,
           reconcileNotes:       null,
-          updatedAt: new Date(),
+          updatedAt: new Date().toISOString(),
         })
         .where(eq(bankStatementRows.id, rowId));
 

@@ -223,7 +223,7 @@ export default function FinanceDashboard() {
                         <Pie data={donutData} cx="50%" cy="50%" innerRadius={48} outerRadius={72} paddingAngle={3} dataKey="value">
                           {donutData.map((entry, i) => <Cell key={i} fill={entry.fill} />)}
                         </Pie>
-                        <Tooltip formatter={(v: number) => fmtKES(v)} />
+                        <Tooltip formatter={(v: any) => fmtKES(Number(v ?? 0))} />
                       </PieChart>
                     </ResponsiveContainer>
                   </div>

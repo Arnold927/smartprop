@@ -27,7 +27,7 @@ import { Request, Response, NextFunction } from 'express';
 import { db } from '../db.js';
 import { auditLogs } from '../../shared/schema.js';
 
-export type AuditAction = 'CREATE' | 'UPDATE' | 'DELETE' | 'ACTION';
+export type AuditAction = 'CREATE' | 'UPDATE' | 'DELETE' | 'ACTION' | 'POST_TO_LEDGER';
 
 /**
  * Returns Express middleware that fires an audit-log insert *after* the

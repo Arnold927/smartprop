@@ -137,7 +137,7 @@ export function TenantAnalytics({ timeframe = '30d' }: TenantAnalyticsProps) {
  cx="50%"
  cy="50%"
  labelLine={false}
- label={({ method, percentage }) => `${method}: ${percentage}%`}
+ label={({ method, percentage }: any) => `${method}: ${percentage}%`}
  outerRadius={80}
  fill="#8884d8"
  dataKey="percentage"
@@ -227,7 +227,7 @@ export function TenantAnalytics({ timeframe = '30d' }: TenantAnalyticsProps) {
  <CardContent className="space-y-4">
  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
  <div className="flex items-start gap-3">
- <Badge className="bg-emerald-50 text-emerald-700 border border-emerald-200' >Positive</Badge>
+ <Badge className="bg-emerald-50 text-emerald-700 border border-emerald-200">Positive</Badge>
  <div>
  <p className="font-medium">Strong payment performance</p>
  <p className="text-sm text-muted-foreground">94.6% on-time payment rate exceeds industry standard</p>

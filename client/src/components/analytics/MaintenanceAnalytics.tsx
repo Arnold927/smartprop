@@ -109,7 +109,7 @@ export function MaintenanceAnalytics({ timeframe = '30d' }: MaintenanceAnalytics
  cx="50%"
  cy="50%"
  labelLine={false}
- label={({ priority, percentage }) => `${priority}: ${percentage}%`}
+ label={({ priority, percentage }: any) => `${priority}: ${percentage}%`}
  outerRadius={80}
  fill="#8884d8"
  dataKey="count"
@@ -161,8 +161,8 @@ export function MaintenanceAnalytics({ timeframe = '30d' }: MaintenanceAnalytics
  <CartesianGrid strokeDasharray="3 3" />
  <XAxis dataKey="category" />
  <YAxis />
- <Tooltip formatter={(value: number, name: string) => 
- name === 'cost' ? `KES ${value.toLocaleString()}` : value
+ <Tooltip formatter={(value: any, name: any) => 
+ name === 'cost' ? `KES ${Number(value ?? 0).toLocaleString()}` : value
  } />
  <Bar dataKey="count" fill="#8884d8" name="Requests" />
  <Bar dataKey="cost" fill="#82ca9d" name="Cost" />
@@ -260,7 +260,7 @@ export function MaintenanceAnalytics({ timeframe = '30d' }: MaintenanceAnalytics
  <CardContent className="space-y-4">
  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
  <div className="flex items-start gap-3">
- <Badge className="bg-emerald-50 text-emerald-700 border border-emerald-200' >Efficient</Badge>
+ <Badge className="bg-emerald-50 text-emerald-700 border border-emerald-200">Efficient</Badge>
  <div>
  <p className="font-medium">Response time excellence</p>
  <p className="text-sm text-muted-foreground">4.2h average response time meets SLA requirements</p>

@@ -108,6 +108,7 @@ function getPriorityConfigModal(t: (k:string)=>string) { return {
 export default function AddMaintenanceModal({ 
  isOpen, 
  onClose, 
+ onSuccess,
  preSelectedTenantId // Add this prop
 }: AddMaintenanceModalProps) {
   const { t } = useTranslation();

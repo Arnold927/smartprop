@@ -115,7 +115,7 @@ export function FinancialAnalytics({ timeframe = '30d', propertyId }: FinancialA
  <CartesianGrid strokeDasharray="3 3" />
  <XAxis dataKey="month" />
  <YAxis />
- <Tooltip formatter={(value: number) => `KES ${value.toLocaleString()}`} />
+ <Tooltip formatter={(value: any) => `KES ${Number(value ?? 0).toLocaleString()}`} />
  <Area type="monotone" dataKey="revenue" stackId="1" stroke="#8884d8" fill="#8884d8" name="Revenue" />
  <Area type="monotone" dataKey="expenses" stackId="2" stroke="#82ca9d" fill="#82ca9d" name="Expenses" />
  <Line type="monotone" dataKey="netIncome" stroke="#ff7300" strokeWidth={3} name="Net Income" />
@@ -140,7 +140,7 @@ export function FinancialAnalytics({ timeframe = '30d', propertyId }: FinancialA
  cx="50%"
  cy="50%"
  labelLine={false}
- label={({ category, percentage }) => `${category}: ${percentage}%`}
+ label={({ category, percentage }: any) => `${category}: ${percentage}%`}
  outerRadius={80}
  fill="#8884d8"
  dataKey="amount"
@@ -149,7 +149,7 @@ export function FinancialAnalytics({ timeframe = '30d', propertyId }: FinancialA
  <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
  ))}
  </Pie>
- <Tooltip formatter={(value: number) => `KES ${value.toLocaleString()}`} />
+ <Tooltip formatter={(value: any) => `KES ${Number(value ?? 0).toLocaleString()}`} />
  </PieChart>
  </ResponsiveContainer>
  </div>
@@ -198,7 +198,7 @@ export function FinancialAnalytics({ timeframe = '30d', propertyId }: FinancialA
  <CartesianGrid strokeDasharray="3 3" />
  <XAxis dataKey="date" />
  <YAxis />
- <Tooltip formatter={(value: number) => `KES ${value.toLocaleString()}`} />
+ <Tooltip formatter={(value: any) => `KES ${Number(value ?? 0).toLocaleString()}`} />
  <Bar dataKey="mpesa" fill="#00C49F" name="M-PESA" />
  <Bar dataKey="bank" fill="#0088FE" name="Bank Transfer" />
  <Bar dataKey="cash" fill="#FFBB28" name="Cash" />
@@ -286,7 +286,7 @@ export function FinancialAnalytics({ timeframe = '30d', propertyId }: FinancialA
  <CardContent className="space-y-4">
  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
  <div className="flex items-start gap-3">
- <Badge className="bg-emerald-50 text-emerald-700 border border-emerald-200' >Strong</Badge>
+ <Badge className="bg-emerald-50 text-emerald-700 border border-emerald-200">Strong</Badge>
  <div>
  <p className="font-medium">Excellent profit margins</p>
  <p className="text-sm text-muted-foreground">60.9% profit margin significantly exceeds industry average of 45%</p>

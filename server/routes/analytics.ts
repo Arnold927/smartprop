@@ -229,7 +229,7 @@ router.get("/maintenance", ...auth, async (req: any, res: any) => {
     // Average resolution hours (completed requests with resolvedAt)
     const [avgResolution] = await db
       .select({
-        avgHours: sql<string>`AVG(EXTRACT(EPOCH FROM (${maintenanceRequests.resolvedAt} - ${maintenanceRequests.createdAt})) / 3600)`,
+        avgHours: sql<string>`AVG(EXTRACT(EPOCH FROM (${maintenanceRequests.completedAt} - ${maintenanceRequests.createdAt})) / 3600)`,
       })
       .from(maintenanceRequests)
       .leftJoin(tenants, eq(maintenanceRequests.tenantId, tenants.id))
@@ -286,11 +286,11 @@ router.get("/marketing", ...auth, async (req: any, res: any) => {
         .where(eq(properties.organizationId, orgId)),
 
       db.select({ count: count() }).from(leases).leftJoin(tenants, eq(leases.tenantId, tenants.id))
-        .where(and(eq(tenants.organizationId, orgId), gte(leases.startDate, from)))
+        .where(and(eq(tenants.organizationId, orgId), gte(leases.startDate, from.toISOString().slice(0, 10))))
         .catch(() => [{ count: 0 }]),
 
       db.select({ count: count() }).from(leases).leftJoin(tenants, eq(leases.tenantId, tenants.id))
-        .where(and(eq(tenants.organizationId, orgId), eq(leases.status, "expired"), gte(leases.endDate, from)))
+        .where(and(eq(tenants.organizationId, orgId), eq(leases.status, "expired"), gte(leases.endDate, from.toISOString().slice(0, 10))))
         .catch(() => [{ count: 0 }]),
     ]);
 
@@ -321,7 +321,6 @@ router.get("/property", ...auth, async (req: any, res: any) => {
       .select({
         id:   properties.id,
         name: properties.name,
-        type: properties.propertyType,
       })
       .from(properties)
       .where(eq(properties.organizationId, orgId))
@@ -338,8 +337,9 @@ router.get("/property", ...auth, async (req: any, res: any) => {
         db.select({ total: sql<string>`COALESCE(SUM(${rentPayments.amount}), 0)` })
           .from(rentPayments)
           .leftJoin(tenants, eq(rentPayments.tenantId, tenants.id))
+          .leftJoin(units, eq(tenants.unitId, units.id))
           .where(and(
-            eq(tenants.propertyId, p.id),
+            eq(units.propertyId, p.id),
             eq(rentPayments.status, "paid"),
             gte(rentPayments.createdAt, new Date(Date.now() - 30 * 86_400_000)),
           )).catch(() => [{ total: "0" }]),
@@ -350,7 +350,6 @@ router.get("/property", ...auth, async (req: any, res: any) => {
       return {
         id:          p.id,
         name:        p.name,
-        type:        p.type,
         totalUnits,
         occupiedUnits:  occupied,
         occupancyRate:  totalUnits > 0 ? Math.round((occupied / totalUnits) * 100) : 0,

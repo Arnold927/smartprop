@@ -76,18 +76,21 @@ const getCoreManagerItems = (t: (k: string) => string) => [
       { name: "ESG & Sustainability", href: "/sustainability-esg" },
     ],
   },
-  {
-    name: t("nav.compliance"), href: "/compliance", icon: Shield,
-    children: [
-      { name: t("nav.kra_returns"),      href: "/compliance?tab=kra" },
-      { name: t("nav.etims"),            href: "/compliance?tab=etims" },
-      { name: t("nav.stamp_duty"),       href: "/compliance?tab=stamp-duty" },
-      { name: t("nav.valuations_cgt"),   href: "/compliance?tab=valuations" },
-      { name: t("nav.deposit_interest"), href: "/compliance?tab=deposit-interest" },
-      { name: t("nav.service_charges"),  href: "/compliance?tab=service-charges" },
-      { name: t("nav.rrt_notices"),      href: "/compliance?tab=rrt" },
-    ],
-  },
+  // Compliance — hidden from the sidebar per product request (commented out,
+  // not deleted, so it can be restored later). Still fully functional at
+  // /compliance for anyone who navigates there directly.
+  // {
+  //   name: t("nav.compliance"), href: "/compliance", icon: Shield,
+  //   children: [
+  //     { name: t("nav.kra_returns"),      href: "/compliance?tab=kra" },
+  //     { name: t("nav.etims"),            href: "/compliance?tab=etims" },
+  //     { name: t("nav.stamp_duty"),       href: "/compliance?tab=stamp-duty" },
+  //     { name: t("nav.valuations_cgt"),   href: "/compliance?tab=valuations" },
+  //     { name: t("nav.deposit_interest"), href: "/compliance?tab=deposit-interest" },
+  //     { name: t("nav.service_charges"),  href: "/compliance?tab=service-charges" },
+  //     { name: t("nav.rrt_notices"),      href: "/compliance?tab=rrt" },
+  //   ],
+  // },
   {
     name: t("nav.settings"), href: "/organization-management", icon: UserCog,
     children: [
@@ -182,28 +185,31 @@ const getLandlordNav = (t: (k: string) => string): NavGroup[] => [
       { name: t("nav.documents"),   href: "/documents",   icon: FolderOpen },
     ],
   },
-  {
-    label: t("nav.group_compliance"),
-    items: [
-      {
-        // Landlords only ever see "Rent Notices" here — the KRA/eTIMS/stamp-duty/
-        // valuations/deposit-interest/service-charges items are commented out for
-        // this role only (see the matching restriction in pages/compliance.tsx).
-        // Admin/manager's nav block above this one is untouched and keeps the
-        // full list.
-        name: t("nav.compliance"), href: "/compliance?tab=rrt", icon: Shield,
-        // children: [
-        //   { name: t("nav.kra_returns"),      href: "/compliance?tab=kra" },
-        //   { name: t("nav.etims"),            href: "/compliance?tab=etims" },
-        //   { name: t("nav.stamp_duty"),       href: "/compliance?tab=stamp-duty" },
-        //   { name: t("nav.valuations_cgt"),   href: "/compliance?tab=valuations" },
-        //   { name: t("nav.deposit_interest"), href: "/compliance?tab=deposit-interest" },
-        //   { name: t("nav.service_charges"),  href: "/compliance?tab=service-charges" },
-        //   { name: t("nav.rrt_notices"),      href: "/compliance?tab=rrt" },
-        // ],
-      },
-    ],
-  },
+  // Compliance group — hidden from the sidebar per product request
+  // (commented out, not deleted, so it can be restored later). Still fully
+  // functional at /compliance?tab=rrt for anyone who navigates there directly.
+  // {
+  //   label: t("nav.group_compliance"),
+  //   items: [
+  //     {
+  //       // Landlords only ever see "Rent Notices" here — the KRA/eTIMS/stamp-duty/
+  //       // valuations/deposit-interest/service-charges items are commented out for
+  //       // this role only (see the matching restriction in pages/compliance.tsx).
+  //       // Admin/manager's nav block above this one is untouched and keeps the
+  //       // full list.
+  //       name: t("nav.compliance"), href: "/compliance?tab=rrt", icon: Shield,
+  //       // children: [
+  //       //   { name: t("nav.kra_returns"),      href: "/compliance?tab=kra" },
+  //       //   { name: t("nav.etims"),            href: "/compliance?tab=etims" },
+  //       //   { name: t("nav.stamp_duty"),       href: "/compliance?tab=stamp-duty" },
+  //       //   { name: t("nav.valuations_cgt"),   href: "/compliance?tab=valuations" },
+  //       //   { name: t("nav.deposit_interest"), href: "/compliance?tab=deposit-interest" },
+  //       //   { name: t("nav.service_charges"),  href: "/compliance?tab=service-charges" },
+  //       //   { name: t("nav.rrt_notices"),      href: "/compliance?tab=rrt" },
+  //       // ],
+  //     },
+  //   ],
+  // },
   {
     label: t("nav.group_comms"),
     items: [

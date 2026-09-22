@@ -1,4 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
+import { apiRequest } from "@/lib/queryClient";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
@@ -120,7 +121,7 @@ export function PropertyAnalytics({ propertyId, timeframe = '30d' }: PropertyAna
  <CartesianGrid strokeDasharray="3 3" />
  <XAxis dataKey="month" />
  <YAxis />
- <Tooltip formatter={(value: number) => `KES ${value.toLocaleString()}`} />
+ <Tooltip formatter={(value: any) => `KES ${Number(value ?? 0).toLocaleString()}`} />
  <Line type="monotone" dataKey="revenue" stroke="#8884d8" strokeWidth={2} name="Revenue" />
  <Line type="monotone" dataKey="expenses" stroke="#82ca9d" strokeWidth={2} name="Expenses" />
  </LineChart>
@@ -173,7 +174,7 @@ export function PropertyAnalytics({ propertyId, timeframe = '30d' }: PropertyAna
  <CartesianGrid strokeDasharray="3 3" />
  <XAxis dataKey="category" />
  <YAxis />
- <Tooltip formatter={(value: number) => `KES ${value.toLocaleString()}`} />
+ <Tooltip formatter={(value: any) => `KES ${Number(value ?? 0).toLocaleString()}`} />
  <Bar dataKey="amount" fill="#8884d8" />
  </BarChart>
  </ResponsiveContainer>
@@ -189,7 +190,7 @@ export function PropertyAnalytics({ propertyId, timeframe = '30d' }: PropertyAna
  </CardHeader>
  <CardContent className="space-y-4">
  <div className="flex items-start gap-3">
- <Badge className="bg-emerald-50 text-emerald-700 border border-emerald-200' >Positive</Badge>
+ <Badge className="bg-emerald-50 text-emerald-700 border border-emerald-200">Positive</Badge>
  <div>
  <p className="font-medium">Strong occupancy rate</p>
  <p className="text-sm text-muted-foreground">At 85.2%, your property is performing above market average of 78%</p>

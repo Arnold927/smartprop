@@ -1,4 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
+import { apiRequest } from "@/lib/queryClient";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
@@ -193,7 +194,7 @@ export function MarketingAnalytics({ timeframe = '30d' }: MarketingAnalyticsProp
  cx="50%"
  cy="50%"
  labelLine={false}
- label={({ source, percentage }) => `${source}: ${percentage}%`}
+ label={({ source, percentage }: any) => `${source}: ${percentage}%`}
  outerRadius={80}
  fill="#8884d8"
  dataKey="leads"
@@ -257,7 +258,7 @@ export function MarketingAnalytics({ timeframe = '30d' }: MarketingAnalyticsProp
  <CardContent className="space-y-4">
  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
  <div className="flex items-start gap-3">
- <Badge className="bg-emerald-50 text-emerald-700 border border-emerald-200' >Excellent</Badge>
+ <Badge className="bg-emerald-50 text-emerald-700 border border-emerald-200">Excellent</Badge>
  <div>
  <p className="font-medium">WhatsApp dominance</p>
  <p className="text-sm text-muted-foreground">95.2% open rate on WhatsApp campaigns - highest performing channel</p>

@@ -63,6 +63,12 @@ export default function MaintenancePage() {
  urgent: 'bg-red-100 text-red-800'
  };
 
+ const statusColors: Record<string, string> = {
+ pending: 'bg-orange-100 text-orange-800',
+ in_progress: 'bg-blue-100 text-blue-800',
+ completed: 'bg-emerald-100 text-emerald-800',
+ };
+
  const statusGroups = {
  all: requests,
  pending: (Array.isArray(requests) ? requests : []).filter(r => r.status === 'pending'),
@@ -252,8 +258,11 @@ export default function MaintenancePage() {
  </span>
  </td>
  <td className="py-3 px-4">
- <span className={`px-3 py-1 rounded-full text-xs font-medium ${
- request.status === 'completed' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' py-3 px-4">
+ <span className={`px-3 py-1 rounded-full text-xs font-medium ${statusColors[request.status] ?? 'bg-muted text-foreground'}`}>
+ {request.status.replace('_', ' ')}
+ </span>
+ </td>
+ <td className="py-3 px-4">
  <p className="text-sm text-foreground">
  {new Date(request.createdAt).toLocaleDateString('en-US', {
  month: 'short',

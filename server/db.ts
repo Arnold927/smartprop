@@ -38,18 +38,22 @@ if (!process.env.DATABASE_URL) {
 // Required for the WebSocket driver in a Node.js environment
 neonConfig.webSocketConstructor = ws;
 
-// Keep WebSocket connections alive — without this, Neon's proxy closes idle
-// connections and the next query gets a "WebSocket was closed before the
-// connection was established" timeout error.
-neonConfig.keepAlive = true;
-neonConfig.keepAliveIntervalMs = 60_000; // ping every 60 s
-
 // Connection pool: 10 connections for a single Express server instance.
+//
+// keepAlive / keepAliveInitialDelayMillis (below) replace what used to be
+// set via neonConfig.keepAlive / neonConfig.keepAliveIntervalMs — those
+// properties don't exist on neonConfig in @neondatabase/serverless v1.x
+// (they were silently doing nothing — TCP keep-alive belongs on the Pool's
+// PoolConfig, not the WebSocket driver config). Without this, Neon's proxy
+// can close idle connections and the next query gets a "WebSocket was
+// closed before the connection was established" timeout error.
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
   max: parseInt(process.env.DB_POOL_MAX ?? "10"),
-  idleTimeoutMillis:       60_000, // keep idle connections alive for 60 s
-  connectionTimeoutMillis: 15_000, // 15 s — accounts for Neon cold starts (was 5 s)
+  idleTimeoutMillis:           60_000, // keep idle connections alive for 60 s
+  connectionTimeoutMillis:     15_000, // 15 s — accounts for Neon cold starts (was 5 s)
+  keepAlive:                   true,
+  keepAliveInitialDelayMillis: 60_000, // ping every 60 s
 });
 
 // ── Retry wrapper ─────────────────────────────────────────────────────────────

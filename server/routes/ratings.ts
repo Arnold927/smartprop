@@ -76,7 +76,7 @@ router.get("/targets", async (req: any, res) => {
           eq(maintenanceRequests.status, "completed"),
         )
       )
-      .orderBy(desc(maintenanceRequests.actualEndDate))
+      .orderBy(desc(maintenanceRequests.completedAt))
       .limit(20);
 
     // 2. Caretaker for the tenant's property
