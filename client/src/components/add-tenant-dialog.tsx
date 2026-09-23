@@ -28,8 +28,8 @@ import type { Tenant } from "@/types/tenant";
 export interface Unit {
   id: number;
   unitNumber: string;
-  bedrooms: number;
-  bathrooms: number;
+  bedrooms?: number | null;
+  bathrooms?: number | null;
   sqft: number;
   monthlyRent: number;
   isOccupied: boolean;

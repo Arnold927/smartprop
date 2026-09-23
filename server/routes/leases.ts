@@ -293,10 +293,17 @@ const createLeaseSchema = z.object({
   depositPaidDate:    z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
   escalationRate:     z.number().min(0).max(1).default(0.10),
   escalationFrequencyMonths: z.number().int().min(1).default(12),
+  // Commercial turnover rent — "fixed" (default) leaves existing behaviour
+  // unchanged. percentageRentRate is required when rentStructure isn't "fixed".
+  rentStructure:      z.enum(["fixed", "percentage_of_sales", "base_plus_percentage"]).default("fixed"),
+  percentageRentRate: z.number().min(0).max(1).optional(),
   specialConditions:  z.string().optional(),
   notes:              z.string().optional(),
   leaseDurationMonths:z.number().int().min(1).default(12),
-});
+}).refine(
+  (d) => d.rentStructure === "fixed" || d.percentageRentRate !== undefined,
+  { message: "percentageRentRate is required when rentStructure is percentage_of_sales or base_plus_percentage", path: ["percentageRentRate"] },
+);
 
 router.post("/", auditLog("lease", "CREATE") as any, async (req: any, res) => {
   try {
@@ -323,14 +330,27 @@ router.post("/", auditLog("lease", "CREATE") as any, async (req: any, res) => {
     if (!tenant) return res.status(404).json({ message: "Tenant not found" });
 
     // ── Kenyan Landlord and Tenant Act: deposit cap ──────────────────────────
-    // Security deposits may not exceed 2 months' rent for unrestricted tenancies.
+    // Security deposits may not exceed 2 months' rent for unrestricted RESIDENTIAL
+    // tenancies — this cap doesn't govern ordinary commercial leases, so only warn
+    // when the unit is residential (or unknown, to err on the side of warning).
     // We warn (not block) so managers with a valid legal basis can still proceed.
     const depositWarnings: string[] = [];
-    if (data.securityDeposit > data.monthlyRent * 2) {
+    let isResidentialUnit = true;
+    if (data.unitId) {
+      const [unitRow] = await db
+        .select({ unitType: units.unitType })
+        .from(units)
+        .where(eq(units.id, data.unitId))
+        .limit(1);
+      if (unitRow?.unitType) {
+        isResidentialUnit = ["apartment", "house"].includes(unitRow.unitType);
+      }
+    }
+    if (isResidentialUnit && data.securityDeposit > data.monthlyRent * 2) {
       depositWarnings.push(
         `Security deposit (${data.currency} ${data.securityDeposit.toLocaleString()}) exceeds 2 months' rent ` +
         `(${data.currency} ${(data.monthlyRent * 2).toLocaleString()}). ` +
-        `The Landlord and Tenant Act caps deposits at 2 months' rent for unrestricted tenancies. ` +
+        `The Landlord and Tenant Act caps deposits at 2 months' rent for unrestricted residential tenancies. ` +
         `The lease has been created, but please verify this is legally compliant.`
       );
     }
@@ -365,6 +385,8 @@ router.post("/", auditLog("lease", "CREATE") as any, async (req: any, res) => {
       depositPaidDate:      data.depositPaidDate ?? null,
       escalationRate:       String(data.escalationRate),
       escalationFrequencyMonths: data.escalationFrequencyMonths,
+      rentStructure:        data.rentStructure,
+      percentageRentRate:   data.percentageRentRate !== undefined ? String(data.percentageRentRate) : null,
       status:               "draft",
       specialConditions:    data.specialConditions ?? null,
       notes:                data.notes ?? null,
@@ -699,15 +721,27 @@ router.post("/:id/renew", auditLog("lease", "CREATE") as any, async (req: any, r
     const newLeaseNumber = leaseNumberFor(orgId, await nextLeaseSeq(orgId));
 
     // ── Kenyan Landlord and Tenant Act: rent increase notice ─────────────────
-    // Landlords must give written notice of rent increases before the new lease period.
+    // Landlords must give written notice of rent increases before the new lease period —
+    // this residential-tenancy provision doesn't govern ordinary commercial leases.
     // We check whether there is sufficient notice time (≥30 days before old lease ends).
     const renewalWarnings: string[] = [];
+    let renewalIsResidential = true;
+    if (oldLease.unitId) {
+      const [unitRow] = await db
+        .select({ unitType: units.unitType })
+        .from(units)
+        .where(eq(units.id, oldLease.unitId))
+        .limit(1);
+      if (unitRow?.unitType) {
+        renewalIsResidential = ["apartment", "house"].includes(unitRow.unitType);
+      }
+    }
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     const oldEndDate = new Date(String(oldLease.endDate));
     oldEndDate.setHours(0, 0, 0, 0);
     const daysUntilRenewal = Math.round((oldEndDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
-    if (overrideRent !== currentRent && daysUntilRenewal < 30) {
+    if (renewalIsResidential && overrideRent !== currentRent && daysUntilRenewal < 30) {
       renewalWarnings.push(
         `Rent is increasing from ${oldLease.currency} ${currentRent.toLocaleString()} to ${overrideRent.toLocaleString()}, ` +
         `but the current lease ends in ${daysUntilRenewal} day(s). ` +
@@ -815,18 +849,30 @@ router.post("/:id/terminate", auditLog("lease", "UPDATE") as any, async (req: an
     const tDate = terminationDate ?? new Date().toISOString().split("T")[0];
 
     // ── Kenyan Landlord and Tenant Act: 30-day notice requirement ────────────
-    // The Act requires 30 days' notice for tenancy termination in most cases.
+    // The Act requires 30 days' notice for tenancy termination in most cases —
+    // this is a residential-tenancy provision, not a general rule for commercial leases.
     // We warn rather than block — the manager may have a court order or mutual agreement.
     const terminationWarnings: string[] = [];
+    let terminationIsResidential = true;
+    if (lease.unitId) {
+      const [unitRow] = await db
+        .select({ unitType: units.unitType })
+        .from(units)
+        .where(eq(units.id, lease.unitId))
+        .limit(1);
+      if (unitRow?.unitType) {
+        terminationIsResidential = ["apartment", "house"].includes(unitRow.unitType);
+      }
+    }
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     const tDateObj = new Date(tDate);
     tDateObj.setHours(0, 0, 0, 0);
     const daysUntilTermination = Math.round((tDateObj.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
-    if (daysUntilTermination < 30) {
+    if (terminationIsResidential && daysUntilTermination < 30) {
       terminationWarnings.push(
         `Termination date is ${daysUntilTermination < 0 ? "in the past" : `only ${daysUntilTermination} day(s) away`}. ` +
-        `The Landlord and Tenant Act requires at least 30 days' notice for tenancy termination. ` +
+        `The Landlord and Tenant Act requires at least 30 days' notice for residential tenancy termination. ` +
         `Ensure you have a legal basis (e.g. court order, mutual agreement) before proceeding.`
       );
     }

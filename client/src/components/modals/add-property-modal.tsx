@@ -39,6 +39,10 @@ const addPropertySchema = z.object({
   name: z.string().min(1, "Property name is required"),
   address: z.string().min(1, "Address is required"),
   totalUnits: z.number().min(1, "Total units must be at least 1"),
+  // "residential" keeps the existing behaviour (bedrooms/bathrooms on units).
+  // "commercial"/"mixed_use" enable unit types like retail/office/kiosk with
+  // sqft-based rent instead — see the Add Unit dialog.
+  propertyType: z.enum(["residential", "commercial", "mixed_use"]),
   description: z.string().optional(),
   imageUrl: z.string().optional(),
   ownerId: z.string().optional(),
@@ -104,6 +108,7 @@ export default function AddPropertyModal({ isOpen, onClose, onSuccess, property,
  name: "",
  address: "",
  totalUnits: 1,
+ propertyType: "residential",
  description: "",
  imageUrl: "",
  ownerId: "",
@@ -121,6 +126,7 @@ export default function AddPropertyModal({ isOpen, onClose, onSuccess, property,
  name: property.name,
  address: property.address,
  totalUnits: property.totalUnits,
+ propertyType: (property as any).propertyType ?? "residential",
  description: property.description ?? "",
  imageUrl: property.imageUrl ?? "",
  ownerId: property.ownerId ?? "",
@@ -135,6 +141,7 @@ export default function AddPropertyModal({ isOpen, onClose, onSuccess, property,
  name: "",
  address: "",
  totalUnits: 1,
+ propertyType: "residential",
  description: "",
  imageUrl: "",
  ownerId: user?.role === "landlord" ? (user?.id ?? "") : "",
@@ -341,6 +348,32 @@ export default function AddPropertyModal({ isOpen, onClose, onSuccess, property,
  )}
  />
  </div>
+
+ <FormField
+ control={form.control}
+ name="propertyType"
+ render={({ field }) => (
+ <FormItem>
+ <FormLabel className="text-foreground">Property Type *</FormLabel>
+ <Select onValueChange={field.onChange} value={field.value}>
+ <FormControl>
+ <SelectTrigger className="bg-card text-foreground border-border">
+ <SelectValue placeholder="Select property type" />
+ </SelectTrigger>
+ </FormControl>
+ <SelectContent>
+ <SelectItem value="residential">Residential (apartments, houses)</SelectItem>
+ <SelectItem value="commercial">Commercial (retail, office, mall)</SelectItem>
+ <SelectItem value="mixed_use">Mixed use (both)</SelectItem>
+ </SelectContent>
+ </Select>
+ <p className="text-xs text-muted-foreground">
+ Commercial and mixed-use properties let you add units by type (retail, office, kiosk, etc.) with sqft-based rent instead of bedrooms/bathrooms.
+ </p>
+ <FormMessage className="text-red-600" />
+ </FormItem>
+ )}
+ />
 
  <FormField
  control={form.control}

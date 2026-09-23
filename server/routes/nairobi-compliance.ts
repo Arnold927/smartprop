@@ -150,18 +150,53 @@ router.post("/service-charges/demands/generate", ...auth, async (req: any, res: 
     const { propertyId, periodStart, periodEnd, fixedAmount, variableAmount,
             sinkingFundAmount, dueDate } = req.body;
 
-    const total = Number(fixedAmount ?? 0) + Number(variableAmount ?? 0) + Number(sinkingFundAmount ?? 0);
+    // Allocation method: explicit override in the request body wins; otherwise
+    // look up the budget covering this period's financial year (defaults to
+    // "equal_split" if there's no matching budget, preserving old behaviour).
+    let allocationMethod: "equal_split" | "pro_rata_sqft" = req.body.allocationMethod;
+    if (!allocationMethod) {
+      const year = new Date(periodStart).getFullYear();
+      const [budget] = await db
+        .select({ allocationMethod: serviceChargeBudgets.allocationMethod })
+        .from(serviceChargeBudgets)
+        .where(and(eq(serviceChargeBudgets.propertyId, propertyId), eq(serviceChargeBudgets.financialYear, year)))
+        .limit(1);
+      allocationMethod = (budget?.allocationMethod as any) ?? "equal_split";
+    }
 
-    // Get all occupied units with their current tenants
+    // Get all occupied units with their current tenants (and sqft, for pro-rata)
     const occupiedUnits = await db
-      .select({ unitId: units.id, tenantId: tenants.id })
+      .select({ unitId: units.id, tenantId: tenants.id, sqft: units.sqft })
       .from(units)
       .leftJoin(tenants, and(eq(tenants.unitId, units.id), eq(tenants.status, "active")))
       .where(and(eq(units.propertyId, propertyId), eq(units.isOccupied, true)));
 
+    // pro_rata_sqft needs every occupied unit's sqft set — fall back to
+    // equal_split for this run (rather than silently mis-billing) if any are missing.
+    const totalSqft = occupiedUnits.reduce((sum, u) => sum + (u.sqft ?? 0), 0);
+    const usePropRata = allocationMethod === "pro_rata_sqft" &&
+      totalSqft > 0 && occupiedUnits.every(u => (u.sqft ?? 0) > 0);
+    if (allocationMethod === "pro_rata_sqft" && !usePropRata) {
+      return res.status(400).json({
+        message: "Cannot generate pro-rata-by-sqft demands: one or more occupied units on this property has no sqft set. Set sqft on every occupied unit, or generate with allocationMethod \"equal_split\" instead.",
+      });
+    }
+
     const created: any[] = [];
     for (const ou of occupiedUnits) {
       const demandNumber = await nextCode("SCN", serviceChargeDemands, serviceChargeDemands.demandNumber);
+
+      // equal_split (default/legacy, unchanged from before): fixedAmount/
+      // variableAmount/sinkingFundAmount are PER-UNIT amounts — every occupied
+      // unit is billed exactly what was entered, same as the original behaviour.
+      // pro_rata_sqft: the entered amounts are the TOTAL pool for the property
+      // for this period, and each unit's share is its sqft ÷ total occupied sqft.
+      const shareOfPool = usePropRata ? (ou.sqft as number) / totalSqft : null;
+      const unitFixed       = usePropRata ? Number(fixedAmount ?? 0)       * (shareOfPool as number) : Number(fixedAmount ?? 0);
+      const unitVariable    = usePropRata ? Number(variableAmount ?? 0)    * (shareOfPool as number) : Number(variableAmount ?? 0);
+      const unitSinkingFund = usePropRata ? Number(sinkingFundAmount ?? 0) * (shareOfPool as number) : Number(sinkingFundAmount ?? 0);
+      const unitTotal       = unitFixed + unitVariable + unitSinkingFund;
+
       const [demand] = await db.insert(serviceChargeDemands).values({
         organizationId:    orgId,
         propertyId,
@@ -170,17 +205,20 @@ router.post("/service-charges/demands/generate", ...auth, async (req: any, res: 
         demandNumber,
         periodStart,
         periodEnd,
-        fixedAmount:       String(fixedAmount ?? 0),
-        variableAmount:    String(variableAmount ?? 0),
-        sinkingFundAmount: String(sinkingFundAmount ?? 0),
-        totalAmount:       String(total),
+        allocationMethod:  usePropRata ? "pro_rata_sqft" : "equal_split",
+        allocatedSqft:      usePropRata ? (ou.sqft as number) : null,
+        totalSqft:          usePropRata ? totalSqft : null,
+        fixedAmount:       unitFixed.toFixed(2),
+        variableAmount:    unitVariable.toFixed(2),
+        sinkingFundAmount: unitSinkingFund.toFixed(2),
+        totalAmount:       unitTotal.toFixed(2),
         dueDate,
         status:            "pending",
       } as any).returning();
       created.push(demand);
     }
 
-    res.status(201).json({ generated: created.length, demands: created });
+    res.status(201).json({ generated: created.length, allocationMethod: usePropRata ? "pro_rata_sqft" : "equal_split", demands: created });
   } catch (err: any) { res.status(400).json({ message: err.message }); }
 });
 

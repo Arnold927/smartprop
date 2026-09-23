@@ -30,14 +30,33 @@ interface AddUnitDialogProps {
 interface CreateUnitData {
  propertyId: number;
  unitNumber: string;
- bedrooms: number;
- bathrooms: number;
+ unitType: string;
+ bedrooms?: number | null;
+ bathrooms?: number | null;
  sqft: number;
+ rentBasis: string;
+ ratePerSqft?: number | null;
  monthlyRent: number;
  currency: string;
  isOccupied: boolean;
  organizationId: number;
 }
+
+// Unit types that use bedrooms/bathrooms. Everything else (retail, office,
+// kiosk, warehouse, parking, storage) is sqft/rate-based instead.
+export const RESIDENTIAL_UNIT_TYPES = ["apartment", "house"];
+export const UNIT_TYPE_LABELS: Record<string, string> = {
+ apartment: "Apartment",
+ house: "House",
+ office: "Office",
+ retail: "Retail",
+ kiosk: "Kiosk",
+ anchor_retail: "Anchor Retail (large-format)",
+ warehouse: "Warehouse",
+ parking: "Parking Bay",
+ storage: "Storage Unit",
+ other: "Other",
+};
 
 export default function AddUnitDialog({
  open,
@@ -60,13 +79,18 @@ export default function AddUnitDialog({
 
  const [formData, setFormData] = useState({
  unitNumber: unitToEdit?.unitNumber || "",
+ unitType: unitToEdit?.unitType || "apartment",
  bedrooms: unitToEdit?.bedrooms || 1,
  bathrooms: initialBathrooms,
  sqft: unitToEdit?.sqft || 800,
+ rentBasis: unitToEdit?.rentBasis || "fixed",
+ ratePerSqft: unitToEdit?.ratePerSqft?.toString() || "",
  monthlyRent: unitToEdit?.monthlyRent.toString() || "",
  currency: unitToEdit?.currency || "USD",
  isOccupied: unitToEdit?.isOccupied || false,
  });
+
+ const isResidential = RESIDENTIAL_UNIT_TYPES.includes(formData.unitType);
 
  // Reset form when unitToEdit changes
  useEffect(() => {
@@ -77,9 +101,12 @@ export default function AddUnitDialog({
  
  setFormData({
  unitNumber: unitToEdit.unitNumber,
- bedrooms: unitToEdit.bedrooms,
- bathrooms: bathroomsValue,
+ unitType: unitToEdit.unitType || "apartment",
+ bedrooms: unitToEdit.bedrooms ?? 1,
+ bathrooms: bathroomsValue ?? 1,
  sqft: unitToEdit.sqft,
+ rentBasis: unitToEdit.rentBasis || "fixed",
+ ratePerSqft: unitToEdit.ratePerSqft?.toString() || "",
  monthlyRent: unitToEdit.monthlyRent.toString(),
  currency: unitToEdit.currency,
  isOccupied: unitToEdit.isOccupied,
@@ -88,9 +115,12 @@ export default function AddUnitDialog({
  // Reset to defaults for adding new unit
  setFormData({
  unitNumber: "",
+ unitType: "apartment",
  bedrooms: 1,
  bathrooms: 1,
  sqft: 800,
+ rentBasis: "fixed",
+ ratePerSqft: "",
  monthlyRent: "",
  currency: "USD",
  isOccupied: false,
@@ -112,7 +142,8 @@ export default function AddUnitDialog({
  mutationFn: async (unitData: CreateUnitData) => {
  const payload = {
  ...unitData,
- bathrooms: unitData.bathrooms.toString(),
+ bathrooms: unitData.bathrooms != null ? unitData.bathrooms.toString() : null,
+ ratePerSqft: unitData.ratePerSqft != null ? unitData.ratePerSqft.toString() : null,
  monthlyRent: unitData.monthlyRent.toString(),
  };
  
@@ -140,7 +171,7 @@ export default function AddUnitDialog({
  // Optimistically update to the new value
  queryClient.setQueryData<Unit[]>([`/api/properties/${propertyId}/units`], (old = []) => [
  ...old,
- optimisticUnit,
+ optimisticUnit as Unit,
  ]);
  
  return { previousUnits, tempId };
@@ -181,7 +212,8 @@ export default function AddUnitDialog({
  mutationFn: async ({ unitId, ...data }: any) => {
  const payload = {
  ...data,
- bathrooms: data.bathrooms.toString(),
+ bathrooms: data.bathrooms != null ? data.bathrooms.toString() : null,
+ ratePerSqft: data.ratePerSqft != null ? data.ratePerSqft.toString() : null,
  monthlyRent: data.monthlyRent.toString(),
  };
  
@@ -238,9 +270,12 @@ export default function AddUnitDialog({
  propertyId: propertyId,
  organizationId: organizationId,
  unitNumber: formData.unitNumber,
- bedrooms: formData.bedrooms,
- bathrooms: formData.bathrooms,
+ unitType: formData.unitType,
+ bedrooms: isResidential ? formData.bedrooms : null,
+ bathrooms: isResidential ? formData.bathrooms : null,
  sqft: formData.sqft,
+ rentBasis: formData.rentBasis,
+ ratePerSqft: formData.rentBasis === "per_sqft" ? (parseFloat(formData.ratePerSqft) || 0) : null,
  monthlyRent: parseFloat(formData.monthlyRent),
  currency: formData.currency,
  isOccupied: formData.isOccupied,
@@ -310,6 +345,24 @@ export default function AddUnitDialog({
  </div>
  </div>
 
+ <div className="space-y-2">
+ <Label htmlFor="unitType" className="font-medium">Unit Type *</Label>
+ <Select
+ value={formData.unitType}
+ onValueChange={(value) => setFormData({ ...formData, unitType: value as any })}
+ >
+ <SelectTrigger className="border-border focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500">
+ <SelectValue placeholder="Select unit type" />
+ </SelectTrigger>
+ <SelectContent>
+ {Object.entries(UNIT_TYPE_LABELS).map(([value, label]) => (
+ <SelectItem key={value} value={value}>{label}</SelectItem>
+ ))}
+ </SelectContent>
+ </Select>
+ </div>
+
+ {isResidential ? (
  <div className="grid grid-cols-3 gap-4">
  <div className="space-y-2">
  <Label htmlFor="bedrooms" className="font-medium">Bedrooms</Label>
@@ -360,6 +413,61 @@ export default function AddUnitDialog({
  />
  </div>
  </div>
+ ) : (
+ <div className="grid grid-cols-2 gap-4">
+ <div className="space-y-2">
+ <Label htmlFor="sqft" className="font-medium">Square Feet *</Label>
+ <Input
+ id="sqft"
+ type="number"
+ placeholder="800"
+ value={formData.sqft}
+ onChange={(e) => setFormData({ ...formData, sqft: parseInt(e.target.value) || 0 })}
+ className="border-border focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
+ min="0"
+ required
+ />
+ <p className="text-xs text-muted-foreground">Used for per-sqft rent and pro-rata service charge billing.</p>
+ </div>
+ <div className="space-y-2">
+ <Label htmlFor="rentBasis" className="font-medium">Rent Basis</Label>
+ <Select
+ value={formData.rentBasis}
+ onValueChange={(value) => setFormData({ ...formData, rentBasis: value as any })}
+ >
+ <SelectTrigger className="border-border focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500">
+ <SelectValue placeholder="Select" />
+ </SelectTrigger>
+ <SelectContent>
+ <SelectItem value="fixed">Fixed monthly amount</SelectItem>
+ <SelectItem value="per_sqft">Rate per sqft</SelectItem>
+ <SelectItem value="percentage_of_sales">Percentage of sales (set on lease)</SelectItem>
+ </SelectContent>
+ </Select>
+ </div>
+ </div>
+ )}
+
+ {!isResidential && formData.rentBasis === "per_sqft" && (
+ <div className="space-y-2">
+ <Label htmlFor="ratePerSqft" className="font-medium">Rate per Sqft *</Label>
+ <Input
+ id="ratePerSqft"
+ type="number"
+ placeholder="e.g. 150"
+ value={formData.ratePerSqft}
+ onChange={(e) => {
+ const rate = e.target.value;
+ const monthlyRent = (parseFloat(rate) || 0) * (formData.sqft || 0);
+ setFormData({ ...formData, ratePerSqft: rate, monthlyRent: monthlyRent ? monthlyRent.toString() : formData.monthlyRent });
+ }}
+ className="border-border focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
+ min="0"
+ step="0.01"
+ />
+ <p className="text-xs text-muted-foreground">Monthly rent is calculated automatically as rate × sqft — you can still adjust it above.</p>
+ </div>
+ )}
 
  <div className="space-y-2">
  <Label htmlFor="currency" className="font-medium">Currency</Label>

@@ -18,6 +18,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest, ensureArray } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { RESIDENTIAL_UNIT_TYPES } from "@/components/add-unit-dialog";
 import { format, differenceInDays, parseISO, isValid } from "date-fns";
 import {
   FileText, Plus, Search, ChevronRight, Clock, CheckCircle2,
@@ -239,6 +240,7 @@ function CreateLeaseDialog({ open, onClose }: { open: boolean; onClose: () => vo
     tenantId: "", startDate: "", endDate: "", monthlyRent: "",
     securityDeposit: "", depositPaidDate: "", escalationRate: "0.1",
     leaseDurationMonths: "12", specialConditions: "",
+    rentStructure: "fixed", percentageRentRate: "",
   });
 
   const { data: tenantsRaw } = useQuery<any>({
@@ -261,6 +263,8 @@ function CreateLeaseDialog({ open, onClose }: { open: boolean; onClose: () => vo
           escalationRate:     parseFloat(form.escalationRate),
           leaseDurationMonths: parseInt(form.leaseDurationMonths),
           specialConditions:  form.specialConditions || undefined,
+          rentStructure:      form.rentStructure,
+          percentageRentRate: form.rentStructure !== "fixed" ? parseFloat(form.percentageRentRate || "0") / 100 : undefined,
         },
       });
       if (!r.ok) throw new Error((await r.json()).message);
@@ -325,21 +329,43 @@ function CreateLeaseDialog({ open, onClose }: { open: boolean; onClose: () => vo
             {field("monthlyRent", "Monthly rent (KES)", "number", "e.g. 45000")}
             {field("leaseDurationMonths", "Term (months)", "number", "12")}
           </div>
+          <div className="space-y-1.5">
+            <Label className="text-xs font-medium">Rent structure</Label>
+            <Select value={form.rentStructure} onValueChange={v => setForm(f => ({ ...f, rentStructure: v }))}>
+              <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="fixed">Fixed — monthly rent above only</SelectItem>
+                <SelectItem value="percentage_of_sales">Percentage of sales only (turnover rent)</SelectItem>
+                <SelectItem value="base_plus_percentage">Base rent + percentage of sales</SelectItem>
+              </SelectContent>
+            </Select>
+            <p className="text-[11px] text-muted-foreground">
+              Percentage options are for retail/mall tenants billed on reported sales — standard for anchor and specialty tenants.
+            </p>
+          </div>
+          {form.rentStructure !== "fixed" && (
+            field("percentageRentRate", "Percentage of sales (%)", "number", "e.g. 6")
+          )}
           <div className="grid grid-cols-2 gap-3">
             {field("securityDeposit", "Security deposit (KES)", "number", "e.g. 90000")}
             {field("depositPaidDate", "Deposit paid date", "date")}
           </div>
-          {/* ── Compliance: deposit cap warning ── */}
+          {/* ── Compliance: deposit cap warning (residential tenancies only) ── */}
           {(() => {
             const rent    = parseFloat(form.monthlyRent  || "0");
             const deposit = parseFloat(form.securityDeposit || "0");
-            if (rent > 0 && deposit > rent * 2) {
+            const selectedTenant = tenants.find((t: any) => String(t.id) === form.tenantId);
+            // Default to showing the warning when the tenant's unit type isn't known yet
+            // (no tenant picked) — safer to over-warn than silently skip it.
+            const isResidentialTenancy = !selectedTenant?.unit?.unitType
+              || RESIDENTIAL_UNIT_TYPES.includes(selectedTenant.unit.unitType);
+            if (isResidentialTenancy && rent > 0 && deposit > rent * 2) {
               return (
                 <div className="flex items-start gap-2 rounded-md border border-amber-300 bg-amber-50 dark:bg-amber-950/30 dark:border-amber-700 px-3 py-2 text-xs text-amber-800 dark:text-amber-300">
                   <span className="mt-0.5 shrink-0">⚠️</span>
                   <span>
                     <strong>Deposit exceeds legal cap.</strong> The Landlord and Tenant Act limits security deposits to
-                    2 months' rent (<strong>KES {(rent * 2).toLocaleString()}</strong>). Entered amount may expose the landlord
+                    2 months' rent for residential tenancies (<strong>KES {(rent * 2).toLocaleString()}</strong>). Entered amount may expose the landlord
                     to a legal dispute — please verify before proceeding.
                   </span>
                 </div>

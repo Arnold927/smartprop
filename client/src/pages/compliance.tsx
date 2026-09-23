@@ -1725,6 +1725,7 @@ function ServiceChargesTab() {
                   <Button variant="outline" size="sm" onClick={() => {
                     setBudgetForm({
                       fyStartMonth: budget?.fyStartMonth ?? 1,
+                      allocationMethod: budget?.allocationMethod ?? "equal_split",
                       fixedBudget: budget?.fixedBudget ?? "",
                       variableBudget: budget?.variableBudget ?? "",
                       sinkingFundBudget: budget?.sinkingFundBudget ?? "",
@@ -1766,6 +1767,17 @@ function ServiceChargesTab() {
               )}
               {showBudgetForm && (
                 <div className="mt-4 border-t pt-4 grid grid-cols-2 gap-3">
+                  <div className="col-span-2">
+                    <Label className="text-xs">Default allocation method for this property</Label>
+                    <Select value={budgetForm.allocationMethod ?? "equal_split"} onValueChange={v => setBudgetForm((f: any) => ({ ...f, allocationMethod: v }))}>
+                      <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="equal_split">Equal split — same amount per occupied unit</SelectItem>
+                        <SelectItem value="pro_rata_sqft">Pro-rata by sqft — for properties with varied unit sizes (e.g. malls)</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <p className="text-[11px] text-muted-foreground mt-1">Used automatically when generating demand notices, unless overridden there.</p>
+                  </div>
                   <div><Label className="text-xs">Fixed budget (KES)</Label><Input type="number" value={budgetForm.fixedBudget ?? ""} onChange={e => setBudgetForm((f: any) => ({ ...f, fixedBudget: e.target.value }))} /></div>
                   <div><Label className="text-xs">Variable budget (KES)</Label><Input type="number" value={budgetForm.variableBudget ?? ""} onChange={e => setBudgetForm((f: any) => ({ ...f, variableBudget: e.target.value }))} /></div>
                   <div><Label className="text-xs">Sinking fund budget (KES)</Label><Input type="number" value={budgetForm.sinkingFundBudget ?? ""} onChange={e => setBudgetForm((f: any) => ({ ...f, sinkingFundBudget: e.target.value }))} /></div>
@@ -1809,9 +1821,34 @@ function ServiceChargesTab() {
                 <div className="mb-4 p-3 rounded-lg border bg-muted/30 grid grid-cols-2 gap-3">
                   <div><Label className="text-xs">Period start</Label><Input type="date" value={demandForm.periodStart ?? ""} onChange={e => setDemandForm((f: any) => ({ ...f, periodStart: e.target.value }))} /></div>
                   <div><Label className="text-xs">Period end</Label><Input type="date" value={demandForm.periodEnd ?? ""} onChange={e => setDemandForm((f: any) => ({ ...f, periodEnd: e.target.value }))} /></div>
-                  <div><Label className="text-xs">Fixed amount per unit (KES)</Label><Input type="number" value={demandForm.fixedAmount ?? ""} onChange={e => setDemandForm((f: any) => ({ ...f, fixedAmount: e.target.value }))} /></div>
-                  <div><Label className="text-xs">Variable amount per unit (KES)</Label><Input type="number" value={demandForm.variableAmount ?? ""} onChange={e => setDemandForm((f: any) => ({ ...f, variableAmount: e.target.value }))} /></div>
-                  <div><Label className="text-xs">Sinking fund per unit (KES)</Label><Input type="number" value={demandForm.sinkingFundAmount ?? ""} onChange={e => setDemandForm((f: any) => ({ ...f, sinkingFundAmount: e.target.value }))} /></div>
+                  <div className="col-span-2">
+                    <Label className="text-xs">Allocation method</Label>
+                    <Select value={demandForm.allocationMethod ?? "equal_split"} onValueChange={v => setDemandForm((f: any) => ({ ...f, allocationMethod: v }))}>
+                      <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="equal_split">Equal split — same amount billed to every occupied unit</SelectItem>
+                        <SelectItem value="pro_rata_sqft">Pro-rata by sqft — total below is split by each unit's share of occupied floor area (for mixed unit sizes, e.g. malls)</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <Label className="text-xs">
+                      {demandForm.allocationMethod === "pro_rata_sqft" ? "Total fixed charges for period (KES)" : "Fixed amount per unit (KES)"}
+                    </Label>
+                    <Input type="number" value={demandForm.fixedAmount ?? ""} onChange={e => setDemandForm((f: any) => ({ ...f, fixedAmount: e.target.value }))} />
+                  </div>
+                  <div>
+                    <Label className="text-xs">
+                      {demandForm.allocationMethod === "pro_rata_sqft" ? "Total variable charges for period (KES)" : "Variable amount per unit (KES)"}
+                    </Label>
+                    <Input type="number" value={demandForm.variableAmount ?? ""} onChange={e => setDemandForm((f: any) => ({ ...f, variableAmount: e.target.value }))} />
+                  </div>
+                  <div>
+                    <Label className="text-xs">
+                      {demandForm.allocationMethod === "pro_rata_sqft" ? "Total sinking fund for period (KES)" : "Sinking fund per unit (KES)"}
+                    </Label>
+                    <Input type="number" value={demandForm.sinkingFundAmount ?? ""} onChange={e => setDemandForm((f: any) => ({ ...f, sinkingFundAmount: e.target.value }))} />
+                  </div>
                   <div><Label className="text-xs">Due date</Label><Input type="date" value={demandForm.dueDate ?? ""} onChange={e => setDemandForm((f: any) => ({ ...f, dueDate: e.target.value }))} /></div>
                   <div className="col-span-2 flex gap-2 justify-end">
                     <Button variant="outline" size="sm" onClick={() => setShowDemandForm(false)}>Cancel</Button>

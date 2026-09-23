@@ -310,6 +310,11 @@ export const properties = pgTable("properties", {
   name: varchar("name").notNull(),
   address: text("address").notNull(),
   totalUnits: integer("total_units").notNull(),
+  // residential: apartments/houses (bedrooms/bathrooms apply).
+  // commercial: retail/office/mall space (sqft-based, no bedrooms/bathrooms).
+  // mixed_use: a property with both residential and commercial units — the
+  // per-unit unitType (below) decides which rules apply to each unit.
+  propertyType: varchar("property_type", { enum: ["residential", "commercial", "mixed_use"] }).notNull().default("residential"),
   ownerId: uuid("owner_id"),
   // For a landlord who doesn't (and may never) have a user account in the
   // system — a real-world common case, not an edge case. Set instead of
@@ -419,9 +424,21 @@ export const units = pgTable("units", {
   organizationId: integer("organization_id").references(() => organizations.id).notNull(),
   propertyId: integer("property_id").references(() => properties.id).notNull(),
   unitNumber: varchar("unit_number").notNull(),
+  // What kind of space this unit is. Drives which fields apply in the UI:
+  // apartment/house use bedrooms/bathrooms; the rest are sqft/rate-based.
+  unitType: varchar("unit_type", {
+    enum: ["apartment", "house", "office", "retail", "kiosk", "anchor_retail", "warehouse", "parking", "storage", "other"],
+  }).notNull().default("apartment"),
   bedrooms: integer("bedrooms"),
   bathrooms: decimal("bathrooms", { precision: 3, scale: 1 }),
   sqft: integer("sqft"),
+  // How this unit's rent is priced. "fixed" is the existing flat monthlyRent
+  // behaviour (default, unchanged for residential). "per_sqft" derives the
+  // effective monthly rent from sqft × ratePerSqft — common for offices and
+  // retail space quoted by the square foot/metre. "percentage_of_sales" is
+  // turnover rent — see leases.percentageRentRate for the lease-level rate.
+  rentBasis: varchar("rent_basis", { enum: ["fixed", "per_sqft", "percentage_of_sales"] }).notNull().default("fixed"),
+  ratePerSqft: decimal("rate_per_sqft", { precision: 10, scale: 2 }),
   monthlyRent: decimal("monthly_rent", { precision: 10, scale: 2 }).notNull(),
   currency: varchar("currency").notNull().default("USD"),
   isOccupied: boolean("is_occupied").default(false),
@@ -5057,6 +5074,15 @@ export const leases = pgTable("leases", {
   securityDeposit:   decimal("security_deposit",{ precision: 12, scale: 2 }).notNull().default("0"),
   depositPaidDate:   date("deposit_paid_date"),
 
+  // Commercial rent structure. "fixed" (default) is the existing flat
+  // monthlyRent behaviour. "percentage_of_sales" and "base_plus_percentage"
+  // are turnover rent, standard for mall anchor/specialty retail leases:
+  // the tenant pays percentageRentRate × their reported monthly sales,
+  // either instead of (percentage_of_sales) or on top of (base_plus_percentage)
+  // the base monthlyRent above.
+  rentStructure:      varchar("rent_structure", { enum: ["fixed", "percentage_of_sales", "base_plus_percentage"] }).notNull().default("fixed"),
+  percentageRentRate: decimal("percentage_rent_rate", { precision: 5, scale: 4 }), // e.g. 0.0600 = 6% of sales
+
   // Escalation
   escalationRate:    decimal("escalation_rate", { precision: 5, scale: 4 }).notNull().default("0.1000"), // 10%
   escalationFrequencyMonths: integer("escalation_frequency_months").notNull().default(12),
@@ -5225,6 +5251,13 @@ export const serviceChargeBudgets = pgTable("service_charge_budgets", {
   propertyId:      integer("property_id").notNull().references(() => properties.id),
   financialYear:   integer("financial_year").notNull(),
   fyStartMonth:    integer("fy_start_month").notNull().default(1),  // 1=Jan, 4=Apr, etc.
+  // How each demand run (below) splits the period's total across units:
+  // "equal_split" (default, existing behaviour) — same amount per occupied
+  // unit; fine when units are similarly sized (e.g. residential apartments).
+  // "pro_rata_sqft" — each unit's share is proportional to its sqft ÷ total
+  // occupied sqft on the property; the standard method for mall/commercial
+  // common-area-maintenance (CAM) cost recovery where unit sizes vary a lot.
+  allocationMethod: varchar("allocation_method", { enum: ["equal_split", "pro_rata_sqft"] }).notNull().default("equal_split"),
   totalBudget:     decimal("total_budget", { precision: 12, scale: 2 }).notNull().default("0"),
   fixedBudget:     decimal("fixed_budget",  { precision: 12, scale: 2 }).notNull().default("0"),
   variableBudget:  decimal("variable_budget",{ precision: 12, scale: 2 }).notNull().default("0"),
@@ -5264,6 +5297,13 @@ export const serviceChargeDemands = pgTable("service_charge_demands", {
   demandNumber:    varchar("demand_number", { length: 30 }).notNull().unique(),
   periodStart:     date("period_start").notNull(),
   periodEnd:       date("period_end").notNull(),
+  // How this specific demand's share was calculated — carried over from the
+  // budget's allocationMethod at generation time so it stays accurate even
+  // if the budget's method is changed later. allocatedSqft/totalSqft are only
+  // populated for pro_rata_sqft, kept for audit/dispute transparency.
+  allocationMethod: varchar("allocation_method", { enum: ["equal_split", "pro_rata_sqft"] }).notNull().default("equal_split"),
+  allocatedSqft:   integer("allocated_sqft"),
+  totalSqft:       integer("total_sqft"),
   fixedAmount:     decimal("fixed_amount",   { precision: 12, scale: 2 }).notNull().default("0"),
   variableAmount:  decimal("variable_amount",{ precision: 12, scale: 2 }).notNull().default("0"),
   sinkingFundAmount: decimal("sinking_fund_amount", { precision: 12, scale: 2 }).notNull().default("0"),

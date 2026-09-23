@@ -32,14 +32,18 @@ import {
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
+import { RESIDENTIAL_UNIT_TYPES, UNIT_TYPE_LABELS } from "@/components/add-unit-dialog";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 interface UnitFormData {
   unitNumber: string;
+  unitType: string;
   bedrooms: number;
   bathrooms: number;
   sqft: number;
+  rentBasis: string;
+  ratePerSqft: string;
   monthlyRent: string;
   currency: string;
   isOccupied: boolean;
@@ -47,9 +51,12 @@ interface UnitFormData {
 
 const defaultUnit = (): UnitFormData => ({
   unitNumber: "",
+  unitType: "apartment",
   bedrooms: 1,
   bathrooms: 1,
   sqft: 800,
+  rentBasis: "fixed",
+  ratePerSqft: "",
   monthlyRent: "",
   currency: "KSH",
   isOccupied: false,
@@ -97,12 +104,14 @@ function UnitFields({
   data: UnitFormData;
   onChange: (updated: UnitFormData) => void;
 }) {
+  const isResidential = RESIDENTIAL_UNIT_TYPES.includes(data.unitType);
+
   const getBathroomsStringValue = (): string => {
     const value = data.bathrooms;
     if (value === 1.5) return "1.5";
     if (value === 2.5) return "2.5";
     if (value === 3.5) return "3.5";
-    return value.toString();
+    return value != null ? value.toString() : "1";
   };
 
   return (
@@ -144,55 +153,126 @@ function UnitFields({
         </div>
       </div>
 
-      <div className="grid grid-cols-3 gap-4">
-        <div className="space-y-2">
-          <Label className="font-medium">Bedrooms</Label>
-          <Select
-            value={data.bedrooms.toString()}
-            onValueChange={(value) => onChange({ ...data, bedrooms: parseInt(value) })}
-          >
-            <SelectTrigger className="border-border focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500">
-              <SelectValue placeholder="Select" />
-            </SelectTrigger>
-            <SelectContent>
-              {[0, 1, 2, 3, 4, 5].map((num) => (
-                <SelectItem key={num} value={num.toString()}>
-                  {num === 0 ? "Studio" : `${num} Bed${num !== 1 ? "s" : ""}`}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+      <div className="space-y-2">
+        <Label className="font-medium">Unit Type *</Label>
+        <Select
+          value={data.unitType}
+          onValueChange={(value) => onChange({ ...data, unitType: value })}
+        >
+          <SelectTrigger className="border-border focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500">
+            <SelectValue placeholder="Select unit type" />
+          </SelectTrigger>
+          <SelectContent>
+            {Object.entries(UNIT_TYPE_LABELS).map(([value, label]) => (
+              <SelectItem key={value} value={value}>{label}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+
+      {isResidential ? (
+        <div className="grid grid-cols-3 gap-4">
+          <div className="space-y-2">
+            <Label className="font-medium">Bedrooms</Label>
+            <Select
+              value={data.bedrooms.toString()}
+              onValueChange={(value) => onChange({ ...data, bedrooms: parseInt(value) })}
+            >
+              <SelectTrigger className="border-border focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500">
+                <SelectValue placeholder="Select" />
+              </SelectTrigger>
+              <SelectContent>
+                {[0, 1, 2, 3, 4, 5].map((num) => (
+                  <SelectItem key={num} value={num.toString()}>
+                    {num === 0 ? "Studio" : `${num} Bed${num !== 1 ? "s" : ""}`}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-2">
+            <Label className="font-medium">Bathrooms</Label>
+            <Select
+              value={getBathroomsStringValue()}
+              onValueChange={(value) => onChange({ ...data, bathrooms: parseFloat(value) })}
+            >
+              <SelectTrigger className="border-border focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500">
+                <SelectValue placeholder="Select" />
+              </SelectTrigger>
+              <SelectContent>
+                {[1, 1.5, 2, 2.5, 3, 3.5, 4].map((num) => (
+                  <SelectItem key={num} value={num.toString()}>
+                    {num} Bath{num !== 1 ? "s" : ""}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-2">
+            <Label className="font-medium">Square Feet</Label>
+            <Input
+              type="number"
+              placeholder="800"
+              value={data.sqft}
+              onChange={(e) => onChange({ ...data, sqft: parseInt(e.target.value) || 0 })}
+              className="border-border focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
+              min="0"
+            />
+          </div>
         </div>
-        <div className="space-y-2">
-          <Label className="font-medium">Bathrooms</Label>
-          <Select
-            value={getBathroomsStringValue()}
-            onValueChange={(value) => onChange({ ...data, bathrooms: parseFloat(value) })}
-          >
-            <SelectTrigger className="border-border focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500">
-              <SelectValue placeholder="Select" />
-            </SelectTrigger>
-            <SelectContent>
-              {[1, 1.5, 2, 2.5, 3, 3.5, 4].map((num) => (
-                <SelectItem key={num} value={num.toString()}>
-                  {num} Bath{num !== 1 ? "s" : ""}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+      ) : (
+        <div className="grid grid-cols-2 gap-4">
+          <div className="space-y-2">
+            <Label className="font-medium">Square Feet *</Label>
+            <Input
+              type="number"
+              placeholder="800"
+              value={data.sqft}
+              onChange={(e) => onChange({ ...data, sqft: parseInt(e.target.value) || 0 })}
+              className="border-border focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
+              min="0"
+              required
+            />
+            <p className="text-xs text-muted-foreground">Used for per-sqft rent and pro-rata service charge billing.</p>
+          </div>
+          <div className="space-y-2">
+            <Label className="font-medium">Rent Basis</Label>
+            <Select
+              value={data.rentBasis}
+              onValueChange={(value) => onChange({ ...data, rentBasis: value })}
+            >
+              <SelectTrigger className="border-border focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500">
+                <SelectValue placeholder="Select" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="fixed">Fixed monthly amount</SelectItem>
+                <SelectItem value="per_sqft">Rate per sqft</SelectItem>
+                <SelectItem value="percentage_of_sales">Percentage of sales (set on lease)</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
         </div>
+      )}
+
+      {!isResidential && data.rentBasis === "per_sqft" && (
         <div className="space-y-2">
-          <Label className="font-medium">Square Feet</Label>
+          <Label className="font-medium">Rate per Sqft *</Label>
           <Input
             type="number"
-            placeholder="800"
-            value={data.sqft}
-            onChange={(e) => onChange({ ...data, sqft: parseInt(e.target.value) || 0 })}
+            placeholder="e.g. 150"
+            value={data.ratePerSqft}
+            onChange={(e) => {
+              const rate = e.target.value;
+              const monthlyRent = (parseFloat(rate) || 0) * (data.sqft || 0);
+              onChange({ ...data, ratePerSqft: rate, monthlyRent: monthlyRent ? monthlyRent.toString() : data.monthlyRent });
+            }}
             className="border-border focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
             min="0"
+            step="0.01"
           />
+          <p className="text-xs text-muted-foreground">Monthly rent is calculated automatically as rate × sqft — you can still adjust it above.</p>
         </div>
-      </div>
+      )}
 
       <div className="space-y-2">
         <Label className="font-medium">Currency</Label>
@@ -211,6 +291,7 @@ function UnitFields({
             <SelectItem value="CAD">CAD (C$)</SelectItem>
           </SelectContent>
         </Select>
+
       </div>
 
       <div className="flex items-center space-x-3 p-3 bg-muted rounded-lg">
@@ -287,6 +368,7 @@ export default function QuickSetup() {
   const [propName, setPropName] = useState("");
   const [propAddress, setPropAddress] = useState("");
   const [propUnits, setPropUnits] = useState("10");
+  const [propType, setPropType] = useState("residential");
   const [createdPropertyId, setCreatedPropertyId] = useState<number | null>(null);
   const [organizationId, setOrganizationId] = useState<number | null>(null);
 
@@ -307,6 +389,7 @@ export default function QuickSetup() {
           name: propName,
           address: propAddress,
           totalUnits: parseInt(propUnits) || 1,
+          propertyType: propType,
           description: "",
         },
       }),
@@ -326,22 +409,26 @@ export default function QuickSetup() {
   const saveUnits = useMutation({
     mutationFn: async (unitsToSave: UnitFormData[]) => {
       const results = await Promise.all(
-        unitsToSave.map((unit) =>
-          apiRequest("/api/units", {
+        unitsToSave.map((unit) => {
+          const isResidential = RESIDENTIAL_UNIT_TYPES.includes(unit.unitType);
+          return apiRequest("/api/units", {
             method: "POST",
             data: {
               propertyId: createdPropertyId,
               organizationId: organizationId,
               unitNumber: unit.unitNumber,
-              bedrooms: unit.bedrooms,
-              bathrooms: unit.bathrooms.toString(),
+              unitType: unit.unitType,
+              bedrooms: isResidential ? unit.bedrooms : null,
+              bathrooms: isResidential ? unit.bathrooms.toString() : null,
               sqft: unit.sqft,
+              rentBasis: unit.rentBasis,
+              ratePerSqft: unit.rentBasis === "per_sqft" ? (parseFloat(unit.ratePerSqft) || 0) : null,
               monthlyRent: parseFloat(unit.monthlyRent).toString(),
               currency: unit.currency,
               isOccupied: unit.isOccupied,
             },
-          })
-        )
+          });
+        })
       );
       return results;
     },
@@ -460,6 +547,17 @@ export default function QuickSetup() {
                   min="1"
                   className="h-11 w-32"
                 />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-sm font-medium">Property type</Label>
+                <Select value={propType} onValueChange={setPropType}>
+                  <SelectTrigger className="h-11"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="residential">Residential (apartments, houses)</SelectItem>
+                    <SelectItem value="commercial">Commercial (retail, office, mall)</SelectItem>
+                    <SelectItem value="mixed_use">Mixed use (both)</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
             </div>
 

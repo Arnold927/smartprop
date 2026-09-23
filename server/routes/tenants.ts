@@ -197,6 +197,7 @@ tenantRouter.get("/me", async (req: any, res: any) => {
       createdAt:       tenants.createdAt,
       updatedAt:       tenants.updatedAt,
       unitNumber:      units.unitNumber,
+      unitType:        units.unitType,
       unitPropertyId:  units.propertyId,
       propertyId:      properties.id,
       propertyName:    properties.name,
@@ -210,7 +211,7 @@ tenantRouter.get("/me", async (req: any, res: any) => {
     function toResponse(r: any) {
       return {
         ...r,
-        unit:     r.unitNumber ? { id: r.unitId!, unitNumber: r.unitNumber, propertyId: r.unitPropertyId! } : null,
+        unit:     r.unitNumber ? { id: r.unitId!, unitNumber: r.unitNumber, propertyId: r.unitPropertyId!, unitType: r.unitType ?? "apartment" } : null,
         property: r.propertyId ? { id: r.propertyId, name: r.propertyName!, address: r.propertyAddress ?? undefined } : null,
       };
     }
