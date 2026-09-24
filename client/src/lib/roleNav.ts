@@ -33,7 +33,13 @@ const getCoreManagerItems = (t: (k: string) => string) => [
       { name: t("nav.all_properties"),  href: "/properties" },
       { name: t("nav.parking"),         href: "/parking-management" },
       { name: t("nav.visitors"),        href: "/visitor-management" },
-      { name: t("nav.security"),        href: "/security" },
+      // "Security" hidden from nav — its visitor-access, vehicle-log, and
+      // gate-pass views all duplicate data already owned by Visitors and
+      // Parking above (same visitors / registered_vehicles tables under
+      // the hood). Its one genuinely unique feature, gate-hardware config,
+      // doesn't need its own top-level slot. Page and route are untouched —
+      // still reachable directly at /security for anyone who needs it.
+      // { name: t("nav.security"),        href: "/security" },
       { name: t("nav.inspections"),     href: "/inspections" },
       { name: t("nav.caretakers"),      href: "/caretakers" },
     ],
