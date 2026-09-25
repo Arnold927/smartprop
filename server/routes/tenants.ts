@@ -24,7 +24,7 @@ import { authenticateJWT } from "../middleware/auth";
 import { requireOrg } from "../middleware/requireOrg";
 import { z } from "zod";
 import { storage } from "../storage";
-import { inviteTenantUser } from "../utils/inviteTenantUser";
+import { resolveOrInviteTenantUser } from "../utils/resolveOrInviteTenantUser";
 
 const tenantRouter = Router();
 
@@ -328,20 +328,22 @@ tenantRouter.post("/", async (req: any, res: any) => {
       }
     }
 
-    // Resolve the tenant's OWN user account by their email so that
-    // GET /api/tenants/me can find the record when the tenant logs in.
-    // If no user account exists yet for that email, userId is left null
-    // and the /me endpoint's email-fallback will handle the lookup.
-    let tenantUserId: string | null = null;
+    // Resolve (or create) the tenant's OWN user account by their email —
+    // tenants.userId is NOT NULL, so this must be awaited and its result
+    // used below; it can't be a fire-and-forget side effect after the
+    // tenant is already created (see resolveOrInviteTenantUser.ts for why
+    // the previous approach here was a real bug for brand-new tenants).
     const tenantEmail: string = (req.body.email ?? "").trim().toLowerCase();
-    if (tenantEmail) {
-      const [tenantUser] = await db
-        .select({ id: users.id })
-        .from(users)
-        .where(eq(users.email, tenantEmail))
-        .limit(1);
-      if (tenantUser) tenantUserId = tenantUser.id;
+    if (!tenantEmail) {
+      return res.status(422).json({ message: "Validation error", errors: { email: ["Email is required"] } });
     }
+    const tenantUserId = await resolveOrInviteTenantUser({
+      organizationId: orgId,
+      invitedByUserId: req.user.id,
+      email: tenantEmail,
+      firstName: req.body.firstName ?? "",
+      lastName: req.body.lastName ?? "",
+    });
 
     const tenantData = {
       ...req.body,
@@ -357,22 +359,6 @@ tenantRouter.post("/", async (req: any, res: any) => {
       });
     }
     const tenant = await storage.createTenant(parsed.data);
-
-    // Auto-invite the tenant to the portal — same behavior as
-    // /api/tenant-onboarding, so which "Add Tenant" entry point someone
-    // used no longer determines whether the tenant can ever log in. Only
-    // when no existing user account was already found above for this
-    // email — otherwise this would email an already-active tenant a
-    // confusing "set up your account" link for an account they already use.
-    if (!tenantUserId) {
-      inviteTenantUser({
-        organizationId: orgId,
-        invitedByUserId: req.user.id,
-        email: tenantData.email,
-        firstName: tenantData.firstName,
-        lastName: tenantData.lastName,
-      });
-    }
 
     return res.status(201).json(tenant);
   } catch (error: any) {

@@ -13,11 +13,11 @@
 
 import { Router } from "express";
 import { db } from "../db";
-import { tenants, units, properties } from "@shared/schema";
+import { tenants, units, properties, users } from "@shared/schema";
 import { eq, and } from "drizzle-orm";
 import { authenticateJWT } from "../middleware/auth";
 import { requireOrg } from "../middleware/requireOrg";
-import { inviteTenantUser } from "../utils/inviteTenantUser";
+import { resolveOrInviteTenantUser } from "../utils/resolveOrInviteTenantUser";
 
 const tenantOnboardingRouter = Router();
 
@@ -26,7 +26,7 @@ tenantOnboardingRouter.use(authenticateJWT, requireOrg);
 tenantOnboardingRouter.post("/", async (req: any, res: any) => {
   try {
     const orgId: number  = req.user.organizationId;
-    const userId: string = req.user.id;
+    const requestingUserId: string = req.user.id; // the admin/manager submitting this form — NOT the tenant
 
     const {
       // Step 1 — Tenant Info
@@ -67,6 +67,14 @@ tenantOnboardingRouter.post("/", async (req: any, res: any) => {
       monthlyDueDate,
       depositPaid,
       notesAgreements,
+
+      // Optional — only sent by property-details.tsx's Add Tenant dialog,
+      // which (unlike the onboarding wizard and the Directory's modal)
+      // collects these directly. Left undefined by the other two callers,
+      // same as before this endpoint was shared with them.
+      monthlyRent,
+      leaseEndDate,
+      status: statusOverride,
     } = req.body;
 
     // ── 1. Resolve property (must belong to this org; if the caller is a
@@ -74,7 +82,7 @@ tenantOnboardingRouter.post("/", async (req: any, res: any) => {
     //    GET /api/properties in properties-list.ts) ───────────────────────────
     const role: string = req.user.role ?? "";
     const propertyCondition = role === "landlord"
-      ? and(eq(properties.name, propertyName), eq(properties.organizationId, orgId), eq(properties.ownerId, userId))
+      ? and(eq(properties.name, propertyName), eq(properties.organizationId, orgId), eq(properties.ownerId, requestingUserId))
       : and(eq(properties.name, propertyName), eq(properties.organizationId, orgId));
 
     const [property] = await db
@@ -141,21 +149,45 @@ tenantOnboardingRouter.post("/", async (req: any, res: any) => {
     const firstName  = nameParts[0] ?? "";
     const lastName   = nameParts.slice(1).join(" ") || "-";
 
+    // ── Resolve (or create) the TENANT's own user account — tenants.userId
+    //    is NOT NULL, so this must be awaited and its result used below; it
+    //    cannot be a fire-and-forget side effect after the tenant row is
+    //    already inserted (see resolveOrInviteTenantUser.ts for why the
+    //    previous approach here was a real bug for brand-new tenants, the
+    //    common case). This is what every tenant-portal feature (documents,
+    //    maintenance, M-Pesa actions, subletting, etc.) matches sessions
+    //    against via eq(tenants.userId, req.user.id) — using
+    //    requestingUserId (the admin/manager filling out this form) here
+    //    instead would silently break the tenant's own portal for them.
+    const tenantEmailNormalized: string = (email ?? "").trim().toLowerCase();
+    if (!tenantEmailNormalized) {
+      return res.status(400).json({ message: "Email is required to onboard a tenant." });
+    }
+    const tenantUserId = await resolveOrInviteTenantUser({
+      organizationId: orgId,
+      invitedByUserId: requestingUserId,
+      email: tenantEmailNormalized,
+      firstName,
+      lastName,
+    });
+
     // ── 5. Create the tenant record ──────────────────────────────────────────
     const [newTenant] = await db
       .insert(tenants)
       .values({
         organizationId:  orgId,
-        userId,
+        userId:          tenantUserId,
         firstName,
         lastName,
         email,
         phone:           phone ?? whatsappNumber,
         unitId:          unit.id,
         leaseStartDate:  moveInDate || null,
+        leaseEndDate:    leaseEndDate || null,
+        monthlyRent:     monthlyRent != null ? String(parseFloat(monthlyRent)) : null,
         securityDeposit: depositPaid ? String(parseFloat(depositPaid)) : null,
         currency:        "KES",
-        status:          "active",
+        status:          statusOverride || "active",
       })
       .returning();
 
@@ -164,15 +196,6 @@ tenantOnboardingRouter.post("/", async (req: any, res: any) => {
       .update(units)
       .set({ isOccupied: true })
       .where(eq(units.id, unit.id));
-
-    // ── 7. Auto-invite the tenant to the portal ─────────────────────────────
-    inviteTenantUser({
-      organizationId: orgId,
-      invitedByUserId: userId,
-      email,
-      firstName,
-      lastName,
-    });
 
     return res.status(201).json({
       message: "Tenant onboarded successfully.",

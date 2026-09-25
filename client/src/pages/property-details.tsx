@@ -209,13 +209,21 @@ export default function PropertyDetailsPage() {
 
   const handleTenantSubmit = async (data: TenantFormValues): Promise<boolean> => {
     try {
-      const res = await apiRequest("/api/tenants", {
+      const unit = units.find(u => u.id === data.unitId);
+      const res = await apiRequest("/api/tenant-onboarding", {
         method: "POST",
         data: {
-          ...data,
-          unitId:          data.unitId ? Number(data.unitId) : undefined,
-          monthlyRent:     String(Number(data.monthlyRent)),
-          securityDeposit: data.securityDeposit ? String(Number(data.securityDeposit)) : undefined,
+          tenantName:     `${data.firstName} ${data.lastName}`.trim(),
+          phone:          data.phone,
+          whatsappNumber: data.phone,
+          email:          data.email,
+          propertyName:   property.name,
+          unitNumber:     unit?.unitNumber,
+          moveInDate:     data.leaseStartDate,
+          leaseEndDate:   data.leaseEndDate,
+          monthlyRent:    String(Number(data.monthlyRent)),
+          depositPaid:    data.securityDeposit ? String(Number(data.securityDeposit)) : undefined,
+          status:         data.status,
         },
       });
       if (!res.ok) return false;

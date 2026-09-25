@@ -50,7 +50,12 @@ const getCoreManagerItems = (t: (k: string) => string) => [
       { name: t("nav.directory"),        href: "/tenants" },
       { name: t("nav.leases"),           href: "/leases" },
       { name: t("nav.letting_pipeline"), href: "/prospects" },
-      { name: t("nav.onboarding"),       href: "/tenant-onboarding" },
+      // "Onboarding" hidden from nav — the standalone wizard here posts to
+      // the exact same /api/tenant-onboarding endpoint as the "Add Tenant"
+      // button on the Directory page (ComprehensiveTenantModal). Same
+      // action, two front doors. Page and route are untouched — still
+      // reachable directly at /tenant-onboarding if needed.
+      // { name: t("nav.onboarding"),       href: "/tenant-onboarding" },
       { name: t("nav.short_term_rentals"), href: "/tenant-subletting" },
       { name: "Diaspora Rent-to-Own",    href: "/diaspora-rent-to-own" },
     ],
