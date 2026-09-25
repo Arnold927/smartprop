@@ -49,6 +49,7 @@ import {
   properties,
   units,
   tenants,
+  propertyExpenses,
 } from "@shared/schema";
 import { eq, inArray, and, lte, sql } from "drizzle-orm";
 import { authenticateJWT } from "../middleware/auth.js";
@@ -320,7 +321,7 @@ utilityBillsRouter.get("/", async (req: any, res: any) => {
 /** Resolves whether a bill exists and belongs to the caller's org (and, for a
  *  landlord, to a property they own) — via EITHER its accountId link or its
  *  direct tenantId link, since a bill can have either. */
-async function resolveBillOwnership(billId: number, orgId: number, role: string, userId: string): Promise<{ exists: boolean; allowed: boolean }> {
+async function resolveBillOwnership(billId: number, orgId: number, role: string, userId: string): Promise<{ exists: boolean; allowed: boolean; propertyId?: number; accountId?: number | null }> {
   const [bill] = await db.select({ id: utilityBills.id, accountId: utilityBills.accountId, tenantId: utilityBills.tenantId }).from(utilityBills).where(eq(utilityBills.id, billId)).limit(1);
   if (!bill) return { exists: false, allowed: false };
 
@@ -341,7 +342,7 @@ async function resolveBillOwnership(billId: number, orgId: number, role: string,
   const [prop] = await db.select({ organizationId: properties.organizationId, ownerId: properties.ownerId }).from(properties).where(eq(properties.id, propertyId)).limit(1);
   if (!prop || prop.organizationId !== orgId) return { exists: true, allowed: false };
   if (role === "landlord" && prop.ownerId !== userId) return { exists: true, allowed: false };
-  return { exists: true, allowed: true };
+  return { exists: true, allowed: true, propertyId, accountId: bill.accountId };
 }
 
 utilityBillsRouter.get("/:id", async (req: any, res: any) => {
@@ -418,6 +419,12 @@ utilityBillsRouter.put("/:id", async (req: any, res: any) => {
     const access = await resolveBillOwnership(id, req.user.organizationId, req.user.role ?? "", req.user.id);
     if (!access.allowed) return res.status(404).json({ message: "Bill not found" });
 
+    // Fetch the CURRENT status before updating, so we can detect a real
+    // pending→paid (or paid→other) transition rather than re-firing on
+    // every edit of an already-paid bill.
+    const [before] = await db.select({ status: utilityBills.status }).from(utilityBills).where(eq(utilityBills.id, id)).limit(1);
+    const wasPaid = before?.status === "paid";
+
     const {
       billNumber, billingPeriodStart, billingPeriodEnd, dueDate,
       amount, currency, unitsConsumed, unitRate, previousReading, currentReading,
@@ -444,6 +451,56 @@ utilityBillsRouter.put("/:id", async (req: any, res: any) => {
       .where(eq(utilityBills.id, id))
       .returning();
     if (!updated) return res.status(404).json({ message: "Bill not found" });
+
+    const isNowPaid = updated.status === "paid";
+
+    // ── Sync to the general expense ledger ──────────────────────────────────
+    // Only for account-linked bills (a common-area cost the property owner
+    // actually pays) — not tenant-direct bills, which are billed to the
+    // tenant and aren't a property operating expense.
+    if (access.accountId) {
+      if (isNowPaid && !wasPaid) {
+        // Guard against double-creation if this bill is somehow marked
+        // paid twice in a row (e.g. two quick edits).
+        const [existingExpense] = await db
+          .select({ id: propertyExpenses.id })
+          .from(propertyExpenses)
+          .where(eq(propertyExpenses.utilityBillId, id))
+          .limit(1);
+
+        if (!existingExpense) {
+          const [account] = await db
+            .select({ providerId: utilityAccounts.providerId, accountNumber: utilityAccounts.accountNumber })
+            .from(utilityAccounts)
+            .where(eq(utilityAccounts.id, access.accountId))
+            .limit(1);
+          const [provider] = account?.providerId
+            ? await db.select({ name: utilityProviders.name, type: utilityProviders.type }).from(utilityProviders).where(eq(utilityProviders.id, account.providerId)).limit(1)
+            : [undefined];
+
+          await db.insert(propertyExpenses).values({
+            expenseNumber: `EXP-UTIL-${id}`,
+            propertyId:    access.propertyId!,
+            vendorName:    provider?.name ?? "Utility provider",
+            description:   `${provider?.type ?? "Utility"} bill ${updated.billNumber ?? ""} — account ${account?.accountNumber ?? access.accountId}`.trim(),
+            amount:        updated.amount,
+            currency:      (updated.currency as any) ?? "KES",
+            category:      "utilities",
+            expenseDate:   updated.billingPeriodStart ?? new Date(),
+            paymentDate:   updated.paidDate ?? new Date(),
+            status:        "paid",
+            paymentMethod: updated.paymentMethod ?? undefined,
+            utilityBillId: id,
+            createdBy:     req.user.id,
+          } as any);
+        }
+      } else if (!isNowPaid && wasPaid) {
+        // Payment was reversed — remove the expense so the ledger doesn't
+        // keep a cost that's no longer actually paid.
+        await db.delete(propertyExpenses).where(eq(propertyExpenses.utilityBillId, id));
+      }
+    }
+
     res.json(updated);
   } catch (err) {
     console.error("[utility-bills] PUT /:id:", err);

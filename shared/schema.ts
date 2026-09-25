@@ -2889,6 +2889,11 @@ export const propertyExpenses = pgTable("property_expenses", {
   nextRecurringDate: timestamp("next_recurring_date"),
   tags: jsonb("tags"), // JSON array of tags for categorization
   notes: text("notes"),
+  // Set automatically when this expense was auto-generated from marking a
+  // utility bill paid (see PUT /api/utility-bills/:id) — lets that endpoint
+  // check "has an expense already been created for this bill" idempotently,
+  // and lets the UI trace an expense back to its source bill.
+  utilityBillId: integer("utility_bill_id").references(() => utilityBills.id),
   createdBy: uuid("created_by").notNull(),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
