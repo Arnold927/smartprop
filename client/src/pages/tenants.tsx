@@ -8,21 +8,14 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import { useAuth } from "@/hooks/useAuth";
 import {
   Plus, Search, Users, Mail, Phone, Building, Calendar,
-  DollarSign, Eye, Edit, Trash2, MoreVertical, Download,
-  CheckCircle, Clock, XCircle, Filter, X, UserPlus, ChevronRight,
+  Eye, Trash2, Download,
+  CheckCircle, Clock, XCircle, X, UserPlus, ChevronRight,
   Shield,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Card } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import {
-  DropdownMenu, DropdownMenuContent, DropdownMenuItem,
-  DropdownMenuSeparator, DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { Skeleton } from "@/components/ui/skeleton";
 import ComprehensiveTenantModal from "@/components/modals/comprehensive-tenant-modal";
 import { PageShell, PageHeader, SectionCard, SPBadge, EmptyState, PrimaryButton, SecondaryButton, FilterBar, SPTable, SPAvatar, StatTile, StatsGrid, KESAmount, ActionMenu, ConfirmDialog } from "@/components/ui/sp-ui";
 import { useRoleGuard, ROLES } from "@/hooks/useRoleGuard";
@@ -44,19 +37,6 @@ interface Tenant {
 interface Property { id: number; name: string; }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
-
-function StatusBadge({ status }: { status: string }) {
-  const m: Record<string, string> = {
-    active: "bg-emerald-50 text-emerald-700 border border-emerald-200",
-    pending: "bg-amber-100 text-amber-700",
-    inactive: "bg-muted text-muted-foreground",
-  };
-  return (
-    <span className={`text-xs px-2 py-0.5 rounded-full font-medium capitalize ${m[status] ?? m.inactive}`}>
-      {status}
-    </span>
-  );
-}
 
 function daysUntil(date?: string) {
   if (!date) return null;
@@ -139,15 +119,11 @@ function SwipeTenantCard({
         onClick={swipeX > 10 ? closeSwipe : undefined}
       >
         <div className="flex items-center gap-3">
-          <Avatar className="w-10 h-10 flex-shrink-0">
-            <AvatarFallback className="bg-blue-100 text-blue-600 text-sm font-semibold">
-              {t.firstName[0]}{t.lastName[0]}
-            </AvatarFallback>
-          </Avatar>
+          <SPAvatar name={`${t.firstName} ${t.lastName}`} size="sm" />
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 flex-wrap">
               <p className="font-semibold text-foreground text-sm truncate">{t.firstName} {t.lastName}</p>
-              <StatusBadge status={t.status} />
+              <SPBadge status={t.status} />
             </div>
             <p className="text-xs text-muted-foreground truncate mt-0.5">
               {t.unit ? `Unit ${t.unit.unitNumber}` : "No unit"} · {t.property?.name ?? "No property"}
@@ -300,145 +276,109 @@ export default function Tenants() {
   }
 
   return (
-    <div className="min-h-screen bg-background">
-      {/* Header */}
-      <div className="bg-card border-b border-border px-4 md:px-6 py-4 md:py-5">
-        <div className="max-w-7xl mx-auto flex items-center justify-between">
-          <div>
-            <h1 className="text-xl font-semibold text-foreground">Tenants</h1>
-            <p className="text-sm text-muted-foreground mt-0.5">
-              {tenants.length} tenants · {stats.active} active
-            </p>
-          </div>
-          <div className="flex items-center gap-2">
+    <PageShell>
+      <PageHeader
+        title="Tenants"
+        subtitle={`${tenants.length} tenants · ${stats.active} active`}
+        icon={<Users className="w-5 h-5" />}
+        actions={
+          <>
             {!isMobile && (
-              <Button variant="outline" size="sm" onClick={handleExport}>
-                <Download className="w-4 h-4 mr-1.5" /> Export
-              </Button>
+              <SecondaryButton icon={<Download className="w-4 h-4" />} onClick={handleExport}>
+                Export
+              </SecondaryButton>
             )}
             {/* Landlords can add tenants to their own properties directly —
                 many self-manage without a separate PM. /api/tenant-onboarding
                 now allows the landlord role (see requireRole.ts). */}
-            <Button
-              size="sm"
-              className="bg-emerald-600 hover:bg-emerald-700 text-white"
-              onClick={() => setIsAddModalOpen(true)}
-            >
-              <UserPlus className="w-4 h-4 mr-1.5" />
+            <PrimaryButton icon={<UserPlus className="w-4 h-4" />} onClick={() => setIsAddModalOpen(true)}>
               <span className="hidden sm:inline">Add tenant</span>
               <span className="sm:hidden">Add</span>
-            </Button>
-          </div>
-        </div>
-      </div>
+            </PrimaryButton>
+          </>
+        }
+      />
 
       {/* Landlord scope notice — shown only to landlords so they know the list is filtered */}
       {isLandlord && (
-        <div className="bg-blue-50 border-b border-blue-100 px-4 md:px-6 py-2.5">
-          <div className="max-w-7xl mx-auto flex items-center gap-2 text-sm text-blue-700">
+        <div className="bg-blue-50 border border-blue-100 rounded-xl px-4 py-2.5">
+          <div className="flex items-center gap-2 text-sm text-blue-700">
             <Shield className="w-4 h-4 flex-shrink-0" />
             <span>Showing only tenants in your properties.</span>
           </div>
         </div>
       )}
 
-      <div className="max-w-7xl mx-auto px-4 md:px-6 py-4 md:py-6 space-y-4 md:space-y-5">
-        {/* KPI strip */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
-          {[
-            { label: "Active",       value: stats.active,   icon: CheckCircle, color: "green" },
-            { label: "Pending",      value: stats.pending,  icon: Clock,       color: "amber" },
-            { label: "Inactive",     value: stats.inactive, icon: XCircle,     color: "gray"  },
-            { label: "Expiring 30d", value: stats.expiring, icon: Calendar,    color: stats.expiring > 0 ? "red" : "gray" },
-          ].map(({ label, value, icon: Icon, color }) => (
-            <Card key={label} className="rounded-2xl border-border shadow-none">
-              <CardContent className="p-4 md:p-5 flex items-center gap-3">
-                <div className={`w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 bg-${color}-50`}>
-                  <Icon className={`w-4 h-4 text-${color}-600`} />
-                </div>
-                <div>
-                  <p className="text-xl font-semibold text-foreground">{value}</p>
-                  <p className="text-xs text-muted-foreground">{label}</p>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
+      {/* KPI strip */}
+      <StatsGrid cols={4}>
+        <StatTile label="Active" value={stats.active} icon={<CheckCircle className="w-4 h-4" />} accent="emerald" />
+        <StatTile label="Pending" value={stats.pending} icon={<Clock className="w-4 h-4" />} accent="amber" />
+        <StatTile label="Inactive" value={stats.inactive} icon={<XCircle className="w-4 h-4" />} accent="blue" />
+        <StatTile label="Expiring 30d" value={stats.expiring} icon={<Calendar className="w-4 h-4" />} accent={stats.expiring > 0 ? "red" : "blue"} />
+      </StatsGrid>
 
-        {/* Toolbar */}
-        <div className="flex flex-wrap items-center gap-2 md:gap-3">
-          <div className="relative flex-1 min-w-[160px]">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-            <Input
-              placeholder="Search tenants..."
-              className="pl-9 h-9 border-border"
-              value={search}
-              onChange={e => handleSearchChange(e.target.value)}
-            />
-            {search && (
-              <button className="absolute right-2.5 top-1/2 -translate-y-1/2" onClick={() => handleSearchChange("")}>
-                <X className="w-3.5 h-3.5 text-muted-foreground" />
-              </button>
-            )}
-          </div>
-
-          <Select value={statusFilter} onValueChange={handleStatusChange}>
-            <SelectTrigger className="w-32 h-9 border-border text-sm">
-              <SelectValue placeholder="Status" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All statuses</SelectItem>
-              <SelectItem value="active">Active</SelectItem>
-              <SelectItem value="pending">Pending</SelectItem>
-              <SelectItem value="inactive">Inactive</SelectItem>
-            </SelectContent>
-          </Select>
-
-          {!isMobile && (
-            <Select value={propertyFilter} onValueChange={handlePropertyChange}>
-              <SelectTrigger className="w-44 h-9 border-border text-sm">
-                <SelectValue placeholder="All properties" />
+      {/* Toolbar */}
+      <FilterBar
+        search={search}
+        onSearch={handleSearchChange}
+        placeholder="Search tenants..."
+        filters={
+          <>
+            <Select value={statusFilter} onValueChange={handleStatusChange}>
+              <SelectTrigger className="w-32 h-9 border-border text-sm">
+                <SelectValue placeholder="Status" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">All properties</SelectItem>
-                {properties.map(p => (
-                  <SelectItem key={p.id} value={String(p.id)}>
-                    {p.name || `Property #${p.id}`}
-                  </SelectItem>
-                ))}
+                <SelectItem value="all">All statuses</SelectItem>
+                <SelectItem value="active">Active</SelectItem>
+                <SelectItem value="pending">Pending</SelectItem>
+                <SelectItem value="inactive">Inactive</SelectItem>
               </SelectContent>
             </Select>
-          )}
 
-          {(search || statusFilter !== "all" || propertyFilter !== "all") && (
-            <Button
-              variant="ghost" size="sm" className="h-9 text-muted-foreground"
-              onClick={() => handleClearFilters()}
-            >
-              <X className="w-3.5 h-3.5 mr-1" /> Clear
-            </Button>
-          )}
-          <span className="text-sm text-muted-foreground ml-auto">{filtered.length} results</span>
-        </div>
+            {!isMobile && (
+              <Select value={propertyFilter} onValueChange={handlePropertyChange}>
+                <SelectTrigger className="w-44 h-9 border-border text-sm">
+                  <SelectValue placeholder="All properties" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All properties</SelectItem>
+                  {properties.map(p => (
+                    <SelectItem key={p.id} value={String(p.id)}>
+                      {p.name || `Property #${p.id}`}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+          </>
+        }
+        actions={
+          <>
+            {(search || statusFilter !== "all" || propertyFilter !== "all") && (
+              <Button
+                variant="ghost" size="sm" className="h-9 text-muted-foreground"
+                onClick={() => handleClearFilters()}
+              >
+                <X className="w-3.5 h-3.5 mr-1" /> Clear
+              </Button>
+            )}
+            <span className="text-sm text-muted-foreground whitespace-nowrap">{filtered.length} results</span>
+          </>
+        }
+      />
 
         {/* MOBILE: card list */}
         {isMobile ? (
           <Card className="rounded-2xl border-border shadow-none overflow-hidden">
             {filtered.length === 0 ? (
-              <CardContent className="py-16 text-center">
-                <Users className="w-12 h-12 text-muted mx-auto mb-3" />
-                <p className="text-sm font-medium text-foreground">
-                  {search ? "No tenants match" : "No tenants yet"}
-                </p>
-                <p className="text-xs text-muted-foreground mt-1 mb-4">
-                  {search ? "Try adjusting filters" : isLandlord ? "No tenants are assigned to your properties yet" : "Add your first tenant"}
-                </p>
-                {!search && !isLandlord && (
-                  <Button size="sm" onClick={() => setIsAddModalOpen(true)}>
-                    <Plus className="w-3.5 h-3.5 mr-1" /> Add tenant
-                  </Button>
-                )}
-              </CardContent>
+              <EmptyState
+                icon={<Users />}
+                title={search ? "No tenants match" : "No tenants yet"}
+                description={search ? "Try adjusting filters" : isLandlord ? "No tenants are assigned to your properties yet" : "Add your first tenant"}
+                action={!search && !isLandlord ? { label: "Add tenant", onClick: () => setIsAddModalOpen(true) } : undefined}
+                size="lg"
+              />
             ) : (
               <>
                 <div className="px-4 py-2 bg-muted border-b border-border">
@@ -474,143 +414,116 @@ export default function Tenants() {
           </Card>
         ) : (
           /* DESKTOP: table */
-          <Card className="rounded-2xl border-border shadow-none overflow-hidden">
-            {filtered.length === 0 ? (
-              <CardContent className="py-16 text-center">
-                <Users className="w-12 h-12 text-muted mx-auto mb-3" />
-                <p className="text-sm font-medium text-foreground">
-                  {search ? "No tenants match your search" : "No tenants yet"}
-                </p>
-                <p className="text-xs text-muted-foreground mt-1 mb-4">
-                  {search ? "Try adjusting your filters" : isLandlord ? "No tenants are assigned to your properties yet" : "Add your first tenant to get started"}
-                </p>
-                {!search && !isLandlord && (
-                  <Button size="sm" onClick={() => setIsAddModalOpen(true)}>
-                    <Plus className="w-3.5 h-3.5 mr-1" /> Add tenant
-                  </Button>
-                )}
-              </CardContent>
-            ) : (
+          filtered.length === 0 ? (
+            <Card className="rounded-xl border-border shadow-sm overflow-hidden">
+              <EmptyState
+                icon={<Users />}
+                title={search ? "No tenants match your search" : "No tenants yet"}
+                description={search ? "Try adjusting your filters" : isLandlord ? "No tenants are assigned to your properties yet" : "Add your first tenant to get started"}
+                action={!search && !isLandlord ? { label: "Add tenant", onClick: () => setIsAddModalOpen(true) } : undefined}
+                size="lg"
+              />
+            </Card>
+          ) : (
               <>
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
-                    <thead className="sticky top-0 z-10"><tr className="bg-muted border-b border-border" >
-                        <th className="text-left px-4 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wide">Tenant</th>
-                        <th className="text-left px-4 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wide hidden md:table-cell">Unit / Property</th>
-                        <th className="text-left px-4 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wide hidden lg:table-cell">Lease</th>
-                        <th className="text-left px-4 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wide hidden md:table-cell">Rent</th>
-                        <th className="text-left px-4 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wide">Status</th>
-                        <th className="px-4 py-3 w-10"></th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-border">
-                      {paginated.map(t => {
+                <SPTable<Tenant>
+                  data={paginated}
+                  columns={[
+                    {
+                      header: "Tenant",
+                      cell: (t) => (
+                        <div
+                          className="flex items-center gap-3 cursor-pointer"
+                          onClick={() => navigate(withOrgParam(`/tenants/${t.id}`, orgIdParam))}
+                        >
+                          <SPAvatar name={`${t.firstName} ${t.lastName}`} size="sm" />
+                          <div className="min-w-0">
+                            <p className="font-medium text-foreground truncate">
+                              {t.firstName} {t.lastName}
+                            </p>
+                            <p className="text-xs text-muted-foreground truncate flex items-center gap-1">
+                              <Mail className="w-3 h-3" />{t.email}
+                            </p>
+                          </div>
+                        </div>
+                      ),
+                    },
+                    {
+                      header: "Unit / Property",
+                      hideOnMobile: true,
+                      cell: (t) => (
+                        <>
+                          <p className="text-foreground font-medium text-sm">
+                            {t.unit
+                              ? `Unit ${t.unit.unitNumber}`
+                              : <span className="text-muted-foreground">No unit</span>
+                            }
+                          </p>
+                          <p className="text-xs text-muted-foreground flex items-center gap-1">
+                            <Building className="w-3 h-3" />
+                            {t.property?.name ?? <span className="italic">No property</span>}
+                          </p>
+                        </>
+                      ),
+                    },
+                    {
+                      header: "Lease",
+                      hideOnMobile: true,
+                      cell: (t) => {
                         const days = daysUntil(t.leaseEndDate);
-                        return (
-                          <tr key={t.id} className="hover:bg-muted/50 transition-colors group">
-                            <td className="px-4 py-3">
-                              <div
-                                className="flex items-center gap-3 cursor-pointer"
-                                onClick={() => navigate(withOrgParam(`/tenants/${t.id}`, orgIdParam))}
-                              >
-                                <Avatar className="w-8 h-8 flex-shrink-0">
-                                  <AvatarFallback className="bg-blue-100 text-blue-600 text-xs font-medium">
-                                    {t.firstName[0]}{t.lastName[0]}
-                                  </AvatarFallback>
-                                </Avatar>
-                                <div className="min-w-0">
-                                  <p className="font-medium text-foreground truncate">
-                                    {t.firstName} {t.lastName}
-                                  </p>
-                                  <p className="text-xs text-muted-foreground truncate flex items-center gap-1">
-                                    <Mail className="w-3 h-3" />{t.email}
-                                  </p>
-                                </div>
-                              </div>
-                            </td>
-                            <td className="px-4 py-3 hidden md:table-cell">
-                              <p className="text-foreground font-medium text-sm">
-                                {t.unit
-                                  ? `Unit ${t.unit.unitNumber}`
-                                  : <span className="text-muted-foreground">No unit</span>
-                                }
-                              </p>
-                              <p className="text-xs text-muted-foreground flex items-center gap-1">
-                                <Building className="w-3 h-3" />
-                                {t.property?.name ?? <span className="italic">No property</span>}
-                              </p>
-                            </td>
-                            <td className="px-4 py-3 hidden lg:table-cell">
-                              {t.leaseEndDate ? (
-                                <div>
-                                  <p className="text-sm text-foreground">
-                                    Ends {new Date(t.leaseEndDate).toLocaleDateString("en-KE", {
-                                      day: "numeric", month: "short", year: "numeric",
-                                    })}
-                                  </p>
-                                  {days !== null && days <= 60 && days > 0 && (
-                                    <span className={`text-xs px-1.5 py-0.5 rounded font-medium ${days <= 14 ? "bg-red-100 text-red-600" : "bg-amber-100 text-amber-600"}`}>
-                                      {days}d left
-                                    </span>
-                                  )}
-                                </div>
-                              ) : (
-                                <span className="text-xs text-muted-foreground">No lease</span>
-                              )}
-                            </td>
-                            <td className="px-4 py-3 hidden md:table-cell">
-                              <span className="font-medium text-foreground">
-                                {t.monthlyRent
-                                  ? `KES ${Number(t.monthlyRent).toLocaleString()}`
-                                  : <span className="text-muted-foreground">—</span>
-                                }
+                        return t.leaseEndDate ? (
+                          <div>
+                            <p className="text-sm text-foreground">
+                              Ends {new Date(t.leaseEndDate).toLocaleDateString("en-KE", {
+                                day: "numeric", month: "short", year: "numeric",
+                              })}
+                            </p>
+                            {days !== null && days <= 60 && days > 0 && (
+                              <span className={`text-xs px-1.5 py-0.5 rounded font-medium ${days <= 14 ? "bg-red-100 text-red-600" : "bg-amber-100 text-amber-600"}`}>
+                                {days}d left
                               </span>
-                            </td>
-                            <td className="px-4 py-3">
-                              <StatusBadge status={t.status} />
-                            </td>
-                            <td className="px-4 py-3">
-                              <DropdownMenu>
-                                <DropdownMenuTrigger asChild>
-                                  <Button
-                                    variant="ghost" size="sm"
-                                    className="h-7 w-7 p-0 opacity-0 group-hover:opacity-100"
-                                  >
-                                    <MoreVertical className="w-3.5 h-3.5" />
-                                  </Button>
-                                </DropdownMenuTrigger>
-                                <DropdownMenuContent align="end" className="w-40">
-                                  <DropdownMenuItem onClick={() => navigate(withOrgParam(`/tenants/${t.id}`, orgIdParam))}>
-                                    <Eye className="w-4 h-4 mr-2" /> View
-                                  </DropdownMenuItem>
-                                  <DropdownMenuItem onClick={() => window.open(`mailto:${t.email}`, "_blank")}>
-                                    <Mail className="w-4 h-4 mr-2" /> Email
-                                  </DropdownMenuItem>
-                                  {t.phone && (
-                                    <DropdownMenuItem onClick={() => window.open(`tel:${t.phone}`, "_self")}>
-                                      <Phone className="w-4 h-4 mr-2" /> Call
-                                    </DropdownMenuItem>
-                                  )}
-                                  <DropdownMenuSeparator />
-                                  <DropdownMenuItem
-                                    className="text-red-600"
-                                    onClick={() => {
-                                      if (confirm(`Remove ${t.firstName} ${t.lastName}?`)) {
-                                        deleteMutation.mutate(t.id);
-                                      }
-                                    }}
-                                  >
-                                    <Trash2 className="w-4 h-4 mr-2" /> Remove
-                                  </DropdownMenuItem>
-                                </DropdownMenuContent>
-                              </DropdownMenu>
-                            </td>
-                          </tr>
+                            )}
+                          </div>
+                        ) : (
+                          <span className="text-xs text-muted-foreground">No lease</span>
                         );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
+                      },
+                    },
+                    {
+                      header: "Rent",
+                      hideOnMobile: true,
+                      cell: (t) => t.monthlyRent
+                        ? <KESAmount amount={t.monthlyRent} />
+                        : <span className="text-muted-foreground">—</span>,
+                    },
+                    {
+                      header: "Status",
+                      cell: (t) => <SPBadge status={t.status} />,
+                    },
+                    {
+                      header: "",
+                      align: "right",
+                      cell: (t) => (
+                        <ActionMenu
+                          items={[
+                            { label: "View", icon: <Eye className="w-4 h-4" />, onClick: () => navigate(withOrgParam(`/tenants/${t.id}`, orgIdParam)) },
+                            { label: "Email", icon: <Mail className="w-4 h-4" />, onClick: () => window.open(`mailto:${t.email}`, "_blank") },
+                            ...(t.phone ? [{ label: "Call", icon: <Phone className="w-4 h-4" />, onClick: () => window.open(`tel:${t.phone}`, "_self") }] : []),
+                            {
+                              label: "Remove", icon: <Trash2 className="w-4 h-4" />, destructive: true,
+                              onClick: () => {
+                                if (confirm(`Remove ${t.firstName} ${t.lastName}?`)) {
+                                  deleteMutation.mutate(t.id);
+                                }
+                              },
+                            },
+                          ]}
+                        />
+                      ),
+                    },
+                  ]}
+                />
+
                 {/* Desktop pagination */}
                 <div className="flex flex-col sm:flex-row items-center justify-between gap-3 px-4 py-3 border-t border-border">
                   <div className="flex items-center gap-2 text-sm text-muted-foreground">
@@ -660,10 +573,8 @@ export default function Tenants() {
                   </div>
                 </div>
               </>
-            )}
-          </Card>
+            )
         )}
-      </div>
 
       <ComprehensiveTenantModal
         isOpen={isAddModalOpen}
@@ -674,6 +585,6 @@ export default function Tenants() {
         properties={Array.isArray(properties) ? properties : []}
         organizationId={orgIdParam}
       />
-    </div>
+    </PageShell>
   );
 }
