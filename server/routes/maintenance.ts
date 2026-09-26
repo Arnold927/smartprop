@@ -8,6 +8,7 @@ import { authenticateJWT } from '../middleware/auth';
 import { requireOrg } from '../middleware/requireOrg';
 import { notifyTenant } from '../services/notifyTenant';
 import { storage } from '../storage';
+import { exceedsApprovalThreshold } from './maintenance-item-guard';
 import { 
   maintenanceRequests, contractors, tenants, units, properties,
   projects, projectTasks, projectMilestones,
@@ -152,7 +153,21 @@ maintenanceListRouter.get('/', authenticateJWT, requireOrg, async (req: any, res
 const maintenanceRouter = createCRUDRouter({
   table: maintenanceRequests,
   insertSchema: insertMaintenanceRequestSchema as unknown as AnyZodObject,
-  organizationScoped: true
+  organizationScoped: true,
+  preCreateMiddleware: [
+    async (req: any, _res, next) => {
+      // A request filed with an estimated cost already above the property's
+      // PM agreement threshold starts in pending_approval, same gate as
+      // maintenance-item-guard.ts applies when a cost is added later via
+      // an update instead. Only overrides when the caller hasn't already
+      // set an explicit status themselves.
+      if (!req.body.status && req.body.estimatedCost != null && req.body.unitId != null) {
+        const needsApproval = await exceedsApprovalThreshold(req.body.unitId, req.body.estimatedCost);
+        if (needsApproval) req.body.status = "pending_approval";
+      }
+      next();
+    },
+  ],
 });
 
 const contractorRouter = createCRUDRouter({

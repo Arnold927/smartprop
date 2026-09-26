@@ -573,6 +573,7 @@ router.post("/:id/approve", auditLog("maintenance_request", "ACTION"), async (re
     if (!existing) return res.status(404).json({ message: "Maintenance request not found" });
 
     const updateData: Record<string, any> = {
+      status: approvalStatus === "approved" ? "pending" : "cancelled",
       approvedBy: approvalStatus === "approved" ? req.user.id : null,
       approvedDate: approvalStatus === "approved" ? new Date() : null,
       rejectionReason: approvalStatus === "rejected" ? (comments ?? "Rejected") : null,

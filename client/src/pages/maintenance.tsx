@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import { apiRequest, ensureArray } from "@/lib/queryClient";
@@ -99,14 +99,18 @@ function ApprovalDialog({
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  // Reset state when a new request is loaded
-  useState(() => {
+  // Reset state whenever a different request is loaded into this dialog —
+  // must be useEffect, not useState: this component instance persists across
+  // different requests (no key prop forces a remount), so a useState
+  // initializer would only ever run once, on the very first request shown,
+  // leaking stale comments/approvedAmount into every subsequent approval.
+  useEffect(() => {
     if (request) {
       setDecision("approved");
       setComments("");
       setApprovedAmount(request.estimatedCost ?? "");
     }
-  });
+  }, [request]);
 
   const approvalMutation = useMutation({
     mutationFn: async ({ id, payload }: { id: number; payload: object }) => {

@@ -12,7 +12,7 @@ import type { PgTableWithColumns } from "drizzle-orm/pg-core";
 // Enums
 export const currencyEnum = pgEnum("currency", ["KES", "USD", "EUR", "GBP", "CAD", "AUD", "JPY", "CHF", "CNY"]);
 export const priorityEnum = pgEnum("priority", ["low", "medium", "high", "urgent"]);
-export const maintenanceStatusEnum = pgEnum("maintenance_status", ["pending", "assigned", "in_progress", "completed", "cancelled"]);
+export const maintenanceStatusEnum = pgEnum("maintenance_status", ["pending", "pending_approval", "assigned", "in_progress", "completed", "cancelled"]);
 export const messageChannelEnum = pgEnum("message_channel", ["app", "sms", "email", "push"]);
 export const messageTypeEnum = pgEnum("message_type", ["chat", "invoice_reminder", "maintenance_update", "payment_confirmation", "system_notification"]);
 export const visitorStatusEnum = pgEnum("visitor_status", ["pending", "approved", "checked_in", "checked_out", "denied", "expired"]);
@@ -1627,8 +1627,15 @@ export const updateRentPaymentSchema = z.object({
 
 // Update the insertMaintenanceRequestSchema
 export const insertMaintenanceRequestSchema = z.object({
-  // Make ticketNumber optional with a default value
-  ticketNumber: z.string().optional().default(generateTicketNumber()),
+  // ticketNumber defaults to a freshly-generated value on every parse —
+  // must be a function reference, not a called value: .default(fn()) would
+  // call generateTicketNumber() exactly once, when this module first loads,
+  // and then reuse that same single string as the default for every
+  // request ever created afterward until the server restarts. That's
+  // exactly what was happening — every request without an explicit
+  // ticketNumber got the identical value, colliding on the unique
+  // constraint after the first one.
+  ticketNumber: z.string().optional().default(() => generateTicketNumber()),
   tenantId: z.number().min(1),
   unitId: z.number().min(1),
   contractorId: z.number().optional(),
@@ -1636,7 +1643,7 @@ export const insertMaintenanceRequestSchema = z.object({
   description: z.string().min(1),
   category: z.enum(["plumbing", "electrical", "hvac", "carpentry", "painting", "cleaning", "landscaping", "appliance", "security", "other"]).optional().default("other"),
   priority: z.enum(["low", "medium", "high", "urgent"]),
-  status: z.enum(["pending", "assigned", "in_progress", "completed", "cancelled"]).optional().default("pending"),
+  status: z.enum(["pending", "pending_approval", "assigned", "in_progress", "completed", "cancelled"]).optional().default("pending"),
   assignedTo: z.string().optional(),
   assignedDate: z.string().optional(),
   startedDate: z.string().optional(),

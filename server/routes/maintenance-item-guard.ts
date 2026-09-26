@@ -24,7 +24,7 @@
 
 import { Router } from "express";
 import { db } from "../db";
-import { maintenanceRequests, tenants, units, properties, insertMaintenanceRequestSchema } from "@shared/schema";
+import { maintenanceRequests, tenants, units, properties, pmAgreements, insertMaintenanceRequestSchema } from "@shared/schema";
 import { eq, and } from "drizzle-orm";
 import { authenticateJWT } from "../middleware/auth";
 import { requireOrg } from "../middleware/requireOrg";
@@ -80,6 +80,31 @@ export async function callerCanAccess(row: NonNullable<Awaited<ReturnType<typeof
   return true;
 }
 
+/** If this unit's property has a PM agreement with a maintenance approval
+ *  threshold, and the given cost exceeds it, this request needs manager
+ *  sign-off before work proceeds. Returns false (no gate) if there's no
+ *  PM agreement at all — only properties with one actually have a
+ *  threshold to check against.
+ *  Exported for reuse by maintenance.ts's POST / (creation) path, which
+ *  has the identical need to gate a request at the same threshold. */
+export async function exceedsApprovalThreshold(unitId: number | null | undefined, estimatedCost: string | number | null | undefined): Promise<boolean> {
+  if (unitId == null || estimatedCost == null || estimatedCost === "") return false;
+  const cost = typeof estimatedCost === "string" ? parseFloat(estimatedCost) : estimatedCost;
+  if (!Number.isFinite(cost)) return false;
+
+  const [unit] = await db.select({ propertyId: units.propertyId }).from(units).where(eq(units.id, unitId)).limit(1);
+  if (!unit?.propertyId) return false;
+
+  const [agreement] = await db
+    .select({ threshold: pmAgreements.maintenanceApprovalThreshold })
+    .from(pmAgreements)
+    .where(and(eq(pmAgreements.propertyId, unit.propertyId), eq(pmAgreements.status, "active")))
+    .limit(1);
+  if (!agreement) return false;
+
+  return cost > parseFloat(agreement.threshold ?? "0");
+}
+
 router.get("/:id", async (req: any, res: any) => {
   try {
     const id = parseInt(req.params.id);
@@ -111,6 +136,21 @@ async function handleUpdate(req: any, res: any) {
     }
 
     const validated = insertMaintenanceRequestSchema.partial().parse(req.body);
+
+    // If this update sets/changes the estimated cost past the property's PM
+    // agreement threshold, gate it for approval — but only if the request
+    // is still in its initial "pending" state (don't yank something already
+    // assigned/in-progress back into approval limbo) and the caller isn't
+    // already explicitly setting some other status themselves.
+    const currentRow = await db.select({ status: maintenanceRequests.status, unitId: maintenanceRequests.unitId }).from(maintenanceRequests).where(eq(maintenanceRequests.id, id)).limit(1);
+    const wasPending = currentRow[0]?.status === "pending";
+    if (wasPending && validated.estimatedCost !== undefined && validated.status === undefined) {
+      const needsApproval = await exceedsApprovalThreshold(validated.unitId ?? currentRow[0]?.unitId, validated.estimatedCost);
+      if (needsApproval) {
+        (validated as any).status = "pending_approval";
+      }
+    }
+
     const [updated] = await db
       .update(maintenanceRequests)
       .set(validated as any)
