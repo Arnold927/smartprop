@@ -779,177 +779,96 @@ export default function PropertyDetailsPage() {
 
           {/* ── Payments tab (rent + utility, this property only) ── */}
           <TabsContent value="payments" className="m-0 space-y-6">
-            <Card>
-              <CardHeader><CardTitle className="text-base">Rent Payments</CardTitle></CardHeader>
-              <CardContent>
-                {rentPaymentsLoading ? (
-                  <div className="space-y-2">
-                    <Skeleton className="h-10 w-full" />
-                    <Skeleton className="h-10 w-full" />
-                  </div>
-                ) : propertyRentPayments.length === 0 ? (
-                  <p className="text-sm text-muted-foreground py-6 text-center">No rent payments recorded for this property yet.</p>
-                ) : (
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-sm">
-                      <thead>
-                        <tr className="text-left text-muted-foreground border-b border-border dark:border-gray-800">
-                          <th className="py-2 pr-4 font-medium">Tenant</th>
-                          <th className="py-2 pr-4 font-medium">Amount</th>
-                          <th className="py-2 pr-4 font-medium">Due date</th>
-                          <th className="py-2 pr-4 font-medium">Paid date</th>
-                          <th className="py-2 pr-4 font-medium">Status</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {propertyRentPayments.map((p: any) => (
-                          <tr key={p.id} className="border-b border-border/50 dark:border-gray-800/50">
-                            <td className="py-2 pr-4">{p.tenant?.firstName ?? ""} {p.tenant?.lastName ?? ""}</td>
-                            <td className="py-2 pr-4">KES {Number(p.amount ?? 0).toLocaleString()}</td>
-                            <td className="py-2 pr-4">{p.dueDate ?? "—"}</td>
-                            <td className="py-2 pr-4">{p.paidDate ?? "—"}</td>
-                            <td className="py-2 pr-4">
-                              <Badge variant="outline" className={STATUS_COLORS[p.status] ?? ""}>{p.status}</Badge>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
+            <SectionCard title="Rent Payments" padding="none">
+              <SPTable
+                data={propertyRentPayments}
+                loading={rentPaymentsLoading}
+                emptyState={
+                  <EmptyState icon={<CreditCard />} title="No rent payments recorded for this property yet." />
+                }
+                columns={[
+                  { header: "Tenant", cell: (p: any) => `${p.tenant?.firstName ?? ""} ${p.tenant?.lastName ?? ""}` },
+                  { header: "Amount", cell: (p: any) => <KESAmount amount={p.amount ?? 0} /> },
+                  { header: "Due date", cell: (p: any) => p.dueDate ?? "—", hideOnMobile: true },
+                  { header: "Paid date", cell: (p: any) => p.paidDate ?? "—", hideOnMobile: true },
+                  { header: "Status", cell: (p: any) => <SPBadge status={p.status} /> },
+                ]}
+              />
+            </SectionCard>
 
-            <Card>
-              <CardHeader><CardTitle className="text-base">Utility Bills</CardTitle></CardHeader>
-              <CardContent>
-                {utilityBillsLoading ? (
-                  <div className="space-y-2">
-                    <Skeleton className="h-10 w-full" />
-                    <Skeleton className="h-10 w-full" />
-                  </div>
-                ) : propertyUtilityBills.length === 0 ? (
-                  <p className="text-sm text-muted-foreground py-6 text-center">No utility bills recorded for this property yet.</p>
-                ) : (
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-sm">
-                      <thead>
-                        <tr className="text-left text-muted-foreground border-b border-border dark:border-gray-800">
-                          <th className="py-2 pr-4 font-medium">Bill</th>
-                          <th className="py-2 pr-4 font-medium">Type</th>
-                          <th className="py-2 pr-4 font-medium">Amount</th>
-                          <th className="py-2 pr-4 font-medium">Due date</th>
-                          <th className="py-2 pr-4 font-medium">Status</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {propertyUtilityBills.map((b: any) => (
-                          <tr key={b.id} className="border-b border-border/50 dark:border-gray-800/50">
-                            <td className="py-2 pr-4">{b.billNumber ?? `#${b.id}`}</td>
-                            <td className="py-2 pr-4 capitalize">{b.utilityType ?? "—"}</td>
-                            <td className="py-2 pr-4">KES {Number(b.amount ?? 0).toLocaleString()}</td>
-                            <td className="py-2 pr-4">{b.dueDate ? new Date(b.dueDate).toLocaleDateString() : "—"}</td>
-                            <td className="py-2 pr-4">
-                              <Badge variant="outline" className={STATUS_COLORS[b.status] ?? ""}>{b.status}</Badge>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
+            <SectionCard title="Utility Bills" padding="none">
+              <SPTable
+                data={propertyUtilityBills}
+                loading={utilityBillsLoading}
+                emptyState={
+                  <EmptyState icon={<FileText />} title="No utility bills recorded for this property yet." />
+                }
+                columns={[
+                  { header: "Bill", cell: (b: any) => b.billNumber ?? `#${b.id}` },
+                  { header: "Type", cell: (b: any) => <span className="capitalize">{b.utilityType ?? "—"}</span>, hideOnMobile: true },
+                  { header: "Amount", cell: (b: any) => <KESAmount amount={b.amount ?? 0} /> },
+                  { header: "Due date", cell: (b: any) => b.dueDate ? new Date(b.dueDate).toLocaleDateString() : "—", hideOnMobile: true },
+                  { header: "Status", cell: (b: any) => <SPBadge status={b.status} /> },
+                ]}
+              />
+            </SectionCard>
           </TabsContent>
 
           {/* ── Maintenance tab (this property only) ── */}
           <TabsContent value="maintenance" className="m-0">
-            <Card>
-              <CardContent className="pt-6">
-                {maintenanceLoading ? (
-                  <div className="space-y-2">
-                    <Skeleton className="h-10 w-full" />
-                    <Skeleton className="h-10 w-full" />
-                  </div>
-                ) : propertyMaintenanceRequests.length === 0 ? (
-                  <div className="text-center py-12">
-                    <Wrench className="h-12 w-12 text-muted-foreground mx-auto mb-4 opacity-20" />
-                    <h3 className="text-lg font-semibold">No maintenance requests</h3>
-                    <p className="text-muted-foreground mt-2">Nothing has been reported for this property yet.</p>
-                  </div>
-                ) : (
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-sm">
-                      <thead>
-                        <tr className="text-left text-muted-foreground border-b border-border dark:border-gray-800">
-                          <th className="py-2 pr-4 font-medium">Ticket</th>
-                          <th className="py-2 pr-4 font-medium">Title</th>
-                          <th className="py-2 pr-4 font-medium">Unit</th>
-                          <th className="py-2 pr-4 font-medium">Priority</th>
-                          <th className="py-2 pr-4 font-medium">Status</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {propertyMaintenanceRequests.map((r: any) => (
-                          <tr key={r.id} className="border-b border-border/50 dark:border-gray-800/50">
-                            <td className="py-2 pr-4">{r.ticketNumber ?? `#${r.id}`}</td>
-                            <td className="py-2 pr-4">{r.title}</td>
-                            <td className="py-2 pr-4">{r.unitNumber ?? "—"}</td>
-                            <td className="py-2 pr-4 capitalize">{r.priority}</td>
-                            <td className="py-2 pr-4">
-                              <Badge variant="outline" className={STATUS_COLORS[r.status] ?? ""}>{r.status}</Badge>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
+            <SectionCard padding="none">
+              <SPTable
+                data={propertyMaintenanceRequests}
+                loading={maintenanceLoading}
+                emptyState={
+                  <EmptyState icon={<Wrench />} title="No maintenance requests" description="Nothing has been reported for this property yet." size="lg" />
+                }
+                columns={[
+                  { header: "Ticket", cell: (r: any) => r.ticketNumber ?? `#${r.id}` },
+                  { header: "Title", cell: (r: any) => r.title },
+                  { header: "Unit", cell: (r: any) => r.unitNumber ?? "—", hideOnMobile: true },
+                  { header: "Priority", cell: (r: any) => <span className="capitalize">{r.priority}</span>, hideOnMobile: true },
+                  { header: "Status", cell: (r: any) => <SPBadge status={r.status} /> },
+                ]}
+              />
+            </SectionCard>
           </TabsContent>
 
           {/* ── Documents tab (this property only) ── */}
           <TabsContent value="property-documents" className="m-0">
-            <Card>
-              <CardContent className="pt-6">
-                {documentsLoading ? (
-                  <div className="space-y-2">
-                    <Skeleton className="h-10 w-full" />
-                    <Skeleton className="h-10 w-full" />
-                  </div>
-                ) : propertyDocuments.length === 0 ? (
-                  <div className="text-center py-12">
-                    <FileText className="h-12 w-12 text-muted-foreground mx-auto mb-4 opacity-20" />
-                    <h3 className="text-lg font-semibold">No documents yet</h3>
-                    <p className="text-muted-foreground mt-2">Documents tied to this property will appear here.</p>
-                  </div>
-                ) : (
-                  <div className="divide-y divide-border dark:divide-gray-800">
-                    {propertyDocuments.map((d: any) => (
-                      <div key={d.id} className="flex items-center justify-between py-3">
-                        <div className="flex items-center gap-3">
-                          <FileText className="h-4 w-4 text-muted-foreground shrink-0" />
-                          <div>
-                            <p className="text-sm font-medium">{d.name}</p>
-                            <p className="text-xs text-muted-foreground capitalize">{d.type ?? "document"}</p>
-                          </div>
+            <SectionCard padding="none">
+              {documentsLoading ? (
+                <div className="space-y-2 p-5">
+                  <Skeleton className="h-10 w-full" />
+                  <Skeleton className="h-10 w-full" />
+                </div>
+              ) : propertyDocuments.length === 0 ? (
+                <EmptyState icon={<FileText />} title="No documents yet" description="Documents tied to this property will appear here." size="lg" />
+              ) : (
+                <div className="divide-y divide-border">
+                  {propertyDocuments.map((d: any) => (
+                    <div key={d.id} className="flex items-center justify-between px-5 py-3">
+                      <div className="flex items-center gap-3">
+                        <FileText className="h-4 w-4 text-muted-foreground shrink-0" />
+                        <div>
+                          <p className="text-sm font-medium">{d.name}</p>
+                          <p className="text-xs text-muted-foreground capitalize">{d.type ?? "document"}</p>
                         </div>
-                        <a
-                          href={d.url}
-                          download={d.name}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground"
-                        >
-                          <Download className="h-3.5 w-3.5" /> Download
-                        </a>
                       </div>
-                    ))}
-                  </div>
-                )}
-              </CardContent>
-            </Card>
+                      <a
+                        href={d.url}
+                        download={d.name}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground"
+                      >
+                        <Download className="h-3.5 w-3.5" /> Download
+                      </a>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </SectionCard>
           </TabsContent>
 
         </Tabs>

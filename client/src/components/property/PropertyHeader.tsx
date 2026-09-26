@@ -93,7 +93,7 @@ export function PropertyHeader({ property, onAddUnit, onAddTenant, onEdit, onDel
             )}
 
             <div className="min-w-0">
-              <h1 className="text-2xl md:text-3xl font-bold text-slate-900 leading-tight truncate">
+              <h1 className="text-2xl md:text-3xl font-bold text-foreground leading-tight truncate">
                 {property.name}
               </h1>
               <div className="flex items-center text-muted-foreground mt-1 gap-1">
@@ -207,7 +207,7 @@ export function PropertyHeader({ property, onAddUnit, onAddTenant, onEdit, onDel
               </div>
               <div className="min-w-0">
                 <p className="text-[11px] uppercase tracking-wide text-muted-foreground font-medium">{kpi.label}</p>
-                <p className="text-base font-bold text-slate-900 leading-tight truncate">{kpi.value}</p>
+                <p className="text-base font-bold text-foreground leading-tight truncate">{kpi.value}</p>
                 <p className="text-[11px] text-muted-foreground">{kpi.sub}</p>
               </div>
             </div>
