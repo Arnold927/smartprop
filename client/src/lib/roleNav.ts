@@ -70,6 +70,7 @@ const getCoreManagerItems = (t: (k: string) => string) => [
       { name: t("nav.utilities"),        href: "/utility-management" },
       { name: t("nav.owner_statements"), href: "/owner-statements" },
       { name: t("nav.general_ledger"),   href: "/general-ledger" },
+      { name: t("nav.billing"),         href: "/billing" },
     ],
   },
   {
@@ -107,26 +108,38 @@ const getCoreManagerItems = (t: (k: string) => string) => [
     children: [
       { name: t("nav.organization"), href: "/organization-management" },
       { name: t("nav.users_roles"),  href: "/user-management" },
-      { name: t("nav.billing"),      href: "/billing" },
+      // Subscription billing (admin-only) is added in getAdminNav, not here —
+      // this shared list is used by both admin and manager, and managing the
+      // org's own SmartProp subscription (plan, payment, cancellation) is an
+      // ownership-level decision that shouldn't be a Manager's to make.
     ],
   },
 ];
 
-const getAdminNav = (t: (k: string) => string): NavGroup[] => [{
-  label: "",
-  items: [
-    ...getCoreManagerItems(t).slice(0, 5),
-    {
-      name: t("nav.comms"), href: "/messages", icon: MessageCircle,
-      children: [
-        { name: t("nav.internal_messages"), href: "/messages" },
-        { name: t("nav.whatsapp_channel"),  href: "/whatsapp-integration" },
-        { name: t("nav.broadcast"),         href: "/broadcast-messaging" },
-      ],
-    },
-    ...getCoreManagerItems(t).slice(5),
-  ],
-}];
+const getAdminNav = (t: (k: string) => string): NavGroup[] => {
+  const coreItems = getCoreManagerItems(t);
+  // Subscription billing (upgrading/cancelling the org's own SmartProp plan)
+  // is admin-only — added here rather than in the shared getCoreManagerItems
+  // list, which getManagerNav also pulls from.
+  const settingsItem = coreItems.find(item => item.href === "/organization-management");
+  settingsItem?.children?.push({ name: t("nav.billing"), href: "/subscription" });
+
+  return [{
+    label: "",
+    items: [
+      ...coreItems.slice(0, 5),
+      {
+        name: t("nav.comms"), href: "/messages", icon: MessageCircle,
+        children: [
+          { name: t("nav.internal_messages"), href: "/messages" },
+          { name: t("nav.whatsapp_channel"),  href: "/whatsapp-integration" },
+          { name: t("nav.broadcast"),         href: "/broadcast-messaging" },
+        ],
+      },
+      ...coreItems.slice(5),
+    ],
+  }];
+};
 
 const getManagerNav = (t: (k: string) => string): NavGroup[] => [{
   label: "",

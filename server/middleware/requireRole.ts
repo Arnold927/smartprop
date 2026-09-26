@@ -28,6 +28,7 @@ import { Request, Response, NextFunction } from 'express';
 export type AppRole = 'platform_admin' | 'admin' | 'manager' | 'landlord' | 'staff' | 'caretaker' | 'tenant' | 'guard' | 'contractor';
 
 const ADMIN_MANAGER:           AppRole[] = ['admin', 'manager'];
+const ADMIN_ONLY:              AppRole[] = ['admin'];
 const ADMIN_MANAGER_LANDLORD:  AppRole[] = ['admin', 'manager', 'landlord'];
 const ADMIN_MANAGER_STAFF:     AppRole[] = ['admin', 'manager', 'staff'];
 const ADMIN_MANAGER_LANDLORD_STAFF: AppRole[] = ['admin', 'manager', 'landlord', 'staff'];
@@ -64,7 +65,7 @@ export const ROUTE_POLICY: Record<string, AppRole[]> = {
   '/api/roles':                      ADMIN_MANAGER,
   '/api/users':                      ADMIN_MANAGER,
   '/api/organizations':              ADMIN_MANAGER,           // org settings & multi-tenant admin
-  '/api/billing':                    ADMIN_MANAGER,
+  '/api/billing':                    ADMIN_ONLY,
   '/api/billing-cycles':             ADMIN_MANAGER,
   '/api/reports':                    ADMIN_MANAGER,
   '/api/report-schedule':            ADMIN_MANAGER,           // automated report scheduler
