@@ -31,7 +31,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
@@ -204,30 +203,6 @@ function LeaseRow({ lease, onClick }: { lease: Lease; onClick: () => void }) {
 
       <ChevronRight className="w-4 h-4 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0" />
     </div>
-  );
-}
-
-// ─── Stat card ────────────────────────────────────────────────────────────────
-
-function StatCard({ label, value, sub, icon, accent }: {
-  label: string; value: string | number; sub?: string;
-  icon: React.ReactNode; accent: string;
-}) {
-  return (
-    <Card className="border-border">
-      <CardContent className="p-5">
-        <div className="flex items-start justify-between">
-          <div>
-            <p className="text-xs text-muted-foreground font-medium mb-1">{label}</p>
-            <p className="text-2xl font-semibold text-foreground">{value}</p>
-            {sub && <p className="text-xs text-muted-foreground mt-0.5">{sub}</p>}
-          </div>
-          <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${accent}`}>
-            {icon}
-          </div>
-        </div>
-      </CardContent>
-    </Card>
   );
 }
 
@@ -1062,53 +1037,49 @@ export default function LeasesPage() {
   const allView      = applySearchAndPage(allFiltered, allTab.search,      allTab.page,      allTab.pageSize);
 
   return (
-    <div className="p-6 space-y-6 max-w-7xl mx-auto">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold text-foreground">Lease Management</h1>
-          <p className="text-sm text-muted-foreground mt-0.5">
-            {isLandlord
-              ? "Your properties' lease agreements, renewals, escalations and deposits"
-              : "Manage lease agreements, renewals, escalations and deposits"}
-          </p>
-        </div>
-        {canManageLeases && (
-          <Button onClick={() => setShowCreate(true)}>
-            <Plus className="w-4 h-4 mr-2" />New Lease
-          </Button>
+    <PageShell>
+      <PageHeader
+        title="Lease Management"
+        subtitle={isLandlord
+          ? "Your properties' lease agreements, renewals, escalations and deposits"
+          : "Manage lease agreements, renewals, escalations and deposits"}
+        icon={<FileText className="w-5 h-5" />}
+        actions={canManageLeases && (
+          <PrimaryButton icon={<Plus className="w-4 h-4" />} onClick={() => setShowCreate(true)}>
+            New Lease
+          </PrimaryButton>
         )}
-      </div>
+      />
 
       {/* Stats */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatCard
+      <StatsGrid cols={4}>
+        <StatTile
           label="Active leases"
           value={active.length}
-          icon={<CheckCircle2 className="w-5 h-5 text-emerald-600" />}
-          accent="bg-emerald-50 dark:bg-emerald-950/40"
+          icon={<CheckCircle2 className="w-4 h-4" />}
+          accent="emerald"
         />
-        <StatCard
+        <StatTile
           label="Monthly rent roll"
           value={fmtKES(totalActiveRent, currency)}
-          icon={<Banknote className="w-5 h-5 text-blue-600" />}
-          accent="bg-blue-50 dark:bg-blue-950/40"
+          icon={<Banknote className="w-4 h-4" />}
+          accent="blue"
         />
-        <StatCard
+        <StatTile
           label="Expiring (90 days)"
           value={expiring.length}
           sub={expiring.filter(l => daysLeft(l.endDate) <= 30).length + " critical (≤30d)"}
-          icon={<AlertTriangle className="w-5 h-5 text-amber-600" />}
-          accent="bg-amber-50 dark:bg-amber-950/40"
+          icon={<AlertTriangle className="w-4 h-4" />}
+          accent="amber"
         />
-        <StatCard
+        <StatTile
           label="Awaiting action"
           value={drafts.length}
           sub="drafts + pending signatures"
-          icon={<PenLine className="w-5 h-5 text-violet-600" />}
-          accent="bg-violet-50 dark:bg-violet-950/40"
+          icon={<PenLine className="w-4 h-4" />}
+          accent="violet"
         />
-      </div>
+      </StatsGrid>
 
       {/* Tabs */}
       <Tabs defaultValue="active">
@@ -1133,7 +1104,7 @@ export default function LeasesPage() {
 
         {/* Active */}
         <TabsContent value="active">
-          <Card className="border-border">
+          <SectionCard padding="none">
             <TabToolbar
               search={activeTab.search} onSearch={activeTab.setSearch}
               pageSize={activeTab.pageSize} onPageSize={activeTab.setPageSize}
@@ -1149,12 +1120,12 @@ export default function LeasesPage() {
             ) : (
               activeView.paged.map(l => <LeaseRow key={l.id} lease={l} onClick={() => setSelectedLease(l)} />)
             )}
-          </Card>
+          </SectionCard>
         </TabsContent>
 
         {/* Expiring */}
         <TabsContent value="expiring">
-          <Card className="border-border">
+          <SectionCard padding="none">
             <TabToolbar
               search={expiringTab.search} onSearch={expiringTab.setSearch}
               pageSize={expiringTab.pageSize} onPageSize={expiringTab.setPageSize}
@@ -1168,12 +1139,12 @@ export default function LeasesPage() {
             ) : (
               expiringView.paged.map(l => <LeaseRow key={l.id} lease={l} onClick={() => setSelectedLease(l)} />)
             )}
-          </Card>
+          </SectionCard>
         </TabsContent>
 
         {/* Drafts */}
         <TabsContent value="drafts">
-          <Card className="border-border">
+          <SectionCard padding="none">
             <TabToolbar
               search={draftsTab.search} onSearch={draftsTab.setSearch}
               pageSize={draftsTab.pageSize} onPageSize={draftsTab.setPageSize}
@@ -1187,12 +1158,12 @@ export default function LeasesPage() {
             ) : (
               draftsView.paged.map(l => <LeaseRow key={l.id} lease={l} onClick={() => setSelectedLease(l)} />)
             )}
-          </Card>
+          </SectionCard>
         </TabsContent>
 
         {/* All */}
         <TabsContent value="all">
-          <Card className="border-border">
+          <SectionCard padding="none">
             <div className="px-5 pt-4 pb-3 border-b border-border space-y-2">
               <div className="flex gap-2 items-center flex-wrap">
                 <div className="relative flex-1 min-w-[180px]">
@@ -1253,7 +1224,7 @@ export default function LeasesPage() {
             ) : (
               allView.paged.map(l => <LeaseRow key={l.id} lease={l} onClick={() => setSelectedLease(l)} />)
             )}
-          </Card>
+          </SectionCard>
         </TabsContent>
       </Tabs>
 
@@ -1266,6 +1237,6 @@ export default function LeasesPage() {
         open={!!selectedLease}
         onClose={() => setSelectedLease(null)}
       />
-    </div>
+    </PageShell>
   );
 }
