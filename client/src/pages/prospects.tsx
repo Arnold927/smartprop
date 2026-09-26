@@ -20,11 +20,12 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Separator } from "@/components/ui/separator";
 import { useRoleGuard, ROLES } from "@/hooks/useRoleGuard";
 import { useAuth } from "@/hooks/useAuth";
+import { PageShell, PageHeader, SectionCard, SPBadge, EmptyState, PrimaryButton, SecondaryButton, FilterBar, SPTable, SPAvatar, StatTile, StatsGrid, KESAmount, ActionMenu, ConfirmDialog } from "@/components/ui/sp-ui";
 
 import {
   Users, Plus, Loader2, ChevronRight, CheckCircle2, X, Calendar,
   Building, UserCheck, ClipboardList,
-  ArrowRight, Home, Search, Filter, ChevronDown, ChevronUp,
+  ArrowRight, Home, Filter, ChevronDown, ChevronUp,
   Briefcase, Star, Clock, AlertCircle, Mail as MailIcon, Phone as PhoneIcon,
 } from "lucide-react";
 
@@ -420,9 +421,7 @@ function PipelineView({ properties, onSelectProspect }: { properties: any[]; onS
                       <div className="divide-y divide-border">
                         {cards.map((p: any) => (
                           <button key={p.id} className="w-full flex items-center gap-4 px-5 py-3.5 hover:bg-muted/30 transition-colors text-left" onClick={() => onSelectProspect(p)}>
-                            <div className="w-9 h-9 rounded-full bg-muted flex items-center justify-center flex-shrink-0 font-semibold text-sm text-muted-foreground">
-                              {p.firstName?.[0]}{p.lastName?.[0]}
-                            </div>
+                            <SPAvatar name={`${p.firstName ?? ""} ${p.lastName ?? ""}`} size="sm" />
                             <div className="flex-1 min-w-0">
                               <p className="font-semibold text-sm text-foreground">{p.firstName} {p.lastName}</p>
                               <p className="text-xs text-muted-foreground truncate">{p.email}{p.phone ? ` · ${p.phone}` : ""}</p>
@@ -459,58 +458,82 @@ function PipelineView({ properties, onSelectProspect }: { properties: any[]; onS
 
 // ── All prospects list ─────────────────────────────────────────────────────────
 
-function AllProspectsView({ onSelect }: { onSelect: (p: any) => void }) {
+function AllProspectsView({ onSelect, properties, prospects: allProspects }: { onSelect: (p: any) => void; properties: any[]; prospects: any[] }) {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
-
-  const { data: allProspects = [], isLoading } = useQuery({
-    queryKey: ["/api/prospects"],
-    queryFn: async () => ensureArray(await (await apiRequest("/api/prospects")).json()),
-  });
+  const [propertyFilter, setPropertyFilter] = useState("all");
+  const [sourceFilter, setSourceFilter] = useState("all");
 
   const filtered = (allProspects as any[]).filter((p: any) => {
     const q = search.toLowerCase();
     return (!q || `${p.firstName} ${p.lastName} ${p.email} ${p.phone ?? ""}`.toLowerCase().includes(q))
-      && (statusFilter === "all" || p.status === statusFilter);
+      && (statusFilter === "all" || p.status === statusFilter)
+      && (propertyFilter === "all" || String(p.propertyId) === propertyFilter)
+      && (sourceFilter === "all" || p.source === sourceFilter);
   });
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center gap-3 flex-wrap">
-        <div className="relative flex-1 min-w-48 max-w-sm">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-          <Input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search prospects…" className="pl-8 h-9" />
-        </div>
-        <Select value={statusFilter} onValueChange={setStatusFilter}>
-          <SelectTrigger className="w-44 h-9">
-            <Filter className="h-3.5 w-3.5 mr-1.5 text-muted-foreground" />
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All stages</SelectItem>
-            {STAGES.map(s => <SelectItem key={s.key} value={s.key}>{s.label}</SelectItem>)}
-          </SelectContent>
-        </Select>
-        <span className="text-sm text-muted-foreground ml-auto">{filtered.length} result{filtered.length !== 1 ? "s" : ""}</span>
-      </div>
+      <FilterBar
+        search={search}
+        onSearch={setSearch}
+        placeholder="Search prospects…"
+        filters={
+          <>
+            <Select value={statusFilter} onValueChange={setStatusFilter}>
+              <SelectTrigger className="w-40 h-9">
+                <Filter className="h-3.5 w-3.5 mr-1.5 text-muted-foreground" />
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All stages</SelectItem>
+                {STAGES.map(s => <SelectItem key={s.key} value={s.key}>{s.label}</SelectItem>)}
+              </SelectContent>
+            </Select>
+            <Select value={propertyFilter} onValueChange={setPropertyFilter}>
+              <SelectTrigger className="w-44 h-9">
+                <Building className="h-3.5 w-3.5 mr-1.5 text-muted-foreground" />
+                <SelectValue placeholder="All properties" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All properties</SelectItem>
+                {properties.map((p: any) => <SelectItem key={p.id} value={String(p.id)}>{p.name}</SelectItem>)}
+              </SelectContent>
+            </Select>
+            <Select value={sourceFilter} onValueChange={setSourceFilter}>
+              <SelectTrigger className="w-36 h-9">
+                <SelectValue placeholder="All sources" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All sources</SelectItem>
+                <SelectItem value="walk_in">Walk-in</SelectItem>
+                <SelectItem value="referral">Referral</SelectItem>
+                <SelectItem value="website">Website</SelectItem>
+                <SelectItem value="portal">Portal</SelectItem>
+                <SelectItem value="agent">Agent</SelectItem>
+              </SelectContent>
+            </Select>
+          </>
+        }
+        actions={
+          <span className="text-sm text-muted-foreground whitespace-nowrap">{filtered.length} result{filtered.length !== 1 ? "s" : ""}</span>
+        }
+      />
 
-      {isLoading && <div className="flex justify-center py-12"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>}
-
-      {!isLoading && filtered.length === 0 && (
-        <div className="rounded-2xl border border-border bg-card py-16 text-center">
-          <Users className="h-10 w-10 mx-auto mb-3 text-muted-foreground opacity-20" />
-          <p className="text-sm font-medium text-foreground">{search || statusFilter !== "all" ? "No prospects match your filters" : "No prospects yet"}</p>
-          <p className="text-xs text-muted-foreground mt-1">Add a prospect or share your public application link</p>
-        </div>
+      {filtered.length === 0 && (
+        <EmptyState
+          icon={<Users />}
+          title={search || statusFilter !== "all" || propertyFilter !== "all" || sourceFilter !== "all" ? "No prospects match your filters" : "No prospects yet"}
+          description="Add a prospect or share your public application link"
+          size="lg"
+        />
       )}
 
       <div className="space-y-2">
         {filtered.map((p: any) => (
           <Card key={p.id} className="rounded-xl shadow-none border-border cursor-pointer hover:border-emerald-200 dark:hover:border-emerald-800 hover:shadow-sm transition-all" onClick={() => onSelect(p)}>
             <CardContent className="px-5 py-3.5 flex items-center gap-4">
-              <div className="w-10 h-10 rounded-full bg-muted flex items-center justify-center flex-shrink-0 font-semibold text-sm text-muted-foreground">
-                {p.firstName?.[0]}{p.lastName?.[0]}
-              </div>
+              <SPAvatar name={`${p.firstName ?? ""} ${p.lastName ?? ""}`} size="sm" />
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 flex-wrap">
                   <p className="font-semibold text-sm text-foreground">{p.firstName} {p.lastName}</p>
@@ -521,7 +544,7 @@ function AllProspectsView({ onSelect }: { onSelect: (p: any) => void }) {
                 </p>
               </div>
               <div className="hidden md:flex items-center gap-4 text-xs text-muted-foreground flex-shrink-0">
-                {p.budgetMax && <span className="font-medium text-foreground">{fmtKES(p.budgetMax)}/mo</span>}
+                {p.budgetMax && <span className="font-medium text-foreground"><KESAmount amount={p.budgetMax} />/mo</span>}
                 {p.preferredMoveIn && <span className="flex items-center gap-1"><Clock className="h-3 w-3" />{fmt(p.preferredMoveIn)}</span>}
               </div>
               <ChevronRight className="h-4 w-4 text-muted-foreground flex-shrink-0" />
@@ -630,69 +653,51 @@ export default function Prospects() {
   const viewings  = (allProspects as any[]).filter((p: any) => p.status === "viewing_scheduled").length;
 
   if (selected) return (
-    <div className="min-h-screen bg-background text-foreground">
-      <div className="max-w-5xl mx-auto px-6 py-8">
+    <PageShell>
+      <div className="max-w-5xl mx-auto">
         <ProspectDetail prospect={selected} onClose={() => setSelected(null)}
           onRefresh={() => qc.invalidateQueries({ queryKey: ["/api/prospects"] })} />
       </div>
-    </div>
+    </PageShell>
   );
 
   return (
-    <div className="min-h-screen bg-background text-foreground">
-      {/* Header */}
-      <div className="bg-card dark:bg-gray-900 border-b border-border px-8 py-6">
-        <div className="max-w-5xl mx-auto flex items-center justify-between gap-4">
-          <div>
-            <h1 className="text-2xl font-bold text-foreground tracking-tight">Letting Pipeline</h1>
-            <p className="text-sm text-muted-foreground mt-1">Track prospects from first enquiry through to signed lease</p>
-          </div>
-          <Button onClick={() => setShowCreate(true)} className="h-9 bg-emerald-600 hover:bg-emerald-700 text-white shrink-0">
-            <Plus className="h-4 w-4 mr-1.5" />Add prospect
-          </Button>
-        </div>
+    <PageShell>
+      <PageHeader
+        title="Letting Pipeline"
+        subtitle="Track prospects from first enquiry through to signed lease"
+        icon={<Users className="w-5 h-5" />}
+        actions={
+          <PrimaryButton icon={<Plus className="w-4 h-4" />} onClick={() => setShowCreate(true)}>
+            Add prospect
+          </PrimaryButton>
+        }
+      />
+
+      {/* KPI strip */}
+      <StatsGrid cols={3}>
+        <StatTile label="Active" value={active} icon={<Users className="w-4 h-4" />} accent="blue" />
+        <StatTile label="Viewings" value={viewings} icon={<Calendar className="w-4 h-4" />} accent="amber" />
+        <StatTile label="Converted" value={converted} icon={<CheckCircle2 className="w-4 h-4" />} accent="emerald" />
+      </StatsGrid>
+
+      {/* Tab switcher */}
+      <div className="flex gap-1 bg-muted/50 p-1 rounded-xl w-fit">
+        {(["pipeline","all"] as const).map(t => (
+          <button key={t} onClick={() => setTab(t)}
+            className={`px-5 py-2 text-sm font-medium rounded-lg transition-colors ${tab === t ? "bg-card shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground"}`}>
+            {t === "pipeline" ? "Pipeline" : "All prospects"}
+          </button>
+        ))}
       </div>
 
-      <div className="max-w-5xl mx-auto px-8 py-8 space-y-6">
-        {/* KPI strip */}
-        <div className="grid grid-cols-3 gap-4">
-          {[
-            { label: "Active",    value: active,    icon: Users,        bg: "bg-blue-50 dark:bg-blue-950/40",       fg: "text-blue-600" },
-            { label: "Viewings",  value: viewings,  icon: Calendar,     bg: "bg-amber-50 dark:bg-amber-950/40",     fg: "text-amber-600" },
-            { label: "Converted", value: converted, icon: CheckCircle2, bg: "bg-emerald-50 dark:bg-emerald-950/40", fg: "text-emerald-600" },
-          ].map(({ label, value, icon: Icon, bg, fg }) => (
-            <Card key={label} className="rounded-2xl shadow-none border-border/60 hover:shadow-sm transition-shadow">
-              <CardContent className="p-5 flex items-center gap-4">
-                <div className={`w-11 h-11 ${bg} rounded-2xl flex items-center justify-center flex-shrink-0`}>
-                  <Icon className={`h-5 w-5 ${fg}`} />
-                </div>
-                <div>
-                  <p className="text-2xl font-bold text-foreground">{value}</p>
-                  <p className="text-xs text-muted-foreground uppercase tracking-widest font-semibold mt-0.5">{label}</p>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-
-        {/* Tab switcher */}
-        <div className="flex gap-1 bg-muted/50 p-1 rounded-xl w-fit">
-          {(["pipeline","all"] as const).map(t => (
-            <button key={t} onClick={() => setTab(t)}
-              className={`px-5 py-2 text-sm font-medium rounded-lg transition-colors ${tab === t ? "bg-card shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground"}`}>
-              {t === "pipeline" ? "Pipeline" : "All prospects"}
-            </button>
-          ))}
-        </div>
-
-        {tab === "pipeline"
-          ? <PipelineView properties={properties as any[]} onSelectProspect={setSelected} />
-          : <AllProspectsView onSelect={setSelected} />}
-      </div>
+      {tab === "pipeline"
+        ? <PipelineView properties={properties as any[]} onSelectProspect={setSelected} />
+        : <AllProspectsView onSelect={setSelected} properties={properties as any[]} prospects={allProspects as any[]} />}
 
       <CreateProspectDialog open={showCreate} onClose={() => setShowCreate(false)}
         properties={properties as any[]}
         onCreated={() => qc.invalidateQueries({ queryKey: ["/api/prospects"] })} />
-    </div>
+    </PageShell>
   );
 }
