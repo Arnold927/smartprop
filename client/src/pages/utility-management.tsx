@@ -10,13 +10,9 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import {
-  DropdownMenu, DropdownMenuContent, DropdownMenuItem,
-  DropdownMenuSeparator, DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import {
   Plus, Search, Zap, Droplets, Flame, Trash2, Wifi,
   AlertTriangle, CheckCircle, DollarSign, Edit, Clock, X, Save,
-  MoreHorizontal, TrendingUp, BarChart3, PieChart, CheckCircle2,
+  TrendingUp, BarChart3, PieChart, CheckCircle2,
 } from "lucide-react";
 import {
   LineChart, Line, BarChart, Bar, PieChart as RePieChart, Pie, Cell,
@@ -175,42 +171,6 @@ function PagedTable<T>({
         </div>
       )}
     </div>
-  );
-}
-
-// ── Row Actions Menu ──────────────────────────────────────────────────────────
-
-function RowActions({ items }: {
-  items: Array<{
-    label: string;
-    icon?: React.ReactNode;
-    onClick: () => void;
-    destructive?: boolean;
-    separator?: boolean;
-  }>;
-}) {
-  return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button size="sm" variant="ghost" className="h-8 w-8 p-0">
-          <MoreHorizontal className="w-4 h-4" />
-        </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-40">
-        {items.map((item, i) => (
-          <span key={i}>
-            {item.separator && <DropdownMenuSeparator />}
-            <DropdownMenuItem
-              onClick={item.onClick}
-              className={item.destructive ? "text-destructive focus:text-destructive" : ""}
-            >
-              {item.icon && <span className="mr-2">{item.icon}</span>}
-              {item.label}
-            </DropdownMenuItem>
-          </span>
-        ))}
-      </DropdownMenuContent>
-    </DropdownMenu>
   );
 }
 
@@ -757,7 +717,7 @@ function AccountsTab({ providers, propertiesList, searchTerm }: { providers: Uti
     {
       header: "", accessorKey: "actions",
       cell: (a: UtilityAccount) => (
-        <RowActions items={[
+        <ActionMenu items={[
           { label: "Edit", icon: <Edit className="w-4 h-4" />, onClick: () => setEditAccount(a) },
           { label: "Delete", icon: <Trash2 className="w-4 h-4" />, onClick: () => { if (confirm("Delete this account?")) deleteMutation.mutate(a.id); }, destructive: true, separator: true },
         ]} />
@@ -864,7 +824,7 @@ function ReadingsTab({ searchTerm }: { searchTerm: string }) {
     {
       header: "", accessorKey: "actions",
       cell: (r: MeterReading) => (
-        <RowActions items={[
+        <ActionMenu items={[
           { label: "Edit", icon: <Edit className="w-4 h-4" />, onClick: () => setEditReading(r) },
           ...(!r.verified ? [{ label: "Verify", icon: <CheckCircle2 className="w-4 h-4" />, onClick: () => verifyMutation.mutate(r.id) }] : []),
           { label: "Delete", icon: <Trash2 className="w-4 h-4" />, onClick: () => { if (confirm("Delete this reading?")) deleteMutation.mutate(r.id); }, destructive: true, separator: true },
@@ -1231,7 +1191,7 @@ export default function UtilityManagement() {
     {
       header: "", accessorKey: "actions",
       cell: (b: UtilityBill) => (
-        <RowActions items={[
+        <ActionMenu items={[
           { label: "Edit", icon: <Edit className="w-4 h-4" />, onClick: () => setEditBill(b) },
           ...(b.status === "pending" ? [{ label: "Mark Paid", icon: <CheckCircle2 className="w-4 h-4" />, onClick: () => markBillPaidMutation.mutate(b.id) }] : []),
           { label: "Delete", icon: <Trash2 className="w-4 h-4" />, onClick: () => { if (confirm("Delete this bill?")) deleteBillMutation.mutate(b.id); }, destructive: true, separator: true },
@@ -1286,7 +1246,7 @@ export default function UtilityManagement() {
     {
       header: "", accessorKey: "actions",
       cell: (p: UtilityProvider) => (
-        <RowActions items={[
+        <ActionMenu items={[
           { label: "Edit", icon: <Edit className="w-4 h-4" />, onClick: () => setEditProvider(p) },
           { label: "Delete", icon: <Trash2 className="w-4 h-4" />, onClick: () => { if (confirm(`Delete "${p.name}"?`)) deleteProviderMutation.mutate(p.id); }, destructive: true, separator: true },
         ]} />
@@ -1342,42 +1302,30 @@ export default function UtilityManagement() {
   ];
 
   return (
-    <div className="space-y-8">
-      {/* Header */}
-      <div className="flex justify-between items-center">
-        <div>
-          <h1 className="text-3xl font-bold text-foreground">Utility Management</h1>
-          <p className="text-muted-foreground mt-1">Manage utility bills, providers, accounts, and expenses</p>
-        </div>
-        {activeTab === "bills" && (
-          <Button onClick={() => setEditBill("new")}><Plus className="w-4 h-4 mr-2" />Add Utility Bill</Button>
-        )}
-        {activeTab === "providers" && (
-          <Button onClick={() => setEditProvider("new")}><Plus className="w-4 h-4 mr-2" />Add Provider</Button>
-        )}
-      </div>
+    <PageShell>
+      <PageHeader
+        title="Utility Management"
+        subtitle="Manage utility bills, providers, accounts, and expenses"
+        icon={<Zap className="w-5 h-5" />}
+        actions={
+          <>
+            {activeTab === "bills" && (
+              <PrimaryButton icon={<Plus className="w-4 h-4" />} onClick={() => setEditBill("new")}>Add Utility Bill</PrimaryButton>
+            )}
+            {activeTab === "providers" && (
+              <PrimaryButton icon={<Plus className="w-4 h-4" />} onClick={() => setEditProvider("new")}>Add Provider</PrimaryButton>
+            )}
+          </>
+        }
+      />
 
       {/* Metrics */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        {[
-          { icon: DollarSign, bg: "bg-blue-100", color: "text-blue-600", label: "Monthly Bills Total", value: `KES ${totalMonthlyBills.toLocaleString()}`, valueColor: "text-foreground" },
-          { icon: AlertTriangle, bg: "bg-red-100", color: "text-red-600", label: "Overdue Bills", value: overdueBills.length, valueColor: "text-red-600" },
-          { icon: Clock, bg: "bg-yellow-100", color: "text-yellow-600", label: "Pending Bills", value: pendingBills.length, valueColor: "text-yellow-600" },
-          { icon: CheckCircle, bg: "bg-green-100", color: "text-green-600", label: "Active Providers", value: activeProviders.length, valueColor: "text-green-600" },
-        ].map(({ icon: Icon, bg, color, label, value, valueColor }) => (
-          <Card key={label}>
-            <CardContent className="p-6">
-              <div className="flex items-center space-x-4">
-                <div className={`p-3 ${bg} rounded-lg`}><Icon className={`w-6 h-6 ${color}`} /></div>
-                <div>
-                  <p className="text-sm font-medium text-muted-foreground">{label}</p>
-                  <p className={`text-2xl font-bold ${valueColor}`}>{value}</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
+      <StatsGrid cols={4}>
+        <StatTile label="Monthly Bills Total" value={`KES ${totalMonthlyBills.toLocaleString()}`} icon={<DollarSign className="w-4 h-4" />} accent="blue" />
+        <StatTile label="Overdue Bills" value={overdueBills.length} icon={<AlertTriangle className="w-4 h-4" />} accent="red" />
+        <StatTile label="Pending Bills" value={pendingBills.length} icon={<Clock className="w-4 h-4" />} accent="amber" />
+        <StatTile label="Active Providers" value={activeProviders.length} icon={<CheckCircle className="w-4 h-4" />} accent="emerald" />
+      </StatsGrid>
 
       {/* Tabs */}
       <div className="border-b border-border">
@@ -1397,56 +1345,59 @@ export default function UtilityManagement() {
 
       {/* Filters — hidden for analytics and meter readings */}
       {activeTab !== "analytics" && activeTab !== "readings" && (
-        <Card>
-          <CardContent className="p-6">
-            <div className="flex flex-wrap gap-3 items-center">
-              <div className="flex-1 relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground w-4 h-4" />
-                <Input placeholder={`Search ${activeTab}…`} value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className="pl-10" />
-              </div>
-              {activeTab === "bills" && (
-                <Select value={statusFilter} onValueChange={setStatusFilter}>
-                  <SelectTrigger className="w-full sm:w-40"><SelectValue placeholder="Status" /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Status</SelectItem>
-                    <SelectItem value="paid">Paid</SelectItem>
-                    <SelectItem value="pending">Pending</SelectItem>
-                    <SelectItem value="overdue">Overdue</SelectItem>
-                    <SelectItem value="disputed">Disputed</SelectItem>
-                  </SelectContent>
-                </Select>
-              )}
-              {(activeTab === "bills" || activeTab === "providers") && (
-                <Select value={typeFilter} onValueChange={setTypeFilter}>
-                  <SelectTrigger className="w-full sm:w-40"><SelectValue placeholder="Type" /></SelectTrigger>
-                  <SelectContent>
-                    {["all","electricity","water","gas","waste","internet","generator"].map(t => (
-                      <SelectItem key={t} value={t}>{t === "all" ? "All Types" : t.charAt(0).toUpperCase()+t.slice(1)}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              )}
-              {activeTab === "bills" && (
-                <>
-                  <div className="flex items-center gap-1.5">
-                    <Label className="text-xs text-muted-foreground whitespace-nowrap shrink-0">From</Label>
-                    <Input type="date" className="w-36 h-9 text-sm" value={dateFrom} onChange={e => setDateFrom(e.target.value)} />
-                  </div>
-                  <div className="flex items-center gap-1.5">
-                    <Label className="text-xs text-muted-foreground whitespace-nowrap shrink-0">To</Label>
-                    <Input type="date" className="w-36 h-9 text-sm" value={dateTo} onChange={e => setDateTo(e.target.value)} />
-                  </div>
-                  {(dateFrom || dateTo) && (
-                    <Button variant="ghost" size="sm" className="h-9 px-2 text-xs text-muted-foreground"
-                      onClick={() => { setDateFrom(""); setDateTo(""); }}>
-                      <X className="w-3.5 h-3.5 mr-1" /> Clear dates
-                    </Button>
-                  )}
-                </>
-              )}
-            </div>
-          </CardContent>
-        </Card>
+        <SectionCard>
+          <FilterBar
+            search={searchTerm}
+            onSearch={setSearchTerm}
+            placeholder={`Search ${activeTab}…`}
+            filters={
+              <>
+                {activeTab === "bills" && (
+                  <Select value={statusFilter} onValueChange={setStatusFilter}>
+                    <SelectTrigger className="w-full sm:w-40"><SelectValue placeholder="Status" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Status</SelectItem>
+                      <SelectItem value="paid">Paid</SelectItem>
+                      <SelectItem value="pending">Pending</SelectItem>
+                      <SelectItem value="overdue">Overdue</SelectItem>
+                      <SelectItem value="disputed">Disputed</SelectItem>
+                    </SelectContent>
+                  </Select>
+                )}
+                {(activeTab === "bills" || activeTab === "providers") && (
+                  <Select value={typeFilter} onValueChange={setTypeFilter}>
+                    <SelectTrigger className="w-full sm:w-40"><SelectValue placeholder="Type" /></SelectTrigger>
+                    <SelectContent>
+                      {["all","electricity","water","gas","waste","internet","generator"].map(t => (
+                        <SelectItem key={t} value={t}>{t === "all" ? "All Types" : t.charAt(0).toUpperCase()+t.slice(1)}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+                {activeTab === "bills" && (
+                  <>
+                    <div className="flex items-center gap-1.5">
+                      <Label className="text-xs text-muted-foreground whitespace-nowrap shrink-0">From</Label>
+                      <Input type="date" className="w-36 h-9 text-sm" value={dateFrom} onChange={e => setDateFrom(e.target.value)} />
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <Label className="text-xs text-muted-foreground whitespace-nowrap shrink-0">To</Label>
+                      <Input type="date" className="w-36 h-9 text-sm" value={dateTo} onChange={e => setDateTo(e.target.value)} />
+                    </div>
+                  </>
+                )}
+              </>
+            }
+            actions={
+              activeTab === "bills" && (dateFrom || dateTo) ? (
+                <Button variant="ghost" size="sm" className="h-9 px-2 text-xs text-muted-foreground"
+                  onClick={() => { setDateFrom(""); setDateTo(""); }}>
+                  <X className="w-3.5 h-3.5 mr-1" /> Clear dates
+                </Button>
+              ) : undefined
+            }
+          />
+        </SectionCard>
       )}
 
       {/* Content */}
@@ -1488,6 +1439,6 @@ export default function UtilityManagement() {
         open={editProvider !== null}
         onClose={() => setEditProvider(null)}
       />
-    </div>
+    </PageShell>
   );
 }

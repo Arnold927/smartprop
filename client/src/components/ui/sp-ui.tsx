@@ -33,7 +33,7 @@ import {
 } from "@/components/ui/dialog";
 import {
   DropdownMenu, DropdownMenuContent,
-  DropdownMenuItem, DropdownMenuTrigger,
+  DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
 import {
   ChevronRight, Search, SlidersHorizontal, MoreVertical,
@@ -482,6 +482,9 @@ interface ActionMenuItem {
   onClick: () => void;
   destructive?: boolean;
   disabled?: boolean;
+  /** Renders a divider directly above this item — typically used to set a
+   *  destructive action apart from the rest of the menu. */
+  separator?: boolean;
 }
 
 export function ActionMenu({ items }: { items: ActionMenuItem[] }) {
@@ -494,18 +497,20 @@ export function ActionMenu({ items }: { items: ActionMenuItem[] }) {
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-44 rounded-xl shadow-lg border-border p-1">
         {items.map((item, i) => (
-          <DropdownMenuItem
-            key={i}
-            onClick={item.onClick}
-            disabled={item.disabled}
-            className={cn(
-              "flex items-center gap-2.5 px-3 py-2 text-sm rounded-lg cursor-pointer",
-              item.destructive ? "text-red-600 hover:bg-red-50 focus:bg-red-50 focus:text-red-600" : "",
-            )}
-          >
-            {item.icon}
-            {item.label}
-          </DropdownMenuItem>
+          <span key={i}>
+            {item.separator && <DropdownMenuSeparator />}
+            <DropdownMenuItem
+              onClick={item.onClick}
+              disabled={item.disabled}
+              className={cn(
+                "flex items-center gap-2.5 px-3 py-2 text-sm rounded-lg cursor-pointer",
+                item.destructive ? "text-red-600 hover:bg-red-50 focus:bg-red-50 focus:text-red-600" : "",
+              )}
+            >
+              {item.icon}
+              {item.label}
+            </DropdownMenuItem>
+          </span>
         ))}
       </DropdownMenuContent>
     </DropdownMenu>
