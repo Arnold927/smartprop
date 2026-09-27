@@ -141,7 +141,7 @@ function MetricCard({
       <div className={`absolute top-0 left-0 right-0 h-0.5 ${accent} rounded-t-2xl`} />
 
       <div className="flex items-start justify-between mb-4">
-        <div className={`w-9 h-9 rounded-xl flex items-center justify-center ${accent.replace("bg-", "bg-").replace("-500", "-500/10")} dark:bg-opacity-20`}>
+        <div className={`w-9 h-9 rounded-xl flex items-center justify-center ${accent.replace("-500", "-500/10")} dark:bg-opacity-20`}>
           <Icon className={`w-4.5 h-4.5 ${accent.replace("bg-", "text-")}`} />
         </div>
         {trend && (
