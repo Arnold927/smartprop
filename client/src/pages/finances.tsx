@@ -5,11 +5,10 @@ import { apiRequest, ensureArray } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import {
  TrendingUp, TrendingDown, Smartphone, CreditCard,
- Receipt, Search, Download, Plus,
+ Receipt, Download, Plus,
  Wallet, BarChart3, ArrowUpRight, ArrowDownLeft,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -22,17 +21,17 @@ import { useAuth } from "@/hooks/useAuth";
 const fmt = (n: number) => `KES ${Math.abs(n).toLocaleString("en-KE", { maximumFractionDigits: 0 })}`;
 const fmtShort = (n: number) => n >= 1_000_000 ? `KES ${(n/1_000_000).toFixed(1)}M` : n >= 1_000 ? `KES ${(n/1_000).toFixed(0)}K` : `KES ${n}`;
 
-function StatusBadge({ s }: { s: string }) {
- const m: Record<string,string> = { paid: "bg-emerald-50 text-emerald-700 border border-emerald-200", completed: "bg-emerald-50 text-emerald-700 border border-emerald-200", pending: "bg-amber-100 text-amber-700", overdue: "bg-red-100 text-red-600", failed: "bg-red-100 text-red-600" };
- return <span className={`text-xs px-2 py-0.5 rounded-full font-medium capitalize ${m[s] ?? "bg-muted dark:bg-gray-800 text-muted-foreground dark:text-muted-foreground"}`}>{s}</span>;
-}
-
 function MethodBadge({ m }: { m: string }) {
  if (!m) return <span className="text-xs text-muted-foreground">—</span>;
  const labels: Record<string,string> = { mpesa: "M-PESA", eft: "EFT", cash: "Cash", card: "Card", bank: "Bank", bank_transfer: "Bank", manual_bank: "Bank" };
- const colors: Record<string,string> = { mpesa: "bg-orange-100 text-orange-700", eft: "bg-blue-100 text-blue-700", cash: "bg-muted dark:bg-gray-800 text-muted-foreground dark:text-muted-foreground dark:text-muted-foreground", card: "bg-purple-100 text-purple-700" };
+ const colors: Record<string,string> = {
+   mpesa: "bg-orange-100 text-orange-700 dark:bg-orange-950 dark:text-orange-400",
+   eft: "bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-400",
+   cash: "bg-muted text-muted-foreground",
+   card: "bg-violet-100 text-violet-700 dark:bg-violet-950 dark:text-violet-400",
+ };
  const key = m.toLowerCase();
- return <span className={`text-xs px-1.5 py-0.5 rounded font-medium ${colors[key] ?? "bg-muted dark:bg-gray-800 text-muted-foreground dark:text-muted-foreground dark:text-muted-foreground"}`}>{labels[key] ?? m}</span>;
+ return <span className={`text-xs px-1.5 py-0.5 rounded font-medium ${colors[key] ?? "bg-muted text-muted-foreground"}`}>{labels[key] ?? m}</span>;
 }
 
 export default function Finances() {
@@ -205,44 +204,50 @@ export default function Finances() {
  };
 
  return (
- <div className="min-h-screen bg-background">
- {/* Header */}
- <div className="bg-card dark:bg-gray-900 border-b border-border dark:border-gray-800 px-6 py-5">
- <div className="max-w-7xl mx-auto flex items-center justify-between">
- <div>
- <h1 className="text-xl font-semibold text-foreground">Finances</h1>
- <p className="text-sm text-muted-foreground mt-0.5">{dateFilter === "today" ? "Today" : dateFilter === "week" ? "Last 7 days" : dateFilter === "month" ? new Date().toLocaleString("default", { month: "long", year: "numeric" }) : "All time"} · Portfolio financial summary</p>
- </div>
- <div className="flex items-center gap-2">
- <Button variant="outline" size="sm" onClick={() => navigate("/expense-management")}><Plus className="w-4 h-4 mr-1.5" />Manage Expenses</Button>
- <Button variant="outline" size="sm" onClick={handleExport}><Download className="w-4 h-4 mr-1.5" />Export</Button>
- </div>
- </div>
- </div>
+ <PageShell>
+ <PageHeader
+   title="Finances"
+   subtitle={`${dateFilter === "today" ? "Today" : dateFilter === "week" ? "Last 7 days" : dateFilter === "month" ? new Date().toLocaleString("default", { month: "long", year: "numeric" }) : "All time"} · Portfolio financial summary`}
+   icon={<Wallet className="w-5 h-5" />}
+   actions={
+     <>
+       <SecondaryButton icon={<Plus className="w-4 h-4" />} onClick={() => navigate("/expense-management")}>Manage Expenses</SecondaryButton>
+       <SecondaryButton icon={<Download className="w-4 h-4" />} onClick={handleExport}>Export</SecondaryButton>
+     </>
+   }
+ />
 
- <div className="max-w-7xl mx-auto px-6 py-6 space-y-5">
  {/* KPI cards */}
- <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
- {[
- { label: `Revenue (${dateFilter === "today" ? "Today" : dateFilter === "week" ? "7d" : dateFilter === "all" ? "All" : "MTD"})`, value: fmtShort(totalRevenue), icon: TrendingUp, color: "green", sub: `${serverStats?.collectedCount ?? 0} paid · ${collectionRate}% rate` },
- { label: `Expenses (${dateFilter === "today" ? "Today" : dateFilter === "week" ? "7d" : dateFilter === "all" ? "All" : "MTD"})`, value: fmtShort(totalExpenses), icon: TrendingDown, color: "red", sub: `${expenses.length} items` },
- { label: "Net profit", value: fmtShort(netProfit), icon: Wallet, color: netProfit >= 0 ? "blue" : "red", sub: `${margin}% margin` },
- { label: "Overdue", value: fmtShort(totalOverdue), icon: Receipt, color: totalOverdue > 0 ? "amber" : "gray", sub: `${payments.filter(p => p.status === "overdue").length} tenants` },
- ].map(({ label, value, icon: Icon, color, sub }) => (
- <Card key={label} className="rounded-xl border border-border shadow-sm">
- <CardContent className="p-5">
- <div className="flex items-start justify-between mb-2">
- <div className={`w-9 h-9 rounded-xl flex items-center justify-center bg-${color}-50`}>
- <Icon className={`w-4 h-4 text-${color}-600`} />
- </div>
- </div>
- <p className="text-xl font-semibold text-foreground mb-0.5">{value}</p>
- <p className="text-xs text-muted-foreground uppercase tracking-wide font-medium mb-1">{label}</p>
- <p className="text-xs text-muted-foreground">{sub}</p>
- </CardContent>
- </Card>
- ))}
- </div>
+ <StatsGrid cols={4}>
+   <StatTile
+     label={`Revenue (${dateFilter === "today" ? "Today" : dateFilter === "week" ? "7d" : dateFilter === "all" ? "All" : "MTD"})`}
+     value={fmtShort(totalRevenue)}
+     sub={`${serverStats?.collectedCount ?? 0} paid · ${collectionRate}% rate`}
+     icon={<TrendingUp className="w-4 h-4" />}
+     accent="emerald"
+   />
+   <StatTile
+     label={`Expenses (${dateFilter === "today" ? "Today" : dateFilter === "week" ? "7d" : dateFilter === "all" ? "All" : "MTD"})`}
+     value={fmtShort(totalExpenses)}
+     sub={`${expenses.length} items`}
+     icon={<TrendingDown className="w-4 h-4" />}
+     accent="red"
+   />
+   <StatTile
+     label="Net profit"
+     value={fmtShort(netProfit)}
+     sub={`${margin}% margin`}
+     icon={<Wallet className="w-4 h-4" />}
+     accent={netProfit >= 0 ? "blue" : "red"}
+   />
+   <StatTile
+     label="Overdue"
+     value={fmtShort(totalOverdue)}
+     sub={`${payments.filter(p => p.status === "overdue").length} tenants`}
+     icon={<Receipt className="w-4 h-4" />}
+     accent={totalOverdue > 0 ? "amber" : "blue"}
+   />
+ </StatsGrid>
 
  <Tabs value={tab} onValueChange={setTab}>
  <TabsList className="bg-card dark:bg-gray-900 border border-border dark:border-gray-800 rounded-xl p-1 h-auto">
@@ -312,87 +317,89 @@ export default function Finances() {
 
  {/* TRANSACTIONS TAB */}
  <TabsContent value="transactions" className="space-y-4 mt-4">
- <div className="flex flex-wrap items-center gap-3">
- <div className="relative flex-1 min-w-[200px] max-w-sm">
- <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
- <Input placeholder="Search transactions..." className="pl-9 h-9 border-border dark:border-gray-700" value={search} onChange={e => setSearch(e.target.value)} />
- </div>
- <Select value={methodFilter} onValueChange={setMethodFilter}>
- <SelectTrigger className="w-32 h-9 border-border dark:border-gray-700 text-sm"><SelectValue placeholder="Method" /></SelectTrigger>
- <SelectContent>
- <SelectItem value="all">All methods</SelectItem>
- <SelectItem value="mpesa">M-PESA</SelectItem>
- <SelectItem value="eft">EFT</SelectItem>
- <SelectItem value="cash">Cash</SelectItem>
- </SelectContent>
- </Select>
- <Select value={dateFilter} onValueChange={setDateFilter}>
- <SelectTrigger className="w-32 h-9 border-border dark:border-gray-700 text-sm"><SelectValue /></SelectTrigger>
- <SelectContent>
- <SelectItem value="all">All time</SelectItem>
- <SelectItem value="today">Today</SelectItem>
- <SelectItem value="week">This week</SelectItem>
- <SelectItem value="month">This month</SelectItem>
- </SelectContent>
- </Select>
- <span className="text-sm text-muted-foreground">{filteredTxns.length} transactions</span>
- </div>
+ <FilterBar
+   search={search}
+   onSearch={setSearch}
+   placeholder="Search transactions..."
+   filters={
+     <>
+       <Select value={methodFilter} onValueChange={setMethodFilter}>
+         <SelectTrigger className="w-32 h-9 border-border dark:border-gray-700 text-sm"><SelectValue placeholder="Method" /></SelectTrigger>
+         <SelectContent>
+           <SelectItem value="all">All methods</SelectItem>
+           <SelectItem value="mpesa">M-PESA</SelectItem>
+           <SelectItem value="eft">EFT</SelectItem>
+           <SelectItem value="cash">Cash</SelectItem>
+         </SelectContent>
+       </Select>
+       <Select value={dateFilter} onValueChange={setDateFilter}>
+         <SelectTrigger className="w-32 h-9 border-border dark:border-gray-700 text-sm"><SelectValue /></SelectTrigger>
+         <SelectContent>
+           <SelectItem value="all">All time</SelectItem>
+           <SelectItem value="today">Today</SelectItem>
+           <SelectItem value="week">This week</SelectItem>
+           <SelectItem value="month">This month</SelectItem>
+         </SelectContent>
+       </Select>
+     </>
+   }
+   actions={<span className="text-sm text-muted-foreground whitespace-nowrap">{filteredTxns.length} transactions</span>}
+ />
 
- <Card className="rounded-xl border border-border shadow-sm overflow-hidden">
+ <SectionCard padding="none">
  {isLoading ? (
-  <CardContent className="py-12 text-center">
+  <div className="py-12 text-center">
    <div className="flex flex-col items-center gap-3">
     <div className="w-8 h-8 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin" />
     <p className="text-sm text-muted-foreground">Loading transactions…</p>
    </div>
-  </CardContent>
+  </div>
  ) : filteredTxns.length === 0 ? (
- <CardContent className="py-12 text-center">
- <BarChart3 className="w-10 h-10 text-gray-200 mx-auto mb-2" />
- <p className="text-sm text-muted-foreground">No transactions found</p>
- </CardContent>
+   <EmptyState icon={<BarChart3 />} title="No transactions found" size="lg" />
  ) : (
- <div className="overflow-x-auto">
- <table className="w-full text-sm">
- <thead className="sticky top-0 z-10"><tr className="bg-muted border-b border-border" >
- <th className="text-left px-4 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wide">Date</th>
- <th className="text-left px-4 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wide">Description</th>
- <th className="text-left px-4 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wide hidden md:table-cell">Method</th>
- <th className="text-left px-4 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wide">Amount</th>
- <th className="text-left px-4 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wide">Status</th>
- </tr>
- </thead>
- <tbody className="divide-y divide-gray-50">
- {filteredTxns.slice(0, 50).map(t => (
- <tr key={t.id} className="hover:bg-muted dark:bg-gray-950 transition-colors">
- <td className="px-4 py-3 text-xs text-muted-foreground whitespace-nowrap">
- {t.date ? new Date(t.date).toLocaleDateString("en-KE", { day: "numeric", month: "short", year: "2-digit" }) : "—"}
- </td>
- <td className="px-4 py-3">
- <div className="flex items-center gap-2">
- <div className={`w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 ${t.type === "income" ? "bg-green-50 dark:bg-green-950" : "bg-red-50 dark:bg-red-950"}`}>
- {t.type === "income" ? <ArrowDownLeft className="w-3 h-3 text-green-600" /> : <ArrowUpRight className="w-3 h-3 text-red-500" />}
- </div>
- <span className="text-foreground font-medium truncate max-w-[200px]">{t.description}</span>
- </div>
- </td>
- <td className="px-4 py-3 hidden md:table-cell"><MethodBadge m={t.method} /></td>
- <td className={`px-4 py-3 font-semibold ${t.type === "income" ? "text-green-700" : "text-red-600"}`}>
- {t.type === "expense" ? "−" : "+"}{fmt(t.amount)}
- </td>
- <td className="px-4 py-3"><StatusBadge s={t.status} /></td>
- </tr>
- ))}
- </tbody>
- </table>
+ <>
+ <SPTable
+   data={filteredTxns.slice(0, 50)}
+   columns={[
+     {
+       header: "Date",
+       cell: (t: any) => (
+         <span className="text-xs text-muted-foreground whitespace-nowrap">
+           {t.date ? new Date(t.date).toLocaleDateString("en-KE", { day: "numeric", month: "short", year: "2-digit" }) : "—"}
+         </span>
+       ),
+     },
+     {
+       header: "Description",
+       cell: (t: any) => (
+         <div className="flex items-center gap-2">
+           <div className={`w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 ${t.type === "income" ? "bg-green-50 dark:bg-green-950" : "bg-red-50 dark:bg-red-950"}`}>
+             {t.type === "income" ? <ArrowDownLeft className="w-3 h-3 text-green-600" /> : <ArrowUpRight className="w-3 h-3 text-red-500" />}
+           </div>
+           <span className="text-foreground font-medium truncate max-w-[200px]">{t.description}</span>
+         </div>
+       ),
+     },
+     { header: "Method", hideOnMobile: true, cell: (t: any) => <MethodBadge m={t.method} /> },
+     {
+       header: "Amount",
+       cell: (t: any) => (
+         <span className={`font-semibold ${t.type === "income" ? "text-green-700" : "text-red-600"}`}>
+           {t.type === "expense" ? "−" : "+"}{fmt(t.amount)}
+         </span>
+       ),
+     },
+     { header: "Status", cell: (t: any) => <SPBadge status={t.status} /> },
+   ]}
+ />
  {filteredTxns.length > 50 && (
  <div className="px-4 py-3 text-xs text-muted-foreground border-t border-border dark:border-gray-800 text-center">
  Showing 50 of {filteredTxns.length} transactions · Export CSV to see all
  </div>
  )}
- </div>
+ </>
  )}
- </Card>
+ </SectionCard>
  </TabsContent>
 
  {/* PAYMENT METHODS TAB */}
@@ -427,7 +434,6 @@ export default function Finances() {
  </div>
  </TabsContent>
  </Tabs>
- </div>
- </div>
+ </PageShell>
  );
 }
