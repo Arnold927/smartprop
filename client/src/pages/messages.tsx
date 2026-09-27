@@ -204,7 +204,7 @@ function MessageRow({ message, isSelected, onSelect }: {
         </Avatar>
         <div className="flex-1 min-w-0">
           <div className="flex items-center justify-between gap-2 mb-0.5">
-            <span className={`text-sm truncate flex items-center gap-1.5 ${unread ? "font-semibold text-slate-900" : "text-foreground/80"}`}>
+            <span className={`text-sm truncate flex items-center gap-1.5 ${unread ? "font-semibold text-foreground" : "text-foreground/80"}`}>
               {message.isSentByMe && <SendHorizonal className="w-3 h-3 text-muted-foreground flex-shrink-0" />}
               {counterpart}
               <RoleBadge role={message.isSentByMe ? message.toRole : message.fromRole} />
@@ -237,18 +237,18 @@ function MessageDetail({ message, onClose, onReply, canReply }: {
     <Card className="rounded-xl border border-slate-100 shadow-sm h-full flex flex-col">
       <div className="px-5 py-4 border-b border-border dark:border-gray-800 flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <h2 className="text-base font-semibold text-slate-900 truncate">
+          <h2 className="text-base font-semibold text-foreground truncate">
             {message.subject || "No subject"}
           </h2>
           <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-1 text-xs text-muted-foreground items-center">
             <span>
               <span className="text-foreground/60">From:</span>{" "}
-              <span className="font-medium text-slate-900">{message.fromName}</span>
+              <span className="font-medium text-foreground">{message.fromName}</span>
               {message.fromEmail && <span> &lt;{message.fromEmail}&gt;</span>}
             </span>
             <span>
               <span className="text-foreground/60">To:</span>{" "}
-              <span className="font-medium text-slate-900">{message.toName}</span>
+              <span className="font-medium text-foreground">{message.toName}</span>
               {message.toEmail && <span> &lt;{message.toEmail}&gt;</span>}
             </span>
             <span>{formatDistanceToNow(new Date(message.createdAt), { addSuffix: true })}</span>
@@ -283,7 +283,7 @@ function OrgGuard() {
       <Card className="max-w-sm w-full mx-4">
         <CardContent className="py-12 text-center">
           <Mail className="w-10 h-10 text-gray-300 mx-auto mb-3" />
-          <p className="text-sm font-medium text-slate-900 mb-1">No organisation linked</p>
+          <p className="text-sm font-medium text-foreground mb-1">No organisation linked</p>
           <p className="text-xs text-muted-foreground">
             Your account is not associated with an organisation. Please contact support.
           </p>
@@ -436,37 +436,30 @@ export default function Messages() {
 
   // ── Render ──────────────────────────────────────────────────────────────────
   return (
-    <div className="min-h-screen bg-background">
-      {/* Header */}
-      <div className="bg-card dark:bg-gray-900 border-b border-border dark:border-gray-800 px-6 py-5">
-        <div className="max-w-7xl mx-auto flex items-center justify-between">
-          <div>
-            <h1 className="text-xl font-semibold text-slate-900">{pageTitle(role)}</h1>
-            <p className="text-sm text-muted-foreground mt-0.5">
-              {pageSubtitle(role)}
-              {unreadCount > 0 ? ` · ${unreadCount} unread` : ""}
-            </p>
-          </div>
-          <div className="flex items-center gap-2">
+    <PageShell>
+      <PageHeader
+        title={pageTitle(role)}
+        subtitle={`${pageSubtitle(role)}${unreadCount > 0 ? ` · ${unreadCount} unread` : ""}`}
+        icon={<Mail className="w-5 h-5" />}
+        actions={
+          <>
             {/* Broadcast shortcut — staff only */}
             {showBroadcastTab && (
-              <Button variant="outline" size="sm"
-                onClick={() => window.location.href = "/broadcast-messages"}>
-                <Radio className="w-4 h-4 mr-1.5" />Broadcast
-              </Button>
+              <SecondaryButton icon={<Radio className="w-4 h-4" />} onClick={() => window.location.href = "/broadcast-messages"}>
+                Broadcast
+              </SecondaryButton>
             )}
             {/* Compose is available to all roles with at least one permitted recipient */}
             {orgUsers.length > 0 && (
-              <Button size="sm" className="bg-emerald-600 hover:bg-emerald-700 text-white"
-                onClick={() => { setCompose({ toUserId: "", subject: "", content: "", isReply: false }); setIsComposeOpen(true); }}>
-                <Plus className="w-4 h-4 mr-1.5" />Compose
-              </Button>
+              <PrimaryButton icon={<Plus className="w-4 h-4" />} onClick={() => { setCompose({ toUserId: "", subject: "", content: "", isReply: false }); setIsComposeOpen(true); }}>
+                Compose
+              </PrimaryButton>
             )}
-          </div>
-        </div>
-      </div>
+          </>
+        }
+      />
 
-      <div className="max-w-7xl mx-auto px-6 py-6">
+      <div className="w-full">
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-5 h-[calc(100vh-160px)]">
 
           {/* ── List panel ────────────────────────────────────────────────── */}
@@ -477,7 +470,7 @@ export default function Messages() {
               {(["all", "inbox", "sent"] as const).map(b => (
                 <button key={b} onClick={() => { setBox(b); setSelected(null); }}
                   className={`flex-1 py-1.5 text-xs font-medium rounded-lg capitalize transition-colors
-                    ${box === b ? "bg-muted dark:bg-gray-800 text-slate-900" : "text-muted-foreground hover:text-foreground"}`}>
+                    ${box === b ? "bg-muted dark:bg-gray-800 text-foreground" : "text-muted-foreground hover:text-foreground"}`}>
                   {b === "inbox" ? (
                     <span className="flex items-center justify-center gap-1">
                       Inbox
@@ -522,12 +515,7 @@ export default function Messages() {
                   {[...Array(5)].map((_, i) => <div key={i} className="h-16 bg-muted dark:bg-gray-800 rounded-xl animate-pulse" />)}
                 </div>
               ) : filtered.length === 0 ? (
-                <CardContent className="py-16 text-center">
-                  <Mail className="w-10 h-10 text-gray-200 mx-auto mb-2" />
-                  <p className="text-sm text-muted-foreground">
-                    {search ? "No messages match" : `No messages in ${box}`}
-                  </p>
-                </CardContent>
+                <EmptyState icon={<Mail />} title={search ? "No messages match" : `No messages in ${box}`} size="lg" />
               ) : filtered.map(m => (
                 <MessageRow key={m.id} message={m} isSelected={selected?.id === m.id} onSelect={() => handleSelect(m)} />
               ))}
@@ -550,21 +538,15 @@ export default function Messages() {
                 />
               </div>
             ) : (
-              <Card className="rounded-xl border border-slate-100 shadow-sm h-full">
-                <CardContent className="h-full flex flex-col items-center justify-center py-24 text-center">
-                  <div className="w-14 h-14 rounded-2xl bg-muted dark:bg-gray-800 flex items-center justify-center mb-4">
-                    <Inbox className="w-7 h-7 text-muted-foreground" />
-                  </div>
-                  <p className="text-sm font-medium text-slate-900 mb-1">Select a message</p>
-                  <p className="text-xs text-muted-foreground mb-5">Choose a message from the list to read it here</p>
-                  {orgUsers.length > 0 && (
-                    <Button size="sm" className="bg-emerald-600 hover:bg-emerald-700 text-white"
-                      onClick={() => { setCompose({ toUserId: "", subject: "", content: "", isReply: false }); setIsComposeOpen(true); }}>
-                      <Plus className="w-3.5 h-3.5 mr-1.5" />Compose new message
-                    </Button>
-                  )}
-                </CardContent>
-              </Card>
+              <SectionCard className="h-full">
+                <EmptyState
+                  icon={<Inbox />}
+                  title="Select a message"
+                  description="Choose a message from the list to read it here"
+                  action={orgUsers.length > 0 ? { label: "Compose new message", onClick: () => { setCompose({ toUserId: "", subject: "", content: "", isReply: false }); setIsComposeOpen(true); } } : undefined}
+                  size="lg"
+                />
+              </SectionCard>
             )}
           </div>
         </div>
@@ -646,6 +628,6 @@ export default function Messages() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </div>
+    </PageShell>
   );
 }
