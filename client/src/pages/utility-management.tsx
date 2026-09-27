@@ -12,7 +12,7 @@ import { Switch } from "@/components/ui/switch";
 import {
   Plus, Search, Zap, Droplets, Flame, Trash2, Wifi,
   AlertTriangle, CheckCircle, DollarSign, Edit, Clock, X, Save,
-  TrendingUp, BarChart3, PieChart, CheckCircle2,
+  TrendingUp, BarChart3, PieChart, CheckCircle2, FileText,
 } from "lucide-react";
 import {
   LineChart, Line, BarChart, Bar, PieChart as RePieChart, Pie, Cell,
@@ -21,7 +21,6 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, ensureArray } from "@/lib/queryClient";
 import { format } from "date-fns";
-import DataTable from "@/components/ui/data-table";
 import StatusBadge from "@/components/ui/status-badge";
 import { PageShell, PageHeader, SectionCard, SPBadge, EmptyState, PrimaryButton, SecondaryButton, FilterBar, SPTable, SPAvatar, StatTile, StatsGrid, KESAmount, ActionMenu, ConfirmDialog } from "@/components/ui/sp-ui";
 import { useRoleGuard, ROLES } from "@/hooks/useRoleGuard";
@@ -106,15 +105,6 @@ const utilityTypeIcons: Record<string, any> = {
   waste: Trash2, internet: Wifi, generator: Zap,
 };
 
-const getStatusColor = (status: string) => {
-  switch (status) {
-    case "paid": return "bg-emerald-50 text-emerald-700 border border-emerald-200" ;
-    case "pending": return "bg-yellow-100 text-yellow-800";
-    case "overdue": return "bg-red-100 text-red-800";
-    default: return "bg-muted text-foreground";
-  }
-};
-
 // ── PagedTable ────────────────────────────────────────────────────────────────
 
 const PAGE_SIZE_OPTIONS = [10, 25, 50, 100];
@@ -158,7 +148,7 @@ function PagedTable<T>({
         </div>
       </div>
 
-      <DataTable data={paged} columns={columns} emptyMessage={emptyMessage} />
+      <SPTable data={paged} columns={columns} emptyState={<EmptyState icon={<FileText />} title={emptyMessage} size="lg" />} />
 
       {/* Pagination controls */}
       {totalPages > 1 && (
@@ -708,11 +698,7 @@ function AccountsTab({ providers, propertiesList, searchTerm }: { providers: Uti
     },
     {
       header: "Status", accessorKey: "isActive",
-      cell: (a: UtilityAccount) => (
-        <Badge className={a.isActive ? "bg-emerald-50 text-emerald-700 border border-emerald-200" : "bg-muted text-foreground"}>
-          {a.isActive ? "Active" : "Inactive"}
-        </Badge>
-      ),
+      cell: (a: UtilityAccount) => <SPBadge status={a.isActive ? "active" : "inactive"} />,
     },
     {
       header: "", accessorKey: "actions",
@@ -1136,7 +1122,7 @@ export default function UtilityManagement() {
   const billColumns = [
     {
       // Merged: icon + provider type + bill# + property all in one cell
-      header: "Bill", accessorKey: "provider",
+      header: "Bill",
       cell: (bill: UtilityBill) => {
         const resolvedType = (bill as any).utilityType || bill.account?.provider.type || "";
         const Icon = utilityTypeIcons[resolvedType] || Zap;
@@ -1160,7 +1146,8 @@ export default function UtilityManagement() {
     },
     {
       // Merged: billing period + due date
-      header: "Period / Due", accessorKey: "billingPeriod",
+      header: "Period / Due",
+      hideOnMobile: true,
       cell: (b: UtilityBill) => (
         <div className="text-xs">
           {b.billingPeriodStart
@@ -1172,7 +1159,7 @@ export default function UtilityManagement() {
     },
     {
       // Merged: amount + units consumed
-      header: "Amount", accessorKey: "amount",
+      header: "Amount",
       cell: (b: UtilityBill) => (
         <div>
           <p className="font-semibold">{b.currency} {Number(b.amount).toLocaleString()}</p>
@@ -1181,15 +1168,12 @@ export default function UtilityManagement() {
       ),
     },
     {
-      header: "Status", accessorKey: "status",
-      cell: (b: UtilityBill) => (
-        <Badge className={getStatusColor(b.status)}>
-          {b.status.charAt(0).toUpperCase() + b.status.slice(1)}
-        </Badge>
-      ),
+      header: "Status",
+      cell: (b: UtilityBill) => <SPBadge status={b.status} />,
     },
     {
-      header: "", accessorKey: "actions",
+      header: "",
+      align: "right" as const,
       cell: (b: UtilityBill) => (
         <ActionMenu items={[
           { label: "Edit", icon: <Edit className="w-4 h-4" />, onClick: () => setEditBill(b) },
@@ -1237,11 +1221,7 @@ export default function UtilityManagement() {
     },
     {
       header: "Status", accessorKey: "isActive",
-      cell: (p: UtilityProvider) => (
-        <Badge className={p.isActive ? "bg-emerald-50 text-emerald-700 border border-emerald-200" : "bg-muted text-foreground"}>
-          {p.isActive ? "Active" : "Inactive"}
-        </Badge>
-      ),
+      cell: (p: UtilityProvider) => <SPBadge status={p.isActive ? "active" : "inactive"} />,
     },
     {
       header: "", accessorKey: "actions",
