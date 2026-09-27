@@ -194,7 +194,7 @@ interface PortalNotification {
 const CHART_COLORS = ["#3b82f6", "#10b981", "#f59e0b", "#ef4444", "#8b5cf6"];
 
 const PRIORITY_CONFIG: Record<string, { label: string; bg: string; text: string }> = {
-  low:    { label: "Low",    bg: "bg-slate-50", text: "text-slate-600" },
+  low:    { label: "Low",    bg: "bg-slate-50", text: "text-muted-foreground" },
   medium: { label: "Medium", bg: "bg-blue-50 dark:bg-blue-950/30",  text: "text-blue-600 dark:text-blue-400"  },
   high:   { label: "High",   bg: "bg-red-50 dark:bg-red-950/30",   text: "text-red-600 dark:text-red-400"   },
   urgent: { label: "Urgent", bg: "bg-red-100",  text: "text-red-700"   },
@@ -437,7 +437,7 @@ function SearchBar({ value, onChange, placeholder, className = "" }: {
       {value && (
         <button
           onClick={() => onChange("")}
-          className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+          className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-muted-foreground"
         >
           <X className="h-4 w-4" />
         </button>
@@ -476,10 +476,10 @@ function PaginationRow({ page, totalPages, totalItems, pageSize, onPage }: {
   if (totalPages > 1) add(totalPages);
 
   return (
-    <div className="flex flex-col sm:flex-row items-center justify-between gap-3 px-6 py-4 border-t text-sm text-slate-500 dark:text-slate-400">
+    <div className="flex flex-col sm:flex-row items-center justify-between gap-3 px-6 py-4 border-t text-sm text-muted-foreground dark:text-slate-400">
       <span className="text-xs">
-        Showing <span className="font-medium text-slate-700 dark:text-slate-200">{start}–{end}</span>{" "}
-        of <span className="font-medium text-slate-700 dark:text-slate-200">{totalItems}</span>
+        Showing <span className="font-medium text-muted-foreground dark:text-slate-200">{start}–{end}</span>{" "}
+        of <span className="font-medium text-muted-foreground dark:text-slate-200">{totalItems}</span>
       </span>
       <div className="flex items-center gap-1">
         <Button variant="outline" size="sm" className="h-8 w-8 p-0" disabled={page <= 1} onClick={() => onPage(page - 1)}>
@@ -530,10 +530,10 @@ class TabErrorBoundary extends Component<TabErrorBoundaryProps, TabErrorBoundary
   render() {
     if (this.state.hasError) {
       return (
-        <div className="flex flex-col items-center py-20 gap-4 text-slate-500">
+        <div className="flex flex-col items-center py-20 gap-4 text-muted-foreground">
           <AlertCircle className="h-10 w-10 text-red-400" />
           <div className="text-center">
-            <p className="text-sm font-medium text-slate-700 dark:text-slate-200">
+            <p className="text-sm font-medium text-muted-foreground dark:text-slate-200">
               {this.props.tabLabel} failed to load
             </p>
             <p className="text-xs text-slate-400 mt-1 max-w-xs">
@@ -652,15 +652,15 @@ function NotificationsPanel({
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-3 border-b border-slate-100 dark:border-slate-800" >
         <div className="flex items-center gap-2">
-          <Bell className="w-4 h-4 text-slate-500" />
-          <span className="text-sm font-bold text-slate-900 dark:text-slate-100">Notifications</span>
+          <Bell className="w-4 h-4 text-muted-foreground" />
+          <span className="text-sm font-bold text-foreground dark:text-slate-100">Notifications</span>
           {notifications.length > 0 && (
             <span className="w-5 h-5 bg-red-500 text-white text-[10px] font-bold rounded-full inline-flex items-center justify-center">
               {notifications.length}
             </span>
           )}
         </div>
-        <button onClick={onClose} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200">
+        <button onClick={onClose} className="text-slate-400 hover:text-muted-foreground dark:hover:text-slate-200">
           <X className="w-4 h-4" />
         </button>
       </div>
@@ -671,7 +671,7 @@ function NotificationsPanel({
           <div className="flex flex-col items-center py-12 gap-3 text-slate-400">
             <CheckCircle2 className="w-10 h-10 text-emerald-400" />
             <div className="text-center">
-              <p className="text-sm font-semibold text-slate-600 dark:text-slate-300">All clear</p>
+              <p className="text-sm font-semibold text-muted-foreground dark:text-slate-300">All clear</p>
               <p className="text-xs mt-0.5">No urgent items require your attention.</p>
             </div>
           </div>
@@ -690,10 +690,10 @@ function NotificationsPanel({
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-start justify-between gap-2">
-                    <p className="text-sm font-semibold text-slate-800 dark:text-slate-100 leading-snug">{n.title}</p>
+                    <p className="text-sm font-semibold text-foreground dark:text-slate-100 leading-snug">{n.title}</p>
                     <span className={`w-2 h-2 rounded-full shrink-0 mt-1.5 ${cfg.dot}`} />
                   </div>
-                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5 leading-relaxed">{n.body}</p>
+                  <p className="text-xs text-muted-foreground dark:text-slate-400 mt-0.5 leading-relaxed">{n.body}</p>
                   {n.tab && (
                     <p className="text-[10px] text-blue-500 font-semibold mt-1.5 flex items-center gap-0.5">
                       View <ChevronRight className="w-3 h-3" />
@@ -767,7 +767,7 @@ function UnitGrid({
   }
 
   const STATUS_STYLE = {
-    vacant:  { cell: "bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-400 dark:text-slate-500 hover:bg-slate-200 dark:hover:bg-slate-700", dot: "bg-slate-300" },
+    vacant:  { cell: "bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-400 dark:text-muted-foreground hover:bg-slate-200 dark:hover:bg-slate-700", dot: "bg-slate-300" },
     paid:    { cell: "bg-emerald-50 dark:bg-emerald-950/40 border-emerald-200 dark:border-emerald-800 text-emerald-800 dark:text-emerald-300 hover:bg-emerald-100 dark:hover:bg-emerald-950/60", dot: "bg-emerald-500" },
     overdue: { cell: "bg-red-50 dark:bg-red-950/40 border-red-300 dark:border-red-700 text-red-800 dark:text-red-300 hover:bg-red-100 dark:hover:bg-red-950/60", dot: "bg-red-500 animate-pulse" },
     unpaid:  { cell: "bg-orange-50 dark:bg-orange-950/40 border-orange-200 dark:border-orange-800 text-orange-800 dark:text-orange-300 hover:bg-orange-100 dark:hover:bg-orange-950/60", dot: "bg-orange-400" },
@@ -816,7 +816,7 @@ function UnitGrid({
             <button key={f} onClick={() => setHighlightFilter(f)}
               className={`text-xs px-3 py-1.5 rounded-lg border font-medium capitalize transition-all ${
                 highlightFilter === f
-                  ? "bg-slate-900 text-white border-slate-900 dark:bg-white dark:text-slate-900"
+                  ? "bg-slate-900 text-white border-slate-900 dark:bg-white dark:text-foreground"
                   : "border-border text-muted-foreground hover:border-slate-400"
               }`}>
               {f}
@@ -825,7 +825,7 @@ function UnitGrid({
         </div>
 
         {/* Legend */}
-        <div className="flex items-center gap-3 text-xs text-slate-500 flex-shrink-0 flex-wrap">
+        <div className="flex items-center gap-3 text-xs text-muted-foreground flex-shrink-0 flex-wrap">
           {[
             { dot: "bg-emerald-500", label: "Paid" },
             { dot: "bg-orange-400",  label: "Unpaid" },
@@ -843,11 +843,11 @@ function UnitGrid({
       {/* Portfolio summary strip */}
       <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
         {[
-          { label: "Total Units",  value: stats.total,    cls: "text-slate-800 dark:text-slate-100" },
+          { label: "Total Units",  value: stats.total,    cls: "text-foreground dark:text-slate-100" },
           { label: "Occupied",     value: stats.occupied, cls: "text-blue-700" },
-          { label: "Vacant",       value: stats.vacant,   cls: "text-slate-500" },
+          { label: "Vacant",       value: stats.vacant,   cls: "text-muted-foreground" },
           { label: "Paid",         value: stats.paid,     cls: "text-emerald-700" },
-          { label: "Overdue",      value: stats.overdue,  cls: stats.overdue > 0 ? "text-red-600" : "text-slate-500" },
+          { label: "Overdue",      value: stats.overdue,  cls: stats.overdue > 0 ? "text-red-600" : "text-muted-foreground" },
         ].map(s => (
           <div key={s.label} className="bg-card rounded-xl border border-border p-3">
             <p className="text-[10px] uppercase font-bold text-slate-400 tracking-wide">{s.label}</p>
@@ -870,8 +870,8 @@ function UnitGrid({
                 <CardTitle className="text-base truncate">{prop.name}</CardTitle>
                 <CardDescription className="truncate">{prop.address}</CardDescription>
               </div>
-              <div className="flex items-center gap-3 flex-shrink-0 text-xs text-slate-500">
-                <span className="font-semibold text-slate-700 dark:text-slate-300">{propOccupied}/{propTotal} occupied</span>
+              <div className="flex items-center gap-3 flex-shrink-0 text-xs text-muted-foreground">
+                <span className="font-semibold text-muted-foreground dark:text-slate-300">{propOccupied}/{propTotal} occupied</span>
                 <div className="w-24 h-2 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
                   <div className="h-full bg-emerald-500 rounded-full transition-all" style={{ width: `${propOccRate}%` }} />
                 </div>
@@ -2279,7 +2279,7 @@ export default function LandlordPortal({ ownerId }: LandlordPortalProps) {
   // ── Loading / error guards ───────────────────────────────────────────────────
   if (dashboardLoading) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-[60vh] gap-3 text-slate-500">
+      <div className="flex flex-col items-center justify-center min-h-[60vh] gap-3 text-muted-foreground">
         <Loader2 className="h-10 w-10 animate-spin text-primary" />
         <p className="text-sm">Loading portfolio data…</p>
       </div>
@@ -2287,7 +2287,7 @@ export default function LandlordPortal({ ownerId }: LandlordPortalProps) {
   }
   if (dashboardError) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4 text-slate-500">
+      <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4 text-muted-foreground">
         <AlertCircle className="h-10 w-10 text-red-400" />
         <p className="text-sm font-medium">Could not load dashboard data.</p>
         <Button variant="outline" size="sm" onClick={() => refetchDashboard()} className="gap-2">
@@ -2599,7 +2599,7 @@ export default function LandlordPortal({ ownerId }: LandlordPortalProps) {
                           { label: "Net",      value: performanceData[0].net,      color: "text-emerald-600", bg: "bg-emerald-50" },
                         ].map(({ label, value, color, bg }) => (
                           <div key={label} className={`${bg} rounded-2xl p-4`}>
-                            <p className="text-[10px] uppercase font-bold text-slate-500 mb-1">{label}</p>
+                            <p className="text-[10px] uppercase font-bold text-muted-foreground mb-1">{label}</p>
                             <p className={`text-lg font-bold ${color}`}>
                               <CurrencyDisplay amount={value} currency="KES" locale="en-KE" />
                             </p>
@@ -2664,7 +2664,7 @@ export default function LandlordPortal({ ownerId }: LandlordPortalProps) {
                         {expenseCategories.map((item, i) => (
                           <div key={i} className="flex items-center gap-2">
                             <div className="w-3 h-3 rounded-full flex-shrink-0" style={{ backgroundColor: CHART_COLORS[i % CHART_COLORS.length] }} />
-                            <span className="text-xs text-slate-600 dark:text-slate-400 truncate capitalize">{item.name}</span>
+                            <span className="text-xs text-muted-foreground dark:text-slate-400 truncate capitalize">{item.name}</span>
                           </div>
                         ))}
                       </div>
@@ -2695,7 +2695,7 @@ export default function LandlordPortal({ ownerId }: LandlordPortalProps) {
                           <div className="bg-primary/10 p-2.5 rounded-xl"><FileText className="h-4 w-4 text-primary" /></div>
                           <div className="flex-1 min-w-0">
                             <p className="text-sm font-semibold capitalize">{report.reportType} Statement</p>
-                            <p className="text-xs text-slate-500">{fmtDateShort(report.reportPeriodStart)} – {fmtDate(report.reportPeriodEnd)}</p>
+                            <p className="text-xs text-muted-foreground">{fmtDateShort(report.reportPeriodStart)} – {fmtDate(report.reportPeriodEnd)}</p>
                           </div>
                           <div className="text-right">
                             <p className="text-sm font-bold text-emerald-600">
@@ -2727,14 +2727,14 @@ export default function LandlordPortal({ ownerId }: LandlordPortalProps) {
                     </div>
                     <div className="grid grid-cols-2 gap-4">
                       <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-900 border border-slate-100 dark:border-slate-800" >
-                        <p className="text-xs text-slate-500 uppercase font-bold tracking-tighter">Leases Expiring (30d)</p>
-                        <h4 className={`text-xl font-bold mt-1 ${leasesExpiringSoon > 0 ? "text-orange-600" : "text-slate-700 dark:text-slate-300"}`}>
+                        <p className="text-xs text-muted-foreground uppercase font-bold tracking-tighter">Leases Expiring (30d)</p>
+                        <h4 className={`text-xl font-bold mt-1 ${leasesExpiringSoon > 0 ? "text-orange-600" : "text-muted-foreground dark:text-slate-300"}`}>
                           {leasesExpiringSoon} {leasesExpiringSoon === 1 ? "Unit" : "Units"}
                         </h4>
                       </div>
                       <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-900 border border-slate-100 dark:border-slate-800" >
-                        <p className="text-xs text-slate-500 uppercase font-bold tracking-tighter">Current Vacancies</p>
-                        <h4 className={`text-xl font-bold mt-1 ${currentVacancies > 0 ? "text-blue-600" : "text-slate-700 dark:text-slate-300"}`}>
+                        <p className="text-xs text-muted-foreground uppercase font-bold tracking-tighter">Current Vacancies</p>
+                        <h4 className={`text-xl font-bold mt-1 ${currentVacancies > 0 ? "text-blue-600" : "text-muted-foreground dark:text-slate-300"}`}>
                           {currentVacancies} {currentVacancies === 1 ? "Unit" : "Units"}
                         </h4>
                       </div>
@@ -2749,7 +2749,7 @@ export default function LandlordPortal({ ownerId }: LandlordPortalProps) {
                                 <div className="w-2 h-2 rounded-full bg-orange-400 flex-shrink-0" />
                                 <span className="font-medium truncate">{v.propertyName} — Unit {v.unitNumber}</span>
                               </div>
-                              <span className="text-slate-500 text-xs whitespace-nowrap ml-2">
+                              <span className="text-muted-foreground text-xs whitespace-nowrap ml-2">
                                 Exp. {v.leaseEnd ? format(new Date(v.leaseEnd), "MMM d") : "—"}
                               </span>
                             </div>
@@ -2768,7 +2768,7 @@ export default function LandlordPortal({ ownerId }: LandlordPortalProps) {
             <div className="flex items-center gap-3">
               <SearchBar value={propSearch} onChange={setPropSearch} placeholder="Search by name, address, or type…" className="flex-1" />
               {propSearch && (
-                <span className="text-xs text-slate-500 whitespace-nowrap">
+                <span className="text-xs text-muted-foreground whitespace-nowrap">
                   {filteredProperties.length} of {properties.length}
                 </span>
               )}
@@ -2835,8 +2835,8 @@ export default function LandlordPortal({ ownerId }: LandlordPortalProps) {
           <TabsContent value="units" className="space-y-4 animate-in fade-in duration-500">
             <div className="flex items-start justify-between flex-wrap gap-2">
               <div>
-                <h2 className="text-lg font-bold text-slate-900 dark:text-slate-100">Unit Overview</h2>
-                <p className="text-sm text-slate-500 mt-0.5">Floor-plan grid across all properties — hover a unit for details</p>
+                <h2 className="text-lg font-bold text-foreground dark:text-slate-100">Unit Overview</h2>
+                <p className="text-sm text-muted-foreground mt-0.5">Floor-plan grid across all properties — hover a unit for details</p>
               </div>
               <div className="flex items-center gap-2">
                 <span className="text-xs text-slate-400">Rent month:</span>
@@ -2892,7 +2892,7 @@ export default function LandlordPortal({ ownerId }: LandlordPortalProps) {
                             className={`w-full flex items-start gap-4 p-4 text-left transition-colors hover:bg-slate-50 dark:hover:bg-slate-900/40 ${isExpiring ? "bg-orange-50/30 dark:bg-orange-950/20" : ""}`}
                             onClick={() => setExpandedTenantId(isExpanded ? null : t.id)}
                           >
-                            <div className="w-10 h-10 rounded-xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center shrink-0 font-bold text-slate-500 text-sm">
+                            <div className="w-10 h-10 rounded-xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center shrink-0 font-bold text-muted-foreground text-sm">
                               {t.firstName?.[0]}{t.lastName?.[0]}
                             </div>
                             <div className="flex-1 min-w-0">
@@ -3103,7 +3103,7 @@ export default function LandlordPortal({ ownerId }: LandlordPortalProps) {
 
               <CardContent>
                 {maintenanceError ? (
-                  <div className="flex flex-col items-center py-12 gap-3 text-slate-500">
+                  <div className="flex flex-col items-center py-12 gap-3 text-muted-foreground">
                     <AlertCircle className="h-8 w-8 text-red-400" />
                     <p className="text-sm font-medium">Failed to load maintenance requests.</p>
                     <Button variant="outline" size="sm" className="gap-2" onClick={() => refetchMaintenance()}>
@@ -3141,7 +3141,7 @@ export default function LandlordPortal({ ownerId }: LandlordPortalProps) {
                                   {status.label}
                                 </Badge>
                               </div>
-                              <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5 truncate">{req.title}</p>
+                              <p className="text-xs text-muted-foreground dark:text-slate-400 mt-0.5 truncate">{req.title}</p>
                               <div className="flex items-center gap-2 mt-1.5 flex-wrap">
                                 <span className="text-[10px] text-slate-400">{getRelativeTime(req.createdAt)}</span>
                                 <span className="text-[10px] text-slate-300">•</span>
@@ -3272,14 +3272,14 @@ export default function LandlordPortal({ ownerId }: LandlordPortalProps) {
                         </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end" className="w-56 bg-card border border-border shadow-xl z-50">
-                        <DropdownMenuItem className="cursor-pointer text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 focus:bg-slate-100 dark:focus:bg-slate-800" onClick={() => {
+                        <DropdownMenuItem className="cursor-pointer text-muted-foreground dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 focus:bg-slate-100 dark:focus:bg-slate-800" onClick={() => {
                           const w = window.open("", "_blank");
                           if (w) { w.document.write("<html><body style='font-family:sans-serif;padding:40px;color:#475569'>Generating your financial report…</body></html>"); (window as any).__reportWin = w; }
                           generateReport.mutate("quarterly");
                         }}>
                           Quarterly Review
                         </DropdownMenuItem>
-                        <DropdownMenuItem className="cursor-pointer text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 focus:bg-slate-100 dark:focus:bg-slate-800" onClick={() => {
+                        <DropdownMenuItem className="cursor-pointer text-muted-foreground dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 focus:bg-slate-100 dark:focus:bg-slate-800" onClick={() => {
                           const w = window.open("", "_blank");
                           if (w) { w.document.write("<html><body style='font-family:sans-serif;padding:40px;color:#475569'>Generating your financial report…</body></html>"); (window as any).__reportWin = w; }
                           generateReport.mutate("annual");
@@ -3395,7 +3395,7 @@ export default function LandlordPortal({ ownerId }: LandlordPortalProps) {
                                   key={i}
                                   className={`px-8 py-5 font-bold text-xs uppercase tracking-widest ${
                                     isActive ? "text-primary" : "text-slate-400"
-                                  } ${i >= 2 && i <= 3 ? "text-right" : ""} ${col ? "cursor-pointer hover:text-slate-600 dark:hover:text-slate-200 select-none" : ""}`}
+                                  } ${i >= 2 && i <= 3 ? "text-right" : ""} ${col ? "cursor-pointer hover:text-muted-foreground dark:hover:text-slate-200 select-none" : ""}`}
                                   onClick={col ? () => handleSort(col) : undefined}
                                 >
                                   <span className={`inline-flex items-center gap-1 ${i >= 2 && i <= 3 ? "justify-end w-full" : ""}`}>
@@ -3434,12 +3434,12 @@ export default function LandlordPortal({ ownerId }: LandlordPortalProps) {
                                         <FileText className="h-5 w-5" />
                                       </div>
                                       <div>
-                                        <span className="font-bold text-slate-900  capitalize block">{report.reportType} Statement</span>
-                                        <span className="text-xs text-slate-500">#RPT-{String(report.id).padStart(4, "0")}</span>
+                                        <span className="font-bold text-foreground  capitalize block">{report.reportType} Statement</span>
+                                        <span className="text-xs text-muted-foreground">#RPT-{String(report.id).padStart(4, "0")}</span>
                                       </div>
                                     </div>
                                   </td>
-                                  <td className="px-8 py-6 text-sm font-medium text-slate-600 dark:text-slate-400">
+                                  <td className="px-8 py-6 text-sm font-medium text-muted-foreground dark:text-slate-400">
                                     {fmtDateShort(report.reportPeriodStart)} – {fmtDate(report.reportPeriodEnd)}
                                   </td>
                                   <td className="px-8 py-6 text-right font-semibold">
@@ -3451,7 +3451,7 @@ export default function LandlordPortal({ ownerId }: LandlordPortalProps) {
                                     </span>
                                   </td>
                                   <td className="px-8 py-6">
-                                    <Badge variant="secondary" className="bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 capitalize border-none px-3 py-1">
+                                    <Badge variant="secondary" className="bg-slate-100 dark:bg-slate-800 text-muted-foreground dark:text-slate-300 capitalize border-none px-3 py-1">
                                       <CheckCircle2 className="h-3 w-3 mr-1 text-emerald-500" />
                                       {report.status}
                                     </Badge>
@@ -3535,7 +3535,7 @@ export default function LandlordPortal({ ownerId }: LandlordPortalProps) {
                         <div key={i} className="flex items-center justify-between p-3 border rounded-xl hover:border-primary/50 transition-colors group">
                           <div className="flex items-center gap-3 overflow-hidden">
                             <div className="bg-slate-100 dark:bg-slate-800 p-2 rounded-lg group-hover:bg-primary/10 transition-colors flex-shrink-0">
-                              <FileText className="h-4 w-4 text-slate-500 dark:text-slate-400 group-hover:text-primary" />
+                              <FileText className="h-4 w-4 text-muted-foreground dark:text-slate-400 group-hover:text-primary" />
                             </div>
                             <div className="overflow-hidden">
                               <p className="text-sm font-medium truncate">{doc.name}</p>

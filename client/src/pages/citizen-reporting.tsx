@@ -48,7 +48,7 @@ const STATUS_CFG: Record<string, { label: string; cls: string; icon: typeof Cloc
   assigned:    { label: "Assigned",    cls: "bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200", icon: Users       },
   in_progress: { label: "In Progress", cls: "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200", icon: RefreshCw   },
   completed:   { label: "Resolved",    cls: "bg-emerald-50 text-emerald-700 border border-emerald-200" ,  icon: CheckCircle },
-  cancelled:   { label: "Cancelled",   cls: "bg-gray-100   text-gray-700   dark:bg-gray-800   ",   icon: X           },
+  cancelled:   { label: "Cancelled",   cls: "bg-gray-100   text-muted-foreground   dark:bg-gray-800   ",   icon: X           },
 };
 
 const PRIORITY_CFG: Record<string, { label: string; cls: string }> = {

@@ -1778,13 +1778,13 @@ const GeneralLedger = ({ onNavigateToSettings }: { onNavigateToSettings?: () => 
               <table className="w-full border-collapse text-sm">
                 <thead>
                   <tr className="border-b bg-muted">
-                    <th className="text-left px-5 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Transaction ID</th>
-                    <th className="text-left px-5 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Account</th>
-                    <th className="text-left px-5 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Description</th>
-                    <th className="text-right px-5 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Debit (KES)</th>
-                    <th className="text-right px-5 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Credit (KES)</th>
-                    <th className="text-left px-5 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Date</th>
-                    <th className="text-left px-5 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Ref</th>
+                    <th className="text-left px-5 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wide">Transaction ID</th>
+                    <th className="text-left px-5 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wide">Account</th>
+                    <th className="text-left px-5 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wide">Description</th>
+                    <th className="text-right px-5 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wide">Debit (KES)</th>
+                    <th className="text-right px-5 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wide">Credit (KES)</th>
+                    <th className="text-left px-5 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wide">Date</th>
+                    <th className="text-left px-5 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wide">Ref</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -2219,11 +2219,11 @@ const FinancialReports = () => {
           <div className="overflow-x-auto rounded-md border">
             <table className="w-full text-sm border-collapse">
               <thead className="sticky top-0 z-10"><tr className="bg-muted border-b border-border" >
-                  <th className="text-left px-5 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Account Code</th>
-                  <th className="text-left px-5 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Account Name</th>
-                  <th className="text-left px-5 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Type</th>
-                  <th className="text-right px-5 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Debit (KES)</th>
-                  <th className="text-right px-5 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Credit (KES)</th>
+                  <th className="text-left px-5 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wide">Account Code</th>
+                  <th className="text-left px-5 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wide">Account Name</th>
+                  <th className="text-left px-5 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wide">Type</th>
+                  <th className="text-right px-5 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wide">Debit (KES)</th>
+                  <th className="text-right px-5 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wide">Credit (KES)</th>
                 </tr>
               </thead>
               <tbody>
@@ -2290,9 +2290,9 @@ const FinancialReports = () => {
           <div className="overflow-x-auto rounded-md border">
             <table className="w-full text-sm border-collapse">
               <thead className="sticky top-0 z-10"><tr className="bg-muted border-b border-border" >
-                  <th className="text-left px-5 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Account</th>
-                  <th className="text-left px-5 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Category</th>
-                  <th className="text-right px-5 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Amount (KES)</th>
+                  <th className="text-left px-5 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wide">Account</th>
+                  <th className="text-left px-5 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wide">Category</th>
+                  <th className="text-right px-5 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wide">Amount (KES)</th>
                 </tr>
               </thead>
               <tbody>
@@ -2301,7 +2301,7 @@ const FinancialReports = () => {
                   <tr><td colSpan={3} className="p-3 text-muted-foreground text-center">No revenue entries</td></tr>
                 ) : revenue.map((x: any, i: number) => (
                   <tr key={`rev-${i}`} className="border-b hover:bg-muted/40">
-                    <td className="px-5 py-3.5 text-slate-700">{x.accountName ?? x.account}</td>
+                    <td className="px-5 py-3.5 text-muted-foreground">{x.accountName ?? x.account}</td>
                     <td className="p-3 text-muted-foreground capitalize">{x.category?.replace(/_/g, " ") ?? "—"}</td>
                     <td className="p-3 text-right font-mono text-green-700">{formatCurrency(x.amount)}</td>
                   </tr>
@@ -2315,7 +2315,7 @@ const FinancialReports = () => {
                   <tr><td colSpan={3} className="p-3 text-muted-foreground text-center">No expense entries</td></tr>
                 ) : expenses.map((x: any, i: number) => (
                   <tr key={`exp-${i}`} className="border-b hover:bg-muted/40">
-                    <td className="px-5 py-3.5 text-slate-700">{x.accountName ?? x.account}</td>
+                    <td className="px-5 py-3.5 text-muted-foreground">{x.accountName ?? x.account}</td>
                     <td className="p-3 text-muted-foreground capitalize">{x.category?.replace(/_/g, " ") ?? "—"}</td>
                     <td className="p-3 text-right font-mono text-red-700">{formatCurrency(x.amount)}</td>
                   </tr>
@@ -2367,9 +2367,9 @@ const FinancialReports = () => {
           <div className="overflow-x-auto rounded-md border">
             <table className="w-full text-sm border-collapse">
               <thead className="sticky top-0 z-10"><tr className="bg-muted border-b border-border" >
-                  <th className="text-left px-5 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Account</th>
-                  <th className="text-left px-5 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Sub-type</th>
-                  <th className="text-right px-5 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Balance (KES)</th>
+                  <th className="text-left px-5 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wide">Account</th>
+                  <th className="text-left px-5 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wide">Sub-type</th>
+                  <th className="text-right px-5 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wide">Balance (KES)</th>
                 </tr>
               </thead>
               <tbody>
@@ -2377,7 +2377,7 @@ const FinancialReports = () => {
                 {assets.length === 0 ? <tr><td colSpan={3} className="p-3 text-muted-foreground text-center">No asset accounts</td></tr>
                   : assets.map((x: any, i: number) => (
                     <tr key={`ast-${i}`} className="border-b hover:bg-muted/40">
-                      <td className="px-5 py-3.5 text-slate-700">{x.accountName ?? x.account}</td>
+                      <td className="px-5 py-3.5 text-muted-foreground">{x.accountName ?? x.account}</td>
                       <td className="p-3 text-muted-foreground capitalize">{x.subType?.replace(/_/g, " ") ?? "—"}</td>
                       <td className="p-3 text-right font-mono">{formatCurrency(x.balance)}</td>
                     </tr>
@@ -2390,7 +2390,7 @@ const FinancialReports = () => {
                 {liabilities.length === 0 ? <tr><td colSpan={3} className="p-3 text-muted-foreground text-center">No liability accounts</td></tr>
                   : liabilities.map((x: any, i: number) => (
                     <tr key={`lib-${i}`} className="border-b hover:bg-muted/40">
-                      <td className="px-5 py-3.5 text-slate-700">{x.accountName ?? x.account}</td>
+                      <td className="px-5 py-3.5 text-muted-foreground">{x.accountName ?? x.account}</td>
                       <td className="p-3 text-muted-foreground capitalize">{x.subType?.replace(/_/g, " ") ?? "—"}</td>
                       <td className="p-3 text-right font-mono">{formatCurrency(x.balance)}</td>
                     </tr>
@@ -2403,7 +2403,7 @@ const FinancialReports = () => {
                 {equity.length === 0 ? <tr><td colSpan={3} className="p-3 text-muted-foreground text-center">No equity accounts</td></tr>
                   : equity.map((x: any, i: number) => (
                     <tr key={`eq-${i}`} className="border-b hover:bg-muted/40">
-                      <td className="px-5 py-3.5 text-slate-700">{x.accountName ?? x.account}</td>
+                      <td className="px-5 py-3.5 text-muted-foreground">{x.accountName ?? x.account}</td>
                       <td className="p-3 text-muted-foreground capitalize">{x.subType?.replace(/_/g, " ") ?? "—"}</td>
                       <td className="p-3 text-right font-mono">{formatCurrency(x.balance)}</td>
                     </tr>
@@ -2467,8 +2467,8 @@ const FinancialReports = () => {
           <div className="overflow-x-auto rounded-md border">
             <table className="w-full text-sm border-collapse">
               <thead className="sticky top-0 z-10"><tr className="bg-muted border-b border-border" >
-                  <th className="text-left px-5 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Description</th>
-                  <th className="text-right px-5 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Amount (KES)</th>
+                  <th className="text-left px-5 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wide">Description</th>
+                  <th className="text-right px-5 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wide">Amount (KES)</th>
                 </tr>
               </thead>
               <tbody>
@@ -2477,7 +2477,7 @@ const FinancialReports = () => {
                   <tr><td colSpan={2} className="p-3 text-muted-foreground text-center">No operating activity entries</td></tr>
                 ) : operating.map((x: any, i: number) => (
                   <tr key={`op-${i}`} className="border-b hover:bg-muted/40">
-                    <td className="px-5 py-3.5 text-slate-700">{x.description ?? x.label}</td>
+                    <td className="px-5 py-3.5 text-muted-foreground">{x.description ?? x.label}</td>
                     <td className={`p-3 text-right font-mono ${parseFloat(x.amount) >= 0 ? "text-green-700" : "text-red-700"}`}>{formatCurrency(x.amount)}</td>
                   </tr>
                 ))}
@@ -2490,7 +2490,7 @@ const FinancialReports = () => {
                   <tr><td colSpan={2} className="p-3 text-muted-foreground text-center">No investing activity entries</td></tr>
                 ) : investing.map((x: any, i: number) => (
                   <tr key={`inv-${i}`} className="border-b hover:bg-muted/40">
-                    <td className="px-5 py-3.5 text-slate-700">{x.description ?? x.label}</td>
+                    <td className="px-5 py-3.5 text-muted-foreground">{x.description ?? x.label}</td>
                     <td className={`p-3 text-right font-mono ${parseFloat(x.amount) >= 0 ? "text-green-700" : "text-red-700"}`}>{formatCurrency(x.amount)}</td>
                   </tr>
                 ))}
@@ -2503,7 +2503,7 @@ const FinancialReports = () => {
                   <tr><td colSpan={2} className="p-3 text-muted-foreground text-center">No financing activity entries</td></tr>
                 ) : financing.map((x: any, i: number) => (
                   <tr key={`fin-${i}`} className="border-b hover:bg-muted/40">
-                    <td className="px-5 py-3.5 text-slate-700">{x.description ?? x.label}</td>
+                    <td className="px-5 py-3.5 text-muted-foreground">{x.description ?? x.label}</td>
                     <td className={`p-3 text-right font-mono ${parseFloat(x.amount) >= 0 ? "text-green-700" : "text-red-700"}`}>{formatCurrency(x.amount)}</td>
                   </tr>
                 ))}

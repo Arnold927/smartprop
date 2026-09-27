@@ -96,22 +96,22 @@ function SearchBar({ value, onChange, placeholder }: { value:string; onChange:(v
 
 // ── Type label maps ───────────────────────────────────────────────────────────
 const SPACE_TYPE_STYLES: Record<string,string> = {
-  standard: "bg-slate-100 text-slate-700",
+  standard: "bg-slate-100 text-muted-foreground",
   compact:  "bg-purple-50 text-purple-700",
   disabled: "bg-green-50 text-green-700",
   electric: "bg-yellow-50 text-yellow-700",
-  visitor:  "bg-gray-100 text-gray-600",
+  visitor:  "bg-gray-100 text-muted-foreground",
   reserved: "bg-red-50 text-red-700",
 };
 const VEHICLE_STATUS_STYLES: Record<string,string> = {
   active:           "bg-emerald-50 text-emerald-700 border-emerald-200",
-  inactive:         "bg-gray-100 text-gray-500 border-gray-200",
+  inactive:         "bg-gray-100 text-muted-foreground border-gray-200",
   pending_approval: "bg-amber-50 text-amber-700 border-amber-200",
   blacklisted:      "bg-red-50 text-red-700 border-red-200",
 };
 const ASSIGN_STATUS_STYLES: Record<string,string> = {
   active:     "bg-emerald-50 text-emerald-700 border-emerald-200",
-  expired:    "bg-gray-100 text-gray-500 border-gray-200",
+  expired:    "bg-gray-100 text-muted-foreground border-gray-200",
   suspended:  "bg-amber-50 text-amber-700 border-amber-200",
   terminated: "bg-red-50 text-red-700 border-red-200",
 };

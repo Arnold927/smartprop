@@ -124,7 +124,7 @@ const ROLE_META: Record<StaffRole, { label: string; icon: any; color: string; bg
   security:    { label: "Security",     icon: Shield,          color: "text-blue-700 dark:text-blue-300",   bg: "from-emerald-700 via-emerald-600 to-emerald-700",    tabLabel: "On Duty",      tabIcon: ShieldCheck   },
   finance:     { label: "Finance",      icon: CircleDollarSign,color: "text-green-700",  bg: "from-emerald-700 via-emerald-600 to-emerald-700",tabLabel: "Financials",  tabIcon: BarChart3     },
   leasing:     { label: "Leasing",      icon: Users,           color: "text-purple-700", bg: "from-purple-800 via-purple-700 to-purple-800",  tabLabel: "Tenants",     tabIcon: Users         },
-  admin:       { label: "Management",   icon: Building,        color: "text-slate-700",  bg: "from-emerald-700 via-emerald-600 to-emerald-700",    tabLabel: "Overview",    tabIcon: BarChart3     },
+  admin:       { label: "Management",   icon: Building,        color: "text-muted-foreground",  bg: "from-emerald-700 via-emerald-600 to-emerald-700",    tabLabel: "Overview",    tabIcon: BarChart3     },
 };
 
 // ─── Shared status configs ────────────────────────────────────────────────────
@@ -139,7 +139,7 @@ const MAINT_STATUS: Record<string, { label: string; color: string; icon: any; bg
 };
 
 const PRIORITY_CONFIG: Record<string, { label: string; color: string; dot: string }> = {
-  low:    { label: "Low",    color: "text-slate-500",  dot: "bg-slate-400" },
+  low:    { label: "Low",    color: "text-muted-foreground",  dot: "bg-slate-400" },
   medium: { label: "Medium", color: "text-yellow-600", dot: "bg-yellow-400" },
   high:   { label: "High",   color: "text-orange-600", dot: "bg-orange-500" },
   urgent: { label: "Urgent", color: "text-red-600",    dot: "bg-red-500" },
@@ -798,7 +798,7 @@ function AdminPanel() {
       {/* KPI grid */}
       <div className="grid grid-cols-2 gap-3">
         {[
-          { label: "Properties",     value: properties.length,   color: "text-slate-700",  icon: Building,        bg: "bg-muted border-border" },
+          { label: "Properties",     value: properties.length,   color: "text-muted-foreground",  icon: Building,        bg: "bg-muted border-border" },
           { label: "Active Tenants", value: tenants.filter((t:any)=>t.status==="active").length, color: "text-green-700", icon: Users, bg: "bg-green-50 border-green-200" },
           { label: "Open Tickets",   value: openTickets,         color: urgentTickets > 0 ? "text-red-700" : "text-amber-700 dark:text-amber-400", icon: Wrench, bg: urgentTickets > 0 ? "bg-red-50 border-red-200" : "bg-amber-50 border-amber-200" },
           { label: "Active Staff",   value: activeStaff,         color: "text-blue-700 dark:text-blue-300",   icon: HardHat,         bg: "bg-blue-50 border-blue-200" },
@@ -840,7 +840,7 @@ function AdminPanel() {
           {staff.slice(0, 8).map((s: any) => (
             <div key={s.id} className="bg-card border border-border rounded-xl p-3 shadow-sm flex items-center gap-3">
               <div className="h-8 w-8 rounded-full bg-muted flex items-center justify-center shrink-0">
-                <span className="text-xs font-bold text-slate-600">{(s.first_name?.[0] ?? "?").toUpperCase()}</span>
+                <span className="text-xs font-bold text-muted-foreground">{(s.first_name?.[0] ?? "?").toUpperCase()}</span>
               </div>
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-medium text-foreground">{s.first_name} {s.last_name}</p>
@@ -913,7 +913,7 @@ function MessagesPanel({ user, orgUsers }: { user: any; orgUsers: any[] }) {
 
       {composing && (
         <div className="rounded-xl border-2 border-border bg-muted p-4 space-y-3">
-          <p className="text-xs font-semibold text-gray-600 dark:text-muted-foreground/40 uppercase tracking-wide">New Message</p>
+          <p className="text-xs font-semibold text-muted-foreground dark:text-muted-foreground/40 uppercase tracking-wide">New Message</p>
           <Select value={toUserId} onValueChange={setToUserId}>
             <SelectTrigger className="text-sm bg-background border-input h-9"><SelectValue placeholder="Send to..." /></SelectTrigger>
             <SelectContent>
@@ -953,7 +953,7 @@ function MessagesPanel({ user, orgUsers }: { user: any; orgUsers: any[] }) {
                   </p>
                 </div>
               </div>
-              <p className="text-sm text-gray-600 dark:text-muted-foreground/40">{msg.content}</p>
+              <p className="text-sm text-muted-foreground dark:text-muted-foreground/40">{msg.content}</p>
             </div>
           ))}
         </div>
@@ -989,8 +989,8 @@ const NOTIF_COLOR: Record<string, string> = {
   message:     "text-blue-600 bg-blue-50 border-blue-200",
   assignment:  "text-purple-600 bg-purple-50 border-purple-200",
   payment:     "text-green-600 bg-green-50 border-green-200",
-  visitor:     "text-slate-600 bg-muted border-border",
-  system:      "text-gray-600 dark:text-muted-foreground/40 bg-gray-50 border-gray-200",
+  visitor:     "text-muted-foreground bg-muted border-border",
+  system:      "text-muted-foreground dark:text-muted-foreground/40 bg-gray-50 border-gray-200",
 };
 
 // ─── Notification Bell ────────────────────────────────────────────────────────
@@ -1510,7 +1510,7 @@ function ProfilePanel({ staffProfile }: { staffProfile: any }) {
         <CardHeader className="pb-3">
           <div className="flex items-center justify-between">
             <CardTitle className="text-base flex items-center gap-2">
-              <User className="h-4 w-4 text-slate-600" />
+              <User className="h-4 w-4 text-muted-foreground" />
               My Contact & Safety Info
             </CardTitle>
             {!editing && (
@@ -1526,7 +1526,7 @@ function ProfilePanel({ staffProfile }: { staffProfile: any }) {
               <div className="grid grid-cols-1 gap-4">
                 {/* Phone */}
                 <div>
-                  <label className="text-xs font-medium text-gray-600 dark:text-muted-foreground/40 mb-1.5 flex items-center gap-1">
+                  <label className="text-xs font-medium text-muted-foreground dark:text-muted-foreground/40 mb-1.5 flex items-center gap-1">
                     <Phone className="h-3 w-3" /> Phone Number
                   </label>
                   <Input
@@ -1539,7 +1539,7 @@ function ProfilePanel({ staffProfile }: { staffProfile: any }) {
 
                 {/* Address */}
                 <div>
-                  <label className="text-xs font-medium text-gray-600 dark:text-muted-foreground/40 mb-1.5 flex items-center gap-1">
+                  <label className="text-xs font-medium text-muted-foreground dark:text-muted-foreground/40 mb-1.5 flex items-center gap-1">
                     <MapPin className="h-3 w-3" /> Home Address
                   </label>
                   <Textarea
@@ -1556,7 +1556,7 @@ function ProfilePanel({ staffProfile }: { staffProfile: any }) {
                     <Bell className="h-3 w-3" /> Emergency Contact
                   </p>
                   <div>
-                    <label className="text-xs text-gray-600 dark:text-muted-foreground/40 mb-1 block">Contact Name</label>
+                    <label className="text-xs text-muted-foreground dark:text-muted-foreground/40 mb-1 block">Contact Name</label>
                     <Input
                       value={form.emergency_contact_name}
                       onChange={e => setForm(f => ({ ...f, emergency_contact_name: e.target.value }))}
@@ -1565,7 +1565,7 @@ function ProfilePanel({ staffProfile }: { staffProfile: any }) {
                     />
                   </div>
                   <div>
-                    <label className="text-xs text-gray-600 dark:text-muted-foreground/40 mb-1 block">Contact Phone</label>
+                    <label className="text-xs text-muted-foreground dark:text-muted-foreground/40 mb-1 block">Contact Phone</label>
                     <Input
                       value={form.emergency_contact_phone}
                       onChange={e => setForm(f => ({ ...f, emergency_contact_phone: e.target.value }))}
@@ -1623,7 +1623,7 @@ function ProfilePanel({ staffProfile }: { staffProfile: any }) {
                   <div className="space-y-1">
                     <p className="text-sm font-medium text-foreground">{staffProfile.emergency_contact_name}</p>
                     {staffProfile.emergency_contact_phone && (
-                      <p className="text-sm text-gray-600 dark:text-muted-foreground/40 flex items-center gap-1">
+                      <p className="text-sm text-muted-foreground dark:text-muted-foreground/40 flex items-center gap-1">
                         <Phone className="h-3 w-3 text-muted-foreground" />{staffProfile.emergency_contact_phone}
                       </p>
                     )}

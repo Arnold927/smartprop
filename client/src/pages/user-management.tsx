@@ -89,7 +89,7 @@ const ROLE_COLORS: Record<string, string> = {
   staff:      "bg-purple-100 text-purple-700",
   caretaker:  "bg-orange-100 text-orange-700",
   tenant:     "bg-emerald-50 text-emerald-700 border border-emerald-200",
-  guard:      "bg-slate-100 text-slate-700",
+  guard:      "bg-slate-100 text-muted-foreground",
   contractor: "bg-amber-100 text-amber-700",
 };
 
@@ -433,7 +433,7 @@ function PermissionsTab() {
                         {/* Permission label */}
                         <td className="py-2.5 px-4 sticky left-0 bg-card dark:bg-gray-950 group-hover:bg-muted/40 dark:group-hover:bg-gray-900/50 z-10 transition-colors duration-300">
                           <div>
-                            <p className="font-medium text-slate-900">{perm.label}</p>
+                            <p className="font-medium text-foreground">{perm.label}</p>
                             <p className="text-muted-foreground text-[10px] leading-tight mt-0.5">{perm.description}</p>
                           </div>
                         </td>
@@ -589,7 +589,7 @@ export default function UserManagement() {
       <div className="bg-card dark:bg-gray-900 border-b border-border dark:border-gray-800 px-6 py-5">
         <div className="max-w-7xl mx-auto flex items-center justify-between">
           <div>
-            <h1 className="text-xl font-semibold text-slate-900">User Management</h1>
+            <h1 className="text-xl font-semibold text-foreground">User Management</h1>
             <p className="text-sm text-muted-foreground mt-0.5">{stats.total} users · {stats.active} active</p>
           </div>
           <UserInviteModal triggerText="Invite user" />
@@ -611,7 +611,7 @@ export default function UserManagement() {
                   <Icon className={`w-4 h-4 text-${color}-600`} />
                 </div>
                 <div>
-                  <p className="text-xl font-semibold text-slate-900">{value}</p>
+                  <p className="text-xl font-semibold text-foreground">{value}</p>
                   <p className="text-xs text-muted-foreground">{label}</p>
                 </div>
               </CardContent>
@@ -674,7 +674,7 @@ export default function UserManagement() {
               {filtered.length === 0 ? (
                 <CardContent className="py-16 text-center">
                   <Users className="w-12 h-12 text-gray-200 mx-auto mb-3" />
-                  <p className="text-sm font-medium text-slate-900">No users found</p>
+                  <p className="text-sm font-medium text-foreground">No users found</p>
                   <p className="text-xs text-muted-foreground mt-1 mb-4">Invite users to get started</p>
                 </CardContent>
               ) : (
@@ -700,7 +700,7 @@ export default function UserManagement() {
                                   </AvatarFallback>
                                 </Avatar>
                                 <div className="min-w-0">
-                                  <p className="font-medium text-slate-900 truncate">
+                                  <p className="font-medium text-foreground truncate">
                                     {u.firstName && u.lastName ? `${u.firstName} ${u.lastName}` : u.email ?? "Unknown user"}
                                   </p>
                                   {u.email && <p className="text-xs text-muted-foreground truncate">{u.email}</p>}

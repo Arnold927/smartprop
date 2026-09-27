@@ -124,7 +124,7 @@ function TemplatesDialog({ open, onClose, onApply }: {
               <div key={t.id} className="border border-border dark:border-gray-700 rounded-xl p-4">
                 <div className="flex items-start justify-between gap-2">
                   <div>
-                    <p className="text-sm font-semibold text-slate-900">{t.name}</p>
+                    <p className="text-sm font-semibold text-foreground">{t.name}</p>
                     <Badge variant="outline" className="text-[10px] mt-1 capitalize">{t.category.replace(/_/g, " ")}</Badge>
                   </div>
                   <Button size="sm" variant="outline" className="h-7 text-xs"
@@ -408,7 +408,7 @@ export default function BroadcastMessaging() {
             <div key={broadcast.id} className="border border-border dark:border-gray-700 rounded-xl p-4 hover:shadow-sm transition-shadow">
               <div className="flex justify-between items-start mb-2 gap-2">
                 <div className="min-w-0">
-                  <h3 className="text-sm font-semibold text-slate-900 truncate">{broadcast.title}</h3>
+                  <h3 className="text-sm font-semibold text-foreground truncate">{broadcast.title}</h3>
                   <p className="text-xs text-muted-foreground truncate mt-0.5">{broadcast.content}</p>
                 </div>
                 <Badge className={`${statusColor(broadcast.status)} flex items-center flex-shrink-0 text-xs`}>
@@ -502,7 +502,7 @@ export default function BroadcastMessaging() {
       <div className="bg-card dark:bg-gray-900 border-b border-border dark:border-gray-800 px-6 py-5">
         <div className="max-w-7xl mx-auto flex items-center justify-between">
           <div>
-            <h1 className="text-xl font-semibold text-slate-900">Broadcast Messaging</h1>
+            <h1 className="text-xl font-semibold text-foreground">Broadcast Messaging</h1>
             <p className="text-sm text-muted-foreground mt-0.5">
               Send messages to multiple recipients across different channels
             </p>
@@ -529,7 +529,7 @@ export default function BroadcastMessaging() {
                 <CardContent className="p-4 flex items-center justify-between">
                   <div>
                     <p className="text-xs text-muted-foreground">{stat.label}</p>
-                    <p className="text-2xl font-semibold text-slate-900 mt-0.5">{stat.value}</p>
+                    <p className="text-2xl font-semibold text-foreground mt-0.5">{stat.value}</p>
                   </div>
                   <Icon className={`h-8 w-8 ${stat.color}`} />
                 </CardContent>
@@ -697,7 +697,7 @@ export default function BroadcastMessaging() {
                             </div>
                             <div className="flex-1 min-w-0">
                               <div className="flex items-center gap-2">
-                                <p className="text-sm font-medium text-slate-900">{ch.label}</p>
+                                <p className="text-sm font-medium text-foreground">{ch.label}</p>
                                 {isDisabled && <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-muted text-muted-foreground font-medium">Coming soon</span>}
                               </div>
                               <p className="text-xs text-muted-foreground leading-tight">{ch.description}</p>

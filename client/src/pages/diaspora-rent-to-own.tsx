@@ -993,7 +993,7 @@ export default function DiasporaRentToOwn() {
                       <div className="grid grid-cols-2 gap-4 py-2 border-y border-slate-50">
                         <div className="min-w-0">
                           <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-bold">Total Value</p>
-                          <p className="font-bold text-slate-900 truncate text-sm">{formatCurrency(contract.totalPropertyValue, contract.currency as any)}</p>
+                          <p className="font-bold text-foreground truncate text-sm">{formatCurrency(contract.totalPropertyValue, contract.currency as any)}</p>
                         </div>
                         <div className="min-w-0">
                           <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-bold">{contract.paymentFrequency === "quarterly" ? "Quarterly" : contract.paymentFrequency === "semi_annual" ? "Semi-Annual" : contract.paymentFrequency === "annual" ? "Annual" : "Monthly"}</p>
@@ -1618,7 +1618,7 @@ export default function DiasporaRentToOwn() {
                     </div>
 
                     <div className="p-3 rounded-lg bg-slate-50 border text-sm text-muted-foreground">
-                      <p className="font-semibold text-slate-700 mb-1">About this certificate</p>
+                      <p className="font-semibold text-muted-foreground mb-1">About this certificate</p>
                       <p>A unique cryptographic hash will be generated and stored in the SmartProp Digital Registry. The certificate can be downloaded as a PDF and shared with the investor.</p>
                     </div>
 
@@ -1761,7 +1761,7 @@ export default function DiasporaRentToOwn() {
                               <div className="flex gap-2 pt-2 flex-wrap">
                                 <Button
                                   size="sm"
-                                  className="bg-white text-slate-900 hover:bg-slate-100 font-bold gap-1.5"
+                                  className="bg-white text-foreground hover:bg-slate-100 font-bold gap-1.5"
                                   onClick={() => setViewingCert({ cert, contract })}
                                 >
                                   <FileText className="h-3.5 w-3.5" /> View Certificate
@@ -1846,7 +1846,7 @@ export default function DiasporaRentToOwn() {
               <div>
                 {/* Print toolbar */}
                 <div className="flex items-center justify-between px-6 py-3 border-b bg-slate-50">
-                  <h2 className="font-bold text-sm text-slate-700">Certificate Preview</h2>
+                  <h2 className="font-bold text-sm text-muted-foreground">Certificate Preview</h2>
                   <div className="flex gap-2">
                     <Button size="sm" variant="outline" className="gap-1.5" onClick={() => window.print()}>
                       <FileText className="h-3.5 w-3.5" /> Print / Save PDF

@@ -67,7 +67,7 @@ const STATUS_CFG: Record<string, { badge: string; bar: string; icon: any; label:
   assigned:         { badge: "bg-blue-50 text-blue-700 border-blue-200",       bar: "bg-blue-500",    icon: UserCheck,   label: "Assigned"     },
   in_progress:      { badge: "bg-purple-50 text-purple-700 border-purple-200", bar: "bg-purple-500",  icon: Wrench,      label: "In Progress"  },
   completed:        { badge: "bg-emerald-50 text-emerald-700 border-emerald-200", bar: "bg-emerald-500", icon: CheckCircle, label: "Completed"  },
-  cancelled:        { badge: "bg-gray-100 text-gray-500 border-gray-200",      bar: "bg-gray-300",    icon: XCircle,     label: "Cancelled"    },
+  cancelled:        { badge: "bg-gray-100 text-muted-foreground border-gray-200",      bar: "bg-gray-300",    icon: XCircle,     label: "Cancelled"    },
 };
 const PRIORITY_CFG: Record<string, { badge: string; label: string }> = {
   urgent: { badge: "bg-red-50 text-red-700 border-red-200",       label: "Urgent"  },

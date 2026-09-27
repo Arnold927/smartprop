@@ -36,7 +36,7 @@ const STATUS_COLORS: Record<string, string> = {
   trial: "bg-blue-100 text-blue-800",
   past_due: "bg-yellow-100 text-yellow-800",
   cancelled: "bg-red-100 text-red-800",
-  inactive: "bg-gray-100 text-gray-700",
+  inactive: "bg-gray-100 text-muted-foreground",
 };
 
 const PLAN_ICONS: Record<string, React.ReactNode> = {
@@ -132,7 +132,7 @@ export default function BillingPage() {
           </div>
         </div>
         <div className="flex flex-col items-start sm:items-end gap-1">
-          <Badge className={STATUS_COLORS[statusLabel] ?? "bg-gray-100 text-gray-700"}>
+          <Badge className={STATUS_COLORS[statusLabel] ?? "bg-gray-100 text-muted-foreground"}>
             {statusLabel.replace("_", " ")}
           </Badge>
           <p className="text-xs text-muted-foreground">

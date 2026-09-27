@@ -10,15 +10,15 @@ export default function NotFound() {
           <span className="text-3xl font-bold text-slate-300">404</span>
         </div>
         <div>
-          <h1 className="text-2xl font-semibold text-slate-900">Page not found</h1>
-          <p className="text-slate-500 mt-2 text-sm leading-relaxed">
+          <h1 className="text-2xl font-semibold text-foreground">Page not found</h1>
+          <p className="text-muted-foreground mt-2 text-sm leading-relaxed">
             The page you are looking for does not exist or has been moved.
           </p>
         </div>
         <div className="flex items-center justify-center gap-3">
           <button
             onClick={() => window.history.back()}
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-slate-200 bg-white text-slate-700 text-sm font-medium hover:bg-slate-50 transition-colors"
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-slate-200 bg-white text-muted-foreground text-sm font-medium hover:bg-slate-50 transition-colors"
           >
             <ArrowLeft className="w-4 h-4" /> Go back
           </button>

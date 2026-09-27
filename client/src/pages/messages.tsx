@@ -87,7 +87,7 @@ const ROLE_BADGE_COLORS: Record<string, string> = {
   caretaker:   "bg-teal-100 text-teal-700 dark:bg-teal-950/40 dark:text-teal-400",
   tenant:      "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400",
   contractor:  "bg-orange-100 text-orange-700 dark:bg-orange-950/40 dark:text-orange-400",
-  guard:       "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-400",
+  guard:       "bg-slate-100 text-muted-foreground dark:bg-slate-800 dark:text-slate-400",
 };
 
 function RoleBadge({ role }: { role: string | null | undefined }) {

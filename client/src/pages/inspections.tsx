@@ -52,7 +52,7 @@ function statusColor(s: string) {
   if (s === "pending_signature") return "bg-blue-100 text-blue-800";
   if (s === "tenant_signed")     return "bg-purple-100 text-purple-800";
   if (s === "in_progress")       return "bg-amber-100 text-amber-800";
-  return "bg-gray-100 text-gray-700";
+  return "bg-gray-100 text-muted-foreground";
 }
 
 // ─── Room editor ──────────────────────────────────────────────────────────────

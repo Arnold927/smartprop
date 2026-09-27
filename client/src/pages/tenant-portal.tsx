@@ -79,11 +79,11 @@ const MAINT_STATUS_CONFIG: Record<string, { label: string; cls: string; icon: an
   assigned:    { label: "Assigned",    cls: "bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200", icon: User },
   in_progress: { label: "In Progress", cls: "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200", icon: Wrench },
   completed:   { label: "Completed",   cls: "bg-emerald-50 text-emerald-700 border border-emerald-200", icon: CheckCircle },
-  cancelled:   { label: "Cancelled",   cls: "bg-gray-100 text-gray-700 dark:bg-gray-800", icon: X },
+  cancelled:   { label: "Cancelled",   cls: "bg-gray-100 text-muted-foreground dark:bg-gray-800", icon: X },
 };
 
 const PRIORITY_CONFIG_STATIC: Record<string, { label: string; cls: string }> = {
-  low:    { label: "Low",    cls: "text-slate-500" },
+  low:    { label: "Low",    cls: "text-muted-foreground" },
   medium: { label: "Medium", cls: "text-yellow-600" },
   high:   { label: "High",   cls: "text-orange-600" },
   urgent: { label: "Urgent", cls: "text-red-600 font-semibold" },
@@ -112,7 +112,7 @@ function getMaintStatus(t: (k: string) => string): Record<string, { label: strin
     assigned:    { label: t("tenantPortal.statusAssigned"),   cls: "bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200", icon: User },
     in_progress: { label: t("tenantPortal.statusInProgress"), cls: "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200", icon: Wrench },
     completed:   { label: t("tenantPortal.statusCompleted"),  cls: "bg-emerald-50 text-emerald-700 border border-emerald-200", icon: CheckCircle },
-    cancelled:   { label: t("tenantPortal.statusCancelled"),  cls: "bg-gray-100 text-gray-700 dark:bg-gray-800", icon: X },
+    cancelled:   { label: t("tenantPortal.statusCancelled"),  cls: "bg-gray-100 text-muted-foreground dark:bg-gray-800", icon: X },
   };
 }
 
@@ -126,7 +126,7 @@ const PAY_STATUS: Record<string, { label: string; cls: string }> = {
 
 function getPriorityConfig(t: (k: string) => string): Record<string, { label: string; cls: string }> {
   return {
-    low:    { label: t("tenantPortal.priorityLow"),    cls: "text-slate-500" },
+    low:    { label: t("tenantPortal.priorityLow"),    cls: "text-muted-foreground" },
     medium: { label: t("tenantPortal.priorityMedium"), cls: "text-yellow-600" },
     high:   { label: t("tenantPortal.priorityHigh"),   cls: "text-orange-600" },
     urgent: { label: t("tenantPortal.priorityUrgent"), cls: "text-red-600 font-semibold" },
@@ -909,7 +909,7 @@ function ProfileTab({
             <div className="flex gap-2">
               <Button
                 size="sm"
-                className="h-8 text-xs bg-slate-900 text-white hover:bg-slate-800 dark:bg-white dark:text-slate-900"
+                className="h-8 text-xs bg-slate-900 text-white hover:bg-slate-800 dark:bg-white dark:text-foreground"
                 onClick={save}
                 disabled={saving}
               >
@@ -925,7 +925,7 @@ function ProfileTab({
           {/* Avatar + name */}
           <div className="flex items-center gap-4 p-4 bg-muted/40 rounded-xl">
             <div className="w-14 h-14 rounded-2xl bg-slate-900 dark:bg-white flex items-center justify-center flex-shrink-0">
-              <span className="text-xl font-semibold text-white dark:text-slate-900">
+              <span className="text-xl font-semibold text-white dark:text-foreground">
                 {tenant?.firstName?.[0]}{tenant?.lastName?.[0]}
               </span>
             </div>
@@ -1758,7 +1758,7 @@ function MessagesPanel({
           <Button variant="outline" size="sm" className="h-8 text-xs" onClick={onRefresh}>
             <RefreshCw className="w-3.5 h-3.5 mr-1.5" /> Refresh
           </Button>
-          <Button size="sm" className="h-8 text-xs gap-1.5 bg-slate-900 hover:bg-slate-800 dark:bg-white dark:text-slate-900 text-white"
+          <Button size="sm" className="h-8 text-xs gap-1.5 bg-slate-900 hover:bg-slate-800 dark:bg-white dark:text-foreground text-white"
             onClick={() => setShowCompose(v => !v)}>
             <Send className="w-3.5 h-3.5" /> New Message
           </Button>
@@ -1769,7 +1769,7 @@ function MessagesPanel({
       {showCompose && (
         <Card className="rounded-2xl border-primary/30 shadow-sm">
           <CardHeader className="pb-3">
-            <h3 className="text-sm font-semibold text-slate-900">New Message to Property Manager</h3>
+            <h3 className="text-sm font-semibold text-foreground">New Message to Property Manager</h3>
             {managerName ? (
               <CardDescription className="flex items-center gap-1.5">
                 <User className="w-3 h-3" />
@@ -1798,7 +1798,7 @@ function MessagesPanel({
             />
             <div className="flex gap-2">
               <Button
-                className="flex-1 bg-slate-900 hover:bg-slate-800 dark:bg-white dark:text-slate-900 text-white h-9 text-sm"
+                className="flex-1 bg-slate-900 hover:bg-slate-800 dark:bg-white dark:text-foreground text-white h-9 text-sm"
                 onClick={handleNewMessage}
                 disabled={isSending || !newSubject.trim() || !newContent.trim()}
               >
@@ -1890,7 +1890,7 @@ function MessagesPanel({
                         )}
                         <div className={`max-w-[80%] rounded-2xl px-4 py-2.5 text-sm leading-relaxed ${
                           isMe
-                            ? "bg-slate-900 dark:bg-white text-white dark:text-slate-900 rounded-br-sm"
+                            ? "bg-slate-900 dark:bg-white text-white dark:text-foreground rounded-br-sm"
                             : "bg-white dark:bg-card border border-border text-foreground rounded-bl-sm shadow-sm"
                         }`}>
                           {m.content}
@@ -1921,7 +1921,7 @@ function MessagesPanel({
                   />
                   <Button
                     size="sm"
-                    className="h-9 w-9 p-0 bg-slate-900 hover:bg-slate-800 dark:bg-white dark:text-slate-900 text-white flex-shrink-0"
+                    className="h-9 w-9 p-0 bg-slate-900 hover:bg-slate-800 dark:bg-white dark:text-foreground text-white flex-shrink-0"
                     onClick={() => handleReply(thread)}
                     disabled={isSending || !(replyText[thread.subject] ?? "").trim()}
                     title="Send reply (Ctrl+Enter)"
@@ -3241,7 +3241,7 @@ export default function TenantPortal({ tenantId, initialTenantData }: TenantPort
                       </FormItem>
                     )} />
                     <Button type="submit"
-                      className="w-full bg-slate-900 hover:bg-slate-800 dark:bg-white dark:text-slate-900 dark:hover:bg-slate-100 text-white h-10"
+                      className="w-full bg-slate-900 hover:bg-slate-800 dark:bg-white dark:text-foreground dark:hover:bg-slate-100 text-white h-10"
                       disabled={submitRepair.isPending || !tenant?.unitId}>
                       {submitRepair.isPending
                         ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Submitting…</>
@@ -3317,8 +3317,8 @@ export default function TenantPortal({ tenantId, initialTenantData }: TenantPort
                       const iconMap: Record<string, any> = { water: Droplets, electricity: Zap, gas: Flame, internet: WifiIcon };
                       const BillIcon = iconMap[utilType] || Zap;
                       const colorMap: Record<string, string> = { water: "text-sky-500 bg-sky-50 dark:bg-sky-950/40", electricity: "text-yellow-500 bg-yellow-50 dark:bg-yellow-950/40", gas: "text-red-500 bg-red-50 dark:bg-red-950/40", internet: "text-purple-500 bg-purple-50 dark:bg-purple-950/40" };
-                      const iconCls = colorMap[utilType] || "text-gray-500 bg-muted";
-                      const statusCls: Record<string, string> = { pending: "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200", paid: "bg-emerald-50 text-emerald-700 border border-emerald-200", overdue: "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200", disputed: "bg-gray-100 text-gray-700" };
+                      const iconCls = colorMap[utilType] || "text-muted-foreground bg-muted";
+                      const statusCls: Record<string, string> = { pending: "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200", paid: "bg-emerald-50 text-emerald-700 border border-emerald-200", overdue: "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200", disputed: "bg-gray-100 text-muted-foreground" };
 
                       return (
                         <div key={bill.id} className="flex items-start gap-3 p-4 rounded-xl border border-border hover:border-primary/20 hover:bg-muted/40 transition-all">

@@ -33,7 +33,7 @@ const fmt    = (d: any) => d ? format(new Date(d), "dd MMM yyyy") : "—";
 const fmtKES = (n: any) => n ? `KES ${Math.round(Number(n)).toLocaleString("en-KE")}` : "—";
 
 const STAGES = [
-  { key: "new",                   label: "New Enquiry",    icon: Users,         dot: "bg-slate-400",   pill: "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300" },
+  { key: "new",                   label: "New Enquiry",    icon: Users,         dot: "bg-slate-400",   pill: "bg-slate-100 text-muted-foreground dark:bg-slate-800 dark:text-slate-300" },
   { key: "viewing_scheduled",     label: "Viewing Booked", icon: Calendar,      dot: "bg-blue-400",    pill: "bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300" },
   { key: "viewed",                label: "Viewed",         icon: Home,          dot: "bg-indigo-400",  pill: "bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300" },
   { key: "application_submitted", label: "Applied",        icon: ClipboardList, dot: "bg-purple-400",  pill: "bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300" },

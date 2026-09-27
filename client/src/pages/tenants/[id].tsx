@@ -107,7 +107,7 @@ interface Document {
 const STATUS_STYLES = {
   active:   { dot: "bg-green-500", badge: "bg-green-50 text-green-700 border-green-200 dark:bg-green-950 dark:text-green-400 dark:border-green-800" },
   pending:  { dot: "bg-amber-500", badge: "bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950 dark:text-amber-400 dark:border-amber-800" },
-  inactive: { dot: "bg-gray-400",  badge: "bg-gray-100 text-gray-600 border-gray-200 dark:bg-gray-800  dark:border-gray-700" },
+  inactive: { dot: "bg-gray-400",  badge: "bg-gray-100 text-muted-foreground border-gray-200 dark:bg-gray-800  dark:border-gray-700" },
 };
 
 function fmtDate(d?: string | null) {
@@ -427,7 +427,7 @@ export default function TenantDetails() {
             <div className="flex-1 min-w-0">
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
-                  <h1 className="text-2xl font-semibold text-slate-900 leading-tight">
+                  <h1 className="text-2xl font-semibold text-foreground leading-tight">
                     {tenant.firstName} {tenant.lastName}
                   </h1>
                   <div className="flex items-center gap-2 mt-1 flex-wrap">
@@ -494,7 +494,7 @@ export default function TenantDetails() {
                 <div className={`p-2 rounded-lg ${kpi.accent} flex-shrink-0`}>{kpi.icon}</div>
                 <div className="min-w-0">
                   <p className="text-[11px] uppercase tracking-wide text-muted-foreground font-medium">{kpi.label}</p>
-                  <p className="text-base font-bold text-slate-900 leading-tight truncate">{kpi.value}</p>
+                  <p className="text-base font-bold text-foreground leading-tight truncate">{kpi.value}</p>
                   <p className={`text-[11px] ${kpi.sub.includes("overdue") || kpi.sub.includes("urgent") ? "text-red-500" : "text-muted-foreground"}`}>{kpi.sub}</p>
                 </div>
               </div>

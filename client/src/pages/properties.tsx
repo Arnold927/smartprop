@@ -46,7 +46,7 @@ function OccupancyBar({ pct }: { pct: number }) {
       <div className="flex-1 bg-muted dark:bg-gray-800 rounded-full h-1.5 overflow-hidden">
         <div className={`h-1.5 rounded-full ${color}`} style={{ width: `${pct}%` }} />
       </div>
-      <span className="text-xs text-slate-500 w-8 text-right">{pct}%</span>
+      <span className="text-xs text-muted-foreground w-8 text-right">{pct}%</span>
     </div>
   );
 }

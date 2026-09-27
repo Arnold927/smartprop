@@ -88,8 +88,8 @@ export default function Pricing() {
  <Building2 className="h-6 w-6 text-white" />
  </div>
  <div>
- <h1 className="text-2xl font-semibold text-slate-900">Smart Prop</h1>
- <p className="text-sm text-slate-500">Property Management Solutions</p>
+ <h1 className="text-2xl font-semibold text-foreground">Smart Prop</h1>
+ <p className="text-sm text-muted-foreground">Property Management Solutions</p>
  </div>
  </div>
  <div className="flex items-center space-x-4">
@@ -226,7 +226,7 @@ export default function Pricing() {
  className={`w-full ${
  plan.popular 
  ? "bg-blue-500 hover:bg-blue-600 text-white" 
- : "bg-slate-100 hover:bg-slate-200 text-slate-900 dark:bg-slate-800 dark:hover:bg-slate-700 "
+ : "bg-slate-100 hover:bg-slate-200 text-foreground dark:bg-slate-800 dark:hover:bg-slate-700 "
  }`}
  size="lg"
  >

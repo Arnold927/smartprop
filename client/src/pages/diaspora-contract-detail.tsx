@@ -47,7 +47,7 @@ const fmtMoney = (n: any, currency = "KES") =>
   `${currency} ${Math.round(Number(n ?? 0)).toLocaleString("en-KE")}`;
 
 const STAGE_COLORS: Record<string, string> = {
-  planning:   "bg-slate-100 text-slate-700 border-slate-200",
+  planning:   "bg-slate-100 text-muted-foreground border-slate-200",
   foundation: "bg-amber-50 text-amber-700 border-amber-200",
   structure:  "bg-blue-50 text-blue-700 border-blue-200",
   roofing:    "bg-sky-50 text-sky-700 border-sky-200",

@@ -1,1255 +1,667 @@
-import { useState, useMemo } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { format, startOfDay, endOfDay, startOfWeek, endOfWeek, startOfMonth, endOfMonth, startOfQuarter, endOfQuarter, startOfYear, endOfYear, subMonths, subQuarters, subYears, isWithinInterval, parseISO } from "date-fns";
-import { Plus, Pencil, Receipt, DollarSign, Calendar, TrendingUp, FileText, CheckCircle, XCircle, Clock, ChevronLeft, ChevronRight, X } from "lucide-react";
-
+import { useLocation } from "wouter";
+import { apiRequest, ensureArray } from "@/lib/queryClient";
+import { useToast } from "@/hooks/use-toast";
+import { useIsMobile } from "@/hooks/use-mobile";
+import {
+ Plus, Search, Wrench, AlertTriangle, CheckCircle, Clock,
+ Eye, Edit, MoreVertical, Download, X, ChevronRight,
+ User, Building, Calendar, ThumbsUp, ThumbsDown, ShieldCheck,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+ DropdownMenu, DropdownMenuContent, DropdownMenuItem,
+ DropdownMenuSeparator, DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
+ Dialog, DialogContent, DialogDescription,
+ DialogFooter, DialogHeader, DialogTitle,
+} from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { useToast } from "@/hooks/use-toast";
-import { apiRequest, ensureArray } from "@/lib/queryClient";
-import { useAuth } from "@/hooks/useAuth";
-import { formatCurrency } from "@shared/currency";
+import { MobileActionSheet } from "@/components/ui/mobile-action-sheet";
+import AddMaintenanceModal from "@/components/modals/add-maintenance-modal";
+import ViewMaintenanceModal from "@/components/modals/view-maintenance-modal";
+import EditMaintenanceModal from "@/components/modals/edit-maintenance-modal";
+import { formatDistanceToNow } from "date-fns";
 import { PageShell, PageHeader, SectionCard, SPBadge, EmptyState, PrimaryButton, SecondaryButton, FilterBar, SPTable, SPAvatar, StatTile, StatsGrid, KESAmount, ActionMenu, ConfirmDialog } from "@/components/ui/sp-ui";
+import { useAuth } from "@/hooks/useAuth";
+import { useRoleGuard, ROLES } from "@/hooks/useRoleGuard";
 
-// ── Reusable pagination hook ─────────────────────────────────────────────────
-function usePagination<T>(items: T[], defaultPageSize = 10) {
-  const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(defaultPageSize);
 
-  const totalPages = Math.max(1, Math.ceil(items.length / pageSize));
-  const safePage = Math.min(page, totalPages);
-
-  const paginated = useMemo(
-    () => items.slice((safePage - 1) * pageSize, safePage * pageSize),
-    [items, safePage, pageSize]
-  );
-
-  // Reset to page 1 whenever the list length changes (e.g. after search)
-  const reset = () => setPage(1);
-
-  return {
-    page: safePage,
-    pageSize,
-    totalPages,
-    totalItems: items.length,
-    paginated,
-    setPage,
-    setPageSize: (ps: number) => { setPageSize(ps); setPage(1); },
-    reset,
-  };
+interface MaintenanceRequest {
+ id: number;
+ title: string;
+ description: string;
+ priority: string;
+ status: string;
+ assignedTo?: string;
+ estimatedCost?: string;
+ category?: string;
+ createdAt: string;
+ tenant?: { firstName: string; lastName: string; email?: string };
+ unit?: { id: number; unitNumber: string };
+ property?: { id: number; name: string };
+ technician?: { id: number; name: string; specialty?: string };
 }
 
-// ── Pagination controls component ────────────────────────────────────────────
-function PaginationControls({
-  page,
-  totalPages,
-  totalItems,
-  pageSize,
-  onPageChange,
-  onPageSizeChange,
-}: {
-  page: number;
-  totalPages: number;
-  totalItems: number;
-  pageSize: number;
-  onPageChange: (p: number) => void;
-  onPageSizeChange: (ps: number) => void;
-}) {
-  const start = totalItems === 0 ? 0 : (page - 1) * pageSize + 1;
-  const end = Math.min(page * pageSize, totalItems);
-
-  return (
-    <div className="flex items-center justify-between pt-4 flex-wrap gap-3">
-      <div className="flex items-center gap-2 text-sm text-muted-foreground">
-        <span>Rows per page:</span>
-        <Select value={String(pageSize)} onValueChange={(v) => onPageSizeChange(Number(v))}>
-          <SelectTrigger className="w-20 h-8">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {[5, 10, 20, 50].map((n) => (
-              <SelectItem key={n} value={String(n)}>{n}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
-      <div className="flex items-center gap-3 text-sm text-muted-foreground">
-        <span>{totalItems === 0 ? "0" : `${start}–${end} of ${totalItems}`}</span>
-        <div className="flex gap-1">
-          <Button
-            variant="outline"
-            size="icon"
-            className="h-8 w-8"
-            onClick={() => onPageChange(page - 1)}
-            disabled={page <= 1}
-          >
-            <ChevronLeft className="h-4 w-4" />
-          </Button>
-          <Button
-            variant="outline"
-            size="icon"
-            className="h-8 w-8"
-            onClick={() => onPageChange(page + 1)}
-            disabled={page >= totalPages}
-          >
-            <ChevronRight className="h-4 w-4" />
-          </Button>
-        </div>
-      </div>
-    </div>
-  );
+function PriorityBadge({ p }: { p: string }) {
+ const m: Record<string,string> = {
+ urgent: "bg-red-100 text-red-700 border border-red-200",
+ high: "bg-orange-100 text-orange-700 border border-orange-200",
+ medium: "bg-amber-100 text-amber-700 border border-amber-200",
+ low: "bg-emerald-50 text-emerald-700 border border-emerald-200",
+ };
+ return <span className={`text-xs px-2 py-0.5 rounded-full font-medium capitalize ${m[p] ?? m.low}`}>{p}</span>;
 }
 
-// ── Date period presets ───────────────────────────────────────────────────────
-type DatePeriod = "all" | "today" | "this_week" | "this_month" | "last_month" | "this_quarter" | "last_quarter" | "this_year" | "last_year" | "custom";
-
-interface DateRange {
-  from: string; // ISO date string "YYYY-MM-DD"
-  to: string;
+function StatusBadge({ s }: { s: string }) {
+ const m: Record<string,string> = {
+ pending: "bg-amber-100 text-amber-700",
+ pending_approval: "bg-violet-100 text-violet-700 border border-violet-200",
+ assigned: "bg-blue-100 text-blue-700",
+ in_progress: "bg-purple-100 text-purple-700",
+ completed: "bg-emerald-50 text-emerald-700 border border-emerald-200",
+ cancelled: "bg-muted text-muted-foreground",
+ };
+ return <span className={`text-xs px-2 py-0.5 rounded-full font-medium capitalize ${m[s] ?? "bg-muted text-muted-foreground"}`}>{s.replace(/_/g, " ")}</span>;
 }
 
-function getPresetRange(period: DatePeriod): DateRange | null {
-  const now = new Date();
-  switch (period) {
-    case "today":
-      return { from: format(startOfDay(now), "yyyy-MM-dd"), to: format(endOfDay(now), "yyyy-MM-dd") };
-    case "this_week":
-      return { from: format(startOfWeek(now, { weekStartsOn: 1 }), "yyyy-MM-dd"), to: format(endOfWeek(now, { weekStartsOn: 1 }), "yyyy-MM-dd") };
-    case "this_month":
-      return { from: format(startOfMonth(now), "yyyy-MM-dd"), to: format(endOfMonth(now), "yyyy-MM-dd") };
-    case "last_month": {
-      const lm = subMonths(now, 1);
-      return { from: format(startOfMonth(lm), "yyyy-MM-dd"), to: format(endOfMonth(lm), "yyyy-MM-dd") };
-    }
-    case "this_quarter":
-      return { from: format(startOfQuarter(now), "yyyy-MM-dd"), to: format(endOfQuarter(now), "yyyy-MM-dd") };
-    case "last_quarter": {
-      const lq = subQuarters(now, 1);
-      return { from: format(startOfQuarter(lq), "yyyy-MM-dd"), to: format(endOfQuarter(lq), "yyyy-MM-dd") };
-    }
-    case "this_year":
-      return { from: format(startOfYear(now), "yyyy-MM-dd"), to: format(endOfYear(now), "yyyy-MM-dd") };
-    case "last_year": {
-      const ly = subYears(now, 1);
-      return { from: format(startOfYear(ly), "yyyy-MM-dd"), to: format(endOfYear(ly), "yyyy-MM-dd") };
-    }
-    default:
-      return null;
-  }
+function PriorityDot({ p }: { p: string }) {
+ const m: Record<string,string> = { urgent: "bg-red-500", high: "bg-orange-400", medium: "bg-amber-400", low: "bg-green-400" };
+ return <div className={`w-2 h-2 rounded-full flex-shrink-0 ${m[p] ?? m.low}`} />;
 }
 
-function isDateInRange(dateStr: string, range: DateRange | null): boolean {
-  if (!range) return true;
-  try {
-    const date = parseISO(dateStr);
-    const from = parseISO(range.from);
-    const to = parseISO(range.to);
-    return isWithinInterval(date, { start: startOfDay(from), end: endOfDay(to) });
-  } catch {
-    return true;
-  }
-}
-
-// ── Date filter controls component ───────────────────────────────────────────
-function DateFilterControls({
-  period,
-  customRange,
-  onPeriodChange,
-  onCustomRangeChange,
-  onReset,
-}: {
-  period: DatePeriod;
-  customRange: DateRange;
-  onPeriodChange: (p: DatePeriod) => void;
-  onCustomRangeChange: (r: DateRange) => void;
-  onReset: () => void;
-}) {
-  const hasActiveFilter = period !== "all";
-
-  return (
-    <div className="flex items-center gap-2 flex-wrap">
-      <div className="flex items-center gap-1">
-        <Calendar className="h-4 w-4 text-muted-foreground" />
-        <span className="text-sm text-muted-foreground font-medium">Period:</span>
-      </div>
-      <Select value={period} onValueChange={(v) => onPeriodChange(v as DatePeriod)}>
-        <SelectTrigger className="w-40 h-9">
-          <SelectValue placeholder="All Time" />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value="all">All Time</SelectItem>
-          <SelectItem value="today">Today</SelectItem>
-          <SelectItem value="this_week">This Week</SelectItem>
-          <SelectItem value="this_month">This Month</SelectItem>
-          <SelectItem value="last_month">Last Month</SelectItem>
-          <SelectItem value="this_quarter">This Quarter</SelectItem>
-          <SelectItem value="last_quarter">Last Quarter</SelectItem>
-          <SelectItem value="this_year">This Year</SelectItem>
-          <SelectItem value="last_year">Last Year</SelectItem>
-          <SelectItem value="custom">Custom Range</SelectItem>
-        </SelectContent>
-      </Select>
-
-      {period === "custom" && (
-        <div className="flex items-center gap-2">
-          <Input
-            type="date"
-            className="w-36 h-9 text-sm"
-            value={customRange.from}
-            onChange={(e) => onCustomRangeChange({ ...customRange, from: e.target.value })}
-          />
-          <span className="text-muted-foreground text-sm">to</span>
-          <Input
-            type="date"
-            className="w-36 h-9 text-sm"
-            value={customRange.to}
-            onChange={(e) => onCustomRangeChange({ ...customRange, to: e.target.value })}
-          />
-        </div>
-      )}
-
-      {hasActiveFilter && (
-        <Button
-          variant="ghost"
-          size="sm"
-          className="h-9 px-2 text-muted-foreground hover:text-foreground"
-          onClick={onReset}
-        >
-          <X className="h-3.5 w-3.5 mr-1" />
-          Clear
-        </Button>
-      )}
-    </div>
-  );
-}
-
-interface PropertyExpense {
-  id: number;
-  expenseNumber: string;
-  propertyId: number;
-  contractorId?: number;
-  vendorName: string;
-  description: string;
-  amount: string | number; // decimal column → comes back as string from DB, treat as either
-  currency: string;
-  category: "maintenance" | "utilities" | "supplies" | "services" | "insurance" | "taxes" | "legal" | "marketing" | "other";
-  expenseDate: string;
-  dueDate?: string;
-  paymentDate?: string;
-  status: "pending" | "approved" | "rejected" | "paid";
-  approvedBy?: string;
-  approvedAt?: string;
-  paymentMethod?: string;
-  receiptUrl?: string;
-  invoiceUrl?: string;
-  isRecurring: boolean;
-  recurringFrequency?: string;
-  nextRecurringDate?: string;
-  tags?: string[];
-  notes?: string;
-  createdBy: string;
-  createdAt: string;
-  updatedAt: string;
-}
-
-// What we POST to the server — timestamp columns must be Date objects (Drizzle/Zod expects Date, not string)
-interface CreateExpensePayload {
-  expenseNumber: string;
-  propertyId: number;
-  contractorId?: number;
-  vendorName: string;
-  description: string;
-  amount: string;          // decimal column → numeric string
-  currency: string;
-  category: PropertyExpense["category"];
-  expenseDate: Date;       // timestamp column → Date object (server schema coerces from ISO string)
-  dueDate?: Date;          // timestamp column → Date object
-  status: PropertyExpense["status"];
-  isRecurring: boolean;
-  recurringFrequency?: string;
-  notes?: string;
-  // createdBy is injected server-side from the verified JWT
-}
-
-interface ServiceContract {
-  id: number;
-  contractNumber: string;
-  contractorId?: number;
-  propertyId?: number;
-  contractType: string;
-  serviceType: string;
-  contractTitle: string;
-  description?: string;
-  scope?: string;
-  startDate: string;
-  endDate?: string;
-  contractValue?: number;
-  currency: string;
-  paymentSchedule?: string;
-  status: string;
-  autoRenewal: boolean;
-  createdBy: string;
-  createdAt: string;
-  updatedAt: string;
-}
-
-const CategoryBadge = ({ category }: { category: string }) => {
-  const colors: Record<string, string> = {
-    maintenance: "bg-blue-100 text-blue-800",
-    utilities:   "bg-emerald-50 text-emerald-700 border border-emerald-200",
-    supplies:    "bg-purple-100 text-purple-800",
-    services:    "bg-orange-100 text-orange-800",
-    insurance:   "bg-red-100 text-red-800",
-    taxes:       "bg-muted text-foreground",
-    legal:       "bg-indigo-100 text-indigo-800",
-    marketing:   "bg-pink-100 text-pink-800",
-    other:       "bg-yellow-100 text-yellow-800",
-  };
-  return (
-    <Badge className={colors[category] || colors.other}>
-      {category.charAt(0).toUpperCase() + category.slice(1)}
-    </Badge>
-  );
+const formatCost = (cost?: string | null) => {
+  if (!cost) return "—";
+  const n = parseFloat(cost);
+  return isNaN(n) ? "—" : `KSh ${n.toLocaleString()}`;
 };
 
-
-export default function ExpenseManagement() {
-  // ── Expenses tab filters ───────────────────────────────────────────────────
-  const [searchTerm, setSearchTerm]           = useState("");
-  const [selectedProperty, setSelectedProperty] = useState<number | null>(null);
-  const [selectedCategory, setSelectedCategory] = useState<string>("all");
-  const [selectedStatus, setSelectedStatus]     = useState<string>("all");
-  const [expensesPeriod, setExpensesPeriod]     = useState<DatePeriod>("all");
-  const [expensesCustomRange, setExpensesCustomRange] = useState<DateRange>({ from: "", to: "" });
-
-  // ── Services tab filters ───────────────────────────────────────────────────
-  const [servicesSearch, setServicesSearch]     = useState("");
-  const [servicesStatus, setServicesStatus]     = useState("all");
-  const [servicesType, setServicesType]         = useState("all");
-  const [servicesProperty, setServicesProperty] = useState<number | null>(null);
-  const [servicesPeriod, setServicesPeriod]     = useState<DatePeriod>("all");
-  const [servicesCustomRange, setServicesCustomRange] = useState<DateRange>({ from: "", to: "" });
-
-  // ── Payments tab filters ───────────────────────────────────────────────────
-  const [paymentsSearch, setPaymentsSearch]     = useState("");
-  const [paymentsCategory, setPaymentsCategory] = useState("all");
-  const [paymentsProperty, setPaymentsProperty] = useState<number | null>(null);
-  const [paymentsPeriod, setPaymentsPeriod]     = useState<DatePeriod>("all");
-  const [paymentsCustomRange, setPaymentsCustomRange] = useState<DateRange>({ from: "", to: "" });
-
-  const [activeTab, setActiveTab]               = useState("expenses");
-  const [isAddExpenseOpen, setIsAddExpenseOpen] = useState(false);
-
-  // ── Edit-Expense dialog state ──────────────────────────────────────────────
-  const [editingExpense, setEditingExpense]     = useState<PropertyExpense | null>(null);
-  const [editPropertyId, setEditPropertyId]     = useState("");
-  const [editCategory, setEditCategory]         = useState("");
-  const [editRecurringFrequency, setEditRecurringFrequency] = useState("");
-  const [editIsRecurring, setEditIsRecurring]   = useState(false);
-
-  const openEditDialog = (expense: PropertyExpense) => {
-    setEditingExpense(expense);
-    setEditPropertyId(expense.propertyId.toString());
-    setEditCategory(expense.category);
-    setEditRecurringFrequency(expense.recurringFrequency || "");
-    setEditIsRecurring(expense.isRecurring);
-  };
-
-  const closeEditDialog = () => {
-    setEditingExpense(null);
-    setEditPropertyId("");
-    setEditCategory("");
-    setEditRecurringFrequency("");
-    setEditIsRecurring(false);
-  };
-
-  // ── Add-Expense form controlled fields (Radix Select doesn't write to FormData) ──
-  const [formPropertyId, setFormPropertyId]             = useState("");
-  const [formCategory, setFormCategory]                 = useState("");
-  const [formRecurringFrequency, setFormRecurringFrequency] = useState("");
-  const [formIsRecurring, setFormIsRecurring]           = useState(false);
-
-  /** Reset all form-controlled fields when the dialog closes/opens */
-  const resetForm = () => {
-    setFormPropertyId("");
-    setFormCategory("");
-    setFormRecurringFrequency("");
-    setFormIsRecurring(false);
-  };
-
-  const { user } = useAuth();
-  const isManager  = user?.role === "admin" || user?.role === "manager";
-  const isLandlord = user?.role === "landlord";
+// ── Approve/Reject Dialog ────────────────────────────────────────────────────
+function ApprovalDialog({
+  request,
+  open,
+  onOpenChange,
+}: {
+  request: MaintenanceRequest | null;
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+}) {
+  const [decision, setDecision] = useState<"approved" | "rejected">("approved");
+  const [comments, setComments] = useState("");
+  const [approvedAmount, setApprovedAmount] = useState("");
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  // ── Queries ────────────────────────────────────────────────────────────────
-  const { data: propertiesRaw = [], isLoading: loadingProperties } = useQuery({
-    queryKey: ["/api/properties", "expense-mgmt", user?.role],
-    queryFn: async () => {
-      try {
-        // Landlords are blocked from /api/properties (STAFF_AND_ABOVE).
-        // Use their portal endpoint which returns their own properties.
-        const url = isLandlord
-          ? "/api/landlord-portal/properties/stats"
-          : "/api/properties";
-        const r = await apiRequest(url);
-        if (!r.ok) return [];
-        return ensureArray(await r.json());
-      } catch (e) { console.error(e); return []; }
-    },
-    enabled: !!user,
-  });
+  // Reset state whenever a different request is loaded into this dialog —
+  // must be useEffect, not useState: this component instance persists across
+  // different requests (no key prop forces a remount), so a useState
+  // initializer would only ever run once, on the very first request shown,
+  // leaking stale comments/approvedAmount into every subsequent approval.
+  useEffect(() => {
+    if (request) {
+      setDecision("approved");
+      setComments("");
+      setApprovedAmount(request.estimatedCost ?? "");
+    }
+  }, [request]);
 
-  const { data: expensesRaw = [], isLoading: loadingExpenses } = useQuery({
-    queryKey: ["/api/property-expenses"],
-    queryFn: async () => {
-      try { const r = await apiRequest("/api/property-expenses"); const d = await r.json(); return ensureArray(d); }
-      catch (e) { console.error(e); return []; }
-    },
-  });
-
-  // FIX 1: Services tab — pivot from /api/contractor-services (unmounted) to
-  // /api/service-contracts (mounted via serviceContractsRouter).
-  const { data: serviceContractsRaw = [], isLoading: loadingServices } = useQuery({
-    queryKey: ["/api/service-contracts"],
-    queryFn: async () => {
-      try { const r = await apiRequest("/api/service-contracts"); const d = await r.json(); return ensureArray(d); }
-      catch (e) { console.error(e); return []; }
-    },
-  });
-
-  const properties      = ensureArray(propertiesRaw);
-  const expenses        = ensureArray(expensesRaw);
-  const serviceContracts = ensureArray(serviceContractsRaw);
-
-  // ── Derived / filtered lists ───────────────────────────────────────────────
-
-  // Expenses tab
-  const expensesDateRange = expensesPeriod === "custom" ? expensesCustomRange : getPresetRange(expensesPeriod);
-  const filteredExpenses = useMemo(() => expenses.filter((expense: PropertyExpense) => {
-    const q = searchTerm.toLowerCase();
-    const matchesSearch   = !q || expense.description?.toLowerCase().includes(q) || expense.vendorName?.toLowerCase().includes(q);
-    const matchesProperty = !selectedProperty || expense.propertyId === selectedProperty;
-    const matchesCategory = selectedCategory === "all" || expense.category === selectedCategory;
-    const matchesStatus   = selectedStatus   === "all" || expense.status   === selectedStatus;
-    const matchesDate     = isDateInRange(expense.expenseDate, expensesDateRange);
-    return matchesSearch && matchesProperty && matchesCategory && matchesStatus && matchesDate;
-  }), [expenses, searchTerm, selectedProperty, selectedCategory, selectedStatus, expensesDateRange]);
-
-  // Services tab — unique contractTypes for the type filter
-  const serviceContractTypes = useMemo(
-    () => [...new Set(serviceContracts.map((c: ServiceContract) => c.contractType))],
-    [serviceContracts]
-  );
-  const servicesDateRange = servicesPeriod === "custom" ? servicesCustomRange : getPresetRange(servicesPeriod);
-  const filteredServices = useMemo(() => serviceContracts.filter((c: ServiceContract) => {
-    const q = servicesSearch.toLowerCase();
-    const matchesSearch = !q ||
-      c.contractTitle?.toLowerCase().includes(q) ||
-      c.serviceType?.toLowerCase().includes(q) ||
-      c.contractNumber?.toLowerCase().includes(q);
-    const matchesStatus   = servicesStatus === "all" || c.status === servicesStatus;
-    const matchesType     = servicesType   === "all" || c.contractType === servicesType;
-    const matchesProperty = servicesProperty === null || c.propertyId === servicesProperty;
-    const matchesDate     = isDateInRange(c.startDate, servicesDateRange);
-    return matchesSearch && matchesStatus && matchesType && matchesProperty && matchesDate;
-  }), [serviceContracts, servicesSearch, servicesStatus, servicesType, servicesProperty, servicesDateRange]);
-
-  // Payments tab — paid expenses only, then filtered further
-  const allPaid = useMemo(
-    () => expenses.filter((e: PropertyExpense) => e.status === "paid"),
-    [expenses]
-  );
-  const paymentsDateRange = paymentsPeriod === "custom" ? paymentsCustomRange : getPresetRange(paymentsPeriod);
-  const filteredPayments = useMemo(() => allPaid.filter((e: PropertyExpense) => {
-    const q = paymentsSearch.toLowerCase();
-    const matchesSearch   = !q || e.vendorName?.toLowerCase().includes(q) || e.description?.toLowerCase().includes(q);
-    const matchesCategory = paymentsCategory === "all" || e.category === paymentsCategory;
-    const matchesProperty = !paymentsProperty || e.propertyId === paymentsProperty;
-    const matchesDate     = isDateInRange(e.paymentDate || e.expenseDate, paymentsDateRange);
-    return matchesSearch && matchesCategory && matchesProperty && matchesDate;
-  }), [allPaid, paymentsSearch, paymentsCategory, paymentsProperty, paymentsDateRange]);
-
-  // ── Pagination ─────────────────────────────────────────────────────────────
-  const expensesPag  = usePagination(filteredExpenses, 10);
-  const servicesPag  = usePagination(filteredServices, 10);
-  const paymentsPag  = usePagination(filteredPayments, 10);
-
-  // ── Metrics — derived from filteredExpenses so cards reflect active filters ─
-  const totalExpenses   = filteredExpenses.reduce((s: number, e: PropertyExpense) => s + (Number(e.amount) || 0), 0);
-  const pendingExpenses = filteredExpenses.filter((e: PropertyExpense) => e.status === "pending").length;
-  const paidThisMonth   = filteredExpenses.filter((e: PropertyExpense) =>
-    e.status === "paid" && e.paymentDate &&
-    new Date(e.paymentDate).getMonth() === new Date().getMonth()
-  ).length;
-  const overdueExpenses = filteredExpenses.filter((e: PropertyExpense) =>
-    e.status !== "paid" && e.status !== "rejected" && e.dueDate && new Date(e.dueDate) < new Date()
-  ).length;
-  const hasExpensesFilter = !!(searchTerm || selectedProperty || selectedCategory !== "all" || selectedStatus !== "all" || expensesPeriod !== "all");
-
-  // ── Mutations ──────────────────────────────────────────────────────────────
-  const createExpenseMutation = useMutation({
-    mutationFn: (data: CreateExpensePayload) =>
-      apiRequest("/api/property-expenses", { method: "POST", data }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/property-expenses"] });
-      setIsAddExpenseOpen(false);
-      resetForm();
-      toast({ title: "Success", description: "Expense created successfully" });
-    },
-    onError: (error: any) => {
-      toast({ title: "Error", description: error?.message || "Failed to create expense", variant: "destructive" });
-    },
-  });
-
-  // FIX 3: Status update — use PUT /:id (CRUD router) not PATCH /:id/status (unmounted).
-  const updateExpenseStatusMutation = useMutation({
-    mutationFn: ({ id, status, notes }: { id: number; status: string; notes?: string }) => {
-      const body: Record<string, any> = { status };
-      if (notes) body.notes = notes;
-      // Schema: timestamp columns → Date objects (server coerces from ISO string)
-      if (status === "paid")     body.paymentDate = new Date();
-      if (status === "approved") body.approvedAt  = new Date();
-      // approvedBy is stamped server-side from the verified JWT — do not send from client
-      return apiRequest(`/api/property-expenses/${id}`, { method: "PUT", data: body });
+  const approvalMutation = useMutation({
+    mutationFn: async ({ id, payload }: { id: number; payload: object }) => {
+      return await apiRequest(`/api/maintenance-requests/${id}/approve`, {
+        method: "POST",
+        data: payload,
+      });
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/property-expenses"] });
-      toast({ title: "Success", description: "Expense status updated" });
+      toast({
+        title: decision === "approved" ? "Request approved" : "Request rejected",
+        description: "The maintenance request has been updated.",
+      });
+      queryClient.invalidateQueries({ queryKey: ["/api/maintenance-requests"] });
+      onOpenChange(false);
+      setComments("");
+      setApprovedAmount("");
     },
-    onError: (error: any) => {
-      toast({ title: "Error", description: error?.message || "Failed to update expense status", variant: "destructive" });
-    },
-  });
-
-  const updateExpenseMutation = useMutation({
-    mutationFn: ({ id, data }: { id: number; data: Record<string, any> }) =>
-      apiRequest(`/api/property-expenses/${id}`, { method: "PUT", data }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/property-expenses"] });
-      closeEditDialog();
-      toast({ title: "Success", description: "Expense updated successfully" });
-    },
-    onError: (error: any) => {
-      toast({ title: "Error", description: error?.message || "Failed to update expense", variant: "destructive" });
+    onError: () => {
+      toast({
+        title: "Update failed",
+        description: "Could not process the approval. Please try again.",
+        variant: "destructive",
+      });
     },
   });
 
-  const handleSubmitEdit = (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    if (!editingExpense) return;
-    const formData = new FormData(e.currentTarget);
-
-    if (!editPropertyId) {
-      toast({ title: "Error", description: "Please select a property.", variant: "destructive" });
-      return;
-    }
-    if (!editCategory) {
-      toast({ title: "Error", description: "Please select a category.", variant: "destructive" });
-      return;
-    }
-
-    updateExpenseMutation.mutate({
-      id: editingExpense.id,
-      data: {
-        propertyId:         parseInt(editPropertyId),
-        vendorName:         formData.get("vendorName") as string,
-        description:        formData.get("description") as string,
-        amount:             formData.get("amount") as string,
-        category:           editCategory as PropertyExpense["category"],
-        expenseDate:        new Date(formData.get("expenseDate") as string),
-        dueDate:            formData.get("dueDate") ? new Date(formData.get("dueDate") as string) : null,
-        isRecurring:        editIsRecurring,
-        recurringFrequency: editIsRecurring ? (editRecurringFrequency || null) : null,
-        notes:              (formData.get("notes") as string) || null,
-      },
-    });
-  };
-
-  const handleSubmitExpense = (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    // Native FormData captures <input> and <textarea> fields.
-    // Radix <Select> does NOT write to FormData, so we use controlled state for those.
-    const formData = new FormData(e.currentTarget);
-
-    if (!formPropertyId) {
-      toast({ title: "Error", description: "Please select a property.", variant: "destructive" });
-      return;
-    }
-    if (!formCategory) {
-      toast({ title: "Error", description: "Please select a category.", variant: "destructive" });
-      return;
-    }
-
-    createExpenseMutation.mutate({
-      expenseNumber:      `EXP-${Date.now()}`,
-      propertyId:         parseInt(formPropertyId),
-      vendorName:         formData.get("vendorName") as string,
-      description:        formData.get("description") as string,
-      amount:             formData.get("amount") as string,
-      currency:           "KES",
-      category:           formCategory as PropertyExpense["category"],
-      expenseDate:        new Date(formData.get("expenseDate") as string),
-      dueDate:            formData.get("dueDate") ? new Date(formData.get("dueDate") as string) : undefined,
-      status:             "pending",
-      isRecurring:        formIsRecurring,
-      recurringFrequency: formIsRecurring ? (formRecurringFrequency || undefined) : undefined,
-      notes:              (formData.get("notes") as string) || undefined,
-      // createdBy is injected server-side from the verified JWT — do not send from client
-    });
-  };
-
-  if (loadingProperties) {
-    return (
-      <div className="flex items-center justify-center h-96">
-        <div className="text-center">
-          <div className="animate-spin w-8 h-8 border-4 border-primary border-t-transparent rounded-full mx-auto mb-4" />
-          <p className="text-muted-foreground">Loading expense management...</p>
-        </div>
-      </div>
-    );
-  }
+  if (!request) return null;
 
   return (
-    <PageShell>
-      <PageHeader
-        title="Expense Management & Contractors"
-        subtitle="Track property expenses, manage contractor services, and process payments"
-        icon={<Receipt className="w-5 h-5" />}
-        actions={
-          <Dialog open={isAddExpenseOpen} onOpenChange={(open) => { setIsAddExpenseOpen(open); if (!open) resetForm(); }}>
-            <DialogTrigger asChild>
-              <Button className="bg-emerald-600 hover:bg-emerald-700">
-                <Plus className="h-4 w-4 mr-2" />
-                Add Expense
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="max-w-2xl">
-              <DialogHeader>
-                <DialogTitle>Create New Expense</DialogTitle>
-                <DialogDescription>Record a new property expense or service payment</DialogDescription>
-              </DialogHeader>
-              <form onSubmit={handleSubmitExpense} className="space-y-4">
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="propertyId">Property *</Label>
-                    <Select value={formPropertyId} onValueChange={setFormPropertyId} required>
-                      <SelectTrigger><SelectValue placeholder="Select property" /></SelectTrigger>
-                      <SelectContent>
-                        {properties.length === 0
-                          ? <SelectItem value="none" disabled>No properties available</SelectItem>
-                          : properties.map((p: any) => (
-                              <SelectItem key={p.id} value={p.id.toString()}>{p.name}</SelectItem>
-                            ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="category">Category *</Label>
-                    <Select value={formCategory} onValueChange={setFormCategory} required>
-                      <SelectTrigger><SelectValue placeholder="Select category" /></SelectTrigger>
-                      <SelectContent>
-                        {["maintenance","utilities","supplies","services","insurance","taxes","legal","marketing","other"].map(c => (
-                          <SelectItem key={c} value={c}>{c.charAt(0).toUpperCase()+c.slice(1)}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="vendorName">Vendor/Supplier *</Label>
-                  <Input id="vendorName" name="vendorName" required />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="description">Description *</Label>
-                  <Textarea id="description" name="description" required />
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="amount">Amount (KSh) *</Label>
-                    <Input type="number" step="0.01" id="amount" name="amount" required />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="expenseDate">Expense Date *</Label>
-                    <Input type="date" id="expenseDate" name="expenseDate" required />
-                  </div>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="dueDate">Due Date</Label>
-                  <Input type="date" id="dueDate" name="dueDate" />
-                </div>
-                <div className="flex items-center space-x-2">
-                  <input
-                    type="checkbox"
-                    id="isRecurring"
-                    checked={formIsRecurring}
-                    onChange={(e) => { setFormIsRecurring(e.target.checked); if (!e.target.checked) setFormRecurringFrequency(""); }}
-                  />
-                  <Label htmlFor="isRecurring">Recurring Expense</Label>
-                </div>
-                {formIsRecurring && (
-                <div className="space-y-2">
-                  <Label htmlFor="recurringFrequency">Frequency</Label>
-                  <Select value={formRecurringFrequency} onValueChange={setFormRecurringFrequency}>
-                    <SelectTrigger><SelectValue placeholder="Select frequency" /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="monthly">Monthly</SelectItem>
-                      <SelectItem value="quarterly">Quarterly</SelectItem>
-                      <SelectItem value="annually">Annually</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                )}
-                <div className="space-y-2">
-                  <Label htmlFor="notes">Notes</Label>
-                  <Textarea id="notes" name="notes" placeholder="Additional notes" />
-                </div>
-                <div className="flex gap-2 pt-4">
-                  <Button type="submit" disabled={createExpenseMutation.isPending} className="flex-1">
-                    {createExpenseMutation.isPending ? "Creating..." : "Create Expense"}
-                  </Button>
-                  <Button type="button" variant="outline" onClick={() => setIsAddExpenseOpen(false)}>
-                    Cancel
-                  </Button>
-                </div>
-              </form>
-            </DialogContent>
-          </Dialog>
-        }
-      />
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-2xl rounded-2xl">
+        <DialogHeader>
+          <DialogTitle>Review Maintenance Request</DialogTitle>
+          <DialogDescription>Approve or reject this request</DialogDescription>
+        </DialogHeader>
 
-      {/* Metrics */}
-      <StatsGrid cols={4}>
-        <StatTile
-          label="Total Expenses"
-          value={formatCurrency(totalExpenses, "KES")}
-          sub={hasExpensesFilter ? `${filteredExpenses.length} filtered expense${filteredExpenses.length !== 1 ? "s" : ""}` : "All time expenses"}
-          icon={<DollarSign className="w-4 h-4" />}
-          accent="emerald"
-        />
-        <StatTile
-          label="Pending Approval"
-          value={pendingExpenses}
-          sub={hasExpensesFilter ? "In current filter" : "Awaiting approval"}
-          icon={<Clock className="w-4 h-4" />}
-          accent="amber"
-        />
-        <StatTile
-          label="Paid This Month"
-          value={paidThisMonth}
-          sub={hasExpensesFilter ? "In current filter" : "Completed payments"}
-          icon={<CheckCircle className="w-4 h-4" />}
-          accent="blue"
-        />
-        <StatTile
-          label="Overdue"
-          value={overdueExpenses}
-          sub={hasExpensesFilter ? "In current filter" : "Past due date"}
-          icon={<XCircle className="w-4 h-4" />}
-          accent="red"
-        />
-      </StatsGrid>
-
-      {/* Tabs */}
-      <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList>
-          <TabsTrigger value="expenses">Expenses</TabsTrigger>
-          <TabsTrigger value="services">Contractor Services</TabsTrigger>
-          <TabsTrigger value="payments">Payments</TabsTrigger>
-        </TabsList>
-
-        {/* ── EXPENSES TAB ─────────────────────────────────────────────────── */}
-        <TabsContent value="expenses" className="space-y-4">
-          <SectionCard title="Filter Expenses">
-            <div className="space-y-3">
-              <FilterBar
-                search={searchTerm}
-                onSearch={(v) => { setSearchTerm(v); expensesPag.reset(); }}
-                placeholder="Search by vendor or description..."
-                filters={
-                  <>
-                    <Select value={selectedProperty?.toString() || "all"} onValueChange={(v) => { setSelectedProperty(v === "all" ? null : parseInt(v)); expensesPag.reset(); }}>
-                      <SelectTrigger className="w-48"><SelectValue placeholder="All Properties" /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="all">All Properties</SelectItem>
-                        {properties.map((p: any) => <SelectItem key={p.id} value={p.id.toString()}>{p.name}</SelectItem>)}
-                      </SelectContent>
-                    </Select>
-                    <Select value={selectedCategory} onValueChange={(v) => { setSelectedCategory(v); expensesPag.reset(); }}>
-                      <SelectTrigger className="w-44"><SelectValue placeholder="All Categories" /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="all">All Categories</SelectItem>
-                        {["maintenance","utilities","supplies","services","insurance","taxes","legal","marketing","other"].map(c => (
-                          <SelectItem key={c} value={c}>{c.charAt(0).toUpperCase()+c.slice(1)}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <Select value={selectedStatus} onValueChange={(v) => { setSelectedStatus(v); expensesPag.reset(); }}>
-                      <SelectTrigger className="w-40"><SelectValue placeholder="All Statuses" /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="all">All Statuses</SelectItem>
-                        <SelectItem value="pending">Pending</SelectItem>
-                        <SelectItem value="approved">Approved</SelectItem>
-                        <SelectItem value="rejected">Rejected</SelectItem>
-                        <SelectItem value="paid">Paid</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </>
-                }
-              />
-              <DateFilterControls
-                period={expensesPeriod}
-                customRange={expensesCustomRange}
-                onPeriodChange={(p) => { setExpensesPeriod(p); expensesPag.reset(); }}
-                onCustomRangeChange={(r) => { setExpensesCustomRange(r); expensesPag.reset(); }}
-                onReset={() => { setExpensesPeriod("all"); setExpensesCustomRange({ from: "", to: "" }); expensesPag.reset(); }}
-              />
+        <div className="space-y-4 py-1">
+          {/* Summary */}
+          <div className="rounded-xl border border-border bg-muted/30 p-4 space-y-2">
+            <div className="flex items-start justify-between gap-2">
+              <p className="font-semibold text-sm text-foreground leading-snug">{request.title}</p>
+              <PriorityBadge p={request.priority} />
             </div>
-          </SectionCard>
-
-          <div className="grid gap-4">
-            {loadingExpenses ? (
-              <div className="flex justify-center p-8">
-                <div className="animate-spin w-8 h-8 border-4 border-primary border-t-transparent rounded-full" />
-              </div>
-            ) : expensesPag.paginated.length === 0 ? (
-              <SectionCard>
-                <EmptyState icon={<Receipt />} title="No expenses found" description="No expenses match your current filters." size="lg" />
-              </SectionCard>
-            ) : (
-              expensesPag.paginated.map((expense: PropertyExpense) => (
-                <Card key={expense.id}>
-                  <CardContent className="p-6">
-                    <div className="flex items-start justify-between">
-                      <div className="space-y-2 flex-1">
-                        <div className="flex items-center gap-3 flex-wrap">
-                          <h3 className="text-lg font-semibold">{expense.vendorName}</h3>
-                          <SPBadge status={expense.status} />
-                          <CategoryBadge category={expense.category} />
-                          {expense.isRecurring && (
-                            <Badge variant="outline" className="text-blue-600">
-                              <Calendar className="h-3 w-3 mr-1" />Recurring
-                            </Badge>
-                          )}
-                        </div>
-                        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 text-sm">
-                          <div>
-                            <p className="font-medium">Description</p>
-                            <p className="text-muted-foreground">{expense.description}</p>
-                          </div>
-                          <div>
-                            <p className="font-medium">Amount</p>
-                            <p className="text-muted-foreground font-semibold">
-                              {formatCurrency(Number(expense.amount), expense.currency as any)}
-                            </p>
-                          </div>
-                          <div>
-                            <p className="font-medium">Expense Date</p>
-                            <p className="text-muted-foreground">
-                              {format(new Date(expense.expenseDate), "MMM dd, yyyy")}
-                            </p>
-                          </div>
-                          <div>
-                            <p className="font-medium">Due Date</p>
-                            <p className="text-muted-foreground">
-                              {expense.dueDate ? format(new Date(expense.dueDate), "MMM dd, yyyy") : "Not set"}
-                            </p>
-                          </div>
-                        </div>
-                        {expense.notes && (
-                          <div className="text-sm">
-                            <p className="font-medium">Notes</p>
-                            <p className="text-muted-foreground">{expense.notes}</p>
-                          </div>
-                        )}
-                      </div>
-                      <div className="flex gap-2 ml-4 flex-wrap justify-end">
-                        {expense.status === "pending" && (
-                          <>
-                            {/* Edit: any role can edit their own pending expense (server scopes to owned properties) */}
-                            <Button size="sm" variant="outline" onClick={() => openEditDialog(expense)}>
-                              <Pencil className="h-4 w-4 mr-1" />Edit
-                            </Button>
-                            {/* Approve / Reject: property manager only — landlord cannot approve their own submissions */}
-                            {isManager && (
-                              <>
-                                <Button size="sm" onClick={() => updateExpenseStatusMutation.mutate({ id: expense.id, status: "approved" })} disabled={updateExpenseStatusMutation.isPending}>
-                                  <CheckCircle className="h-4 w-4 mr-1" />Approve
-                                </Button>
-                                <Button size="sm" variant="destructive" onClick={() => updateExpenseStatusMutation.mutate({ id: expense.id, status: "rejected" })} disabled={updateExpenseStatusMutation.isPending}>
-                                  <XCircle className="h-4 w-4 mr-1" />Reject
-                                </Button>
-                              </>
-                            )}
-                          </>
-                        )}
-                        {/* Mark Paid: manager only — landlord cannot mark their own expenses as paid */}
-                        {isManager && expense.status === "approved" && (
-                          <Button size="sm" variant="outline" onClick={() => updateExpenseStatusMutation.mutate({ id: expense.id, status: "paid" })} disabled={updateExpenseStatusMutation.isPending}>
-                            <CheckCircle className="h-4 w-4 mr-1" />Mark Paid
-                          </Button>
-                        )}
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))
-            )}
+            <p className="text-xs text-muted-foreground leading-relaxed">{request.description}</p>
+            <div className="flex items-center gap-4 pt-1 text-xs text-muted-foreground flex-wrap">
+              {request.property?.name && (
+                <span className="flex items-center gap-1">
+                  <Building className="w-3 h-3" />
+                  {request.property.name}
+                  {request.unit?.unitNumber && ` · Unit ${request.unit.unitNumber}`}
+                </span>
+              )}
+              {request.tenant && (
+                <span className="flex items-center gap-1">
+                  <User className="w-3 h-3" />
+                  {request.tenant.firstName} {request.tenant.lastName}
+                </span>
+              )}
+              {request.category && (
+                <span className="flex items-center gap-1">
+                  <Wrench className="w-3 h-3" />
+                  {request.category}
+                </span>
+              )}
+            </div>
           </div>
 
-          {filteredExpenses.length > 0 && (
-            <PaginationControls
-              page={expensesPag.page}
-              totalPages={expensesPag.totalPages}
-              totalItems={expensesPag.totalItems}
-              pageSize={expensesPag.pageSize}
-              onPageChange={expensesPag.setPage}
-              onPageSizeChange={expensesPag.setPageSize}
+          {/* Decision */}
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <Label className="text-xs font-medium">Decision</Label>
+              <Select value={decision} onValueChange={(v: "approved" | "rejected") => setDecision(v)}>
+                <SelectTrigger className="h-9 text-sm">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="approved">Approve</SelectItem>
+                  <SelectItem value="rejected">Reject</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs font-medium">
+                Approved Amount
+                {request.estimatedCost && (
+                  <span className="text-muted-foreground font-normal ml-1">(est. {formatCost(request.estimatedCost)})</span>
+                )}
+              </Label>
+              <Input
+                type="number"
+                className="h-9 text-sm"
+                placeholder={request.estimatedCost ?? "0"}
+                value={approvedAmount}
+                onChange={e => setApprovedAmount(e.target.value)}
+              />
+            </div>
+          </div>
+
+          <div className="space-y-1.5">
+            <Label className="text-xs font-medium">
+              Comments {decision === "rejected" && <span className="text-red-500">*</span>}
+            </Label>
+            <Textarea
+              placeholder={decision === "approved" ? "Optional notes…" : "Reason for rejection…"}
+              value={comments}
+              onChange={e => setComments(e.target.value)}
+              rows={3}
+              className="text-sm resize-none"
             />
-          )}
-        </TabsContent>
+          </div>
+        </div>
 
-        {/* ── SERVICES TAB ─────────────────────────────────────────────────── */}
-        {/* FIX 1: uses /api/service-contracts, not the unmounted /api/contractor-services */}
-        <TabsContent value="services" className="space-y-4">
-          <SectionCard title="Filter Service Contracts">
-            <div className="space-y-3">
-              <FilterBar
-                search={servicesSearch}
-                onSearch={(v) => { setServicesSearch(v); servicesPag.reset(); }}
-                placeholder="Search by title, service type, or contract #..."
-                filters={
-                  <>
-                    <Select value={servicesStatus} onValueChange={(v) => { setServicesStatus(v); servicesPag.reset(); }}>
-                      <SelectTrigger className="w-40"><SelectValue placeholder="All Statuses" /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="all">All Statuses</SelectItem>
-                        <SelectItem value="draft">Draft</SelectItem>
-                        <SelectItem value="active">Active</SelectItem>
-                        <SelectItem value="completed">Completed</SelectItem>
-                        <SelectItem value="terminated">Terminated</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    <Select value={servicesType} onValueChange={(v) => { setServicesType(v); servicesPag.reset(); }}>
-                      <SelectTrigger className="w-44"><SelectValue placeholder="All Types" /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="all">All Types</SelectItem>
-                        {serviceContractTypes.map((t: string) => (
-                          <SelectItem key={t} value={t}>{t.replace("_", " ")}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <Select value={servicesProperty?.toString() || "all"} onValueChange={(v) => { setServicesProperty(v === "all" ? null : parseInt(v)); servicesPag.reset(); }}>
-                      <SelectTrigger className="w-48"><SelectValue placeholder="All Properties" /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="all">All Properties</SelectItem>
-                        {properties.map((p: any) => <SelectItem key={p.id} value={p.id.toString()}>{p.name}</SelectItem>)}
-                      </SelectContent>
-                    </Select>
-                  </>
-                }
-              />
-              <DateFilterControls
-                period={servicesPeriod}
-                customRange={servicesCustomRange}
-                onPeriodChange={(p) => { setServicesPeriod(p); servicesPag.reset(); }}
-                onCustomRangeChange={(r) => { setServicesCustomRange(r); servicesPag.reset(); }}
-                onReset={() => { setServicesPeriod("all"); setServicesCustomRange({ from: "", to: "" }); servicesPag.reset(); }}
-              />
-            </div>
-          </SectionCard>
-
-          <SectionCard title="Contractor Service Contracts" subtitle="Active and historical service contracts with contractors">
-            {loadingServices ? (
-              <div className="flex justify-center p-8">
-                <div className="animate-spin w-8 h-8 border-4 border-primary border-t-transparent rounded-full" />
-              </div>
-            ) : servicesPag.paginated.length === 0 ? (
-              <EmptyState
-                icon={<FileText />}
-                title="No Service Contracts"
-                description={filteredServices.length === 0 && serviceContracts.length > 0
-                  ? "No contracts match your filters."
-                  : "No service contracts have been created yet."}
-                size="lg"
-              />
-            ) : (
-              <div className="grid gap-4">
-                {servicesPag.paginated.map((contract: ServiceContract) => (
-                  <Card key={contract.id}>
-                    <CardContent className="p-5">
-                      <div className="flex items-start justify-between">
-                        <div className="space-y-1 flex-1">
-                          <div className="flex items-center gap-3 flex-wrap">
-                            <h3 className="font-semibold">{contract.contractTitle}</h3>
-                            <SPBadge status={contract.status} />
-                            <Badge variant="outline">{contract.contractType.replace("_", " ")}</Badge>
-                          </div>
-                          <p className="text-sm text-muted-foreground">{contract.serviceType}</p>
-                          {contract.description && (
-                            <p className="text-sm text-muted-foreground">{contract.description}</p>
-                          )}
-                          <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-sm mt-2">
-                            <div>
-                              <p className="font-medium">Contract #</p>
-                              <p className="text-muted-foreground">{contract.contractNumber}</p>
-                            </div>
-                            <div>
-                              <p className="font-medium">Start Date</p>
-                              <p className="text-muted-foreground">
-                                {format(new Date(contract.startDate), "MMM dd, yyyy")}
-                              </p>
-                            </div>
-                            {contract.contractValue && (
-                              <div>
-                                <p className="font-medium">Contract Value</p>
-                                <p className="text-muted-foreground font-semibold">
-                                  {formatCurrency(Number(contract.contractValue), contract.currency as any)}
-                                </p>
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                        {contract.autoRenewal && (
-                          <Badge variant="outline" className="ml-4 text-blue-600">
-                            <Calendar className="h-3 w-3 mr-1" />Auto-Renew
-                          </Badge>
-                        )}
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
-            )}
-
-            {filteredServices.length > 0 && (
-              <PaginationControls
-                page={servicesPag.page}
-                totalPages={servicesPag.totalPages}
-                totalItems={servicesPag.totalItems}
-                pageSize={servicesPag.pageSize}
-                onPageChange={servicesPag.setPage}
-                onPageSizeChange={servicesPag.setPageSize}
-              />
-            )}
-          </SectionCard>
-        </TabsContent>
-
-        {/* ── PAYMENTS TAB ─────────────────────────────────────────────────── */}
-        {/* FIX 2: derived from property-expenses filtered to status=paid — no dead /api/contractor-payments call */}
-        <TabsContent value="payments" className="space-y-4">
-          <SectionCard title="Filter Paid Expenses">
-            <div className="space-y-3">
-              <FilterBar
-                search={paymentsSearch}
-                onSearch={(v) => { setPaymentsSearch(v); paymentsPag.reset(); }}
-                placeholder="Search by vendor or description..."
-                filters={
-                  <>
-                    <Select value={paymentsProperty?.toString() || "all"} onValueChange={(v) => { setPaymentsProperty(v === "all" ? null : parseInt(v)); paymentsPag.reset(); }}>
-                      <SelectTrigger className="w-48"><SelectValue placeholder="All Properties" /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="all">All Properties</SelectItem>
-                        {properties.map((p: any) => <SelectItem key={p.id} value={p.id.toString()}>{p.name}</SelectItem>)}
-                      </SelectContent>
-                    </Select>
-                    <Select value={paymentsCategory} onValueChange={(v) => { setPaymentsCategory(v); paymentsPag.reset(); }}>
-                      <SelectTrigger className="w-44"><SelectValue placeholder="All Categories" /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="all">All Categories</SelectItem>
-                        {["maintenance","utilities","supplies","services","insurance","taxes","legal","marketing","other"].map(c => (
-                          <SelectItem key={c} value={c}>{c.charAt(0).toUpperCase()+c.slice(1)}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </>
-                }
-              />
-              <DateFilterControls
-                period={paymentsPeriod}
-                customRange={paymentsCustomRange}
-                onPeriodChange={(p) => { setPaymentsPeriod(p); paymentsPag.reset(); }}
-                onCustomRangeChange={(r) => { setPaymentsCustomRange(r); paymentsPag.reset(); }}
-                onReset={() => { setPaymentsPeriod("all"); setPaymentsCustomRange({ from: "", to: "" }); paymentsPag.reset(); }}
-              />
-            </div>
-          </SectionCard>
-
-          <SectionCard title="Paid Expenses" subtitle="Property expenses that have been marked as paid">
-            {loadingExpenses ? (
-              <div className="flex justify-center p-8">
-                <div className="animate-spin w-8 h-8 border-4 border-primary border-t-transparent rounded-full" />
-              </div>
-            ) : paymentsPag.paginated.length === 0 ? (
-              <EmptyState
-                icon={<TrendingUp />}
-                title="No Paid Expenses"
-                description={filteredPayments.length === 0 && allPaid.length > 0
-                  ? "No paid expenses match your filters."
-                  : "No expenses have been marked as paid yet."}
-                size="lg"
-              />
-            ) : (
-              <div className="grid gap-4">
-                {paymentsPag.paginated.map((expense: PropertyExpense) => (
-                  <Card key={expense.id}>
-                    <CardContent className="p-5">
-                      <div className="space-y-1">
-                        <div className="flex items-center gap-3 flex-wrap">
-                          <h3 className="font-semibold">{expense.vendorName}</h3>
-                          <SPBadge status={expense.status} />
-                          <CategoryBadge category={expense.category} />
-                        </div>
-                        <p className="text-sm text-muted-foreground">{expense.description}</p>
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-sm mt-2">
-                          <div>
-                            <p className="font-medium">Amount Paid</p>
-                            <p className="text-muted-foreground font-semibold">
-                              {formatCurrency(Number(expense.amount), expense.currency as any)}
-                            </p>
-                          </div>
-                          <div>
-                            <p className="font-medium">Expense Date</p>
-                            <p className="text-muted-foreground">
-                              {format(new Date(expense.expenseDate), "MMM dd, yyyy")}
-                            </p>
-                          </div>
-                          {expense.paymentDate && (
-                            <div>
-                              <p className="font-medium">Payment Date</p>
-                              <p className="text-muted-foreground">
-                                {format(new Date(expense.paymentDate), "MMM dd, yyyy")}
-                              </p>
-                            </div>
-                          )}
-                        </div>
-                        {expense.paymentMethod && (
-                          <p className="text-sm text-muted-foreground">
-                            Method: <span className="font-medium capitalize">{expense.paymentMethod}</span>
-                          </p>
-                        )}
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
-            )}
-
-            {filteredPayments.length > 0 && (
-              <PaginationControls
-                page={paymentsPag.page}
-                totalPages={paymentsPag.totalPages}
-                totalItems={paymentsPag.totalItems}
-                pageSize={paymentsPag.pageSize}
-                onPageChange={paymentsPag.setPage}
-                onPageSizeChange={paymentsPag.setPageSize}
-              />
-            )}
-          </SectionCard>
-        </TabsContent>
-      </Tabs>
-
-      {/* ── EDIT EXPENSE DIALOG ──────────────────────────────────────────────── */}
-      <Dialog open={!!editingExpense} onOpenChange={(open) => { if (!open) closeEditDialog(); }}>
-        <DialogContent className="max-w-2xl">
-          <DialogHeader>
-            <DialogTitle>Edit Expense</DialogTitle>
-            <DialogDescription>Update the details of this pending expense</DialogDescription>
-          </DialogHeader>
-          {editingExpense && (
-            <form onSubmit={handleSubmitEdit} className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label>Property *</Label>
-                  <Select value={editPropertyId} onValueChange={setEditPropertyId} required>
-                    <SelectTrigger><SelectValue placeholder="Select property" /></SelectTrigger>
-                    <SelectContent>
-                      {properties.map((p: any) => (
-                        <SelectItem key={p.id} value={p.id.toString()}>{p.name}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label>Category *</Label>
-                  <Select value={editCategory} onValueChange={setEditCategory} required>
-                    <SelectTrigger><SelectValue placeholder="Select category" /></SelectTrigger>
-                    <SelectContent>
-                      {["maintenance","utilities","supplies","services","insurance","taxes","legal","marketing","other"].map(c => (
-                        <SelectItem key={c} value={c}>{c.charAt(0).toUpperCase()+c.slice(1)}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="edit-vendorName">Vendor/Supplier *</Label>
-                <Input id="edit-vendorName" name="vendorName" defaultValue={editingExpense.vendorName} required />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="edit-description">Description *</Label>
-                <Textarea id="edit-description" name="description" defaultValue={editingExpense.description} required />
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="edit-amount">Amount (KSh) *</Label>
-                  <Input type="number" step="0.01" id="edit-amount" name="amount" defaultValue={String(editingExpense.amount)} required />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="edit-expenseDate">Expense Date *</Label>
-                  <Input type="date" id="edit-expenseDate" name="expenseDate" defaultValue={format(new Date(editingExpense.expenseDate), "yyyy-MM-dd")} required />
-                </div>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="edit-dueDate">Due Date</Label>
-                <Input type="date" id="edit-dueDate" name="dueDate" defaultValue={editingExpense.dueDate ? format(new Date(editingExpense.dueDate), "yyyy-MM-dd") : ""} />
-              </div>
-              <div className="flex items-center space-x-2">
-                <input
-                  type="checkbox"
-                  id="edit-isRecurring"
-                  checked={editIsRecurring}
-                  onChange={(e) => { setEditIsRecurring(e.target.checked); if (!e.target.checked) setEditRecurringFrequency(""); }}
-                />
-                <Label htmlFor="edit-isRecurring">Recurring Expense</Label>
-              </div>
-              {editIsRecurring && (
-                <div className="space-y-2">
-                  <Label>Frequency</Label>
-                  <Select value={editRecurringFrequency} onValueChange={setEditRecurringFrequency}>
-                    <SelectTrigger><SelectValue placeholder="Select frequency" /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="monthly">Monthly</SelectItem>
-                      <SelectItem value="quarterly">Quarterly</SelectItem>
-                      <SelectItem value="annually">Annually</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              )}
-              <div className="space-y-2">
-                <Label htmlFor="edit-notes">Notes</Label>
-                <Textarea id="edit-notes" name="notes" defaultValue={editingExpense.notes || ""} placeholder="Additional notes" />
-              </div>
-              <div className="flex gap-2 pt-4">
-                <Button type="submit" disabled={updateExpenseMutation.isPending} className="flex-1">
-                  {updateExpenseMutation.isPending ? "Saving..." : "Save Changes"}
-                </Button>
-                <Button type="button" variant="outline" onClick={closeEditDialog}>
-                  Cancel
-                </Button>
-              </div>
-            </form>
-          )}
-        </DialogContent>
-      </Dialog>
-    </PageShell>
+        <DialogFooter className="gap-2">
+          <Button variant="ghost" size="sm" onClick={() => onOpenChange(false)}>
+            Cancel
+          </Button>
+          <Button
+            size="sm"
+            disabled={approvalMutation.isPending || (decision === "rejected" && !comments.trim())}
+            className={decision === "approved"
+              ? "bg-green-600 hover:bg-green-700 text-white"
+              : "bg-red-600 hover:bg-red-700 text-white"
+            }
+            onClick={() => {
+              if (!request) return;
+              approvalMutation.mutate({
+                id: request.id,
+                payload: {
+                  approvalStatus: decision,
+                  comments: comments || undefined,
+                  approvedAmount: approvedAmount ? parseFloat(approvedAmount) : undefined,
+                },
+              });
+            }}
+          >
+            {approvalMutation.isPending
+              ? "Processing…"
+              : decision === "approved" ? "Approve Request" : "Reject Request"
+            }
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
+}
+
+// Mobile maintenance card with Action Sheet
+function MobileMaintenanceCard({
+  r,
+  onView,
+  onEdit,
+  onComplete,
+  onApprove,
+  canActProp,
+}: {
+  r: MaintenanceRequest;
+  onView: () => void;
+  onEdit: () => void;
+  onComplete: () => void;
+  onApprove: () => void;
+  canActProp: boolean;
+}) {
+  const [isSheetOpen, setIsSheetOpen] = useState(false);
+  const canComplete = r.status !== "completed" && r.status !== "cancelled";
+  const needsApproval = r.status === "pending_approval";
+
+  const actions = [
+    { label: "View Details", icon: Eye, onClick: onView },
+    { label: "Edit Request", icon: Edit, onClick: onEdit },
+    ...(needsApproval && canActProp ? [{ label: "Approve / Reject", icon: ShieldCheck, onClick: onApprove, className: "text-violet-600" }] : []),
+    ...(canComplete && !needsApproval && canActProp ? [{ label: "Mark as Completed", icon: CheckCircle, onClick: onComplete, className: "text-green-600" }] : []),
+  ];
+
+  return (
+    <>
+      <div
+        className="relative bg-card dark:bg-gray-900 border-b border-border dark:border-gray-800 px-4 py-3.5 active:bg-muted transition-colors cursor-pointer"
+        onClick={() => setIsSheetOpen(true)}
+      >
+        <div className="flex items-start gap-3">
+          <div className="flex items-center justify-center w-8 h-8 rounded-lg flex-shrink-0 mt-0.5"
+            style={{ background: r.priority === "urgent" ? "#fee2e2" : r.priority === "high" ? "#ffedd5" : r.priority === "medium" ? "#fef3c7" : "#dcfce7" }}>
+            <PriorityDot p={r.priority} />
+          </div>
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2 flex-wrap mb-0.5">
+              <p className="font-semibold text-foreground text-sm truncate">{r.title}</p>
+            </div>
+            <p className="text-xs text-muted-foreground truncate mb-1.5">{r.description}</p>
+            <div className="flex items-center gap-2 flex-wrap">
+              <PriorityBadge p={r.priority} />
+              <StatusBadge s={r.status} />
+              {r.property && <span className="text-xs text-muted-foreground">{r.property.name}</span>}
+            </div>
+            <p className="text-xs text-muted-foreground mt-1">
+              {formatDistanceToNow(new Date(r.createdAt), { addSuffix: true })}
+            </p>
+          </div>
+          <MoreVertical className="w-4 h-4 text-muted-foreground flex-shrink-0 mt-1" />
+        </div>
+      </div>
+
+      <MobileActionSheet
+        open={isSheetOpen}
+        onOpenChange={setIsSheetOpen}
+        title="Maintenance Actions"
+        description={`Manage request: ${r.title}`}
+        actions={actions}
+      />
+    </>
+  );
+}
+
+export default function Maintenance() {
+  const guard = useRoleGuard(ROLES.CARETAKER_ALLOWED);
+  if (guard.gate) return guard.gate;
+
+ const [search, setSearch] = useState("");
+ const [priorityFilter, setPriorityFilter] = useState("all");
+ const [statusFilter, setStatusFilter] = useState("all");
+ const [page, setPage] = useState(1);
+ const [pageSize, setPageSize] = useState(15);
+ const [isAddOpen, setIsAddOpen] = useState(false);
+ const [isViewOpen, setIsViewOpen] = useState(false);
+ const [isEditOpen, setIsEditOpen] = useState(false);
+ const [isApprovalOpen, setIsApprovalOpen] = useState(false);
+ const [selected, setSelected] = useState<MaintenanceRequest | null>(null);
+ const PER_PAGE = pageSize;
+ const { toast } = useToast();
+ const queryClient = useQueryClient();
+ const [, navigate] = useLocation();
+ const isMobile = useIsMobile();
+ const { user } = useAuth();
+ const isManager = guard.canManage;
+ const isStaff   = guard.isStaff || guard.isCaretaker;
+ // Creating a request is deliberately NOT extended to landlord — a request
+ // should originate from whoever is experiencing the issue (the tenant), not
+ // be filed on their behalf by the landlord. Acting on a request that already
+ // exists (approve/reject, start work, mark complete) is a different action —
+ // backend already allows landlord there (CARETAKER_ALLOWED in requireRole.ts)
+ // — so canAct still includes landlord, canCreate does not.
+ const canCreate = isManager || isStaff;
+ const canAct    = isManager || isStaff || guard.isLandlord;
+
+ const { data: raw = [], isLoading } = useQuery<any>({
+ queryKey: ["/api/maintenance-requests"],
+ queryFn: async () => { const r = await apiRequest("/api/maintenance-requests"); return ensureArray(await r.json()); },
+ staleTime: 2 * 60 * 1000,
+ });
+ const requests: MaintenanceRequest[] = Array.isArray(raw) ? raw : (raw?.results ?? []);
+
+ const updateMutation = useMutation({
+ mutationFn: async ({ id, status }: { id: number; status: string }) => {
+ await apiRequest(`/api/maintenance-requests/${id}`, { method: "PUT", data: { status } });
+ },
+ onSuccess: () => {
+ queryClient.invalidateQueries({ queryKey: ["/api/maintenance-requests"] });
+ toast({ title: "Request updated" });
+ },
+ onError: () => toast({ title: "Update failed", variant: "destructive" }),
+ });
+
+ const stats = {
+ open: requests.filter(r => ["pending","assigned"].includes(r.status)).length,
+ inProgress: requests.filter(r => r.status === "in_progress").length,
+ completed: requests.filter(r => r.status === "completed").length,
+ urgent: requests.filter(r => r.priority === "urgent" && r.status !== "completed").length,
+ pendingApproval: requests.filter(r => r.status === "pending_approval").length,
+ };
+
+ const filtered = requests.filter(r => {
+ const q = search.toLowerCase();
+ const matchSearch = !search ||
+ r.title.toLowerCase().includes(q) ||
+ r.description.toLowerCase().includes(q) ||
+ `${r.tenant?.firstName ?? ""} ${r.tenant?.lastName ?? ""}`.toLowerCase().includes(q) ||
+ r.unit?.unitNumber?.toLowerCase().includes(q) ||
+ r.property?.name?.toLowerCase().includes(q);
+ const matchPriority = priorityFilter === "all" || r.priority === priorityFilter;
+ const matchStatus = statusFilter === "all" || r.status === statusFilter;
+ return matchSearch && matchPriority && matchStatus;
+ });
+
+ const totalPages = Math.ceil(filtered.length / PER_PAGE);
+ const paginated = filtered.slice((page - 1) * PER_PAGE, page * PER_PAGE);
+
+ const handleExport = () => {
+ const csv = ["ID,Title,Priority,Status,Property,Unit,Tenant,Created",
+ ...filtered.map(r => `${r.id},"${r.title}","${r.priority}","${r.status}","${r.property?.name ?? ""}","${r.unit?.unitNumber ?? ""}","${r.tenant ? r.tenant.firstName + " " + r.tenant.lastName : ""}","${new Date(r.createdAt).toLocaleDateString()}"`)
+ ].join("\n");
+ const a = Object.assign(document.createElement("a"), { href: URL.createObjectURL(new Blob([csv], { type: "text/csv" })), download: `maintenance-${new Date().toISOString().split("T")[0]}.csv` });
+ a.click();
+ };
+
+ const openApproval = (r: MaintenanceRequest) => {
+   setSelected(r);
+   setIsApprovalOpen(true);
+ };
+
+ if (isLoading) return (
+ <div className="p-6 space-y-5 animate-pulse">
+ <div className="h-8 bg-muted dark:bg-gray-700 rounded w-48" />
+ <div className="grid grid-cols-4 gap-4">{[...Array(4)].map((_,i) => <div key={i} className="h-24 bg-muted dark:bg-gray-700 rounded-2xl" />)}</div>
+ <div className="h-96 bg-muted dark:bg-gray-700 rounded-2xl" />
+ </div>
+ );
+
+ return (
+ <div className="min-h-screen bg-background">
+ <div className="bg-card dark:bg-gray-900 border-b border-border dark:border-gray-800 px-4 md:px-6 py-4 md:py-5">
+ <div className="max-w-7xl mx-auto flex items-center justify-between">
+ <div>
+ <h1 className="text-xl font-semibold text-foreground">Maintenance</h1>
+ <p className="text-sm text-muted-foreground mt-0.5">{requests.length} total · {stats.open} open{stats.pendingApproval > 0 ? ` · ${stats.pendingApproval} awaiting approval` : ""}</p>
+ </div>
+ <div className="flex items-center gap-2">
+ {!isMobile && <Button variant="outline" size="sm" onClick={handleExport}><Download className="w-4 h-4 mr-1.5" />Export</Button>}
+ {canCreate && (
+ <Button size="sm" className="bg-emerald-600 hover:bg-emerald-700 text-white" onClick={() => setIsAddOpen(true)}>
+   <Plus className="w-4 h-4 mr-1.5" />
+   <span className="hidden sm:inline">New request</span>
+   <span className="sm:hidden">New</span>
+ </Button>
+ )}
+ </div>
+ </div>
+ </div>
+
+ <div className="max-w-7xl mx-auto px-4 md:px-6 py-4 md:py-6 space-y-4 md:space-y-5">
+ {/* KPI strip */}
+ <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4">
+ {[
+ { label: "Open", value: stats.open, icon: Clock, color: "amber" },
+ { label: "In progress", value: stats.inProgress, icon: Wrench, color: "purple" },
+ { label: "Completed", value: stats.completed, icon: CheckCircle, color: "green" },
+ { label: stats.urgent > 0 ? "Urgent" : "Pending approval", value: stats.urgent > 0 ? stats.urgent : stats.pendingApproval, icon: stats.urgent > 0 ? AlertTriangle : ShieldCheck, color: stats.urgent > 0 ? "red" : stats.pendingApproval > 0 ? "violet" : "gray" },
+ ].map(({ label, value, icon: Icon, color }) => (
+ <Card key={label} className="rounded-xl border border-slate-100 shadow-sm cursor-pointer hover:shadow-md transition-shadow"
+   onClick={() => { if (label === "Pending approval") { setStatusFilter("pending_approval"); setPage(1); } else if (label === "Urgent") { setPriorityFilter("urgent"); setPage(1); } }}>
+ <CardContent className="p-4 md:p-5 flex items-center gap-3">
+ <div className={`w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 bg-${color}-50`}>
+ <Icon className={`w-4 h-4 text-${color}-600`} />
+ </div>
+ <div>
+ <p className="text-xl font-semibold text-foreground">{value}</p>
+ <p className="text-xs text-muted-foreground">{label}</p>
+ </div>
+ </CardContent>
+ </Card>
+ ))}
+ </div>
+
+ {/* Toolbar */}
+ <div className="flex flex-wrap items-center gap-2 md:gap-3">
+ <div className="relative flex-1 min-w-[160px]">
+ <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+ <Input placeholder="Search requests..." className="pl-9 h-9 border-border dark:border-gray-700" value={search} onChange={e => { setSearch(e.target.value); setPage(1); }} />
+ {search && <button className="absolute right-2.5 top-1/2 -translate-y-1/2" onClick={() => setSearch("")}><X className="w-3.5 h-3.5 text-muted-foreground" /></button>}
+ </div>
+ <Select value={priorityFilter} onValueChange={v => { setPriorityFilter(v); setPage(1); }}>
+ <SelectTrigger className="w-28 md:w-32 h-9 border-border dark:border-gray-700 text-sm"><SelectValue placeholder="Priority" /></SelectTrigger>
+ <SelectContent>
+ <SelectItem value="all">All priorities</SelectItem>
+ <SelectItem value="urgent">Urgent</SelectItem>
+ <SelectItem value="high">High</SelectItem>
+ <SelectItem value="medium">Medium</SelectItem>
+ <SelectItem value="low">Low</SelectItem>
+ </SelectContent>
+ </Select>
+ {!isMobile && (
+ <Select value={statusFilter} onValueChange={v => { setStatusFilter(v); setPage(1); }}>
+ <SelectTrigger className="w-40 h-9 border-border dark:border-gray-700 text-sm"><SelectValue placeholder="Status" /></SelectTrigger>
+ <SelectContent>
+ <SelectItem value="all">All statuses</SelectItem>
+ <SelectItem value="pending">Pending</SelectItem>
+ <SelectItem value="pending_approval">Pending approval</SelectItem>
+ <SelectItem value="assigned">Assigned</SelectItem>
+ <SelectItem value="in_progress">In progress</SelectItem>
+ <SelectItem value="completed">Completed</SelectItem>
+ <SelectItem value="cancelled">Cancelled</SelectItem>
+ </SelectContent>
+ </Select>
+ )}
+ {(search || priorityFilter !== "all" || statusFilter !== "all") && (
+ <Button variant="ghost" size="sm" className="h-9 text-muted-foreground"
+ onClick={() => { setSearch(""); setPriorityFilter("all"); setStatusFilter("all"); setPage(1); }}>
+ <X className="w-3.5 h-3.5 mr-1" />Clear
+ </Button>
+ )}
+ <Select value={String(pageSize)} onValueChange={v => { setPageSize(Number(v)); setPage(1); }}>
+   <SelectTrigger className="w-24 h-9 border-border dark:border-gray-700 text-sm"><SelectValue /></SelectTrigger>
+   <SelectContent>
+     <SelectItem value="10">10 / page</SelectItem>
+     <SelectItem value="15">15 / page</SelectItem>
+     <SelectItem value="25">25 / page</SelectItem>
+     <SelectItem value="50">50 / page</SelectItem>
+   </SelectContent>
+ </Select>
+ <span className="text-sm text-muted-foreground ml-auto">{filtered.length} results</span>
+ </div>
+
+ {/* MOBILE: card list */}
+ {isMobile ? (
+ <Card className="rounded-xl border border-slate-100 shadow-sm overflow-hidden">
+ {filtered.length === 0 ? (
+ <CardContent className="py-16 text-center">
+ <CheckCircle className="w-12 h-12 text-gray-200 mx-auto mb-3" />
+ <p className="text-sm font-medium text-foreground">{search ? "No requests match" : "No maintenance requests"}</p>
+ <p className="text-xs text-muted-foreground mt-1 mb-4">{search ? "Try adjusting filters" : "Create your first request"}</p>
+ {!search && canCreate && <Button size="sm" onClick={() => setIsAddOpen(true)}><Plus className="w-3.5 h-3.5 mr-1" />New request</Button>}
+ </CardContent>
+ ) : (
+ <>
+ <div className="px-4 py-2 bg-muted dark:bg-gray-950 border-b border-border dark:border-gray-800" >
+ <p className="text-xs text-muted-foreground">Tap a request for quick actions</p>
+ </div>
+ {paginated.map(r => (
+ <MobileMaintenanceCard
+ key={r.id}
+ r={r}
+ onView={() => { setSelected(r); setIsViewOpen(true); }}
+ onEdit={() => { setSelected(r); setIsEditOpen(true); }}
+ onComplete={() => updateMutation.mutate({ id: r.id, status: "completed" })}
+ onApprove={() => openApproval(r)}
+ canActProp={canAct}
+ />
+ ))}
+ </>
+ )}
+ </Card>
+ ) : (
+ /* DESKTOP: full table */
+ <Card className="rounded-xl border border-slate-100 shadow-sm overflow-hidden">
+ {paginated.length === 0 ? (
+ <CardContent className="py-16 text-center">
+ <CheckCircle className="w-12 h-12 text-gray-200 mx-auto mb-3" />
+ <p className="text-sm font-medium text-foreground">{search ? "No requests match your search" : "No maintenance requests"}</p>
+ <p className="text-xs text-muted-foreground mt-1 mb-4">{search ? "Try adjusting your filters" : "Create your first maintenance request"}</p>
+ {!search && canCreate && <Button size="sm" onClick={() => setIsAddOpen(true)}><Plus className="w-3.5 h-3.5 mr-1" />New request</Button>}
+ </CardContent>
+ ) : (
+ <>
+ <div className="overflow-x-auto">
+ <table className="w-full text-sm">
+ <thead className="sticky top-0 z-10"><tr className="bg-muted border-b border-border" >
+ <th className="text-left px-4 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wide">Request</th>
+ <th className="text-left px-4 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wide hidden md:table-cell">Location</th>
+ <th className="text-left px-4 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wide hidden lg:table-cell">Tenant</th>
+ <th className="text-left px-4 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wide">Priority</th>
+ <th className="text-left px-4 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wide">Status</th>
+ <th className="text-left px-4 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wide hidden lg:table-cell">Logged</th>
+ <th className="px-4 py-3 w-10"></th>
+ </tr>
+ </thead>
+ <tbody className="divide-y divide-gray-50">
+ {paginated.map(r => (
+ <tr key={r.id} className="hover:bg-muted dark:bg-gray-950 transition-colors group cursor-pointer" onClick={() => { setSelected(r); setIsViewOpen(true); }}>
+ <td className="px-4 py-3">
+ <div className="flex items-center gap-2.5">
+ <PriorityDot p={r.priority} />
+ <div className="min-w-0">
+ <p className="font-medium text-foreground truncate max-w-[200px]">{r.title}</p>
+ <p className="text-xs text-muted-foreground truncate max-w-[200px]">{r.description}</p>
+ </div>
+ </div>
+ </td>
+ <td className="px-4 py-3 hidden md:table-cell">
+ <p className="text-sm text-foreground dark:text-muted-foreground">{r.property?.name ?? <span className="text-muted-foreground">—</span>}</p>
+ {r.unit && <p className="text-xs text-muted-foreground">Unit {r.unit.unitNumber}</p>}
+ </td>
+ <td className="px-4 py-3 hidden lg:table-cell">
+ {r.tenant ? (
+ <div className="flex items-center gap-2">
+ <Avatar className="w-6 h-6">
+ <AvatarFallback className="bg-blue-100 text-blue-600 text-xs">{r.tenant.firstName[0]}{r.tenant.lastName[0]}</AvatarFallback>
+ </Avatar>
+ <span className="text-sm text-foreground dark:text-muted-foreground">{r.tenant.firstName} {r.tenant.lastName}</span>
+ </div>
+ ) : <span className="text-xs text-muted-foreground">No tenant</span>}
+ </td>
+ <td className="px-4 py-3"><PriorityBadge p={r.priority} /></td>
+ <td className="px-4 py-3"><StatusBadge s={r.status} /></td>
+ <td className="px-4 py-3 hidden lg:table-cell">
+ <span className="text-xs text-muted-foreground">
+ {formatDistanceToNow(new Date(r.createdAt), { addSuffix: true })}
+ </span>
+ </td>
+ <td className="px-4 py-3" onClick={e => e.stopPropagation()}>
+ <DropdownMenu>
+ <DropdownMenuTrigger asChild>
+ <Button variant="ghost" size="sm" className="h-7 w-7 p-0 opacity-0 group-hover:opacity-100">
+ <MoreVertical className="w-3.5 h-3.5" />
+ </Button>
+ </DropdownMenuTrigger>
+ <DropdownMenuContent align="end" className="w-44">
+ <DropdownMenuItem onClick={() => { setSelected(r); setIsViewOpen(true); }}>
+ <Eye className="w-4 h-4 mr-2" />View
+ </DropdownMenuItem>
+ <DropdownMenuItem onClick={() => { setSelected(r); setIsEditOpen(true); }}>
+ <Edit className="w-4 h-4 mr-2" />Edit
+ </DropdownMenuItem>
+ <DropdownMenuSeparator />
+ {canAct && r.status === "pending_approval" && (
+ <DropdownMenuItem className="text-violet-600" onClick={() => openApproval(r)}>
+ <ShieldCheck className="w-4 h-4 mr-2" />Approve / Reject
+ </DropdownMenuItem>
+ )}
+ {canAct && r.status !== "completed" && r.status !== "pending_approval" && (
+ <DropdownMenuItem className="text-green-600"
+ onClick={() => updateMutation.mutate({ id: r.id, status: "completed" })}>
+ <CheckCircle className="w-4 h-4 mr-2" />Mark complete
+ </DropdownMenuItem>
+ )}
+ {canAct && r.status === "pending" && (
+ <DropdownMenuItem className="text-blue-600"
+ onClick={() => updateMutation.mutate({ id: r.id, status: "in_progress" })}>
+ <Wrench className="w-4 h-4 mr-2" />Start work
+ </DropdownMenuItem>
+ )}
+ </DropdownMenuContent>
+ </DropdownMenu>
+ </td>
+ </tr>
+ ))}
+ </tbody>
+ </table>
+ </div>
+ {totalPages > 1 && (
+ <div className="flex items-center justify-between px-4 py-3 border-t border-border dark:border-gray-800" >
+ <span className="text-xs text-muted-foreground">
+ Showing {(page-1)*PER_PAGE+1}–{Math.min(page*PER_PAGE, filtered.length)} of {filtered.length}
+ </span>
+ <div className="flex items-center gap-1">
+ <Button variant="outline" size="sm" className="h-7 px-2 text-xs" disabled={page === 1} onClick={() => setPage(p => p-1)}>Previous</Button>
+ <span className="text-xs text-muted-foreground px-2">{page} / {totalPages}</span>
+ <Button variant="outline" size="sm" className="h-7 px-2 text-xs" disabled={page === totalPages} onClick={() => setPage(p => p+1)}>Next</Button>
+ </div>
+ </div>
+ )}
+ </>
+ )}
+ </Card>
+ )}
+ </div>
+
+ {canCreate && <AddMaintenanceModal isOpen={isAddOpen} onClose={() => setIsAddOpen(false)}
+ onSuccess={() => { queryClient.invalidateQueries({ queryKey: ["/api/maintenance-requests"] }); setIsAddOpen(false); }} />}
+ <ViewMaintenanceModal isOpen={isViewOpen} onClose={() => setIsViewOpen(false)} request={selected} />
+ <EditMaintenanceModal isOpen={isEditOpen} onClose={() => setIsEditOpen(false)} request={selected} />
+ <ApprovalDialog request={selected} open={isApprovalOpen} onOpenChange={setIsApprovalOpen} />
+ </div>
+ );
 }

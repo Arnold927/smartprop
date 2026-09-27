@@ -83,12 +83,12 @@ function StepBadge({
             ? "bg-green-500 text-white"
             : active
             ? "bg-blue-600 text-white"
-            : "bg-slate-200 text-slate-500"
+            : "bg-slate-200 text-muted-foreground"
         }`}
       >
         {done ? <CheckCircle2 className="w-4 h-4" /> : num}
       </div>
-      <span className={`text-sm font-medium ${active ? "text-slate-900" : "text-slate-400"}`}>
+      <span className={`text-sm font-medium ${active ? "text-foreground" : "text-slate-400"}`}>
         {label}
       </span>
     </div>
@@ -339,14 +339,14 @@ function ReminderPreview({
           <MessageSquare className="w-4 h-4 text-white" />
         </div>
         <div className="bg-[#DCF8C6] rounded-2xl rounded-tl-none px-4 py-3 max-w-sm shadow-sm">
-          <p className="text-[13px] text-slate-800 whitespace-pre-line leading-relaxed">{message}</p>
+          <p className="text-[13px] text-foreground whitespace-pre-line leading-relaxed">{message}</p>
           <div className="flex items-center justify-end gap-1 mt-1">
             <span className="text-[10px] text-slate-400">11:32</span>
             <span className="text-[10px] text-green-600">✓✓</span>
           </div>
         </div>
       </div>
-      <div className="flex items-center gap-2 text-xs text-slate-500 bg-slate-50 rounded-lg px-3 py-2">
+      <div className="flex items-center gap-2 text-xs text-muted-foreground bg-slate-50 rounded-lg px-3 py-2">
         <Phone className="w-3.5 h-3.5" />
         <span>
           This reminder would be sent via WhatsApp and SMS to all tenants with unpaid rent.
@@ -481,14 +481,14 @@ export default function QuickSetup() {
         <div className="mb-8">
           <div className="flex items-center justify-between">
             <div>
-              <h1 className="text-2xl font-semibold text-slate-900">Quick setup</h1>
-              <p className="text-slate-500 text-sm mt-1">3 steps to send your first rent reminder</p>
+              <h1 className="text-2xl font-semibold text-foreground">Quick setup</h1>
+              <p className="text-muted-foreground text-sm mt-1">3 steps to send your first rent reminder</p>
             </div>
             <Button
               variant="ghost"
               size="sm"
               onClick={handleGoToDashboard}
-              className="text-slate-500 gap-1"
+              className="text-muted-foreground gap-1"
             >
               Skip for now
               <SkipForward className="w-4 h-4" />
@@ -513,8 +513,8 @@ export default function QuickSetup() {
                 <Building2 className="w-5 h-5 text-blue-600" />
               </div>
               <div>
-                <h2 className="font-semibold text-slate-900">Add your first property</h2>
-                <p className="text-sm text-slate-500">Just the basics — you can add details later</p>
+                <h2 className="font-semibold text-foreground">Add your first property</h2>
+                <p className="text-sm text-muted-foreground">Just the basics — you can add details later</p>
               </div>
             </div>
 
@@ -565,7 +565,7 @@ export default function QuickSetup() {
               <Button
                 variant="ghost"
                 size="sm"
-                className="text-slate-500"
+                className="text-muted-foreground"
                 onClick={() => { markDone(1); setStep(2); }}
               >
                 Skip this step
@@ -591,8 +591,8 @@ export default function QuickSetup() {
                 <Home className="w-5 h-5 text-purple-600" />
               </div>
               <div>
-                <h2 className="font-semibold text-slate-900">Add units</h2>
-                <p className="text-sm text-slate-500">
+                <h2 className="font-semibold text-foreground">Add units</h2>
+                <p className="text-sm text-muted-foreground">
                   {propName
                     ? `Add units to ${propName} — tenants are assigned to a unit, not a property directly.`
                     : "Add units to your property — tenants are assigned to a unit, not a property directly."}
@@ -607,7 +607,7 @@ export default function QuickSetup() {
               >
                 {units.length > 1 && (
                   <div className="flex items-center justify-between mb-1">
-                    <span className="text-xs font-semibold text-slate-500 uppercase tracking-wide">
+                    <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
                       Unit {index + 1}
                     </span>
                     <button
@@ -635,7 +635,7 @@ export default function QuickSetup() {
               <Button
                 variant="ghost"
                 size="sm"
-                className="text-slate-500"
+                className="text-muted-foreground"
                 onClick={() => { markDone(2); setStep(3); }}
               >
                 Skip this step
@@ -661,8 +661,8 @@ export default function QuickSetup() {
                 <Bell className="w-5 h-5 text-green-600" />
               </div>
               <div>
-                <h2 className="font-semibold text-slate-900">Your first rent reminder</h2>
-                <p className="text-sm text-slate-500">This is what your tenants will receive</p>
+                <h2 className="font-semibold text-foreground">Your first rent reminder</h2>
+                <p className="text-sm text-muted-foreground">This is what your tenants will receive</p>
               </div>
             </div>
 

@@ -52,7 +52,7 @@ function StatusBadge({ status }: { status: string }) {
       ? "bg-amber-100 text-amber-800 border-amber-200"
     : status === "overdue" || status === "flagged"
       ? "bg-red-100 text-red-800 border-red-200"
-    : "bg-gray-100 text-gray-700 border-gray-200";
+    : "bg-gray-100 text-muted-foreground border-gray-200";
   return <Badge variant="outline" className={color}>{status}</Badge>;
 }
 
@@ -833,7 +833,7 @@ function KraReturnsTab() {
 
       {/* Generate return */}
       <Card>
-        <CardHeader className="pb-3"><h3 className="text-sm font-semibold text-slate-900">Generate Monthly Return</h3></CardHeader>
+        <CardHeader className="pb-3"><h3 className="text-sm font-semibold text-foreground">Generate Monthly Return</h3></CardHeader>
         <CardContent className="space-y-3">
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             <div>
@@ -1225,7 +1225,7 @@ function DepositInterestTab() {
       <Card>
         <CardHeader className="pb-2">
           <div className="flex items-center justify-between">
-            <h3 className="text-sm font-semibold text-slate-900">CBK Rate History (MPC decisions)</h3>
+            <h3 className="text-sm font-semibold text-foreground">CBK Rate History (MPC decisions)</h3>
             <Button variant="outline" size="sm" onClick={() => setShowAddRate(true)} className="gap-1">
               <Plus className="h-3.5 w-3.5" />Add rate
             </Button>
@@ -1457,7 +1457,7 @@ function ValuationsTab() {
       {/* Add form */}
       {showForm && (
         <Card>
-          <CardHeader className="pb-3"><h3 className="text-sm font-semibold text-slate-900">Record Valuation</h3></CardHeader>
+          <CardHeader className="pb-3"><h3 className="text-sm font-semibold text-foreground">Record Valuation</h3></CardHeader>
           <CardContent className="grid grid-cols-2 gap-3">
             <div>
               <Label className="text-xs">Date</Label>
@@ -2095,7 +2095,7 @@ function EtimsTab() {
       {device?.status === "active" && (
         <Card>
           <CardHeader className="pb-3">
-            <h3 className="text-sm font-semibold text-slate-900">Submit Invoice to KRA</h3>
+            <h3 className="text-sm font-semibold text-foreground">Submit Invoice to KRA</h3>
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 items-end">
@@ -2146,7 +2146,7 @@ function EtimsTab() {
       <Card>
         <CardHeader className="pb-2">
           <div className="flex items-center justify-between">
-            <h3 className="text-sm font-semibold text-slate-900">Recent Submissions</h3>
+            <h3 className="text-sm font-semibold text-foreground">Recent Submissions</h3>
             <div className="flex gap-2">
               {submissions.length > 0 && (
                 <Button variant="outline" size="sm" onClick={() => downloadEtimsCsv(submissions as any[])}>
@@ -2168,7 +2168,7 @@ function EtimsTab() {
             <div className="overflow-x-auto">
               <table className="w-full text-sm border-collapse">
                 <thead>
-                  <tr className="border-b bg-slate-50 text-xs font-semibold text-slate-500 uppercase tracking-wide">
+                  <tr className="border-b bg-slate-50 text-xs font-semibold text-muted-foreground uppercase tracking-wide">
                     <th className="text-left p-3">Invoice #</th>
                     <th className="text-left p-3 hidden sm:table-cell">Customer</th>
                     <th className="text-right p-3">Amount</th>
@@ -2187,13 +2187,13 @@ function EtimsTab() {
                       <td className="p-3 text-right font-mono tabular-nums hidden md:table-cell">
                         {Number(s.totTaxAmt) > 0 ? fmtKES(s.totTaxAmt) : "Exempt"}
                       </td>
-                      <td className="px-5 py-3.5 text-slate-700">
+                      <td className="px-5 py-3.5 text-muted-foreground">
                         {s.rcptNo
                           ? <span className="font-mono text-xs text-emerald-700">{s.rcptNo}</span>
                           : <span className="text-xs text-muted-foreground">—</span>
                         }
                       </td>
-                      <td className="px-5 py-3.5 text-slate-700">
+                      <td className="px-5 py-3.5 text-muted-foreground">
                         <StatusBadge status={s.status} />
                         {s.kraResultCd && s.kraResultCd !== "000" && (
                           <p className="text-xs text-red-600 mt-0.5">[{s.kraResultCd}] {s.kraResultMsg}</p>

@@ -1102,7 +1102,7 @@ export default function GatePortal() {
                 <input value={vehicleForm.plate}
                   onChange={e => setVehicleForm(v => ({ ...v, plate: e.target.value.toUpperCase() }))}
                   placeholder="KDA 123A"
-                  className="w-full rounded-lg bg-muted border border-border text-white px-3 py-2.5 text-sm font-mono uppercase placeholder:text-slate-600 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                  className="w-full rounded-lg bg-muted border border-border text-foreground px-3 py-2.5 text-sm font-mono uppercase placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-emerald-500"
                 />
               </div>
 
@@ -1129,7 +1129,7 @@ export default function GatePortal() {
                     <input value={vehicleForm[field]}
                       onChange={e => setVehicleForm(v => ({ ...v, [field]: e.target.value }))}
                       placeholder={field === "make" ? "Toyota" : field === "model" ? "Vitz" : "Silver"}
-                      className="w-full rounded-lg bg-muted border border-border text-white px-3 py-2.5 text-sm placeholder:text-slate-600 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                      className="w-full rounded-lg bg-muted border border-border text-foreground px-3 py-2.5 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-emerald-500"
                     />
                   </div>
                 ))}
@@ -1277,7 +1277,7 @@ export default function GatePortal() {
 
             {spaces.length === 0 ? (
               <div className="rounded-xl bg-card border border-border p-8 text-center">
-                <ParkingSquare className="w-10 h-10 text-slate-600 mx-auto mb-3" />
+                <ParkingSquare className="w-10 h-10 text-muted-foreground mx-auto mb-3" />
                 <p className="text-muted-foreground text-sm">No available spaces.</p>
               </div>
             ) : (
@@ -1331,7 +1331,7 @@ export default function GatePortal() {
                 <div className="rounded-xl bg-card border border-border p-4 text-center">
                   <p className="text-xs text-muted-foreground/70 mb-1">Access Code</p>
                   <p className="font-mono text-2xl font-semibold tracking-widest">{adhocResult.accessCode}</p>
-                  <p className="text-xs text-slate-600 mt-1">For records only — visitor is already inside</p>
+                  <p className="text-xs text-muted-foreground mt-1">For records only — visitor is already inside</p>
                 </div>
                 <Button className="w-full border-border text-muted-foreground" variant="outline"
                   onClick={() => { setAdhocResult(null); setAdhocForm({ visitorName: "", visitorPhone: "", purpose: "", unitId: "", tenantId: "", vehiclePlate: "" }); }}>
@@ -1348,7 +1348,7 @@ export default function GatePortal() {
                     <input value={adhocForm.visitorName}
                       onChange={e => setAdhocForm(v => ({ ...v, visitorName: e.target.value }))}
                       placeholder="Full name"
-                      className="w-full rounded-lg bg-muted border border-border text-white px-3 py-2.5 text-sm placeholder:text-slate-600 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                      className="w-full rounded-lg bg-muted border border-border text-foreground px-3 py-2.5 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-emerald-500"
                     />
                   </div>
                   <div>
@@ -1356,7 +1356,7 @@ export default function GatePortal() {
                     <input value={adhocForm.visitorPhone}
                       onChange={e => setAdhocForm(v => ({ ...v, visitorPhone: e.target.value }))}
                       placeholder="+254 7XX XXX XXX"
-                      className="w-full rounded-lg bg-muted border border-border text-white px-3 py-2.5 text-sm placeholder:text-slate-600 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                      className="w-full rounded-lg bg-muted border border-border text-foreground px-3 py-2.5 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-emerald-500"
                     />
                   </div>
                   <div>
@@ -1364,7 +1364,7 @@ export default function GatePortal() {
                     <input value={adhocForm.vehiclePlate}
                       onChange={e => setAdhocForm(v => ({ ...v, vehiclePlate: e.target.value.toUpperCase() }))}
                       placeholder="KDA 123A"
-                      className="w-full rounded-lg bg-muted border border-border text-white px-3 py-2.5 text-sm font-mono uppercase placeholder:text-slate-600 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                      className="w-full rounded-lg bg-muted border border-border text-foreground px-3 py-2.5 text-sm font-mono uppercase placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-emerald-500"
                     />
                   </div>
                   <div className="col-span-2">
@@ -1372,7 +1372,7 @@ export default function GatePortal() {
                     <input value={adhocForm.purpose}
                       onChange={e => setAdhocForm(v => ({ ...v, purpose: e.target.value }))}
                       placeholder="e.g. Delivery, Personal visit, Viewing"
-                      className="w-full rounded-lg bg-muted border border-border text-white px-3 py-2.5 text-sm placeholder:text-slate-600 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                      className="w-full rounded-lg bg-muted border border-border text-foreground px-3 py-2.5 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-emerald-500"
                     />
                   </div>
                 </div>
@@ -1386,7 +1386,7 @@ export default function GatePortal() {
                       const tenant = (tenantList as any[]).find((t: any) => String(t.id) === e.target.value);
                       setAdhocForm(v => ({ ...v, tenantId: e.target.value, unitId: tenant?.unitId ? String(tenant.unitId) : "" }));
                     }}
-                    className="w-full rounded-lg bg-muted border border-border text-white px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                    className="w-full rounded-lg bg-muted border border-border text-foreground px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
                   >
                     <option value="">Select tenant / unit…</option>
                     {(tenantList as any[]).map((t: any) => (
@@ -1476,14 +1476,14 @@ export default function GatePortal() {
                   <input value={vlogForm.plateNumber}
                     onChange={e => setVlogForm(v => ({ ...v, plateNumber: e.target.value.toUpperCase() }))}
                     placeholder="KDA 123A"
-                    className="w-full rounded-lg bg-muted border border-border text-white px-3 py-2.5 text-sm font-mono uppercase placeholder:text-slate-600 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                    className="w-full rounded-lg bg-muted border border-border text-foreground px-3 py-2.5 text-sm font-mono uppercase placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-emerald-500"
                   />
                 </div>
                 <div>
                   <label className="text-xs text-muted-foreground mb-1 block">Type</label>
                   <select value={vlogForm.vehicleType}
                     onChange={e => setVlogForm(v => ({ ...v, vehicleType: e.target.value }))}
-                    className="w-full rounded-lg bg-muted border border-border text-white px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                    className="w-full rounded-lg bg-muted border border-border text-foreground px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
                   >
                     {["car","motorcycle","van","truck","bicycle"].map(t => (
                       <option key={t} value={t} className="capitalize">{t}</option>
@@ -1495,7 +1495,7 @@ export default function GatePortal() {
                   <input value={vlogForm.unitNumber}
                     onChange={e => setVlogForm(v => ({ ...v, unitNumber: e.target.value }))}
                     placeholder="e.g. 4B"
-                    className="w-full rounded-lg bg-muted border border-border text-white px-3 py-2.5 text-sm placeholder:text-slate-600 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                    className="w-full rounded-lg bg-muted border border-border text-foreground px-3 py-2.5 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-emerald-500"
                   />
                 </div>
                 <div className="col-span-2">
@@ -1503,7 +1503,7 @@ export default function GatePortal() {
                   <input value={vlogForm.purpose}
                     onChange={e => setVlogForm(v => ({ ...v, purpose: e.target.value }))}
                     placeholder="Delivery, Visit, Contractor…"
-                    className="w-full rounded-lg bg-muted border border-border text-white px-3 py-2.5 text-sm placeholder:text-slate-600 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                    className="w-full rounded-lg bg-muted border border-border text-foreground px-3 py-2.5 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-emerald-500"
                   />
                 </div>
               </div>
@@ -1560,7 +1560,7 @@ export default function GatePortal() {
                 Today's Movements ({(vlogToday as any[]).length})
               </p>
               {(vlogToday as any[]).length === 0 ? (
-                <div className="text-center py-8 text-slate-600">
+                <div className="text-center py-8 text-muted-foreground">
                   <ClipboardList className="w-8 h-8 mx-auto mb-2 opacity-30" />
                   <p className="text-sm">No movements logged today</p>
                 </div>

@@ -16,7 +16,7 @@
  *     - "Post Entry" disabled until: balanced, ≥2 accounts selected, description filled.
  *     - Visual ring on active debit (blue) / credit (orange) fields for scan-readability.
  *     - canPost guard fixed (boolean expression was incorrectly formed in original).
- *     - Removed stray hardcoded `text-slate-700` class; use `text-foreground`.
+ *     - Removed stray hardcoded `text-muted-foreground` class; use `text-foreground`.
  *     - Error state shown if API call fails (original silently showed empty list).
  *     - CSV export for audit trail.
  *

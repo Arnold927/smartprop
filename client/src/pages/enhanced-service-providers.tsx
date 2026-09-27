@@ -592,7 +592,7 @@ export default function EnhancedServiceProviders() {
                 align="end" 
                 className="w-48 border-border dark:border-gray-700 bg-card dark:bg-gray-900 shadow-lg"
               >
-                <DropdownMenuLabel className="text-xs font-semibold text-slate-500">
+                <DropdownMenuLabel className="text-xs font-semibold text-muted-foreground">
                   Quick Actions
                 </DropdownMenuLabel>
                 <DropdownMenuSeparator className="bg-muted dark:bg-gray-800" />
@@ -600,7 +600,7 @@ export default function EnhancedServiceProviders() {
                   onClick={handleExportReport}
                   className="text-sm cursor-pointer hover:bg-muted dark:hover:bg-gray-800"
                 >
-                  <FileText className="w-3.5 h-3.5 mr-2 text-slate-500" />
+                  <FileText className="w-3.5 h-3.5 mr-2 text-muted-foreground" />
                   Export Report
                 </DropdownMenuItem>
                 <DropdownMenuItem 
@@ -619,7 +619,7 @@ export default function EnhancedServiceProviders() {
                   }}
                   className="text-sm cursor-pointer hover:bg-muted dark:hover:bg-gray-800"
                 >
-                  <Building2 className="w-3.5 h-3.5 mr-2 text-slate-500" />
+                  <Building2 className="w-3.5 h-3.5 mr-2 text-muted-foreground" />
                   Add Service Category
                 </DropdownMenuItem>
               </DropdownMenuContent>
@@ -643,7 +643,7 @@ export default function EnhancedServiceProviders() {
                     <DialogTitle className="text-lg font-bold text-foreground">
                       Create New Service Contractor
                     </DialogTitle>
-                    <DialogDescription className="text-xs text-slate-500 mt-0.5">
+                    <DialogDescription className="text-xs text-muted-foreground mt-0.5">
                       Add a new service contractor to your network
                     </DialogDescription>
                   </div>
@@ -878,7 +878,7 @@ export default function EnhancedServiceProviders() {
                                   {services.length > 0 && (
                                     <div className="space-y-1">
                                       <div className="flex justify-between items-center">
-                                        <span className="text-xs text-slate-500">
+                                        <span className="text-xs text-muted-foreground">
                                           {services.length} service(s)
                                         </span>
                                         <button
@@ -924,7 +924,7 @@ export default function EnhancedServiceProviders() {
                     <DialogFooter className="border-t border-border dark:border-gray-800 pt-3 mt-3">
                       <div className="flex flex-col sm:flex-row w-full gap-2">
                         <div className="flex-1">
-                          <p className="text-xs text-slate-500">
+                          <p className="text-xs text-muted-foreground">
                             All fields marked with <span className="text-red-500">*</span> are required
                           </p>
                         </div>

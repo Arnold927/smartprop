@@ -103,7 +103,7 @@ const STATUS_CONFIG: Record<string, { label: string; color: string; icon: React.
 };
 
 const PLAN_COLOR: Record<string, string> = {
-  starter:    "bg-slate-100 text-slate-700 border-slate-200" ,
+  starter:    "bg-slate-100 text-muted-foreground border-slate-200" ,
   growth:     "bg-blue-100 text-blue-700 border-blue-200" ,
   enterprise: "bg-violet-100 text-violet-700 border-violet-200" ,
 };
@@ -122,7 +122,7 @@ function StatCard({
     amber:  "text-amber-600 bg-amber-50",
     red:    "text-red-600 bg-red-50",
     violet: "text-violet-600 bg-violet-50",
-    slate:  "text-slate-600 bg-slate-50",
+    slate:  "text-muted-foreground bg-slate-50",
   };
   return (
     <Card>

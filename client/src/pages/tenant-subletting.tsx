@@ -114,7 +114,7 @@ const StatusBadge = ({ status }: { status: string }) => {
     pending: { label: "Pending Approval", color: "bg-amber-100 text-amber-800 border-amber-200" },
     approved: { label: "Approved", color: "bg-emerald-50 text-emerald-700 border border-emerald-200" },
     rejected: { label: "Rejected", color: "bg-red-100 text-red-800 border-red-200" },
-    suspended: { label: "Suspended", color: "bg-slate-100 text-slate-600 border-slate-200" },
+    suspended: { label: "Suspended", color: "bg-slate-100 text-muted-foreground border-slate-200" },
   };
   const config = variants[status] || variants.pending;
   return <Badge className={`${config.color} border font-medium text-xs`}>{config.label}</Badge>;
@@ -125,7 +125,7 @@ const BookingStatusBadge = ({ status }: { status: string }) => {
     pending: { label: "Pending", color: "bg-amber-50 text-amber-700 border-amber-200", icon: <Clock className="h-3 w-3" /> },
     confirmed: { label: "Confirmed", color: "bg-blue-50 text-blue-700 border-blue-200", icon: <CheckCircle className="h-3 w-3" /> },
     checked_in: { label: "Checked In", color: "bg-emerald-50 text-emerald-700 border-emerald-200", icon: <Unlock className="h-3 w-3" /> },
-    checked_out: { label: "Checked Out", color: "bg-slate-100 text-slate-600 border-slate-200", icon: <Lock className="h-3 w-3" /> },
+    checked_out: { label: "Checked Out", color: "bg-slate-100 text-muted-foreground border-slate-200", icon: <Lock className="h-3 w-3" /> },
     cancelled: { label: "Cancelled", color: "bg-red-50 text-red-700 border-red-200", icon: <XCircle className="h-3 w-3" /> },
     no_show: { label: "No Show", color: "bg-red-50 text-red-700 border-red-200", icon: <AlertCircle className="h-3 w-3" /> },
   };
@@ -144,7 +144,7 @@ const PlatformBadge = ({ platform }: { platform: string }) => {
     direct: { color: "bg-emerald-50 text-emerald-700 border-emerald-200", icon: "✓" },
     vrbo: { color: "bg-purple-50 text-purple-700 border-purple-200", icon: "🏡" },
   };
-  const cfg = configs[platform?.toLowerCase()] || { color: "bg-slate-100 text-slate-600 border-slate-200", icon: "•" };
+  const cfg = configs[platform?.toLowerCase()] || { color: "bg-slate-100 text-muted-foreground border-slate-200", icon: "•" };
   return (
     <Badge className={`${cfg.color} border font-medium text-xs`}>
       {cfg.icon} {platform}

@@ -150,7 +150,7 @@ function HardwareIntegrationPanel({ properties: props }: { properties: any[] }) 
       <Card>
         <CardHeader className="pb-3">
           <CardTitle className="text-base flex items-center gap-2">
-            <Cpu className="h-4 w-4 text-slate-600" /> Hardware Integration
+            <Cpu className="h-4 w-4 text-muted-foreground" /> Hardware Integration
           </CardTitle>
           <CardDescription>Configure CCTV / intercom webhook per property. Each property gets its own webhook URL and optional HMAC secret.</CardDescription>
         </CardHeader>
@@ -283,7 +283,7 @@ function HardwareIntegrationPanel({ properties: props }: { properties: any[] }) 
       {isTechnicalAudience && (
       <Card>
         <CardHeader className="pb-3">
-          <h3 className="text-sm font-semibold text-slate-900">Setup Guides</h3>
+          <h3 className="text-sm font-semibold text-foreground">Setup Guides</h3>
         </CardHeader>
         <CardContent className="space-y-3 text-sm">
           <div className="p-3 rounded-lg border space-y-1">
@@ -1445,7 +1445,7 @@ export default function SecurityPage() {
                         <span className={`inline-flex items-center text-[10px] font-semibold px-2 py-0.5 rounded-full border ${
                           visitor.status === "checked_in" ? "bg-emerald-50 text-emerald-700 border-emerald-200" :
                           visitor.status === "approved"   ? "bg-blue-50 text-blue-700 border-blue-200" :
-                          "bg-gray-100 text-gray-600 border-gray-200"}`}>{statusLabel(visitor.status)}</span>
+                          "bg-gray-100 text-muted-foreground border-gray-200"}`}>{statusLabel(visitor.status)}</span>
                         <p className="text-[10px] text-muted-foreground mt-0.5">{safeDate(visitor.actual_arrival ?? visitor.expected_arrival, "HH:mm")}</p>
                       </div>
                     </div>
@@ -1718,7 +1718,7 @@ export default function SecurityPage() {
                                   visitor.status === "checked_in"  ? "bg-emerald-50 text-emerald-700 border-emerald-200" :
                                   visitor.status === "approved"    ? "bg-blue-50 text-blue-700 border-blue-200" :
                                   visitor.status === "pending"     ? "bg-amber-50 text-amber-700 border-amber-200" :
-                                  visitor.status === "checked_out" ? "bg-gray-100 text-gray-600 border-gray-200" :
+                                  visitor.status === "checked_out" ? "bg-gray-100 text-muted-foreground border-gray-200" :
                                   "bg-red-50 text-red-700 border-red-200"
                                 }`}>{statusLabel(visitor.status)}</span>
                               </td>
@@ -1811,7 +1811,7 @@ export default function SecurityPage() {
                               <td className="px-4 py-3">
                                 <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border ${
                                   gp.status === "active" || gp.status === "approved" ? "bg-emerald-50 text-emerald-700 border-emerald-200" :
-                                  gp.status === "expired" ? "bg-gray-100 text-gray-600 border-gray-200" :
+                                  gp.status === "expired" ? "bg-gray-100 text-muted-foreground border-gray-200" :
                                   "bg-red-50 text-red-700 border-red-200"
                                 }`}>{gp.status}</span>
                               </td>
@@ -1918,7 +1918,7 @@ export default function SecurityPage() {
                                   <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border ${
                                     v.status === "active"      ? "bg-emerald-50 text-emerald-700 border-emerald-200" :
                                     v.status === "blacklisted" ? "bg-red-50 text-red-700 border-red-200" :
-                                    "bg-gray-100 text-gray-600 border-gray-200"
+                                    "bg-gray-100 text-muted-foreground border-gray-200"
                                   }`}>{v.status}</span>
                                 )}
                               </td>

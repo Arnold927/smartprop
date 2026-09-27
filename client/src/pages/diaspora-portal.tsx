@@ -63,14 +63,14 @@ function statusColor(status: string) {
   if (status === "active")    return "bg-emerald-100 text-blue-800 border-emerald-200";
   if (status === "suspended") return "bg-amber-100 text-amber-800 border-amber-200";
   if (status === "cancelled") return "bg-red-100 text-red-800 border-red-200";
-  return "bg-gray-100 text-gray-700 border-gray-200";
+  return "bg-gray-100 text-muted-foreground border-gray-200";
 }
 
 function paymentStatusColor(status: string) {
   if (status === "confirmed") return "bg-emerald-50 text-emerald-700 border border-emerald-200";
   if (status === "pending")   return "bg-amber-100 text-amber-800";
   if (status === "failed")    return "bg-red-100 text-red-800";
-  return "bg-gray-100 text-gray-700";
+  return "bg-gray-100 text-muted-foreground";
 }
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
@@ -429,7 +429,7 @@ function ConstructionTab({ contractId }: { contractId: number }) {
                             <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
                             <div className="absolute bottom-1.5 right-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
                               <div className="bg-white/90 rounded-full p-1">
-                                <ExternalLink className="h-3 w-3 text-slate-700" />
+                                <ExternalLink className="h-3 w-3 text-muted-foreground" />
                               </div>
                             </div>
                           </a>

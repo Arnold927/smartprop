@@ -217,7 +217,7 @@ export default function StaffDetailsPage() {
  <div className="flex flex-col items-center justify-center h-96 space-y-4">
  <AlertTriangle className="h-16 w-16 text-red-500" />
  <div className="text-center">
- <h3 className="text-xl font-semibold text-slate-900">Staff Member Not Found</h3>
+ <h3 className="text-xl font-semibold text-foreground">Staff Member Not Found</h3>
  <p className="text-muted-foreground mt-2">The staff member you're looking for doesn't exist or has been removed.</p>
  <Button 
  onClick={() => setLocation('/workforce-management')}
@@ -300,7 +300,7 @@ export default function StaffDetailsPage() {
  <span>•</span>
  <span className="text-foreground font-medium">Staff Details</span>
  </div>
- <h1 className="text-3xl font-bold text-slate-900">{staff.first_name} {staff.last_name}</h1>
+ <h1 className="text-3xl font-bold text-foreground">{staff.first_name} {staff.last_name}</h1>
  <div className="flex items-center gap-2 mt-1">
  <span className="text-muted-foreground">Employee ID: {staff.employee_id}</span>
  <Badge className={statusColors[staff.status]}>
@@ -353,7 +353,7 @@ export default function StaffDetailsPage() {
  <div>
  <p className="text-sm font-medium text-muted-foreground">{stat.title}</p>
  <div className="flex items-baseline gap-2 mt-1">
- <span className="text-2xl font-semibold text-slate-900">{stat.value}</span>
+ <span className="text-2xl font-semibold text-foreground">{stat.value}</span>
  </div>
  <p className="text-xs text-muted-foreground mt-2">{stat.description}</p>
  </div>
@@ -512,7 +512,7 @@ export default function StaffDetailsPage() {
  </div>
  <div className="space-y-1">
  <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Amount</Label>
- <p className="text-2xl font-semibold text-slate-900">
+ <p className="text-2xl font-semibold text-foreground">
  {staff.salary 
  ? formatCurrency(staff.salary, staff.currency as any)
  : staff.hourly_rate
