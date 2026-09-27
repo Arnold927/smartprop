@@ -88,7 +88,7 @@ export function RentPaymentCard({
       >
         <div className="flex items-center justify-between gap-2">
           <div className="min-w-0 flex-1">
-            <p className="font-semibold text-slate-900 text-sm truncate">
+            <p className="font-semibold text-foreground text-sm truncate">
               {payment.tenant
                 ? `${payment.tenant.firstName} ${payment.tenant.lastName}`
                 : "Unknown tenant"}
@@ -102,7 +102,7 @@ export function RentPaymentCard({
           </div>
           <div className="flex items-center gap-3 flex-shrink-0">
             <div className="text-right">
-              <p className="font-bold text-slate-900 text-sm">
+              <p className="font-bold text-foreground text-sm">
                 {fmt(Number(payment.amount))}
               </p>
             </div>

@@ -1,17 +1,15 @@
 import { useState } from "react";
 import {
-  DollarSign, Smartphone, CheckCircle, Clock, AlertTriangle,
-  Search, Download, Plus, ChevronLeft, ChevronRight, X,
+  DollarSign, CheckCircle, Clock, AlertTriangle,
+  Download, Plus, ChevronLeft, ChevronRight,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Card } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { useRentCollection } from "@/hooks/modules/useRentCollection";
-import { RentKPIStrip } from "@/components/rent/RentKPIStrip";
 import { RentPaymentCard } from "@/components/rent/RentPaymentCard";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { PageShell, PageHeader, FilterBar, SPBadge, EmptyState, PrimaryButton, StatTile, StatsGrid, SectionCard, SPTable, KESAmount } from "@/components/ui/sp-ui";
@@ -137,13 +135,6 @@ export default function RentCollection() {
 
   const fmt = (n: number) => `KES ${Math.abs(n).toLocaleString("en-KE")}`;
 
-  const stats = [
-    { label: "Collected", value: fmt(Number(liveStats?.collected ?? 0)), icon: CheckCircle,   color: "green", sub: `${liveStats?.collectedCount ?? 0} payments` },
-    { label: "Pending",   value: fmt(Number(liveStats?.pending   ?? 0)), icon: Clock,         color: "amber", sub: `${liveStats?.pendingCount   ?? 0} tenants`  },
-    { label: "Overdue",   value: fmt(Number(liveStats?.overdue   ?? 0)), icon: AlertTriangle, color: "red",   sub: `${liveStats?.overdueCount   ?? 0} tenants`  },
-    { label: "Rate",      value: `${liveStats?.collectionRate    ?? 0}%`, icon: DollarSign,   color: "blue",  sub: "Collection rate"                            },
-  ];
-
   const startItem = totalCount === 0 ? 0 : (page - 1) * pageSize + 1;
   const endItem   = Math.min(page * pageSize, totalCount);
 
@@ -157,15 +148,13 @@ export default function RentCollection() {
   }
 
   return (
-    <div className="min-h-screen bg-background">
-      {/* Header */}
-      <div className="bg-card border-b border-border px-4 md:px-6 py-6">
-        <div className="max-w-7xl mx-auto flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-semibold text-foreground">Rent Collection</h1>
-            <p className="text-sm text-muted-foreground mt-1">Track and manage tenant payments</p>
-          </div>
-          <div className="flex items-center gap-2">
+    <PageShell>
+      <PageHeader
+        title="Rent Collection"
+        subtitle="Track and manage tenant payments"
+        icon={<DollarSign className="w-5 h-5" />}
+        actions={
+          <>
             <Button
               variant="outline"
               size="sm"
@@ -176,86 +165,77 @@ export default function RentCollection() {
               <Download className="h-4 w-4 mr-2" />
               {isExporting ? "Exporting…" : "Export"}
             </Button>
-            <Button
-              size="sm"
-              className="bg-emerald-600 hover:bg-emerald-700 text-white"
-              onClick={() => setShowAddModal(true)}
-            >
-              <Plus className="h-4 w-4 mr-2" /> Record Payment
-            </Button>
-          </div>
-        </div>
-      </div>
+            <PrimaryButton icon={<Plus className="h-4 w-4" />} onClick={() => setShowAddModal(true)}>
+              Record Payment
+            </PrimaryButton>
+          </>
+        }
+      />
 
-      <div className="max-w-7xl mx-auto px-4 md:px-6 py-8 space-y-8">
-        <RentKPIStrip stats={stats} />
+      <StatsGrid cols={4}>
+        <StatTile label="Collected" value={fmt(Number(liveStats?.collected ?? 0))} sub={`${liveStats?.collectedCount ?? 0} payments`} icon={<CheckCircle className="w-4 h-4" />} accent="emerald" />
+        <StatTile label="Pending" value={fmt(Number(liveStats?.pending ?? 0))} sub={`${liveStats?.pendingCount ?? 0} tenants`} icon={<Clock className="w-4 h-4" />} accent="amber" />
+        <StatTile label="Overdue" value={fmt(Number(liveStats?.overdue ?? 0))} sub={`${liveStats?.overdueCount ?? 0} tenants`} icon={<AlertTriangle className="w-4 h-4" />} accent="red" />
+        <StatTile label="Rate" value={`${liveStats?.collectionRate ?? 0}%`} sub="Collection rate" icon={<DollarSign className="w-4 h-4" />} accent="blue" />
+      </StatsGrid>
 
-        <div className="space-y-4">
-          {/* Filters row */}
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
-            <div className="relative flex-1 max-w-md">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input
-                placeholder="Search tenants..."
-                className="pl-10"
-                value={search}
-                onChange={(e) => handleSearch(e.target.value)}
+      <div className="space-y-4">
+        <FilterBar
+          search={search}
+          onSearch={handleSearch}
+          placeholder="Search tenants..."
+          filters={
+            <Select value={statusFilter} onValueChange={handleStatus}>
+              <SelectTrigger className="w-40">
+                <SelectValue placeholder="All Statuses" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Statuses</SelectItem>
+                <SelectItem value="paid">Paid</SelectItem>
+                <SelectItem value="pending">Pending</SelectItem>
+                <SelectItem value="overdue">Overdue</SelectItem>
+              </SelectContent>
+            </Select>
+          }
+          actions={
+            <Select value={String(pageSize)} onValueChange={handlePageSize}>
+              <SelectTrigger className="w-28">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {PAGE_SIZE_OPTIONS.map((n) => (
+                  <SelectItem key={n} value={String(n)}>{n} / page</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          }
+        />
+
+        {/* Payment list */}
+        <SectionCard padding="none">
+          <div className="divide-y divide-border">
+            {payments.map((payment: any) => (
+              <RentPaymentCard
+                key={payment.id}
+                payment={payment}
+                onMarkPaid={(id, onDone) => markPaidMutation.mutate({ id, onDone })}
+                onReminder={(id, onDone) => sendReminderMutation.mutate({ id, onDone })}
+                isMarkingPaid={markPaidMutation.isPending}
+                isSendingReminder={sendReminderMutation.isPending}
               />
-            </div>
-
-            <div className="flex items-center gap-2">
-              <Select value={statusFilter} onValueChange={handleStatus}>
-                <SelectTrigger className="w-40">
-                  <SelectValue placeholder="All Statuses" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Statuses</SelectItem>
-                  <SelectItem value="paid">Paid</SelectItem>
-                  <SelectItem value="pending">Pending</SelectItem>
-                  <SelectItem value="overdue">Overdue</SelectItem>
-                </SelectContent>
-              </Select>
-
-              <Select value={String(pageSize)} onValueChange={handlePageSize}>
-                <SelectTrigger className="w-28">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {PAGE_SIZE_OPTIONS.map((n) => (
-                    <SelectItem key={n} value={String(n)}>{n} / page</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+            ))}
+            {payments.length === 0 && !isLoading && (
+              <EmptyState icon={<DollarSign />} title="No payments found" description="No payments match your current criteria." size="lg" />
+            )}
+            {isLoading && (
+              <div className="p-6 space-y-3">
+                {Array.from({ length: 5 }).map((_, i) => (
+                  <Skeleton key={i} className="h-16 w-full rounded-lg" />
+                ))}
+              </div>
+            )}
           </div>
-
-          {/* Payment list */}
-          <Card className="overflow-hidden border-border shadow-sm">
-            <div className="divide-y divide-border">
-              {payments.map((payment: any) => (
-                <RentPaymentCard
-                  key={payment.id}
-                  payment={payment}
-                  onMarkPaid={(id, onDone) => markPaidMutation.mutate({ id, onDone })}
-                  onReminder={(id, onDone) => sendReminderMutation.mutate({ id, onDone })}
-                  isMarkingPaid={markPaidMutation.isPending}
-                  isSendingReminder={sendReminderMutation.isPending}
-                />
-              ))}
-              {payments.length === 0 && !isLoading && (
-                <div className="p-12 text-center text-muted-foreground">
-                  No payments found matching your criteria.
-                </div>
-              )}
-              {isLoading && (
-                <div className="p-6 space-y-3">
-                  {Array.from({ length: 5 }).map((_, i) => (
-                    <Skeleton key={i} className="h-16 w-full rounded-lg" />
-                  ))}
-                </div>
-              )}
-            </div>
-          </Card>
+        </SectionCard>
 
           {/* Pagination footer */}
           {totalCount > 0 && (
@@ -301,7 +281,6 @@ export default function RentCollection() {
             </div>
           )}
         </div>
-      </div>
 
       {/* ── Record Payment Modal ── */}
       <Dialog open={showAddModal} onOpenChange={setShowAddModal}>
@@ -416,6 +395,6 @@ export default function RentCollection() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </div>
+    </PageShell>
   );
 }
