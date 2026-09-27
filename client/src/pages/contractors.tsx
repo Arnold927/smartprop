@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Wrench, Users, Star, Plus, Shield, CheckCircle, Eye, Edit, Trash2, MoreHorizontal, Search, ChevronLeft, ChevronRight, Mail, Phone, MapPin, FileText, ShieldCheck, ShieldOff } from 'lucide-react';
+import { Wrench, Users, Star, Plus, Shield, CheckCircle, Eye, Edit, Trash2, ChevronLeft, ChevronRight, Mail, Phone, MapPin, FileText, ShieldCheck } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -9,13 +9,13 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { useToast } from '@/hooks/use-toast';
 import { Checkbox } from '@/components/ui/checkbox';
 import { apiRequest, ensureArray } from "@/lib/queryClient";
 import { CurrencyDisplay } from '@/components/ui/currency-display';
 import { useRoleGuard, ROLES } from "@/hooks/useRoleGuard";
 import { useAuth } from "@/hooks/useAuth";
+import { PageShell, PageHeader, SectionCard, SPBadge, EmptyState, PrimaryButton, SecondaryButton, FilterBar, SPTable, SPAvatar, StatTile, StatsGrid, KESAmount, ActionMenu, ConfirmDialog } from "@/components/ui/sp-ui";
 
 
 // Standard property services offered as specialty options
@@ -198,16 +198,12 @@ export default function ContractorsManagement() {
   );
 
   return (
-    <div className="min-h-screen bg-background">
-      {/* Page header */}
-      <div className="bg-card border-b border-border px-4 md:px-6 py-4 md:py-5">
-        <div className="max-w-7xl mx-auto flex items-center justify-between">
-          <div>
-            <h1 className="text-xl font-semibold text-foreground">Contractors</h1>
-            <p className="text-sm text-muted-foreground mt-0.5">
-              {contractors.length} registered · {contractors.filter((c: Contractor) => c.isAvailable !== false).length} available
-            </p>
-          </div>
+    <PageShell>
+      <PageHeader
+        title="Contractors"
+        subtitle={`${contractors.length} registered · ${contractors.filter((c: Contractor) => c.isAvailable !== false).length} available`}
+        icon={<Wrench className="w-5 h-5" />}
+        actions={
           <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
             <DialogTrigger asChild>
               <Button className="bg-emerald-600 hover:bg-emerald-700 text-white">
@@ -283,55 +279,55 @@ export default function ContractorsManagement() {
               </form>
             </DialogContent>
           </Dialog>
-        </div>
-      </div>
+        }
+      />
 
-      <div className="max-w-7xl mx-auto px-4 md:px-6 py-4 md:py-6 space-y-4">
         {/* Toolbar */}
-        <div className="flex flex-wrap items-center gap-3">
-          <div className="relative flex-1 min-w-[180px]">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
-            <Input
-              placeholder="Search by name, specialty, email..."
-              value={searchQuery}
-              onChange={(e) => { setSearchQuery(e.target.value); setCurrentPage(1); }}
-              className="pl-9"
-            />
-          </div>
-          <Select value={selectedSpecialty} onValueChange={(v) => { setSelectedSpecialty(v); setCurrentPage(1); }}>
-            <SelectTrigger className="w-52">
-              <SelectValue placeholder="All Specialties" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Specialties</SelectItem>
-              {specialtiesInUse.map((s) => (
-                <SelectItem key={s} value={s}>{s}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Select value={pageSize.toString()} onValueChange={(v) => { setPageSize(parseInt(v)); setCurrentPage(1); }}>
-            <SelectTrigger className="w-32"><SelectValue /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="6">6 per page</SelectItem>
-              <SelectItem value="9">9 per page</SelectItem>
-              <SelectItem value="12">12 per page</SelectItem>
-              <SelectItem value="24">24 per page</SelectItem>
-            </SelectContent>
-          </Select>
-          <span className="text-sm text-muted-foreground whitespace-nowrap">
-            {filtered.length} result{filtered.length !== 1 ? "s" : ""}
-          </span>
-        </div>
+        <FilterBar
+          search={searchQuery}
+          onSearch={(v) => { setSearchQuery(v); setCurrentPage(1); }}
+          placeholder="Search by name, specialty, email..."
+          filters={
+            <Select value={selectedSpecialty} onValueChange={(v) => { setSelectedSpecialty(v); setCurrentPage(1); }}>
+              <SelectTrigger className="w-52">
+                <SelectValue placeholder="All Specialties" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Specialties</SelectItem>
+                {specialtiesInUse.map((s) => (
+                  <SelectItem key={s} value={s}>{s}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          }
+          actions={
+            <>
+              <Select value={pageSize.toString()} onValueChange={(v) => { setPageSize(parseInt(v)); setCurrentPage(1); }}>
+                <SelectTrigger className="w-32"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="6">6 per page</SelectItem>
+                  <SelectItem value="9">9 per page</SelectItem>
+                  <SelectItem value="12">12 per page</SelectItem>
+                  <SelectItem value="24">24 per page</SelectItem>
+                </SelectContent>
+              </Select>
+              <span className="text-sm text-muted-foreground whitespace-nowrap">
+                {filtered.length} result{filtered.length !== 1 ? "s" : ""}
+              </span>
+            </>
+          }
+        />
 
         {/* Grid */}
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
           {paginated.length === 0 ? (
-            <div className="col-span-full text-center py-16">
-              <Users className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-              <h3 className="text-lg font-semibold mb-2">No contractors found</h3>
-              <p className="text-muted-foreground text-sm">
-                {searchQuery || selectedSpecialty !== "all" ? "No contractors match your search." : "Register your first contractor to get started."}
-              </p>
+            <div className="col-span-full">
+              <EmptyState
+                icon={<Users />}
+                title="No contractors found"
+                description={searchQuery || selectedSpecialty !== "all" ? "No contractors match your search." : "Register your first contractor to get started."}
+                size="lg"
+              />
             </div>
           ) : paginated.map((c: Contractor) => {
             const rating = parseRating(c.rating);
@@ -349,9 +345,7 @@ export default function ContractorsManagement() {
                           <CheckCircle className="h-2.5 w-2.5 mr-1" />Verified
                         </Badge>
                       )}
-                      <Badge variant={c.isAvailable !== false ? "default" : "secondary"} className="text-[10px]">
-                        {c.isAvailable !== false ? "Available" : "Unavailable"}
-                      </Badge>
+                      <SPBadge status={c.isAvailable !== false ? "available" : "unavailable"} />
                     </div>
                   </div>
                 </CardHeader>
@@ -375,23 +369,10 @@ export default function ContractorsManagement() {
                     <Button variant="outline" size="sm" className="flex-1" onClick={() => { setSelectedContractor(c); setIsViewOpen(true); }}>
                       <Eye className="h-3.5 w-3.5 mr-1.5" />View
                     </Button>
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="outline" size="sm" className="px-2">
-                          <MoreHorizontal className="h-3.5 w-3.5" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end" className="w-40">
-                        <DropdownMenuItem onClick={() => { setSelectedContractor(c); setIsEditOpen(true); }}>
-                          <Edit className="h-4 w-4 mr-2" />Edit
-                        </DropdownMenuItem>
-
-                        <DropdownMenuSeparator />
-                        <DropdownMenuItem className="text-destructive focus:text-destructive" onClick={() => deleteMutation.mutate(c.id)}>
-                          <Trash2 className="h-4 w-4 mr-2" />Delete
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
+                    <ActionMenu items={[
+                      { label: "Edit", icon: <Edit className="h-4 w-4" />, onClick: () => { setSelectedContractor(c); setIsEditOpen(true); } },
+                      { label: "Delete", icon: <Trash2 className="h-4 w-4" />, onClick: () => deleteMutation.mutate(c.id), destructive: true, separator: true },
+                    ]} />
                   </div>
                 </CardContent>
               </Card>
@@ -425,7 +406,6 @@ export default function ContractorsManagement() {
             </div>
           </div>
         )}
-      </div>
 
       {/* View Contractor Dialog */}
       <Dialog open={isViewOpen} onOpenChange={(open) => { setIsViewOpen(open); if (!open) setSelectedContractor(null); }}>
@@ -601,6 +581,6 @@ export default function ContractorsManagement() {
           )}
         </DialogContent>
       </Dialog>
-    </div>
+    </PageShell>
   );
 }

@@ -230,6 +230,7 @@ type BadgeIntent =
 
 const BADGE_MAP: Record<string, string> = {
   active:     "bg-emerald-50  text-emerald-700 border-emerald-200 dark:bg-emerald-950 dark:text-emerald-400 dark:border-emerald-800",
+  available:  "bg-emerald-50  text-emerald-700 border-emerald-200 dark:bg-emerald-950 dark:text-emerald-400 dark:border-emerald-800",
   success:    "bg-emerald-50  text-emerald-700 border-emerald-200 dark:bg-emerald-950 dark:text-emerald-400 dark:border-emerald-800",
   successful: "bg-emerald-50  text-emerald-700 border-emerald-200 dark:bg-emerald-950 dark:text-emerald-400 dark:border-emerald-800",
   sent:       "bg-emerald-50  text-emerald-700 border-emerald-200 dark:bg-emerald-950 dark:text-emerald-400 dark:border-emerald-800",
@@ -260,6 +261,7 @@ const BADGE_MAP: Record<string, string> = {
 
   cancelled:  "bg-muted       text-muted-foreground   border-border",
   inactive:   "bg-muted       text-muted-foreground   border-border",
+  unavailable:"bg-muted       text-muted-foreground   border-border",
   low:        "bg-muted       text-muted-foreground   border-border",
   reversed:   "bg-muted       text-muted-foreground   border-border",
 

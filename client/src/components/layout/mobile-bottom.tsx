@@ -17,7 +17,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useIsMobile } from "@/hooks/use-mobile";
 import {
   LayoutDashboard, Home, Users, DollarSign, Wrench, FileText,
-  MessageSquare, BarChart2, ShieldCheck, Truck, Settings, X,
+  MessageSquare, BarChart2, Truck, Settings, X,
   ChevronRight, CreditCard, Receipt, UserCog, Building, Bell,
   MoreHorizontal, ClipboardList, LogIn,
 } from "lucide-react";
@@ -69,7 +69,12 @@ const getConfigs = (t: (key: string) => string): Record<string, RoleConfig> => {
           items: [
             { label: t("nav.tenants"),     href: "/tenants",     icon: Users },
             { label: t("nav.contractors"), href: "/contractors", icon: Truck },
-            { label: t("nav.security"),    href: "/security",    icon: ShieldCheck },
+            // "Security" hidden here too, matching the desktop sidebar fix —
+            // its visitor-access, vehicle-log, and gate-pass views all
+            // duplicate data already owned by Visitors and Parking (same
+            // visitors / registered_vehicles tables under the hood). Page
+            // and route are untouched, still reachable at /security directly.
+            // { label: t("nav.security"),    href: "/security",    icon: ShieldCheck },
             { label: t("nav.arrears"),     href: "/arrears",     icon: ClipboardList },
           ],
         },
@@ -119,7 +124,10 @@ const getConfigs = (t: (key: string) => string): Record<string, RoleConfig> => {
       primary: [
         { label: t("nav.group_work"),     href: "/staff-portal", icon: LayoutDashboard },
         { label: t("nav.maintenance"), href: "/maintenance",  icon: Wrench, badgeKey: "maintenance" },
-        { label: t("nav.security"),    href: "/security",     icon: ShieldCheck },
+        // "Security" hidden here too, matching the desktop sidebar fix (which
+        // never had a Security entry for staff at all) — redundant with
+        // Visitors/Parking, same reasoning as the manager/admin config above.
+        // { label: t("nav.security"),    href: "/security",     icon: ShieldCheck },
         { label: t("nav.messages"),    href: "/messages",     icon: MessageSquare, badgeKey: "messages" },
         { label: t("common.all"),        href: null,            icon: MoreHorizontal },
       ],
