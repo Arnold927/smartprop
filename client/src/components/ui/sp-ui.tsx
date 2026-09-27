@@ -232,6 +232,7 @@ const BADGE_MAP: Record<string, string> = {
   active:     "bg-emerald-50  text-emerald-700 border-emerald-200 dark:bg-emerald-950 dark:text-emerald-400 dark:border-emerald-800",
   success:    "bg-emerald-50  text-emerald-700 border-emerald-200 dark:bg-emerald-950 dark:text-emerald-400 dark:border-emerald-800",
   successful: "bg-emerald-50  text-emerald-700 border-emerald-200 dark:bg-emerald-950 dark:text-emerald-400 dark:border-emerald-800",
+  sent:       "bg-emerald-50  text-emerald-700 border-emerald-200 dark:bg-emerald-950 dark:text-emerald-400 dark:border-emerald-800",
   paid:       "bg-emerald-50  text-emerald-700 border-emerald-200 dark:bg-emerald-950 dark:text-emerald-400 dark:border-emerald-800",
   completed:  "bg-emerald-50  text-emerald-700 border-emerald-200 dark:bg-emerald-950 dark:text-emerald-400 dark:border-emerald-800",
   approved:   "bg-emerald-50  text-emerald-700 border-emerald-200 dark:bg-emerald-950 dark:text-emerald-400 dark:border-emerald-800",
@@ -249,6 +250,7 @@ const BADGE_MAP: Record<string, string> = {
   medium:     "bg-amber-50    text-amber-700   border-amber-200   dark:bg-amber-950   dark:text-amber-400   dark:border-amber-800",
 
   overdue:    "bg-red-50      text-red-600     border-red-200     dark:bg-red-950     dark:text-red-400     dark:border-red-800",
+  unpaid:     "bg-red-50      text-red-600     border-red-200     dark:bg-red-950     dark:text-red-400     dark:border-red-800",
   rejected:   "bg-red-50      text-red-600     border-red-200     dark:bg-red-950     dark:text-red-400     dark:border-red-800",
   failed:     "bg-red-50      text-red-600     border-red-200     dark:bg-red-950     dark:text-red-400     dark:border-red-800",
   urgent:     "bg-red-50      text-red-600     border-red-200     dark:bg-red-950     dark:text-red-400     dark:border-red-800",

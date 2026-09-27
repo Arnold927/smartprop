@@ -14,7 +14,7 @@ import { apiRequest, ensureArray } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { format } from "date-fns";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -23,6 +23,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useRoleGuard, ROLES } from "@/hooks/useRoleGuard";
+import { PageShell, PageHeader, SectionCard, SPBadge, EmptyState, PrimaryButton, SecondaryButton, FilterBar, SPTable, SPAvatar, StatTile, StatsGrid, KESAmount, ActionMenu, ConfirmDialog } from "@/components/ui/sp-ui";
 
 import {
   Building, DollarSign, FileText, CheckCircle2, Loader2,
@@ -32,15 +33,6 @@ import {
 const fmtKES = (n: any) => `KES ${Math.round(Number(n ?? 0)).toLocaleString("en-KE")}`;
 const fmt    = (d: any) => d ? format(new Date(d), "dd MMM yyyy") : "—";
 const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
-
-function statusColor(s: string) {
-  if (s === "paid")     return "bg-emerald-50 text-emerald-700 border border-emerald-200";
-  if (s === "approved") return "bg-blue-100 text-blue-800 border-blue-200";
-  if (s === "sent")     return "bg-purple-100 text-purple-800 border-purple-200";
-  if (s === "draft")    return "bg-amber-100 text-amber-800 border-amber-200";
-  if (s === "active")   return "bg-emerald-50 text-emerald-700 border border-emerald-200";
-  return "bg-gray-100 text-gray-700 border-gray-200";
-}
 
 // Fetch properties via the correct endpoint based on role
 function useProperties(role?: string) {
@@ -122,12 +114,12 @@ function AgreementsTab({ isReadOnly }: { isReadOnly: boolean }) {
           )}
         </div>
         {!isReadOnly && (
-          <Button onClick={() => {
+          <PrimaryButton icon={<Plus className="h-4 w-4" />} onClick={() => {
             setForm({ feeType: "percentage", feeRate: "10", deductMaintenanceCosts: true, startDate: new Date().toISOString().slice(0,10) });
             setEditId(null); setShowForm(true);
-          }} className="gap-1.5 shrink-0">
-            <Plus className="h-4 w-4" /> New agreement
-          </Button>
+          }}>
+            New agreement
+          </PrimaryButton>
         )}
       </div>
 
@@ -142,7 +134,7 @@ function AgreementsTab({ isReadOnly }: { isReadOnly: boolean }) {
                   <div className="flex items-center gap-2 flex-wrap">
                     <Building className="h-4 w-4 text-muted-foreground" />
                     <span className="font-semibold">{a.propertyName ?? `Property #${a.propertyId}`}</span>
-                    <Badge variant="outline" className={statusColor(a.status ?? "active")}>{a.status ?? "active"}</Badge>
+                    <SPBadge status={a.status ?? "active"} />
                     {a.agreementNumber && <span className="text-xs text-muted-foreground font-mono">{a.agreementNumber}</span>}
                   </div>
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-6 gap-y-1 mt-2 text-sm">
@@ -167,11 +159,16 @@ function AgreementsTab({ isReadOnly }: { isReadOnly: boolean }) {
           </Card>
         ))}
         {!isLoading && !agreements.length && (
-          <Card><CardContent className="py-12 text-center text-muted-foreground text-sm">
-            {isReadOnly
-              ? "No PM agreement has been set up for your property yet. Contact your property manager."
-              : "No property management agreements yet. Create one to start generating owner statements."}
-          </CardContent></Card>
+          <SectionCard>
+            <EmptyState
+              icon={<Building />}
+              title="No PM agreements yet"
+              description={isReadOnly
+                ? "No PM agreement has been set up for your property yet. Contact your property manager."
+                : "Create one to start generating owner statements."}
+              size="lg"
+            />
+          </SectionCard>
         )}
       </div>
 
@@ -452,9 +449,8 @@ function StatementsTab({ isReadOnly, onGoToAgreements }: { isReadOnly: boolean; 
 
       {/* Generate panel — manager/admin only */}
       {!isReadOnly && (
-        <Card>
-          <CardHeader className="pb-3"><h3 className="text-sm font-semibold text-foreground">Generate Owner Statement</h3></CardHeader>
-          <CardContent className="space-y-3">
+        <SectionCard title="Generate Owner Statement">
+          <div className="space-y-3">
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
               <div>
                 <Label className="text-xs">Property</Label>
@@ -493,8 +489,8 @@ function StatementsTab({ isReadOnly, onGoToAgreements }: { isReadOnly: boolean; 
                 </div>
               </div>
             )}
-          </CardContent>
-        </Card>
+          </div>
+        </SectionCard>
       )}
 
       {/* Filter */}
@@ -519,7 +515,7 @@ function StatementsTab({ isReadOnly, onGoToAgreements }: { isReadOnly: boolean; 
                   <div className="flex items-center gap-2 flex-wrap">
                     <span className="font-semibold">{s.propertyName ?? `Property #${s.propertyId}`}</span>
                     <span className="text-muted-foreground text-sm">— {MONTHS[(s.periodMonth ?? 1) - 1]} {s.periodYear}</span>
-                    <Badge variant="outline" className={statusColor(s.status ?? "draft")}>{s.status ?? "draft"}</Badge>
+                    <SPBadge status={s.status ?? "draft"} />
                     {s.statementNumber && <span className="text-xs font-mono text-muted-foreground">{s.statementNumber}</span>}
                   </div>
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-6 gap-y-0.5 mt-2 text-sm">
@@ -551,9 +547,14 @@ function StatementsTab({ isReadOnly, onGoToAgreements }: { isReadOnly: boolean; 
           </Card>
         ))}
         {!isLoading && !statements.length && (
-          <Card><CardContent className="py-12 text-center text-sm text-muted-foreground">
-            {isReadOnly ? "No statements have been generated for your property yet. Your property manager generates these monthly." : "No statements yet. Generate one above."}
-          </CardContent></Card>
+          <SectionCard>
+            <EmptyState
+              icon={<FileText />}
+              title="No statements yet"
+              description={isReadOnly ? "Your property manager generates these monthly." : "Generate one above."}
+              size="lg"
+            />
+          </SectionCard>
         )}
       </div>
     </div>
@@ -597,60 +598,39 @@ function RentRollTab() {
       </div>
 
       {!isLoading && (summary.totalUnits ?? 0) > 0 && (
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-          {[
-            { label: "Expected",  value: fmtKES(summary.totalExpected),  icon: DollarSign },
-            { label: "Collected", value: fmtKES(summary.totalCollected), icon: CheckCircle2 },
-            { label: "Arrears",   value: fmtKES(summary.totalArrears),   icon: AlertCircle },
-            { label: "Vacant",    value: `${summary.vacantUnits ?? 0} units`, icon: Building },
-          ].map(({ label, value, icon: Icon }) => (
-            <Card key={label}><CardContent className="pt-4 pb-3">
-              <p className="text-xs text-muted-foreground">{label}</p>
-              <p className="text-lg font-bold">{value}</p>
-            </CardContent></Card>
-          ))}
-        </div>
+        <StatsGrid cols={4}>
+          <StatTile label="Expected" value={fmtKES(summary.totalExpected)} icon={<DollarSign className="w-4 h-4" />} accent="blue" />
+          <StatTile label="Collected" value={fmtKES(summary.totalCollected)} icon={<CheckCircle2 className="w-4 h-4" />} accent="emerald" />
+          <StatTile label="Arrears" value={fmtKES(summary.totalArrears)} icon={<AlertCircle className="w-4 h-4" />} accent="red" />
+          <StatTile label="Vacant" value={`${summary.vacantUnits ?? 0} units`} icon={<Building className="w-4 h-4" />} accent="amber" />
+        </StatsGrid>
       )}
 
       {isLoading && <div className="flex justify-center py-8"><Loader2 className="h-5 w-5 animate-spin" /></div>}
 
       {!isLoading && (
-        <div className="overflow-x-auto rounded-lg border">
-          <table className="w-full text-sm">
-            <thead className="bg-muted/50">
-              <tr>
-                {["Property","Unit","Tenant","Monthly Rent","Status","Paid Date","Arrears"].map(h => (
-                  <th key={h} className="text-left px-3 py-2 text-xs font-medium text-muted-foreground">{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {roll.map((r: any, i: number) => (
-                <tr key={i} className={`border-t ${r.paymentStatus === "vacant" ? "bg-muted/20" : ""}`}>
-                  <td className="px-3 py-2 font-medium truncate max-w-[140px]">{r.propertyName}</td>
-                  <td className="px-3 py-2">{r.unitNumber}</td>
-                  <td className="px-3 py-2 truncate max-w-[140px]">{r.tenantName ?? <span className="text-muted-foreground italic">Vacant</span>}</td>
-                  <td className="px-3 py-2 whitespace-nowrap">{fmtKES(r.monthlyRent)}</td>
-                  <td className="px-3 py-2">
-                    <Badge variant="outline" className={
-                      r.paymentStatus === "paid"   ? "bg-emerald-50 text-emerald-700 border-emerald-200" :
-                      r.paymentStatus === "unpaid" ? "bg-red-100 text-red-800 border-red-200" :
-                      "bg-muted text-muted-foreground"
-                    }>{r.paymentStatus}</Badge>
-                  </td>
-                  <td className="px-3 py-2 text-muted-foreground whitespace-nowrap">{r.paidDate ? format(new Date(r.paidDate), "dd MMM") : "—"}</td>
-                  <td className="px-3 py-2">{r.arrearsAmount > 0 ? <span className="text-red-600 font-medium">{fmtKES(r.arrearsAmount)}</span> : "—"}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          {!roll.length && (
-            <div className="py-10 text-center text-sm text-muted-foreground space-y-1">
-              <p className="font-medium">No units found{filterProp !== "all" ? " for this property" : ""}.</p>
-              <p>{filterProp !== "all" ? "Make sure units have been added to this property." : "Add properties and units to see the rent roll here."}</p>
-            </div>
-          )}
-        </div>
+        <SectionCard padding="none">
+          <SPTable
+            data={roll}
+            emptyState={
+              <EmptyState
+                icon={<Building />}
+                title={`No units found${filterProp !== "all" ? " for this property" : ""}`}
+                description={filterProp !== "all" ? "Make sure units have been added to this property." : "Add properties and units to see the rent roll here."}
+                size="lg"
+              />
+            }
+            columns={[
+              { header: "Property", cell: (r: any) => <span className="font-medium truncate max-w-[140px] block">{r.propertyName}</span> },
+              { header: "Unit", cell: (r: any) => r.unitNumber, hideOnMobile: true },
+              { header: "Tenant", cell: (r: any) => r.tenantName ?? <span className="text-muted-foreground italic">Vacant</span> },
+              { header: "Monthly Rent", cell: (r: any) => <KESAmount amount={r.monthlyRent} />, hideOnMobile: true },
+              { header: "Status", cell: (r: any) => <SPBadge status={r.paymentStatus} /> },
+              { header: "Paid Date", cell: (r: any) => r.paidDate ? format(new Date(r.paidDate), "dd MMM") : "—", hideOnMobile: true },
+              { header: "Arrears", cell: (r: any) => r.arrearsAmount > 0 ? <span className="text-red-600 font-medium"><KESAmount amount={r.arrearsAmount} /></span> : "—" },
+            ]}
+          />
+        </SectionCard>
       )}
     </div>
   );
@@ -667,19 +647,15 @@ export default function OwnerStatements() {
   const [activeTab, setActiveTab] = useState("statements");
 
   return (
-    <div className="min-h-screen p-4 sm:p-6 bg-background text-foreground">
-      <div className="mb-6">
-        <div className="flex items-center gap-2 mb-1">
-          <div className="rounded-lg bg-green-500/10 p-2"><Banknote className="h-5 w-5 text-green-600" /></div>
-          <h1 className="text-xl font-semibold">Owner Statements</h1>
-          {isReadOnly && <Badge variant="outline" className="text-xs">Read-only</Badge>}
-        </div>
-        <p className="text-sm text-muted-foreground">
-          {isReadOnly
-            ? "View your PM fee agreement, monthly remittance statements, and portfolio rent roll."
-            : "Property management fee agreements, monthly remittance statements, and portfolio rent roll."}
-        </p>
-      </div>
+    <PageShell>
+      <PageHeader
+        title="Owner Statements"
+        subtitle={isReadOnly
+          ? "View your PM fee agreement, monthly remittance statements, and portfolio rent roll."
+          : "Property management fee agreements, monthly remittance statements, and portfolio rent roll."}
+        icon={<Banknote className="w-5 h-5" />}
+        actions={isReadOnly ? <Badge variant="outline" className="text-xs">Read-only</Badge> : undefined}
+      />
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList className="bg-muted/50 mb-4">
@@ -691,6 +667,6 @@ export default function OwnerStatements() {
         <TabsContent value="statements"><StatementsTab isReadOnly={isReadOnly} onGoToAgreements={() => setActiveTab("agreements")} /></TabsContent>
         <TabsContent value="rent-roll"><RentRollTab /></TabsContent>
       </Tabs>
-    </div>
+    </PageShell>
   );
 }
