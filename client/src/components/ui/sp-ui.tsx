@@ -231,6 +231,7 @@ type BadgeIntent =
 const BADGE_MAP: Record<string, string> = {
   active:     "bg-emerald-50  text-emerald-700 border-emerald-200 dark:bg-emerald-950 dark:text-emerald-400 dark:border-emerald-800",
   success:    "bg-emerald-50  text-emerald-700 border-emerald-200 dark:bg-emerald-950 dark:text-emerald-400 dark:border-emerald-800",
+  successful: "bg-emerald-50  text-emerald-700 border-emerald-200 dark:bg-emerald-950 dark:text-emerald-400 dark:border-emerald-800",
   paid:       "bg-emerald-50  text-emerald-700 border-emerald-200 dark:bg-emerald-950 dark:text-emerald-400 dark:border-emerald-800",
   completed:  "bg-emerald-50  text-emerald-700 border-emerald-200 dark:bg-emerald-950 dark:text-emerald-400 dark:border-emerald-800",
   approved:   "bg-emerald-50  text-emerald-700 border-emerald-200 dark:bg-emerald-950 dark:text-emerald-400 dark:border-emerald-800",
@@ -253,6 +254,7 @@ const BADGE_MAP: Record<string, string> = {
   urgent:     "bg-red-50      text-red-600     border-red-200     dark:bg-red-950     dark:text-red-400     dark:border-red-800",
   expired:    "bg-red-50      text-red-600     border-red-200     dark:bg-red-950     dark:text-red-400     dark:border-red-800",
   high:       "bg-red-50      text-red-600     border-red-200     dark:bg-red-950     dark:text-red-400     dark:border-red-800",
+  critical:   "bg-red-50      text-red-600     border-red-200     dark:bg-red-950     dark:text-red-400     dark:border-red-800",
 
   cancelled:  "bg-muted       text-muted-foreground   border-border",
   inactive:   "bg-muted       text-muted-foreground   border-border",

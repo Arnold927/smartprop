@@ -1,20 +1,20 @@
 import { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest, ensureArray } from "@/lib/queryClient";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import {
   AlertTriangle, DollarSign, Calendar, MessageSquare, Send,
-  Calculator, Clock, Shield, Target, Activity, Search,
+  Calculator, Clock, Shield, Target, Activity,
   ChevronLeft, ChevronRight, Building, Home, Lock,
 } from "lucide-react";
 import { format, differenceInDays } from "date-fns";
 import type { Arrears, PaymentReminder, RiskAssessment, TenantBehaviorLog, ArrearsAction, Tenant } from "@shared/schema";
+import { PageShell, PageHeader, SectionCard, SPBadge, EmptyState, PrimaryButton, SecondaryButton, FilterBar, SPTable, SPAvatar, StatTile, StatsGrid, KESAmount, ActionMenu, ConfirmDialog } from "@/components/ui/sp-ui";
 
 // ── Role helpers ───────────────────────────────────────────────────────────────
 type Role = "admin" | "manager" | "staff" | "landlord" | "tenant" | string;
@@ -124,13 +124,6 @@ const PRIORITY_CLASS: Record<string, string> = {
   high:     "bg-orange-500 text-white",
   medium:   "bg-yellow-500 text-white",
   low:      "bg-emerald-500 text-white",
-};
-
-const RISK_CLASS: Record<string, string> = {
-  critical: "text-red-600 bg-red-50 border-red-200",
-  high:     "text-orange-600 bg-orange-50 border-orange-200",
-  medium:   "text-yellow-600 bg-yellow-50 border-yellow-200",
-  low:      "text-emerald-600 bg-emerald-50 border-emerald-200",
 };
 
 // ── Main ───────────────────────────────────────────────────────────────────────
@@ -421,60 +414,41 @@ export default function ArrearsPage() {
 
   // ── Render ─────────────────────────────────────────────────────────────────
   return (
-    <div className="container mx-auto p-6 space-y-6">
-
-      {/* Header */}
-      <div className="flex items-center justify-between flex-wrap gap-4">
-        <div>
-          <h1 className="text-2xl font-bold">Arrears &amp; Risk Management</h1>
-          <p className="text-muted-foreground text-sm mt-0.5">
-            {caps.isLandlord
-              ? "Overdue balances across your properties"
-              : "Real-time arrears detection, automated reminders, and risk assessment"}
-          </p>
-        </div>
-        {caps.canManage && (
-          <div className="flex gap-2 flex-wrap">
-            <Button variant="outline" onClick={() => detectArrearsMutation.mutate()} disabled={detectArrearsMutation.isPending}>
-              <AlertTriangle className="h-4 w-4 mr-2" />
-              {detectArrearsMutation.isPending ? "Detecting…" : "Detect Arrears"}
-            </Button>
-            <Button onClick={() => scheduleRemindersMutation.mutate()} disabled={scheduleRemindersMutation.isPending}>
-              <Calendar className="h-4 w-4 mr-2" />
-              {scheduleRemindersMutation.isPending ? "Scheduling…" : "Schedule Reminders"}
-            </Button>
-          </div>
-        )}
-        {caps.isLandlord && (
-          <Badge variant="outline" className="text-xs text-muted-foreground">
-            Viewing {landlordPropertyIds.size} {landlordPropertyIds.size === 1 ? "property" : "properties"}
-          </Badge>
-        )}
-      </div>
+    <PageShell>
+      <PageHeader
+        title="Arrears & Risk Management"
+        subtitle={caps.isLandlord
+          ? "Overdue balances across your properties"
+          : "Real-time arrears detection, automated reminders, and risk assessment"}
+        icon={<AlertTriangle className="w-5 h-5" />}
+        actions={
+          <>
+            {caps.canManage && (
+              <>
+                <SecondaryButton icon={<AlertTriangle className="h-4 w-4" />} onClick={() => detectArrearsMutation.mutate()} disabled={detectArrearsMutation.isPending}>
+                  {detectArrearsMutation.isPending ? "Detecting…" : "Detect Arrears"}
+                </SecondaryButton>
+                <PrimaryButton icon={<Calendar className="h-4 w-4" />} onClick={() => scheduleRemindersMutation.mutate()} disabled={scheduleRemindersMutation.isPending}>
+                  {scheduleRemindersMutation.isPending ? "Scheduling…" : "Schedule Reminders"}
+                </PrimaryButton>
+              </>
+            )}
+            {caps.isLandlord && (
+              <Badge variant="outline" className="text-xs text-muted-foreground">
+                Viewing {landlordPropertyIds.size} {landlordPropertyIds.size === 1 ? "property" : "properties"}
+              </Badge>
+            )}
+          </>
+        }
+      />
 
       {/* KPI strip */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        {[
-          { label: "Total Outstanding",  value: fmtKES(stats.totalOutstanding), icon: DollarSign, bg: "bg-red-100",    ic: "text-red-600"    },
-          { label: "Critical Cases",     value: String(stats.criticalCount),     icon: AlertTriangle, bg: "bg-orange-100", ic: "text-orange-600" },
-          { label: "Avg Days Overdue",   value: stats.avgDaysOverdue > 0 ? `${stats.avgDaysOverdue} days` : "—", icon: Clock, bg: "bg-blue-100", ic: "text-blue-600" },
-          { label: "High Risk Tenants",  value: caps.isLandlord ? "—" : String(stats.highRiskTenants), icon: Shield, bg: "bg-purple-100", ic: "text-purple-600" },
-        ].map(({ label, value, icon: Icon, bg, ic }) => (
-          <Card key={label}>
-            <CardContent className="p-5">
-              <div className="flex items-center gap-3">
-                <div className={`p-2 ${bg} rounded-lg shrink-0`}>
-                  <Icon className={`h-5 w-5 ${ic}`} />
-                </div>
-                <div className="min-w-0">
-                  <p className="text-xs text-muted-foreground">{label}</p>
-                  <p className="text-lg font-semibold truncate">{value}</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
+      <StatsGrid cols={4}>
+        <StatTile label="Total Outstanding" value={fmtKES(stats.totalOutstanding)} icon={<DollarSign className="w-4 h-4" />} accent="red" />
+        <StatTile label="Critical Cases" value={stats.criticalCount} icon={<AlertTriangle className="w-4 h-4" />} accent="amber" />
+        <StatTile label="Avg Days Overdue" value={stats.avgDaysOverdue > 0 ? `${stats.avgDaysOverdue} days` : "—"} icon={<Clock className="w-4 h-4" />} accent="blue" />
+        <StatTile label="High Risk Tenants" value={caps.isLandlord ? "—" : stats.highRiskTenants} icon={<Shield className="w-4 h-4" />} accent="violet" />
+      </StatsGrid>
 
       {/* Tabs — landlords only see arrears + reminders */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
@@ -488,194 +462,172 @@ export default function ArrearsPage() {
 
         {/* ── Active Arrears ── */}
         <TabsContent value="arrears" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <div className="flex items-center justify-between gap-4 flex-wrap">
-                <div>
-                  <CardTitle>Active Arrears</CardTitle>
-                  <CardDescription>Overdue payments sorted by urgency — days overdue recalculated in real time</CardDescription>
-                </div>
-                <div className="relative w-64">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                  <Input placeholder="Search tenant, property, priority…" value={arrearsSearch}
-                    onChange={e => { setArrearsSearch(e.target.value); arrearsPag.setPage(1); }} className="pl-9" />
-                </div>
-              </div>
-            </CardHeader>
-            <CardContent>
-              {arrearsLoading ? (
-                <div className="py-10 text-center text-muted-foreground text-sm">Loading arrears…</div>
-              ) : (
-                <div className="space-y-3">
-                  {arrearsPag.paginated.map((arrear) => {
-                    const daysOverdue = calcDaysOverdue(arrear.nextDueDate, arrear.daysOverdue);
-                    const amount      = safeAmount(arrear.outstandingAmount);
-                    const currency    = arrear.currency ?? "KES";
-                    return (
-                      <div key={arrear.id} className="border rounded-xl p-4 space-y-3">
-                        {/* Top row */}
-                        <div className="flex items-start justify-between gap-3 flex-wrap">
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <Badge className={`${PRIORITY_CLASS[arrear.priority] ?? "bg-muted text-foreground"} capitalize`}>
-                              {arrear.priority}
-                            </Badge>
-                            {!caps.isLandlord && (
-                              <span className="font-semibold text-sm">{getTenantName(arrear.tenantId)}</span>
-                            )}
-                          </div>
-                          <div className="text-right shrink-0">
-                            <p className="text-lg font-bold text-red-600">{fmtKES(amount, currency)}</p>
-                            <p className="text-xs text-muted-foreground">{daysOverdue} days overdue</p>
-                          </div>
-                        </div>
-
-                        {/* Location row */}
-                        <div className="flex items-center gap-4 text-xs text-muted-foreground flex-wrap">
-                          <span className="flex items-center gap-1">
-                            <Building className="w-3 h-3" /> {getPropertyName(arrear.propertyId)}
-                          </span>
-                          <span className="flex items-center gap-1">
-                            <Home className="w-3 h-3" /> {getUnitLabel(arrear.unitId)}
-                          </span>
-                        </div>
-
-                        {/* Detail grid */}
-                        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
-                          <div>
-                            <p className="text-xs text-muted-foreground">Next Due</p>
-                            <p className="font-medium">{safeFormatDate(arrear.nextDueDate)}</p>
-                          </div>
-                          <div>
-                            <p className="text-xs text-muted-foreground">Last Payment</p>
-                            <p className="font-medium">{safeFormatDate(arrear.lastPaymentDate)}</p>
-                          </div>
-                          <div>
-                            <p className="text-xs text-muted-foreground">Status</p>
-                            <Badge variant="outline" className="capitalize">{arrear.status}</Badge>
-                          </div>
-                          {caps.canSendReminder && (
-                            <div className="flex items-end">
-                              <Button size="sm" variant="outline" className="h-8 text-xs"
-                                onClick={() => sendReminderMutation.mutate({ tenantId: arrear.tenantId, arrearsId: arrear.id, arrear })}
-                                disabled={sendReminderMutation.isPending}>
-                                <Send className="w-3 h-3 mr-1.5" /> Send Reminder
-                              </Button>
-                            </div>
+          <SectionCard
+            title="Active Arrears"
+            subtitle="Overdue payments sorted by urgency — days overdue recalculated in real time"
+          >
+            <div className="mb-4">
+              <FilterBar
+                search={arrearsSearch}
+                onSearch={(v) => { setArrearsSearch(v); arrearsPag.setPage(1); }}
+                placeholder="Search tenant, property, priority…"
+              />
+            </div>
+            {arrearsLoading ? (
+              <div className="py-10 text-center text-muted-foreground text-sm">Loading arrears…</div>
+            ) : (
+              <div className="space-y-3">
+                {arrearsPag.paginated.map((arrear) => {
+                  const daysOverdue = calcDaysOverdue(arrear.nextDueDate, arrear.daysOverdue);
+                  const amount      = safeAmount(arrear.outstandingAmount);
+                  const currency    = arrear.currency ?? "KES";
+                  return (
+                    <div key={arrear.id} className="border rounded-xl p-4 space-y-3">
+                      {/* Top row */}
+                      <div className="flex items-start justify-between gap-3 flex-wrap">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <Badge className={`${PRIORITY_CLASS[arrear.priority] ?? "bg-muted text-foreground"} capitalize`}>
+                            {arrear.priority}
+                          </Badge>
+                          {!caps.isLandlord && (
+                            <span className="font-semibold text-sm">{getTenantName(arrear.tenantId)}</span>
                           )}
                         </div>
+                        <div className="text-right shrink-0">
+                          <p className="text-lg font-bold text-red-600">{fmtKES(amount, currency)}</p>
+                          <p className="text-xs text-muted-foreground">{daysOverdue} days overdue</p>
+                        </div>
+                      </div>
 
-                        {arrear.notes && (
-                          <p className="text-xs text-muted-foreground border-t pt-2">{arrear.notes}</p>
+                      {/* Location row */}
+                      <div className="flex items-center gap-4 text-xs text-muted-foreground flex-wrap">
+                        <span className="flex items-center gap-1">
+                          <Building className="w-3 h-3" /> {getPropertyName(arrear.propertyId)}
+                        </span>
+                        <span className="flex items-center gap-1">
+                          <Home className="w-3 h-3" /> {getUnitLabel(arrear.unitId)}
+                        </span>
+                      </div>
+
+                      {/* Detail grid */}
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
+                        <div>
+                          <p className="text-xs text-muted-foreground">Next Due</p>
+                          <p className="font-medium">{safeFormatDate(arrear.nextDueDate)}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-muted-foreground">Last Payment</p>
+                          <p className="font-medium">{safeFormatDate(arrear.lastPaymentDate)}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-muted-foreground">Status</p>
+                          <SPBadge status={arrear.status} />
+                        </div>
+                        {caps.canSendReminder && (
+                          <div className="flex items-end">
+                            <Button size="sm" variant="outline" className="h-8 text-xs"
+                              onClick={() => sendReminderMutation.mutate({ tenantId: arrear.tenantId, arrearsId: arrear.id, arrear })}
+                              disabled={sendReminderMutation.isPending}>
+                              <Send className="w-3 h-3 mr-1.5" /> Send Reminder
+                            </Button>
+                          </div>
                         )}
                       </div>
-                    );
-                  })}
-                  {arrearsPag.filtered.length === 0 && (
-                    <div className="text-center py-10">
-                      <AlertTriangle className="w-8 h-8 text-muted-foreground mx-auto mb-2" />
-                      <p className="text-muted-foreground text-sm">
-                        {arrearsSearch ? "No arrears match your search" : "No active arrears — all payments are up to date"}
-                      </p>
+
+                      {arrear.notes && (
+                        <p className="text-xs text-muted-foreground border-t pt-2">{arrear.notes}</p>
+                      )}
                     </div>
-                  )}
-                </div>
-              )}
-              <PaginationBar page={arrearsPag.page} totalPages={arrearsPag.totalPages}
-                total={arrearsPag.filtered.length} setPage={arrearsPag.setPage}
-                pageSize={arrearsPageSize} setPageSize={setArrearsPageSize} />
-            </CardContent>
-          </Card>
+                  );
+                })}
+                {arrearsPag.filtered.length === 0 && (
+                  <EmptyState
+                    icon={<AlertTriangle />}
+                    title={arrearsSearch ? "No arrears match your search" : "No active arrears"}
+                    description={arrearsSearch ? undefined : "All payments are up to date"}
+                    size="lg"
+                  />
+                )}
+              </div>
+            )}
+            <PaginationBar page={arrearsPag.page} totalPages={arrearsPag.totalPages}
+              total={arrearsPag.filtered.length} setPage={arrearsPag.setPage}
+              pageSize={arrearsPageSize} setPageSize={setArrearsPageSize} />
+          </SectionCard>
         </TabsContent>
 
         {/* ── Payment Reminders ── */}
         <TabsContent value="reminders" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <div className="flex items-center justify-between gap-4 flex-wrap">
-                <div>
-                  <CardTitle>Payment Reminders</CardTitle>
-                  <CardDescription>Automated and manual reminder history</CardDescription>
-                </div>
-                <div className="relative w-64">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                  <Input placeholder="Search tenant, channel…" value={remindersSearch}
-                    onChange={e => { setRemindersSearch(e.target.value); remindersPag.setPage(1); }} className="pl-9" />
-                </div>
-              </div>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-3">
-                {remindersPag.paginated.map((reminder) => (
-                  <div key={reminder.id} className="border rounded-xl p-4 space-y-3">
-                    <div className="flex items-center justify-between flex-wrap gap-2">
-                      <div className="flex items-center gap-2">
-                        {reminder.channel === "sms" ? <MessageSquare className="h-4 w-4" /> : <Send className="h-4 w-4" />}
-                        <div>
-                          <p className="font-semibold text-sm">{getTenantName(reminder.tenantId)}</p>
-                          <p className="text-xs text-muted-foreground capitalize">{reminder.reminderType.replace("_", " ")}</p>
-                        </div>
+          <SectionCard title="Payment Reminders" subtitle="Automated and manual reminder history">
+            <div className="mb-4">
+              <FilterBar
+                search={remindersSearch}
+                onSearch={(v) => { setRemindersSearch(v); remindersPag.setPage(1); }}
+                placeholder="Search tenant, channel…"
+              />
+            </div>
+            <div className="space-y-3">
+              {remindersPag.paginated.map((reminder) => (
+                <div key={reminder.id} className="border rounded-xl p-4 space-y-3">
+                  <div className="flex items-center justify-between flex-wrap gap-2">
+                    <div className="flex items-center gap-2">
+                      {reminder.channel === "sms" ? <MessageSquare className="h-4 w-4" /> : <Send className="h-4 w-4" />}
+                      <div>
+                        <p className="font-semibold text-sm">{getTenantName(reminder.tenantId)}</p>
+                        <p className="text-xs text-muted-foreground capitalize">{reminder.reminderType.replace("_", " ")}</p>
                       </div>
-                      <Badge variant={reminder.status === "sent" ? "default" : "outline"} className="capitalize">
-                        {reminder.status}
-                      </Badge>
                     </div>
-                    <div className="bg-muted/50 rounded-lg p-3">
-                      <p className="text-xs text-muted-foreground whitespace-pre-wrap">{reminder.message}</p>
-                    </div>
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs text-muted-foreground">
-                      <div><p className="font-medium text-foreground">Channel</p><p className="capitalize">{reminder.channel}</p></div>
-                      <div><p className="font-medium text-foreground">Scheduled</p><p>{safeFormatTime(reminder.scheduledFor)}</p></div>
-                      <div><p className="font-medium text-foreground">Sent At</p><p>{safeFormatTime(reminder.sentAt)}</p></div>
-                      <div><p className="font-medium text-foreground">Response</p><p>{reminder.responseReceived ? "Received" : "None"}</p></div>
-                    </div>
+                    <SPBadge status={reminder.status} />
                   </div>
-                ))}
-                {remindersPag.filtered.length === 0 && (
-                  <div className="text-center py-10 text-muted-foreground text-sm">
-                    {remindersSearch ? "No reminders match your search" : "No reminders found"}
+                  <div className="bg-muted/50 rounded-lg p-3">
+                    <p className="text-xs text-muted-foreground whitespace-pre-wrap">{reminder.message}</p>
                   </div>
-                )}
-              </div>
-              <PaginationBar page={remindersPag.page} totalPages={remindersPag.totalPages}
-                total={remindersPag.filtered.length} setPage={remindersPag.setPage}
-                pageSize={remindersPageSize} setPageSize={setRemindersPageSize} />
-            </CardContent>
-          </Card>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs text-muted-foreground">
+                    <div><p className="font-medium text-foreground">Channel</p><p className="capitalize">{reminder.channel}</p></div>
+                    <div><p className="font-medium text-foreground">Scheduled</p><p>{safeFormatTime(reminder.scheduledFor)}</p></div>
+                    <div><p className="font-medium text-foreground">Sent At</p><p>{safeFormatTime(reminder.sentAt)}</p></div>
+                    <div><p className="font-medium text-foreground">Response</p><p>{reminder.responseReceived ? "Received" : "None"}</p></div>
+                  </div>
+                </div>
+              ))}
+              {remindersPag.filtered.length === 0 && (
+                <EmptyState icon={<MessageSquare />} title={remindersSearch ? "No reminders match your search" : "No reminders found"} size="lg" />
+              )}
+            </div>
+            <PaginationBar page={remindersPag.page} totalPages={remindersPag.totalPages}
+              total={remindersPag.filtered.length} setPage={remindersPag.setPage}
+              pageSize={remindersPageSize} setPageSize={setRemindersPageSize} />
+          </SectionCard>
         </TabsContent>
 
         {/* ── Risk Assessment (admin/manager/staff only) ── */}
         {!caps.isLandlord && (
           <TabsContent value="risk" className="space-y-4">
             <div className="flex justify-between items-center flex-wrap gap-4">
-              <div className="flex items-center gap-3">
-                <h2 className="text-lg font-semibold">Risk Assessment</h2>
-                <div className="relative w-64">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                  <Input placeholder="Search tenant, category…" value={riskSearch}
-                    onChange={e => { setRiskSearch(e.target.value); riskPag.setPage(1); }} className="pl-9" />
-                </div>
-              </div>
+              <h2 className="text-lg font-semibold">Risk Assessment</h2>
               {caps.canManage && (
-                <Button onClick={async () => {
+                <PrimaryButton icon={<Calculator className="h-4 w-4" />} onClick={async () => {
                   for (const t of tenants) {
                     calculateRiskMutation.mutate(t.id);
                     await new Promise(r => setTimeout(r, 150));
                   }
                 }} disabled={calculateRiskMutation.isPending}>
-                  <Calculator className="h-4 w-4 mr-2" />
                   {calculateRiskMutation.isPending ? "Calculating…" : "Calculate All Risk Scores"}
-                </Button>
+                </PrimaryButton>
               )}
             </div>
+            <FilterBar
+              search={riskSearch}
+              onSearch={(v) => { setRiskSearch(v); riskPag.setPage(1); }}
+              placeholder="Search tenant, category…"
+            />
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {riskPag.paginated.map((assessment) => (
                 <Card key={assessment.id}>
                   <CardHeader className="pb-2">
                     <div className="flex items-center justify-between">
                       <CardTitle className="text-base">{getTenantName(assessment.tenantId)}</CardTitle>
-                      <Badge className={`${RISK_CLASS[assessment.riskCategory] ?? "bg-muted text-muted-foreground"} border capitalize`}>
-                        {assessment.riskCategory} risk
-                      </Badge>
+                      <SPBadge status={assessment.riskCategory} />
                     </div>
                   </CardHeader>
                   <CardContent className="space-y-3">
@@ -712,12 +664,14 @@ export default function ArrearsPage() {
               ))}
             </div>
             {riskPag.filtered.length === 0 && (
-              <Card><CardContent className="p-8 text-center">
-                <Target className="h-10 w-10 text-muted-foreground mx-auto mb-3" />
-                <p className="text-muted-foreground text-sm">
-                  {riskSearch ? "No assessments match your search" : "No risk assessments yet — click Calculate to generate"}
-                </p>
-              </CardContent></Card>
+              <SectionCard>
+                <EmptyState
+                  icon={<Target />}
+                  title={riskSearch ? "No assessments match your search" : "No risk assessments yet"}
+                  description={riskSearch ? undefined : "Click Calculate to generate"}
+                  size="lg"
+                />
+              </SectionCard>
             )}
             {riskPag.filtered.length > 0 && (
               <PaginationBar page={riskPag.page} totalPages={riskPag.totalPages}
@@ -730,119 +684,97 @@ export default function ArrearsPage() {
         {/* ── Tenant Behaviour (admin/manager/staff only) ── */}
         {!caps.isLandlord && (
           <TabsContent value="behavior" className="space-y-4">
-            <Card>
-              <CardHeader>
-                <div className="flex items-center justify-between gap-4 flex-wrap">
-                  <div>
-                    <CardTitle>Tenant Behaviour Tracking</CardTitle>
-                    <CardDescription>Historical behaviour events and their impact on risk profiles</CardDescription>
-                  </div>
-                  <div className="relative w-64">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                    <Input placeholder="Search tenant, event type…" value={behaviorSearch}
-                      onChange={e => { setBehaviorSearch(e.target.value); behaviorPag.setPage(1); }} className="pl-9" />
-                  </div>
-                </div>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-3">
-                  {behaviorPag.paginated.map((log) => (
-                    <div key={log.id} className="border rounded-xl p-4">
-                      <div className="flex items-center justify-between mb-2 flex-wrap gap-2">
-                        <div className="flex items-center gap-2">
-                          <Activity className="h-4 w-4 text-muted-foreground" />
-                          <span className="font-semibold text-sm">{getTenantName(log.tenantId)}</span>
-                          <Badge variant={log.eventCategory === "positive" ? "default" : log.eventCategory === "negative" ? "destructive" : "outline"} className="capitalize">
-                            {log.eventCategory}
-                          </Badge>
-                        </div>
-                        <div className="text-right">
-                          <p className="text-sm font-medium capitalize">{log.eventType.replace("_", " ")}</p>
-                          <p className="text-xs text-muted-foreground">Impact: {log.impact}</p>
-                        </div>
+            <SectionCard title="Tenant Behaviour Tracking" subtitle="Historical behaviour events and their impact on risk profiles">
+              <div className="mb-4">
+                <FilterBar
+                  search={behaviorSearch}
+                  onSearch={(v) => { setBehaviorSearch(v); behaviorPag.setPage(1); }}
+                  placeholder="Search tenant, event type…"
+                />
+              </div>
+              <div className="space-y-3">
+                {behaviorPag.paginated.map((log) => (
+                  <div key={log.id} className="border rounded-xl p-4">
+                    <div className="flex items-center justify-between mb-2 flex-wrap gap-2">
+                      <div className="flex items-center gap-2">
+                        <Activity className="h-4 w-4 text-muted-foreground" />
+                        <span className="font-semibold text-sm">{getTenantName(log.tenantId)}</span>
+                        <Badge variant={log.eventCategory === "positive" ? "default" : log.eventCategory === "negative" ? "destructive" : "outline"} className="capitalize">
+                          {log.eventCategory}
+                        </Badge>
                       </div>
-                      <p className="text-sm text-foreground mb-2">{log.description}</p>
-                      <div className="flex justify-between text-xs text-muted-foreground">
-                        <span>Recorded by: {log.recordedBy}</span>
-                        <span>{safeFormatDate(log.eventDate, "MMM dd, yyyy HH:mm")}</span>
+                      <div className="text-right">
+                        <p className="text-sm font-medium capitalize">{log.eventType.replace("_", " ")}</p>
+                        <p className="text-xs text-muted-foreground">Impact: {log.impact}</p>
                       </div>
                     </div>
-                  ))}
-                  {behaviorPag.filtered.length === 0 && (
-                    <div className="text-center py-10 text-muted-foreground text-sm">
-                      {behaviorSearch ? "No logs match your search" : "No behaviour logs recorded"}
+                    <p className="text-sm text-foreground mb-2">{log.description}</p>
+                    <div className="flex justify-between text-xs text-muted-foreground">
+                      <span>Recorded by: {log.recordedBy}</span>
+                      <span>{safeFormatDate(log.eventDate, "MMM dd, yyyy HH:mm")}</span>
                     </div>
-                  )}
-                </div>
-                <PaginationBar page={behaviorPag.page} totalPages={behaviorPag.totalPages}
-                  total={behaviorPag.filtered.length} setPage={behaviorPag.setPage}
-                  pageSize={behaviorPageSize} setPageSize={setBehaviorPageSize} />
-              </CardContent>
-            </Card>
+                  </div>
+                ))}
+                {behaviorPag.filtered.length === 0 && (
+                  <EmptyState icon={<Activity />} title={behaviorSearch ? "No logs match your search" : "No behaviour logs recorded"} size="lg" />
+                )}
+              </div>
+              <PaginationBar page={behaviorPag.page} totalPages={behaviorPag.totalPages}
+                total={behaviorPag.filtered.length} setPage={behaviorPag.setPage}
+                pageSize={behaviorPageSize} setPageSize={setBehaviorPageSize} />
+            </SectionCard>
           </TabsContent>
         )}
 
         {/* ── Actions History (admin/manager only) ── */}
         {caps.canManage && (
           <TabsContent value="actions" className="space-y-4">
-            <Card>
-              <CardHeader>
-                <div className="flex items-center justify-between gap-4 flex-wrap">
-                  <div>
-                    <CardTitle>Actions History</CardTitle>
-                    <CardDescription>All actions taken to resolve arrears situations</CardDescription>
-                  </div>
-                  <div className="relative w-64">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                    <Input placeholder="Search action type, outcome…" value={actionsSearch}
-                      onChange={e => { setActionsSearch(e.target.value); actionsPag.setPage(1); }} className="pl-9" />
-                  </div>
-                </div>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-3">
-                  {actionsPag.paginated.map((action) => (
-                    <div key={action.id} className="border rounded-xl p-4">
-                      <div className="flex items-center justify-between mb-2 flex-wrap gap-2">
-                        <div>
-                          <p className="font-semibold capitalize">{action.actionType.replace("_", " ")}</p>
-                          <p className="text-xs text-muted-foreground">{action.description}</p>
-                        </div>
-                        <div className="text-right">
-                          {action.amount && (
-                            <p className="font-semibold text-emerald-600">{fmtKES(safeAmount(action.amount))}</p>
-                          )}
-                          <Badge variant={action.outcome === "successful" ? "default" : "outline"} className="capitalize">
-                            {action.outcome ?? "pending"}
-                          </Badge>
-                        </div>
+            <SectionCard title="Actions History" subtitle="All actions taken to resolve arrears situations">
+              <div className="mb-4">
+                <FilterBar
+                  search={actionsSearch}
+                  onSearch={(v) => { setActionsSearch(v); actionsPag.setPage(1); }}
+                  placeholder="Search action type, outcome…"
+                />
+              </div>
+              <div className="space-y-3">
+                {actionsPag.paginated.map((action) => (
+                  <div key={action.id} className="border rounded-xl p-4">
+                    <div className="flex items-center justify-between mb-2 flex-wrap gap-2">
+                      <div>
+                        <p className="font-semibold capitalize">{action.actionType.replace("_", " ")}</p>
+                        <p className="text-xs text-muted-foreground">{action.description}</p>
                       </div>
-                      <div className="grid grid-cols-2 md:grid-cols-3 gap-3 text-xs text-muted-foreground">
-                        <div><p className="font-medium text-foreground">Date</p><p>{safeFormatDate(action.actionDate)}</p></div>
-                        <div><p className="font-medium text-foreground">Performed By</p><p>{action.performedBy}</p></div>
-                        {action.followUpDate && (
-                          <div><p className="font-medium text-foreground">Follow Up</p><p>{safeFormatDate(action.followUpDate)}</p></div>
+                      <div className="text-right">
+                        {action.amount && (
+                          <p className="font-semibold text-emerald-600">{fmtKES(safeAmount(action.amount))}</p>
                         )}
+                        <SPBadge status={action.outcome ?? "pending"} />
                       </div>
-                      {action.notes && (
-                        <p className="text-xs text-muted-foreground border-t pt-2 mt-2">{action.notes}</p>
+                    </div>
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-3 text-xs text-muted-foreground">
+                      <div><p className="font-medium text-foreground">Date</p><p>{safeFormatDate(action.actionDate)}</p></div>
+                      <div><p className="font-medium text-foreground">Performed By</p><p>{action.performedBy}</p></div>
+                      {action.followUpDate && (
+                        <div><p className="font-medium text-foreground">Follow Up</p><p>{safeFormatDate(action.followUpDate)}</p></div>
                       )}
                     </div>
-                  ))}
-                  {actionsPag.filtered.length === 0 && (
-                    <div className="text-center py-10 text-muted-foreground text-sm">
-                      {actionsSearch ? "No actions match your search" : "No actions recorded yet"}
-                    </div>
-                  )}
-                </div>
-                <PaginationBar page={actionsPag.page} totalPages={actionsPag.totalPages}
-                  total={actionsPag.filtered.length} setPage={actionsPag.setPage}
-                  pageSize={actionsPageSize} setPageSize={setActionsPageSize} />
-              </CardContent>
-            </Card>
+                    {action.notes && (
+                      <p className="text-xs text-muted-foreground border-t pt-2 mt-2">{action.notes}</p>
+                    )}
+                  </div>
+                ))}
+                {actionsPag.filtered.length === 0 && (
+                  <EmptyState icon={<Target />} title={actionsSearch ? "No actions match your search" : "No actions recorded yet"} size="lg" />
+                )}
+              </div>
+              <PaginationBar page={actionsPag.page} totalPages={actionsPag.totalPages}
+                total={actionsPag.filtered.length} setPage={actionsPag.setPage}
+                pageSize={actionsPageSize} setPageSize={setActionsPageSize} />
+            </SectionCard>
           </TabsContent>
         )}
       </Tabs>
-    </div>
+    </PageShell>
   );
 }
