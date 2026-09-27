@@ -468,19 +468,12 @@ export default function Reports() {
   );
 
   return (
-    <div className="min-h-screen bg-background">
-
-      {/* Header */}
-      <div className="bg-card dark:bg-gray-900 border-b border-border dark:border-gray-800 px-6 py-5">
-        <div className="max-w-7xl mx-auto flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-          <div>
-            <h1 className="text-xl font-semibold text-foreground">Reports & Analytics</h1>
-            <p className="text-sm text-muted-foreground mt-0.5">
-              Showing data for <span className="font-medium text-foreground">{periodLabel}</span>
-            </p>
-          </div>
-
-          {/* Period selector */}
+    <PageShell>
+      <PageHeader
+        title="Reports & Analytics"
+        subtitle={<>Showing data for <span className="font-medium text-foreground">{periodLabel}</span></>}
+        icon={<BarChart3 className="w-5 h-5" />}
+        actions={
           <div className="flex flex-col gap-2 sm:items-end">
             <Select value={period} onValueChange={handlePeriodChange}>
               <SelectTrigger className="w-44 h-9 border-border dark:border-gray-700 text-sm">
@@ -537,61 +530,16 @@ export default function Reports() {
               </p>
             )}
           </div>
-        </div>
-      </div>
-
-      <div className="max-w-7xl mx-auto px-6 py-6 space-y-6">
+        }
+      />
 
         {/* Live overview strip — filtered by selected period */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          {[
-            {
-              label: "Collected",
-              value: fmt(collected),
-              sub:   periodLabel,
-              icon:  DollarSign,
-              color: "text-green-600",
-              bg:    "bg-green-50 dark:bg-green-950",
-            },
-            {
-              label: "Occupancy",
-              value: `${occPct}%`,
-              sub:   "current",
-              icon:  Home,
-              color: "text-blue-600",
-              bg:    "bg-blue-50 dark:bg-blue-950",
-            },
-            {
-              label: "Active tenants",
-              value: activeTenants,
-              sub:   periodLabel,
-              icon:  Users,
-              color: "text-purple-600",
-              bg:    "bg-purple-50 dark:bg-purple-950",
-            },
-            {
-              label: "Open requests",
-              value: openMaint,
-              sub:   periodLabel,
-              icon:  Wrench,
-              color: openMaint > 0 ? "text-amber-600" : "text-muted-foreground",
-              bg:    openMaint > 0 ? "bg-amber-50 dark:bg-amber-950" : "bg-muted dark:bg-gray-900",
-            },
-          ].map(({ label, value, sub, icon: Icon, color, bg }) => (
-            <Card key={label} className="rounded-xl border border-slate-100 shadow-sm">
-              <CardContent className="p-4 flex items-center gap-3">
-                <div className={`w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 ${bg}`}>
-                  <Icon className={`w-4 h-4 ${color}`} />
-                </div>
-                <div className="min-w-0">
-                  <p className="text-lg font-semibold text-foreground">{value}</p>
-                  <p className="text-xs text-muted-foreground truncate">{label}</p>
-                  <p className="text-[10px] text-muted-foreground/70 truncate">{sub}</p>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
+        <StatsGrid cols={4}>
+          <StatTile label="Collected" value={fmt(collected)} sub={periodLabel} icon={<DollarSign className="w-4 h-4" />} accent="emerald" />
+          <StatTile label="Occupancy" value={`${occPct}%`} sub="current" icon={<Home className="w-4 h-4" />} accent="blue" />
+          <StatTile label="Active tenants" value={activeTenants} sub={periodLabel} icon={<Users className="w-4 h-4" />} accent="violet" />
+          <StatTile label="Open requests" value={openMaint} sub={periodLabel} icon={<Wrench className="w-4 h-4" />} accent={openMaint > 0 ? "amber" : "blue"} />
+        </StatsGrid>
 
         {/* Report cards */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
@@ -654,14 +602,10 @@ export default function Reports() {
         </div>
 
         {/* CSV exports */}
-        <Card className="rounded-xl border border-slate-100 shadow-sm">
-          <CardHeader>
-            <CardTitle className="text-base font-semibold">Data exports</CardTitle>
-            <p className="text-sm text-muted-foreground">
-              Download CSV filtered to <span className="font-medium text-foreground">{periodLabel}</span>
-            </p>
-          </CardHeader>
-          <CardContent>
+        <SectionCard
+          title="Data exports"
+          subtitle={<>Download CSV filtered to <span className="font-medium text-foreground">{periodLabel}</span></>}
+        >
             <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
               {([
                 { type: "payments"   as const, label: "Rent payments",    desc: `${filteredPaymentsCount} records in period`, icon: DollarSign },
@@ -701,10 +645,8 @@ export default function Reports() {
                 );
               })}
             </div>
-          </CardContent>
-        </Card>
+        </SectionCard>
 
-      </div>
-    </div>
+    </PageShell>
   );
 }

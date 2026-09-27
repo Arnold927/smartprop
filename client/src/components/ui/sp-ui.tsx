@@ -73,7 +73,7 @@ export function PageShell({
 
 interface PageHeaderProps {
   title: string;
-  subtitle?: string;
+  subtitle?: React.ReactNode;
   icon?: React.ReactNode;
   actions?: React.ReactNode;
   breadcrumb?: Array<{ label: string; href?: string }>;
@@ -112,7 +112,7 @@ export function PageHeader({ title, subtitle, icon, actions, breadcrumb }: PageH
 
 interface SectionCardProps {
   title?: string;
-  subtitle?: string;
+  subtitle?: React.ReactNode;
   action?: { label: string; onClick: () => void; icon?: React.ReactNode };
   children: React.ReactNode;
   className?: string;
