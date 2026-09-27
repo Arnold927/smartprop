@@ -13,6 +13,7 @@ import { apiRequest } from "@/lib/queryClient";
 import { useRoleGuard, ROLES } from "@/hooks/useRoleGuard";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
+import { PageShell, PageHeader, SectionCard, SPBadge, EmptyState, PrimaryButton, SecondaryButton, FilterBar, SPTable, SPAvatar, StatTile, StatsGrid, KESAmount, ActionMenu, ConfirmDialog } from "@/components/ui/sp-ui";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -24,10 +25,7 @@ import {
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
-import {
-  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { UserPlus, Shield, MoreVertical, Home, Phone } from "lucide-react";
+import { UserPlus, Shield, Home, Phone } from "lucide-react";
 
 interface CaretakerRow {
   id: number;
@@ -64,6 +62,9 @@ export default function CaretakersPage() {
   const queryClient = useQueryClient();
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [editing, setEditing] = useState<CaretakerRow | null>(null);
+  const [search, setSearch] = useState("");
+  const [propertyFilter, setPropertyFilter] = useState("all");
+  const [statusFilter, setStatusFilter] = useState("all");
 
   const { data: caretakers = [], isLoading } = useQuery<CaretakerRow[]>({
     queryKey: ["/api/caretakers"],
@@ -80,6 +81,13 @@ export default function CaretakersPage() {
       const body = await r.json();
       return (Array.isArray(body) ? body : body.results ?? []).map((p: any) => ({ id: p.id, name: p.name }));
     },
+  });
+
+  const filtered = caretakers.filter(c => {
+    const q = search.toLowerCase();
+    return (!q || `${c.userName} ${c.userEmail ?? ""}`.toLowerCase().includes(q))
+      && (propertyFilter === "all" || String(c.propertyId) === propertyFilter)
+      && (statusFilter === "all" || c.status === statusFilter);
   });
 
   const createMutation = useMutation({
@@ -161,51 +169,69 @@ export default function CaretakersPage() {
   };
 
   return (
-    <div className="max-w-5xl mx-auto px-4 py-6 md:py-8">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6">
-        <div className="flex items-center gap-3">
-          <div className="rounded-xl bg-emerald-500/10 p-2.5">
-            <Shield className="h-5 w-5 text-emerald-600" />
-          </div>
-          <div>
-            <h1 className="text-lg font-semibold text-foreground">Caretakers</h1>
-            <p className="text-xs text-muted-foreground mt-0.5">
-              On-site property caretakers — their maintenance and visitor access is scoped to their assigned property.
-            </p>
-          </div>
-        </div>
-        <Button onClick={() => setIsAddOpen(true)} className="gap-2">
-          <UserPlus className="h-4 w-4" /> Add Caretaker
-        </Button>
-      </div>
+    <PageShell>
+      <PageHeader
+        title="Caretakers"
+        subtitle="On-site property caretakers — their maintenance and visitor access is scoped to their assigned property."
+        icon={<Shield className="w-5 h-5" />}
+        actions={
+          <PrimaryButton icon={<UserPlus className="h-4 w-4" />} onClick={() => setIsAddOpen(true)}>
+            Add Caretaker
+          </PrimaryButton>
+        }
+      />
+
+      <FilterBar
+        search={search}
+        onSearch={setSearch}
+        placeholder="Search by name or email..."
+        filters={
+          <>
+            <Select value={propertyFilter} onValueChange={setPropertyFilter}>
+              <SelectTrigger className="w-48"><SelectValue placeholder="All properties" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All properties</SelectItem>
+                {properties.map(p => <SelectItem key={p.id} value={String(p.id)}>{p.name}</SelectItem>)}
+              </SelectContent>
+            </Select>
+            <Select value={statusFilter} onValueChange={setStatusFilter}>
+              <SelectTrigger className="w-36"><SelectValue placeholder="All statuses" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All statuses</SelectItem>
+                <SelectItem value="active">Active</SelectItem>
+                <SelectItem value="inactive">Inactive</SelectItem>
+              </SelectContent>
+            </Select>
+          </>
+        }
+        actions={
+          <span className="text-sm text-muted-foreground whitespace-nowrap">{filtered.length} result{filtered.length !== 1 ? "s" : ""}</span>
+        }
+      />
 
       {isLoading ? (
         <div className="space-y-3">
           {[1, 2, 3].map(i => <div key={i} className="h-20 rounded-xl bg-muted animate-pulse" />)}
         </div>
-      ) : caretakers.length === 0 ? (
-        <Card>
-          <CardContent className="text-center py-16">
-            <Shield className="h-12 w-12 text-muted-foreground mx-auto mb-4 opacity-20" />
-            <h3 className="text-lg font-semibold">No caretakers yet</h3>
-            <p className="text-muted-foreground mt-2">Add one to get started — they'll be invited to the portal automatically.</p>
-          </CardContent>
-        </Card>
+      ) : filtered.length === 0 ? (
+        <SectionCard>
+          <EmptyState
+            icon={<Shield />}
+            title={caretakers.length === 0 ? "No caretakers yet" : "No caretakers match your filters"}
+            description={caretakers.length === 0 ? "Add one to get started — they'll be invited to the portal automatically." : undefined}
+            size="lg"
+          />
+        </SectionCard>
       ) : (
         <div className="space-y-3">
-          {caretakers.map(c => (
+          {filtered.map(c => (
             <Card key={c.id}>
               <CardContent className="py-4 flex items-center justify-between gap-4">
                 <div className="min-w-0">
                   <div className="flex items-center gap-2">
                     <p className="text-sm font-semibold">{c.userName}</p>
                     <Badge variant="outline" className="text-[10px] px-1.5 py-0 capitalize">{c.caretakerType}</Badge>
-                    <Badge
-                      variant="outline"
-                      className={`text-[10px] px-1.5 py-0 capitalize ${c.status === "active" ? "text-emerald-700 border-emerald-200" : "text-muted-foreground"}`}
-                    >
-                      {c.status}
-                    </Badge>
+                    <SPBadge status={c.status} />
                   </div>
                   <p className="text-xs text-muted-foreground mt-1">{c.userEmail}</p>
                   <div className="flex items-center gap-4 mt-2 text-xs text-muted-foreground">
@@ -215,20 +241,10 @@ export default function CaretakersPage() {
                   </div>
                 </div>
 
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" size="sm"><MoreVertical className="h-4 w-4" /></Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end">
-                    <DropdownMenuItem onClick={() => setEditing(c)}>Edit / Reassign</DropdownMenuItem>
-                    <DropdownMenuItem
-                      className="text-red-600"
-                      onClick={() => deactivateMutation.mutate(c.id)}
-                    >
-                      Deactivate
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
+                <ActionMenu items={[
+                  { label: "Edit / Reassign", onClick: () => setEditing(c) },
+                  { label: "Deactivate", onClick: () => deactivateMutation.mutate(c.id), destructive: true, separator: true },
+                ]} />
               </CardContent>
             </Card>
           ))}
@@ -340,6 +356,6 @@ export default function CaretakersPage() {
           )}
         </DialogContent>
       </Dialog>
-    </div>
+    </PageShell>
   );
 }
