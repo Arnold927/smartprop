@@ -1390,10 +1390,14 @@ export default function ContractorPortal() {
 
 
 
-      {/* ── Desktop two-panel layout | Mobile: pill bar + content ─────── */}
+      {/* ── Single-panel layout: pill bar + content, same on all screen sizes ── */}
       <div className="flex-1 flex lg:max-w-5xl lg:mx-auto w-full">
 
-        {/* Desktop left nav rail */}
+        {/* Desktop left nav rail — removed. This duplicated the main app
+            sidebar (both were labeled "My Work") rather than complementing
+            it. tenant-portal.tsx, which has even more sections than this
+            page, uses only the pill-tab switcher below with no second
+            sidebar — conforming to that same pattern here.
         <nav className="hidden lg:flex flex-col w-48 xl:w-52 shrink-0 border-r border-border bg-card/30 py-5 sticky top-0 h-[calc(100vh-4rem)] overflow-y-auto">
           <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest px-4 mb-2">My Work</p>
           {TAB_CONFIG.map(t => (
@@ -1408,11 +1412,12 @@ export default function ContractorPortal() {
             </button>
           ))}
         </nav>
+        */}
 
         {/* Content area */}
         <div className="flex-1 min-w-0 px-3 sm:px-5 py-4 sm:py-5 pb-6">
-          {/* Mobile pill switcher only */}
-          <div className="flex lg:hidden gap-1 overflow-x-auto scrollbar-hide bg-muted/40 p-1 rounded-xl border border-border mb-5">
+          {/* Pill switcher — now shown at all screen sizes, not just mobile */}
+          <div className="flex gap-1 overflow-x-auto scrollbar-hide bg-muted/40 p-1 rounded-xl border border-border mb-5">
             {TAB_CONFIG.map(t => (
               <button key={t.id} onClick={() => setTab(t.id)}
                 className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition-all shrink-0 ${
