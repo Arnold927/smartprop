@@ -1,6 +1,6 @@
 import { Express } from "express";
 import authRouter from "./auth";
-import usersRouter from "./users";
+import usersRouter, { meRouter as usersMeRouter } from "./users";
 import dashboardRouter from "./dashboard";
 import landlordPortalRouter from "./landlord-portal";
 import organizationsRouter from "./organizations";
@@ -182,6 +182,8 @@ export function registerModularRoutes(app: Express) {
   mount(app, "/api/billing",                           generateInvoicesRouter);
   mount(app, "/api/billing-cycles",                    billingCyclesRouter);
   mount(app, "/api/roles",                             rolesRouter);
+  // /me MUST be mounted before /api/users so /api/users/me* is never captured by the admin router's /:id
+  mount(app, "/api/users/me",                          usersMeRouter);
   mount(app, "/api/users",                             usersRouter);
   mount(app, "/api/organizations",                     organizationsRouter);
   mount(app, "/api/ai",                                aiProxyRouter);

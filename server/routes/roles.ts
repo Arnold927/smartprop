@@ -142,15 +142,32 @@ router.get(
 
 // ── PUT /api/roles/:roleName/permissions ──────────────────────────────────────
 // Replaces the permissions object for a role.
-// Admin-only. The "admin" role's full_access key is always forced to true
-// server-side so it cannot be accidentally stripped from the UI.
+//
+// Platform-administrator only. user_roles is ONE table for the whole platform (role_name is unique,
+// there is no organisation column), so a change here would apply to every organisation at once —
+// it cannot be something a single organisation's admin is allowed to do.
+//
+// NOTE: these flags are stored but not yet enforced anywhere. Real access is decided by ROUTE_POLICY
+// in middleware/requireRole.ts (server) and roleNav.ts (client). The User Management page therefore
+// shows this matrix as a read-only guide until enforcement exists.
+//
+// The "admin" role's full_access key is always forced to true so it can never be stripped.
 //
 // Body: { permissions: Record<PermissionKey, boolean> }
+
+const requirePlatformAdmin = (req: any, res: any, next: any) => {
+  if (req.user?.role !== "platform_admin") {
+    return res.status(403).json({
+      message: "Role permissions apply to every organisation on the platform, so only a platform administrator can change them.",
+    });
+  }
+  next();
+};
 
 router.put(
   "/:roleName/permissions",
   authenticateJWT,
-  requireAdmin,
+  requirePlatformAdmin,
   auditLog("role_permissions", "UPDATE"),
   async (req: any, res) => {
     try {
@@ -186,20 +203,16 @@ router.put(
         normalised["full_access"] = true;
       }
 
+      // Upsert: the roles seed is not run automatically, so on a fresh database the row may not exist
+      // yet. Refusing with "run the seed" made every save fail until someone ran a script by hand.
       const [updated] = await db
-        .update(userRoles)
-        .set({
-          permissions: normalised,
-          updatedAt: new Date(),
+        .insert(userRoles)
+        .values({ roleName, permissions: normalised } as any)
+        .onConflictDoUpdate({
+          target: userRoles.roleName,
+          set: { permissions: normalised, updatedAt: new Date() },
         })
-        .where(eq(userRoles.roleName, roleName))
         .returning();
-
-      if (!updated) {
-        return res
-          .status(404)
-          .json({ message: "Role not found. Run the seed first." });
-      }
 
       res.json({
         success: true,

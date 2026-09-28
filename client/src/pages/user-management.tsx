@@ -5,18 +5,12 @@ import { apiRequest, ensureArray } from "@/lib/queryClient";
 import { getOrgIdFromSearch, withOrgParam } from "@/lib/platformOrgContext";
 import { useToast } from "@/hooks/use-toast";
 import {
-  Users, Shield, Search, CheckCircle, XCircle,
-  MoreVertical, Settings, Mail, ChevronLeft, ChevronRight,
+  Users, Shield, CheckCircle, XCircle,
+  Settings, Mail, ChevronLeft, ChevronRight,
   RotateCcw, Save, Lock, Info,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import {
-  DropdownMenu, DropdownMenuContent, DropdownMenuItem,
-  DropdownMenuSeparator, DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+import { Card } from "@/components/ui/card";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from "@/components/ui/dialog";
@@ -24,7 +18,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import UserInviteModal from "@/components/user-invite-modal";
-import { PageShell, PageHeader, SectionCard, SPBadge, EmptyState, PrimaryButton, SecondaryButton, FilterBar, SPTable, SPAvatar, StatTile, StatsGrid, KESAmount, ActionMenu, ConfirmDialog } from "@/components/ui/sp-ui";
+import { PageShell, PageHeader, SectionCard, SPBadge, EmptyState, FilterBar, SPTable, SPAvatar, StatTile, StatsGrid, ActionMenu, ConfirmDialog } from "@/components/ui/sp-ui";
 import { useRoleGuard, ROLES } from "@/hooks/useRoleGuard";
 import { useAuth } from "@/hooks/useAuth";
 
@@ -83,17 +77,38 @@ const ROLE_PORTAL: Record<string, string> = {
 };
 
 const ROLE_COLORS: Record<string, string> = {
-  admin:      "bg-red-100 text-red-700",
-  manager:    "bg-blue-100 text-blue-700",
-  landlord:   "bg-indigo-100 text-indigo-700",
-  staff:      "bg-purple-100 text-purple-700",
-  caretaker:  "bg-orange-100 text-orange-700",
-  tenant:     "bg-emerald-50 text-emerald-700 border border-emerald-200",
-  guard:      "bg-slate-100 text-muted-foreground",
-  contractor: "bg-amber-100 text-amber-700",
+  admin:      "bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-400",
+  manager:    "bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-400",
+  landlord:   "bg-indigo-100 text-indigo-700 dark:bg-indigo-950 dark:text-indigo-400",
+  staff:      "bg-purple-100 text-purple-700 dark:bg-purple-950 dark:text-purple-400",
+  caretaker:  "bg-orange-100 text-orange-700 dark:bg-orange-950 dark:text-orange-400",
+  tenant:     "bg-emerald-50 text-emerald-700 border border-emerald-200 dark:bg-emerald-950 dark:text-emerald-400 dark:border-emerald-800",
+  guard:      "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300",
+  contractor: "bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-400",
 };
 
 const PAGE_SIZE_OPTIONS = [10, 25, 50, 100];
+
+/**
+ * Whether the "Permissions by role" matrix actually controls anything.
+ *
+ * It does not (yet): the toggles are saved to the user_roles table, but nothing on the server or in
+ * the client ever reads them. Real access comes from ROUTE_POLICY (server/middleware/requireRole.ts)
+ * and roleNav.ts, both fixed per role. user_roles is also one platform-wide table, not per
+ * organisation. Leaving the switches live told admins they had changed access when they hadn't
+ * (e.g. turning "Manage users" off for managers changed nothing), so the tab is a read-only guide
+ * until enforcement is built. All the editing code below is kept — flip this to true when it is.
+ */
+const PERMISSIONS_ENFORCED = false;
+
+/** Logins tied to a business record; their role is managed from the page that owns the record. */
+const RECORD_BACKED_ROLES = ["tenant", "caretaker", "contractor"];
+
+/** apiRequest throws the raw response body; pull the server's `message` out of it for toasts. */
+const errMsg = (e: any): string => {
+  try { const j = JSON.parse(e?.message); if (j?.message) return String(j.message); } catch { /* not JSON */ }
+  return e?.message || "Something went wrong";
+};
 
 // ─── Permission definitions ───────────────────────────────────────────────────
 interface PermissionDef {
@@ -219,12 +234,6 @@ function RoleBadge({ role }: { role: string }) {
   );
 }
 
-function StatusDot({ active }: { active: boolean }) {
-  return (
-    <div className={`w-2 h-2 rounded-full flex-shrink-0 ${active ? "bg-green-500" : "bg-gray-300"}`} />
-  );
-}
-
 // ─── Permissions Tab Component ───────────────────────────────────────────────
 function PermissionsTab() {
   const { toast } = useToast();
@@ -238,6 +247,9 @@ function PermissionsTab() {
       return r.json();
     },
     retry: false,
+    // While the matrix is only a guide there is nothing saved worth loading — and showing stored
+    // values that nothing enforces would be a second way to mislead.
+    enabled: PERMISSIONS_ENFORCED,
   });
 
   // Merge API data over DEFAULT_PERMISSIONS so new permission keys are always present
@@ -306,8 +318,8 @@ function PermissionsTab() {
       setDirtyRoles(prev => { const s = new Set(prev); s.delete(role); return s; });
       queryClient.invalidateQueries({ queryKey: ["/api/roles"] });
       toast({ title: "Permissions saved", description: `${ROLE_LABELS[role]} updated successfully.` });
-    } catch {
-      toast({ title: "Save failed", description: "Could not save permissions.", variant: "destructive" });
+    } catch (e: any) {
+      toast({ title: "Save failed", description: errMsg(e), variant: "destructive" });
     } finally {
       setSavingRole(null);
     }
@@ -341,13 +353,24 @@ function PermissionsTab() {
   return (
     <div className="space-y-4">
       {/* Info banner */}
-      <div className="flex items-start gap-3 px-4 py-3 rounded-xl bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-900" >
-        <Info className="w-4 h-4 text-blue-500 mt-0.5 flex-shrink-0" />
-        <p className="text-xs text-blue-700 dark:text-blue-300 leading-relaxed">
-          Toggle permissions per role, then click <strong>Save</strong> on that role column to apply. Changes are saved per-role independently.
-          <span className="ml-1 text-blue-500">Admin always retains full access.</span>
-        </p>
-      </div>
+      {PERMISSIONS_ENFORCED ? (
+        <div className="flex items-start gap-3 px-4 py-3 rounded-xl bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-900" >
+          <Info className="w-4 h-4 text-blue-500 mt-0.5 flex-shrink-0" />
+          <p className="text-xs text-blue-700 dark:text-blue-300 leading-relaxed">
+            Toggle permissions per role, then click <strong>Save</strong> on that role column to apply. Changes are saved per-role independently.
+            <span className="ml-1 text-blue-500">Admin always retains full access.</span>
+          </p>
+        </div>
+      ) : (
+        <div className="flex items-start gap-3 px-4 py-3 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900">
+          <Info className="w-4 h-4 text-amber-600 mt-0.5 flex-shrink-0" />
+          <p className="text-xs text-amber-800 dark:text-amber-300 leading-relaxed">
+            <strong>A guide to each role's default access.</strong> Access is currently fixed for each role by the system and
+            can't yet be customised per organisation, so these can't be changed here. To change what someone can do, change their
+            role on the Users tab.
+          </p>
+        </div>
+      )}
 
       {/* Matrix card */}
       <Card className="rounded-xl border border-slate-100 shadow-sm overflow-hidden">
@@ -377,7 +400,8 @@ function PermissionsTab() {
                   </th>
                 ))}
               </tr>
-              {/* Save / Reset row */}
+              {/* Save / Reset row — only when permissions are actually enforced */}
+              {PERMISSIONS_ENFORCED && (
               <tr className="border-b border-border dark:border-gray-800 bg-card dark:bg-gray-900">
                 <td className="py-2 px-4 sticky left-0 bg-card dark:bg-gray-900 z-10 transition-colors duration-300" />
                 {(Object.keys(ROLE_LABELS) as RoleKey[]).map(roleKey => (
@@ -408,6 +432,7 @@ function PermissionsTab() {
                   </td>
                 ))}
               </tr>
+              )}
             </thead>
 
             <tbody>
@@ -448,13 +473,15 @@ function PermissionsTab() {
                             <td key={roleKey} className="py-2.5 px-2 text-center">
                               <button
                                 onClick={() => toggle(roleKey, perm.key)}
-                                disabled={isLocked}
-                                title={isLocked ? "Locked — always enabled for this role" : isOn ? "Click to revoke" : "Click to grant"}
+                                disabled={isLocked || !PERMISSIONS_ENFORCED}
+                                title={!PERMISSIONS_ENFORCED ? (isOn ? "Included by default" : "Not included by default") : isLocked ? "Locked — always enabled for this role" : isOn ? "Click to revoke" : "Click to grant"}
                                 className={`
                                   relative inline-flex items-center justify-center w-8 h-8 rounded-lg transition-all duration-150
-                                  ${isLocked
-                                    ? "cursor-not-allowed opacity-70"
-                                    : "cursor-pointer hover:scale-110 active:scale-95"
+                                  ${!PERMISSIONS_ENFORCED
+                                    ? "cursor-default"
+                                    : isLocked
+                                      ? "cursor-not-allowed opacity-70"
+                                      : "cursor-pointer hover:scale-110 active:scale-95"
                                   }
                                   ${isOn
                                     ? "bg-green-100 dark:bg-green-950/60 text-green-600 dark:text-green-400"
@@ -492,24 +519,28 @@ function PermissionsTab() {
             <div className="w-4 h-4 rounded bg-green-100 dark:bg-green-950/60 flex items-center justify-center">
               <CheckCircle className="w-2.5 h-2.5 text-green-600" />
             </div>
-            Granted
+            {PERMISSIONS_ENFORCED ? "Granted" : "Included by default"}
           </div>
           <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
             <div className="w-4 h-4 rounded bg-muted dark:bg-gray-800 flex items-center justify-center">
               <XCircle className="w-2.5 h-2.5 opacity-30" />
             </div>
-            Not granted
+            {PERMISSIONS_ENFORCED ? "Not granted" : "Not included"}
           </div>
-          <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-            <div className="w-4 h-4 rounded bg-muted dark:bg-gray-800 flex items-center justify-center">
-              <Lock className="w-2.5 h-2.5" />
-            </div>
-            Locked
-          </div>
-          <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-            <span className="w-2 h-2 rounded-full bg-amber-400 inline-block" />
-            Unsaved change
-          </div>
+          {PERMISSIONS_ENFORCED && (
+            <>
+              <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                <div className="w-4 h-4 rounded bg-muted dark:bg-gray-800 flex items-center justify-center">
+                  <Lock className="w-2.5 h-2.5" />
+                </div>
+                Locked
+              </div>
+              <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                <span className="w-2 h-2 rounded-full bg-amber-400 inline-block" />
+                Unsaved change
+              </div>
+            </>
+          )}
         </div>
       </Card>
     </div>
@@ -528,13 +559,19 @@ export default function UserManagement() {
   const queryClient = useQueryClient();
   const [search, setSearch] = useState("");
   const [roleFilter, setRoleFilter] = useState("all");
-  const [editingRole, setEditingRole] = useState<UserRole | null>(null);
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [editingUser, setEditingUser] = useState<any | null>(null);
   const [newRoleName, setNewRoleName] = useState("");
+  const [confirmDeactivate, setConfirmDeactivate] = useState<any | null>(null);
   const [pageSize, setPageSize] = useState(10);
   const [page, setPage] = useState(1);
 
+  const callerRole: string = (user as any)?.role ?? "";
+  const callerId: string   = (user as any)?.id ?? (user as any)?.userId ?? "";
+  const callerIsAdmin = callerRole === "admin" || callerRole === "platform_admin";
+
   const usersEndpoint = withOrgParam("/api/users", orgIdParam);
-  const { data: usersRaw = [], isLoading } = useQuery<any>({
+  const { data: usersRaw = [], isLoading, isError, error } = useQuery<any>({
     queryKey: [usersEndpoint],
     queryFn: async () => { const r = await apiRequest(usersEndpoint); return ensureArray(await r.json()); },
     retry: false,
@@ -544,27 +581,43 @@ export default function UserManagement() {
   const updateMutation = useMutation({
     mutationFn: async ({ id, data }: { id: string; data: any }) => {
       await apiRequest(withOrgParam(`/api/users/${id}`, orgIdParam), { method: "PATCH", data });
+      return data;
     },
-    onSuccess: () => {
+    onSuccess: (data: any) => {
       queryClient.invalidateQueries({ queryKey: [usersEndpoint] });
-      toast({ title: "Role updated" });
-      setEditingRole(null);
+      toast({
+        title: data.role !== undefined ? "Role updated" : data.isActive === false ? "User deactivated" : "User reactivated",
+        description: data.isActive === false ? "They've been signed out and can't log in until reactivated." : undefined,
+      });
+      setEditingUser(null);
+      setConfirmDeactivate(null);
     },
-    onError: () => toast({ title: "Update failed", variant: "destructive" }),
+    onError: (e: any) => {
+      toast({ title: "Update failed", description: errMsg(e), variant: "destructive" });
+      setConfirmDeactivate(null);
+    },
   });
 
+  /** Active = signed in before and switched on; Pending = invited but hasn't set a password yet; Deactivated = switched off. */
+  const statusOf = (u: any): "active" | "pending" | "deactivated" =>
+    u.isActive === false ? "deactivated" : !u.emailVerified ? "pending" : "active";
+
+  // Mirrors the server's rules (users.ts PATCH /:id) so nobody is offered an action that will be refused.
+  const canActOn      = (u: any) => u.id !== callerId && !(callerRole === "manager" && u.role === "admin");
+  const canChangeRole = (u: any) => canActOn(u) && !RECORD_BACKED_ROLES.includes(u.role) && u.isActive !== false;
+
   const stats = {
-    total: users.length,
-    active: users.filter(u => u.emailVerified).length,
-    inactive: users.filter(u => !u.emailVerified).length,
-    admins: users.filter(u => u.role === "admin").length,
+    total:       users.length,
+    active:      users.filter(u => statusOf(u) === "active").length,
+    pending:     users.filter(u => statusOf(u) === "pending").length,
+    deactivated: users.filter(u => statusOf(u) === "deactivated").length,
   };
 
   const filtered = users.filter(u => {
     const name = `${u.firstName ?? ""} ${u.lastName ?? ""} ${u.email ?? ""}`.toLowerCase();
-    const matchSearch = !search || name.includes(search.toLowerCase());
-    const matchRole = roleFilter === "all" || u.role === roleFilter;
-    return matchSearch && matchRole;
+    return (!search || name.includes(search.toLowerCase()))
+      && (roleFilter === "all" || u.role === roleFilter)
+      && (statusFilter === "all" || statusOf(u) === statusFilter);
   });
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
@@ -573,240 +626,209 @@ export default function UserManagement() {
 
   const handleSearch = (v: string) => { setSearch(v); setPage(1); };
   const handleRoleFilter = (v: string) => { setRoleFilter(v); setPage(1); };
+  const handleStatusFilter = (v: string) => { setStatusFilter(v); setPage(1); };
   const handlePageSize = (v: string) => { setPageSize(Number(v)); setPage(1); };
 
+  const displayName = (u: any) => (u.firstName && u.lastName ? `${u.firstName} ${u.lastName}` : u.email ?? "Unknown user");
+  const fmtDate = (d: any) => d ? new Date(d).toLocaleDateString("en-KE", { day: "numeric", month: "short", year: "numeric" }) : "—";
+
+  const assignable = Object.entries(ASSIGNABLE_ROLES).filter(([k]) => callerIsAdmin || k !== "admin");
+
   if (isLoading) return (
-    <div className="p-6 space-y-5 animate-pulse">
-      <div className="h-8 bg-muted dark:bg-gray-700 rounded w-48" />
-      <div className="grid grid-cols-4 gap-4">{[...Array(4)].map((_, i) => <div key={i} className="h-24 bg-muted dark:bg-gray-700 rounded-2xl" />)}</div>
-      <div className="h-96 bg-muted dark:bg-gray-700 rounded-2xl" />
-    </div>
+    <PageShell>
+      <div className="space-y-5 animate-pulse">
+        <div className="h-8 bg-muted rounded w-48" />
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">{[...Array(4)].map((_, i) => <div key={i} className="h-24 bg-muted rounded-2xl" />)}</div>
+        <div className="h-96 bg-muted rounded-2xl" />
+      </div>
+    </PageShell>
   );
 
   return (
-    <div className="min-h-screen bg-background">
-      {/* Header */}
-      <div className="bg-card dark:bg-gray-900 border-b border-border dark:border-gray-800 px-6 py-5">
-        <div className="max-w-7xl mx-auto flex items-center justify-between">
-          <div>
-            <h1 className="text-xl font-semibold text-foreground">User Management</h1>
-            <p className="text-sm text-muted-foreground mt-0.5">{stats.total} users · {stats.active} active</p>
-          </div>
-          <UserInviteModal triggerText="Invite user" />
-        </div>
-      </div>
+    <PageShell>
+      <PageHeader
+        title="User Management"
+        subtitle={`${stats.total} users · ${stats.active} active${stats.pending ? ` · ${stats.pending} pending` : ""}`}
+        icon={<Users className="w-5 h-5" />}
+        actions={<UserInviteModal triggerText="Invite user" />}
+      />
 
-      <div className="max-w-7xl mx-auto px-6 py-6 space-y-5">
-        {/* KPI strip */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          {[
-            { label: "Total users", value: stats.total, icon: Users, color: "blue" },
-            { label: "Active", value: stats.active, icon: CheckCircle, color: "green" },
-            { label: "Pending", value: stats.inactive, icon: XCircle, color: "gray" },
-            { label: "Admins", value: stats.admins, icon: Shield, color: stats.admins > 0 ? "red" : "gray" },
-          ].map(({ label, value, icon: Icon, color }) => (
-            <Card key={label} className="rounded-xl border border-slate-100 shadow-sm">
-              <CardContent className="p-5 flex items-center gap-3">
-                <div className={`w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 bg-${color}-50`}>
-                  <Icon className={`w-4 h-4 text-${color}-600`} />
-                </div>
-                <div>
-                  <p className="text-xl font-semibold text-foreground">{value}</p>
-                  <p className="text-xs text-muted-foreground">{label}</p>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
+      <StatsGrid cols={4}>
+        <StatTile label="Total users" value={stats.total} icon={<Users className="w-4 h-4" />} accent="blue" />
+        <StatTile label="Active" value={stats.active} icon={<CheckCircle className="w-4 h-4" />} accent="emerald" />
+        <StatTile label="Pending invite" value={stats.pending} icon={<Mail className="w-4 h-4" />} accent="amber" />
+        <StatTile label="Deactivated" value={stats.deactivated} icon={<XCircle className="w-4 h-4" />} accent="red" />
+      </StatsGrid>
 
-        {/* Tabs */}
-        <Tabs defaultValue="users">
-          <TabsList className="bg-card dark:bg-gray-900 border border-border dark:border-gray-800 p-1 rounded-xl">
-            <TabsTrigger value="users" className="rounded-lg gap-2 data-[state=active]:bg-muted dark:data-[state=active]:bg-gray-800">
-              <Users className="w-4 h-4" />
-              Users
-            </TabsTrigger>
-            <TabsTrigger value="permissions" className="rounded-lg gap-2 data-[state=active]:bg-muted dark:data-[state=active]:bg-gray-800">
-              <Shield className="w-4 h-4" />
-              Permissions by role
-            </TabsTrigger>
-          </TabsList>
+      <Tabs defaultValue="users">
+        <TabsList className="bg-card border border-border p-1 rounded-xl">
+          <TabsTrigger value="users" className="rounded-lg gap-2 data-[state=active]:bg-muted">
+            <Users className="w-4 h-4" />
+            Users
+          </TabsTrigger>
+          <TabsTrigger value="permissions" className="rounded-lg gap-2 data-[state=active]:bg-muted">
+            <Shield className="w-4 h-4" />
+            {PERMISSIONS_ENFORCED ? "Permissions by role" : "Role access guide"}
+          </TabsTrigger>
+        </TabsList>
 
-          {/* Users tab */}
-          <TabsContent value="users" className="mt-4 space-y-3">
-            {/* Toolbar */}
-            <div className="flex flex-wrap items-center gap-3">
-              <div className="relative flex-1 min-w-[200px] max-w-sm">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                <Input
-                  placeholder="Search by name or email..."
-                  className="pl-9 h-9 border-border dark:border-gray-700"
-                  value={search}
-                  onChange={e => handleSearch(e.target.value)}
-                />
-              </div>
-              <Select value={roleFilter} onValueChange={handleRoleFilter}>
-                <SelectTrigger className="w-44 h-9 border-border dark:border-gray-700 text-sm">
-                  <SelectValue placeholder="All roles" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All roles</SelectItem>
-                  {Object.entries(ROLE_LABELS).map(([k, v]) => <SelectItem key={k} value={k}>{v}</SelectItem>)}
-                </SelectContent>
-              </Select>
-              <div className="flex items-center gap-2 ml-auto">
-                <span className="text-sm text-muted-foreground whitespace-nowrap">Rows per page</span>
-                <Select value={String(pageSize)} onValueChange={handlePageSize}>
-                  <SelectTrigger className="w-20 h-9 border-border dark:border-gray-700 text-sm">
-                    <SelectValue />
-                  </SelectTrigger>
+        {/* Users tab */}
+        <TabsContent value="users" className="mt-4 space-y-3">
+          <FilterBar
+            search={search}
+            onSearch={handleSearch}
+            placeholder="Search by name or email..."
+            filters={
+              <>
+                <Select value={roleFilter} onValueChange={handleRoleFilter}>
+                  <SelectTrigger className="w-40"><SelectValue placeholder="All roles" /></SelectTrigger>
                   <SelectContent>
-                    {PAGE_SIZE_OPTIONS.map(n => (
-                      <SelectItem key={n} value={String(n)}>{n}</SelectItem>
-                    ))}
+                    <SelectItem value="all">All roles</SelectItem>
+                    {Object.entries(ROLE_LABELS).map(([k, v]) => <SelectItem key={k} value={k}>{v}</SelectItem>)}
                   </SelectContent>
                 </Select>
-              </div>
-            </div>
+                <Select value={statusFilter} onValueChange={handleStatusFilter}>
+                  <SelectTrigger className="w-40"><SelectValue placeholder="All statuses" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All statuses</SelectItem>
+                    <SelectItem value="active">Active</SelectItem>
+                    <SelectItem value="pending">Pending invite</SelectItem>
+                    <SelectItem value="deactivated">Deactivated</SelectItem>
+                  </SelectContent>
+                </Select>
+              </>
+            }
+            actions={
+              <Select value={String(pageSize)} onValueChange={handlePageSize}>
+                <SelectTrigger className="w-28"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {PAGE_SIZE_OPTIONS.map(n => <SelectItem key={n} value={String(n)}>{n} / page</SelectItem>)}
+                </SelectContent>
+              </Select>
+            }
+          />
 
-            {/* Table */}
-            <Card className="rounded-xl border border-slate-100 shadow-sm overflow-hidden">
-              {filtered.length === 0 ? (
-                <CardContent className="py-16 text-center">
-                  <Users className="w-12 h-12 text-gray-200 mx-auto mb-3" />
-                  <p className="text-sm font-medium text-foreground">No users found</p>
-                  <p className="text-xs text-muted-foreground mt-1 mb-4">Invite users to get started</p>
-                </CardContent>
-              ) : (
-                <>
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-sm">
-                      <thead className="sticky top-0 z-10"><tr className="bg-muted border-b border-border" >
-                          <th className="text-left px-4 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wide">User</th>
-                          <th className="text-left px-4 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wide">Role</th>
-                          <th className="text-left px-4 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wide hidden md:table-cell">Status</th>
-                          <th className="text-left px-4 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wide hidden lg:table-cell">Joined</th>
-                          <th className="px-4 py-3 w-10" />
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-border dark:divide-gray-800">
-                        {paginated.map(u => (
-                          <tr key={u.id} className="hover:bg-muted/50 dark:hover:bg-gray-900 transition-colors group">
-                            <td className="px-4 py-3">
-                              <div className="flex items-center gap-3">
-                                <Avatar className="w-8 h-8">
-                                  <AvatarFallback className="bg-blue-100 text-blue-600 text-xs font-medium">
-                                    {(u.firstName?.[0] ?? "?")}{(u.lastName?.[0] ?? "")}
-                                  </AvatarFallback>
-                                </Avatar>
-                                <div className="min-w-0">
-                                  <p className="font-medium text-foreground truncate">
-                                    {u.firstName && u.lastName ? `${u.firstName} ${u.lastName}` : u.email ?? "Unknown user"}
-                                  </p>
-                                  {u.email && <p className="text-xs text-muted-foreground truncate">{u.email}</p>}
-                                </div>
-                              </div>
-                            </td>
-                            <td className="px-4 py-3"><RoleBadge role={u.role} /></td>
-                            <td className="px-4 py-3 hidden md:table-cell">
-                              <div className="flex items-center gap-2">
-                                <StatusDot active={!!u.emailVerified} />
-                                <span className="text-sm text-muted-foreground">{u.emailVerified ? "Active" : "Pending"}</span>
-                              </div>
-                            </td>
-                            <td className="px-4 py-3 text-xs text-muted-foreground hidden lg:table-cell">
-                              {new Date(u.createdAt).toLocaleDateString("en-KE", { day: "numeric", month: "short", year: "numeric" })}
-                            </td>
-                            <td className="px-4 py-3">
-                              <DropdownMenu>
-                                <DropdownMenuTrigger asChild>
-                                  <Button variant="ghost" size="sm" className="h-7 w-7 p-0 opacity-0 group-hover:opacity-100">
-                                    <MoreVertical className="w-3.5 h-3.5" />
-                                  </Button>
-                                </DropdownMenuTrigger>
-                                <DropdownMenuContent align="end" className="w-40">
-                                  <DropdownMenuItem onClick={() => {
-                                    setEditingRole({ ...u, role_name: u.role, is_active: !!u.emailVerified, first_name: u.firstName, last_name: u.lastName });
-                                    setNewRoleName(u.role);
-                                  }}>
-                                    <Settings className="w-4 h-4 mr-2" />Change role
-                                  </DropdownMenuItem>
-                                  {u.email && (
-                                    <DropdownMenuItem onClick={() => window.open(`mailto:${u.email}`, "_blank")}>
-                                      <Mail className="w-4 h-4 mr-2" />Email user
-                                    </DropdownMenuItem>
-                                  )}
-                                  <DropdownMenuSeparator />
-                                  <DropdownMenuItem
-                                    className="text-red-600"
-                                    onClick={() => updateMutation.mutate({ id: u.id, data: { isActive: false } })}
-                                  >
-                                    <XCircle className="w-4 h-4 mr-2" />Deactivate
-                                  </DropdownMenuItem>
-                                </DropdownMenuContent>
-                              </DropdownMenu>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
+          {isError ? (
+            <SectionCard>
+              <EmptyState
+                icon={<XCircle />}
+                title="Couldn't load users"
+                description={errMsg(error)}
+                size="lg"
+              />
+            </SectionCard>
+          ) : (
+            <SectionCard padding="none">
+              <SPTable
+                data={paginated}
+                emptyState={
+                  <EmptyState
+                    icon={<Users />}
+                    title={users.length ? "No users match your filters" : "No users found"}
+                    description={users.length ? undefined : "Invite users to get started"}
+                    size="lg"
+                  />
+                }
+                columns={[
+                  {
+                    header: "User",
+                    cell: (u: any) => (
+                      <div className="flex items-center gap-3">
+                        <SPAvatar name={displayName(u)} />
+                        <div className="min-w-0">
+                          <p className="font-medium text-foreground truncate">
+                            {displayName(u)}
+                            {u.id === callerId && <span className="ml-2 text-xs font-normal text-muted-foreground">(you)</span>}
+                          </p>
+                          {u.email && <p className="text-xs text-muted-foreground truncate">{u.email}</p>}
+                        </div>
+                      </div>
+                    ),
+                  },
+                  { header: "Role", cell: (u: any) => <RoleBadge role={u.role} /> },
+                  { header: "Status", cell: (u: any) => <SPBadge status={statusOf(u)} /> },
+                  {
+                    header: "Last login",
+                    hideOnMobile: true,
+                    cell: (u: any) => <span className="text-xs text-muted-foreground">{u.lastLoginAt ? fmtDate(u.lastLoginAt) : "Never"}</span>,
+                  },
+                  {
+                    header: "Joined",
+                    hideOnMobile: true,
+                    cell: (u: any) => <span className="text-xs text-muted-foreground">{fmtDate(u.createdAt)}</span>,
+                  },
+                  {
+                    header: "",
+                    align: "right",
+                    cell: (u: any) => {
+                      const items = [
+                        ...(canChangeRole(u) ? [{
+                          label: "Change role", icon: <Settings className="w-4 h-4" />,
+                          onClick: () => { setEditingUser(u); setNewRoleName(u.role); },
+                        }] : []),
+                        ...(u.email ? [{
+                          label: "Email user", icon: <Mail className="w-4 h-4" />,
+                          onClick: () => window.open(`mailto:${u.email}`, "_blank"),
+                        }] : []),
+                        ...(canActOn(u) && u.isActive !== false ? [{
+                          label: "Deactivate", icon: <XCircle className="w-4 h-4" />, destructive: true, separator: true,
+                          onClick: () => setConfirmDeactivate(u),
+                        }] : []),
+                        ...(canActOn(u) && u.isActive === false ? [{
+                          label: "Reactivate", icon: <CheckCircle className="w-4 h-4" />, separator: true,
+                          onClick: () => updateMutation.mutate({ id: u.id, data: { isActive: true } }),
+                        }] : []),
+                      ];
+                      return items.length ? <ActionMenu items={items} /> : null;
+                    },
+                  },
+                ]}
+              />
 
-                  {/* Pagination footer */}
-                  <div className="flex items-center justify-between px-4 py-3 border-t border-border dark:border-gray-800" >
-                    <span className="text-xs text-muted-foreground">
-                      {filtered.length === 0
-                        ? "0"
-                        : `${(safePage - 1) * pageSize + 1}–${Math.min(safePage * pageSize, filtered.length)}`
-                      } of {filtered.length} users
-                    </span>
-                    <div className="flex items-center gap-1">
-                      <Button
-                        variant="ghost" size="sm" className="h-8 w-8 p-0"
-                        disabled={safePage <= 1}
-                        onClick={() => setPage(p => Math.max(1, p - 1))}
-                      >
-                        <ChevronLeft className="w-4 h-4" />
-                      </Button>
-                      <span className="text-xs text-muted-foreground px-2">
-                        Page {safePage} of {totalPages}
-                      </span>
-                      <Button
-                        variant="ghost" size="sm" className="h-8 w-8 p-0"
-                        disabled={safePage >= totalPages}
-                        onClick={() => setPage(p => Math.min(totalPages, p + 1))}
-                      >
-                        <ChevronRight className="w-4 h-4" />
-                      </Button>
-                    </div>
+              {filtered.length > 0 && (
+                <div className="flex items-center justify-between px-4 py-3 border-t border-border">
+                  <span className="text-xs text-muted-foreground">
+                    {`${(safePage - 1) * pageSize + 1}–${Math.min(safePage * pageSize, filtered.length)}`} of {filtered.length} users
+                  </span>
+                  <div className="flex items-center gap-1">
+                    <Button variant="ghost" size="sm" className="h-8 w-8 p-0" disabled={safePage <= 1}
+                      onClick={() => setPage(p => Math.max(1, p - 1))}>
+                      <ChevronLeft className="w-4 h-4" />
+                    </Button>
+                    <span className="text-xs text-muted-foreground px-2">Page {safePage} of {totalPages}</span>
+                    <Button variant="ghost" size="sm" className="h-8 w-8 p-0" disabled={safePage >= totalPages}
+                      onClick={() => setPage(p => Math.min(totalPages, p + 1))}>
+                      <ChevronRight className="w-4 h-4" />
+                    </Button>
                   </div>
-                </>
+                </div>
               )}
-            </Card>
-          </TabsContent>
+            </SectionCard>
+          )}
 
-          {/* Permissions tab */}
-          <TabsContent value="permissions" className="mt-4">
-            <PermissionsTab />
-          </TabsContent>
-        </Tabs>
-      </div>
+          <p className="text-xs text-muted-foreground">
+            Tenants, caretakers and contractors are managed from their own pages, so their role can't be changed here.
+            {callerRole === "manager" && " Managers can't modify admin accounts."}
+          </p>
+        </TabsContent>
 
-      {/* Edit role dialog */}
-      <Dialog open={!!editingRole} onOpenChange={o => !o && setEditingRole(null)}>
+        {/* Permissions tab */}
+        <TabsContent value="permissions" className="mt-4">
+          <PermissionsTab />
+        </TabsContent>
+      </Tabs>
+
+      {/* Change role dialog */}
+      <Dialog open={!!editingUser} onOpenChange={o => !o && setEditingUser(null)}>
         <DialogContent className="max-w-xl">
           <DialogHeader><DialogTitle>Change role</DialogTitle></DialogHeader>
-          {editingRole && (
+          {editingUser && (
             <div className="space-y-4 py-2">
-              <div className="flex items-center gap-3 p-3 bg-muted dark:bg-gray-950 rounded-xl">
-                <Avatar className="w-9 h-9">
-                  <AvatarFallback className="bg-blue-100 text-blue-600 text-xs">
-                    {editingRole.first_name?.[0]}{editingRole.last_name?.[0]}
-                  </AvatarFallback>
-                </Avatar>
+              <div className="flex items-center gap-3 p-3 bg-muted rounded-xl">
+                <SPAvatar name={displayName(editingUser)} size="md" />
                 <div>
-                  <p className="text-sm font-medium">{editingRole.first_name} {editingRole.last_name}</p>
-                  <p className="text-xs text-muted-foreground">{editingRole.email}</p>
+                  <p className="text-sm font-medium">{displayName(editingUser)}</p>
+                  <p className="text-xs text-muted-foreground">{editingUser.email}</p>
                 </div>
               </div>
               <div>
@@ -814,27 +836,41 @@ export default function UserManagement() {
                 <Select value={newRoleName} onValueChange={setNewRoleName}>
                   <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    {Object.entries(ASSIGNABLE_ROLES).map(([k, v]) => <SelectItem key={k} value={k}>{v}</SelectItem>)}
+                    {assignable.map(([k, v]) => <SelectItem key={k} value={k}>{v}</SelectItem>)}
                   </SelectContent>
                 </Select>
+                {newRoleName && ROLE_PORTAL[newRoleName] && (
+                  <p className="text-xs text-muted-foreground mt-1.5">Signs in to: {ROLE_PORTAL[newRoleName]}.</p>
+                )}
                 <p className="text-xs text-muted-foreground mt-1.5">
-                  Reclassifying to Caretaker, Tenant, or Contractor? Use the dedicated Caretakers, Tenants, or Contractors page instead — it links the property assignment, lease, or contractor profile at the same time.
+                  Need Caretaker, Tenant, or Contractor? Use the dedicated Caretakers, Tenants, or Contractors page instead — it links the property assignment, lease, or contractor profile at the same time.
                 </p>
               </div>
             </div>
           )}
           <DialogFooter>
-            <Button variant="outline" onClick={() => setEditingRole(null)}>Cancel</Button>
+            <Button variant="outline" onClick={() => setEditingUser(null)}>Cancel</Button>
             <Button
               className="bg-emerald-600 hover:bg-emerald-700 text-white"
-              disabled={updateMutation.isPending}
-              onClick={() => editingRole && updateMutation.mutate({ id: String(editingRole.id), data: { role: newRoleName } })}
+              disabled={updateMutation.isPending || !editingUser || newRoleName === editingUser?.role}
+              onClick={() => editingUser && updateMutation.mutate({ id: String(editingUser.id), data: { role: newRoleName } })}
             >
               {updateMutation.isPending ? "Saving..." : "Save changes"}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </div>
+
+      <ConfirmDialog
+        open={!!confirmDeactivate}
+        onClose={() => setConfirmDeactivate(null)}
+        onConfirm={() => confirmDeactivate && updateMutation.mutate({ id: confirmDeactivate.id, data: { isActive: false } })}
+        loading={updateMutation.isPending}
+        destructive
+        title={`Deactivate ${confirmDeactivate ? displayName(confirmDeactivate) : "user"}?`}
+        description="They'll be signed out straight away and won't be able to log in again until you reactivate them. Their data is kept."
+        confirmLabel="Deactivate"
+      />
+    </PageShell>
   );
 }

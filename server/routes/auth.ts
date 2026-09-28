@@ -5,7 +5,7 @@ import { z } from "zod";
 import { createHash } from "crypto";
 import { db, withRetry } from "../db";
 import { users, organizations, refreshTokens, tenants } from "../../shared/schema";
-import { eq, and, lt } from "drizzle-orm/sql";
+import { eq, and, lt, isNull } from "drizzle-orm/sql";
 import { authenticateJWT } from "../middleware/auth";
 import { randomUUID } from "crypto";
 
@@ -60,7 +60,7 @@ async function verifyStoredRefreshToken(rawToken: string): Promise<any | null> {
     .where(
       and(
         eq(refreshTokens.tokenHash, hash),
-        eq(refreshTokens.revokedAt, null as any),
+        isNull(refreshTokens.revokedAt),
       )
     )
     .limit(1);
@@ -84,7 +84,7 @@ export async function revokeAllUserTokens(userId: string): Promise<void> {
     .update(refreshTokens)
     .set({ revokedAt: new Date() })
     .where(
-      and(eq(refreshTokens.userId, userId), eq(refreshTokens.revokedAt, null as any))
+      and(eq(refreshTokens.userId, userId), isNull(refreshTokens.revokedAt))
     );
 }
 
@@ -317,7 +317,7 @@ router.post("/login", async (req, res) => {
     const payload = buildTokenPayload(user);
     const accessToken  = jwt.sign(payload, JWT_SECRET, { expiresIn: "4h" });
     const refreshExpiry = rememberMe ? "30d" : "1d";
-    const refreshToken = jwt.sign({ userId: user.id }, JWT_REFRESH_SECRET, { expiresIn: refreshExpiry });
+    const refreshToken = jwt.sign({ userId: user.id, jti: randomUUID() }, JWT_REFRESH_SECRET, { expiresIn: refreshExpiry });
 
     // Store refresh token hash so it can be revoked server-side
     await storeRefreshToken(user.id, refreshToken, req);
@@ -376,6 +376,18 @@ router.post("/refresh", async (req, res) => {
       return res.status(401).json({ success: false, message: "User not found" });
     }
 
+    // A deactivated account must not be able to renew its session. Without this, an admin's
+    // "Deactivate" only stopped new logins — anyone already signed in could keep refreshing.
+    if (user.isActive === false) {
+      await revokeAllUserTokens(user.id);
+      res.clearCookie("refreshToken", { httpOnly: true, secure: process.env.NODE_ENV === "production", path: "/" });
+      return res.status(401).json({
+        success: false,
+        message: "Your account has been deactivated. Please contact your organisation administrator.",
+        redirectToLogin: true,
+      });
+    }
+
     // Enforce email verification on every token refresh — closes the bypass window
     if (!user.emailVerified) {
       res.clearCookie("refreshToken", { httpOnly: true, secure: process.env.NODE_ENV === "production", path: "/" });
@@ -389,7 +401,7 @@ router.post("/refresh", async (req, res) => {
 
     // 3. Rotate: revoke the old token and issue a fresh one
     await revokeRefreshToken(refreshToken);
-    const newRefreshToken = jwt.sign({ userId: user.id }, JWT_REFRESH_SECRET, { expiresIn: "7d" });
+    const newRefreshToken = jwt.sign({ userId: user.id, jti: randomUUID() }, JWT_REFRESH_SECRET, { expiresIn: "7d" });
     await storeRefreshToken(user.id, newRefreshToken, req);
 
     res.cookie("refreshToken", newRefreshToken, {
@@ -804,7 +816,7 @@ router.get("/sessions", authenticateJWT, async (req: any, res) => {
       .where(
         and(
           eq(refreshTokens.userId, userId),
-          eq(refreshTokens.revokedAt, null as any),
+          isNull(refreshTokens.revokedAt),
         )
       );
     res.json(rows);

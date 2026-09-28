@@ -63,6 +63,7 @@ export const ROUTE_POLICY: Record<string, AppRole[]> = {
 
   // ── Admin / manager only ─────────────────────────────────────────────────────
   '/api/roles':                      ADMIN_MANAGER,
+  '/api/users/me':                   ALL_AUTHENTICATED,      // every role manages their OWN profile/password/activity here
   '/api/users':                      ADMIN_MANAGER,
   '/api/organizations':              ADMIN_MANAGER,           // org settings & multi-tenant admin
   '/api/billing':                    ADMIN_ONLY,

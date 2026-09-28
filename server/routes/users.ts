@@ -1,8 +1,9 @@
 import { Router } from "express";
 import { db } from "../db";
 import { users, organizations, auditLogs } from "@shared/schema";
-import { eq, and, desc } from "drizzle-orm";
-import { authenticateJWT } from "../middleware/auth";
+import { eq, ne, and, desc } from "drizzle-orm";
+import { authenticateJWT, forgetUserActiveState } from "../middleware/auth";
+import { revokeAllUserTokens } from "./auth";
 import { requireOrg } from "../middleware/requireOrg";
 import { auditLog } from "../middleware/auditLog";
 import { sendInviteEmail } from "../lib/email";
@@ -17,24 +18,25 @@ import {
 
 const router = Router();
 
+// The caller's OWN account (profile, password, activity), mounted separately at /api/users/me.
+// It cannot live on `router` for two reasons that both broke it before:
+//   1. /api/users is guarded for admin/manager, so every other role got a 403 trying to change
+//      their own password or profile — while every role has a Profile page that does exactly that.
+//   2. PATCH /:id was declared first, so PATCH /me was captured by it with id="me".
+export const meRouter = Router();
+
 // GET /api/users — list users in org
-// Admins see all users; managers may query ?role=landlord to populate
-// owner-picker dropdowns.
+// Admins and managers see everyone in their organisation: the User Management page is open to
+// both, and managers may already invite users and change roles (with the limits below), which
+// is not workable if they cannot see who is there. Anyone else is refused.
 router.get("/", authenticateJWT, requireOrg, async (req: any, res) => {
   try {
     const callerRole: string = req.user.role;
     const orgId: number = req.user.organizationId;
     const roleFilter = req.query.role as string | undefined;
 
-    // Non-admins may only request the landlord list (for owner pickers).
-    // platform_admin gets full access, same as admin — they're viewing on
-    // behalf of an org they've explicitly selected via ?organizationId=.
-    const ALLOWED_NON_ADMIN_ROLES = ["admin", "manager", "platform_admin"];
-    if (!ALLOWED_NON_ADMIN_ROLES.includes(callerRole)) {
+    if (!["admin", "manager", "platform_admin"].includes(callerRole)) {
       return res.status(403).json({ message: "Insufficient permissions" });
-    }
-    if (callerRole !== "admin" && callerRole !== "platform_admin" && roleFilter !== "landlord") {
-      return res.status(403).json({ message: "Non-admin users may only query role=landlord" });
     }
 
     const conditions: any[] = [eq(users.organizationId, orgId)];
@@ -141,9 +143,20 @@ router.post("/", authenticateJWT, requireActiveSubscription as any, enforceUserL
     const orgId: number = req.user.organizationId;
 
     const inviteToken = randomUUID();
-    const inviteExpiresAt = new Date(Date.now() + 1000 * 60 * 60 * 24); // 24h
+    const inviteExpiresAt = new Date(Date.now() + 1000 * 60 * 60 * 24 * 7); // 7 days — what the email itself promises
 
-    await db
+    // Only a still-pending invite may be re-issued. Before this, inviting an email that already
+    // belonged to an ACTIVE user silently overwrote their role and reset their verification token —
+    // which let a manager demote an admin (or change anyone's role) just by "inviting" them again,
+    // sidestepping the rule that managers cannot modify admin accounts. A manager also may not
+    // re-issue a pending invite that was sent for the admin role.
+    const reissuable = and(
+      eq(users.passwordHash, ""),
+      eq(users.emailVerified, false),
+      ...(callerRole === "manager" ? [ne(users.role, "admin")] : []),
+    );
+
+    const written = await db
       .insert(users)
       .values({
         id: randomUUID(),
@@ -161,15 +174,41 @@ router.post("/", authenticateJWT, requireActiveSubscription as any, enforceUserL
         target: [users.organizationId, users.email],
         set: {
           invitedAt: new Date(),
+          invitedBy: req.user.id,
           emailVerificationToken: inviteToken,
           emailVerificationExpiresAt: inviteExpiresAt,
           role,
         },
-      });
+        setWhere: reissuable,
+      })
+      .returning({ id: users.id });
+
+    if (written.length === 0) {
+      // The email already exists and is not a re-issuable pending invite.
+      const [existing] = await db
+        .select({ role: users.role, passwordHash: users.passwordHash, emailVerified: users.emailVerified })
+        .from(users)
+        .where(and(eq(users.organizationId, orgId), eq(users.email, email.toLowerCase())))
+        .limit(1);
+      const pending = !!existing && existing.passwordHash === "" && !existing.emailVerified;
+      if (pending && existing.role === "admin" && callerRole === "manager") {
+        return res.status(403).json({ message: "Managers cannot modify admin accounts." });
+      }
+      return res.status(409).json({ message: "A user with this email already exists in your organisation." });
+    }
 
     const inviteLink = `${process.env.APP_URL || "http://localhost:5173"}/accept-invite/${inviteToken}`;
 
-    await sendInviteEmail({ to: email, inviteLink });
+    // The invite row is already saved at this point, so a mail failure is reported as exactly that
+    // (rather than a generic error) and sending again will simply re-issue the pending invite.
+    try {
+      await sendInviteEmail({ to: email, inviteLink });
+    } catch (mailErr) {
+      logger.error("Invite email failed:", mailErr);
+      return res.status(502).json({
+        message: "The invite was saved but the email could not be sent. Check the email settings, then send the invite again.",
+      });
+    }
 
     res.json({ success: true });
   } catch (err: any) {
@@ -250,6 +289,20 @@ router.patch(
         return res.status(400).json({ message: "You cannot activate, deactivate, or change your own role via this endpoint." });
       }
 
+      // Tenant, caretaker and contractor logins are each tied to a business record (a lease, a property
+      // assignment, a contractor profile). Re-roling one from here would strand that record behind a
+      // login that no longer matches it — the reverse of the case the role list above already excludes.
+      const RECORD_BACKED: Record<string, string> = {
+        tenant:     "a lease — manage it from the Tenants page",
+        caretaker:  "a property assignment — manage it from the Caretakers page",
+        contractor: "a contractor profile — manage it from the Contractors page",
+      };
+      if (updates.role !== undefined && updates.role !== target.role && RECORD_BACKED[target.role]) {
+        return res.status(400).json({
+          message: `This ${target.role} login is tied to ${RECORD_BACKED[target.role]}, so its role can't be changed here.`,
+        });
+      }
+
       // Managers cannot touch admin accounts
       if (callerRole === "manager" && target.role === "admin") {
         return res.status(403).json({ message: "Managers cannot modify admin accounts." });
@@ -292,6 +345,12 @@ router.patch(
           updatedAt:   users.updatedAt,
         });
 
+      if (updates.isActive !== undefined) {
+        // Deactivating must end the person's sessions, not just block their next login.
+        if (!updates.isActive) await revokeAllUserTokens(id);
+        forgetUserActiveState(id);
+      }
+
       res.json(updated);
     } catch (err: any) {
       if (err instanceof z.ZodError) {
@@ -306,8 +365,8 @@ router.patch(
 // Note: /invite/:token and /activate are handled by auth.ts under /api/auth/*
 // because the client calls /api/auth/invite/:token and /api/auth/activate
 
-// PATCH /api/users/me — self-service profile update (safe fields only)
-router.patch("/me", authenticateJWT, async (req: any, res) => {
+// PATCH /api/users/me (meRouter) — self-service profile update (safe fields only)
+meRouter.patch("/", authenticateJWT, async (req: any, res) => {
   try {
     const schema = z.object({
       firstName:         z.string().min(1).max(100).optional(),
@@ -370,7 +429,7 @@ router.patch("/me", authenticateJWT, async (req: any, res) => {
 // audit_logs already records every successful mutation across the app
 // (see auditLog middleware) — this just surfaces it for the person who
 // actually performed the actions, nothing new is tracked here.
-router.get("/me/activity", authenticateJWT, async (req: any, res: any) => {
+meRouter.get("/activity", authenticateJWT, async (req: any, res: any) => {
   try {
     const limit = Math.min(parseInt(req.query.limit as string) || 30, 100);
     const rows = await db
@@ -395,7 +454,7 @@ router.get("/me/activity", authenticateJWT, async (req: any, res: any) => {
 });
 
 // PATCH /api/users/me/password — change own password
-router.patch("/me/password", authenticateJWT, async (req: any, res) => {
+meRouter.patch("/password", authenticateJWT, async (req: any, res) => {
   try {
     const schema = z.object({
       currentPassword: z.string().min(1),

@@ -263,6 +263,7 @@ const BADGE_MAP: Record<string, string> = {
 
   cancelled:  "bg-muted       text-muted-foreground   border-border",
   inactive:   "bg-muted       text-muted-foreground   border-border",
+  deactivated:"bg-red-50      text-red-600     border-red-200     dark:bg-red-950     dark:text-red-400     dark:border-red-800",
   checked_out:"bg-muted       text-muted-foreground   border-border",
   unavailable:"bg-muted       text-muted-foreground   border-border",
   low:        "bg-muted       text-muted-foreground   border-border",
