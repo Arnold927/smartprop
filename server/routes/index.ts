@@ -107,6 +107,7 @@ import nairobiComplianceRouter from "./nairobi-compliance";
 import sustainabilityRouter    from "./sustainability";
 import ownerStatementsRouter   from "./owner-statements";
 import inspectionsRouter       from "./inspections";
+import tenantInspectionsRouter from "./tenant-inspections";
 import prospectsRouter         from "./prospects";
 import analyticsRouter         from "./analytics";
 import ratingsRouter           from "./ratings";
@@ -239,6 +240,7 @@ export function registerModularRoutes(app: Express) {
   mount(app, "/api/sustainability",                    sustainabilityRouter);
   mount(app, "/api/owner-statements",                  ownerStatementsRouter);
   mount(app, "/api/inspections",                       inspectionsRouter);
+  mount(app, "/api/tenant-inspections",                tenantInspectionsRouter);
   mount(app, "/api/prospects",                         prospectsRouter);
   mount(app, "/api/time-tracking",                     timeTrackingRouter);
   mount(app, "/api/visitor-access-management",         visitorAccessManagementRouter);

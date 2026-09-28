@@ -271,6 +271,8 @@ const BADGE_MAP: Record<string, string> = {
   info:       "bg-blue-50     text-blue-700    border-blue-200    dark:bg-blue-950    dark:text-blue-400    dark:border-blue-800",
   blue:       "bg-blue-50     text-blue-700    border-blue-200    dark:bg-blue-950    dark:text-blue-400    dark:border-blue-800",
   in_progress:"bg-blue-50     text-blue-700    border-blue-200    dark:bg-blue-950    dark:text-blue-400    dark:border-blue-800",
+  pending_signature: "bg-violet-50   text-violet-700  border-violet-200  dark:bg-violet-950  dark:text-violet-400  dark:border-violet-800",
+  tenant_signed:     "bg-violet-50   text-violet-700  border-violet-200  dark:bg-violet-950  dark:text-violet-400  dark:border-violet-800",
   submitted:  "bg-blue-50     text-blue-700    border-blue-200    dark:bg-blue-950    dark:text-blue-400    dark:border-blue-800",
   accepted:   "bg-blue-50     text-blue-700    border-blue-200    dark:bg-blue-950    dark:text-blue-400    dark:border-blue-800",
 

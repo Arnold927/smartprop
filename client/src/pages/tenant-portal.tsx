@@ -49,6 +49,7 @@ import TenantWhatsAppChat from "./tenant-whatsapp-chat";
 import TenantVisitorPanel from "@/components/tenant-visitor-panel";
 import LeaseAgreementGenerator from "@/components/lease-agreement-generator";
 import PaymentMethodsPanel from "@/components/payment-methods-panel";
+import TenantInspectionsPanel from "@/components/tenant-inspections-panel";
 import { useTranslation } from "react-i18next";
 import { TenantOnboardingFlow, hasCompletedOnboarding, markOnboardingDone } from "@/components/tenant-onboarding-flow";
 import { TenantHelpTip } from "@/components/tenant-help-tip";
@@ -3411,6 +3412,8 @@ export default function TenantPortal({ tenantId, initialTenantData }: TenantPort
 
           {/* ── DOCUMENTS ──────────────────────────────────────────────────── */}
           <TabsContent value="documents" className="space-y-4">
+            {/* Condition reports the manager has signed — the tenant reviews and countersigns here */}
+            <TenantInspectionsPanel />
             <DocumentsPanel
               docs={docs}
               isLoading={docsLoading}

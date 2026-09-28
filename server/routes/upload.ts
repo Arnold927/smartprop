@@ -110,7 +110,8 @@ router.post(
 
       const result = await uploadBufferToCloudinary(cloudinary, req.file.buffer, {
         resource_type: resourceType,
-        folder:        `smartprop/whatsapp/${req.user.organizationId}`,
+        // Default stays 'whatsapp' (this route's original purpose); callers may ask for one other known folder.
+        folder:        `smartprop/${req.query.folder === 'inspections' ? 'inspections' : 'whatsapp'}/${req.user.organizationId}`,
         // Use original filename (sanitised) so Cloudinary preserves the extension
         // which is required for PDFs and videos to be served with the right Content-Type.
         use_filename:      true,

@@ -121,8 +121,11 @@ export const ROUTE_POLICY: Record<string, AppRole[]> = {
   '/api/sustainability':             ADMIN_MANAGER_STAFF,    // ESG metrics and reporting
   '/api/owner-statements':           ADMIN_MANAGER_LANDLORD, // PM remittance statements & rent roll
   '/api/inspections':                STAFF_AND_ABOVE,        // property condition inspections (staff conduct them; landlord's nav already promised this page)
-  // Tenants can view and sign their own inspections (separate policy — enforced in the route handler)
-  '/api/inspections/sign-tenant':    TENANT_AND_ABOVE,
+  // Tenants view and countersign their own inspections through a dedicated route. It cannot live
+  // under /api/inspections: that prefix is guarded by the staff policy above, and this is a
+  // prefix map — a '/api/inspections/sign-tenant' entry never matched the real '/:id/sign-tenant' path.
+  // The handler additionally ties every request to the caller's own tenant record.
+  '/api/tenant-inspections':         ['tenant'],
   '/api/prospects':                  ADMIN_MANAGER_STAFF,    // letting pipeline
   '/api/time-tracking':              ADMIN_MANAGER_STAFF,
   '/api/visitor-access-management':  VISITOR_ACCESS_ALLOWED,
