@@ -231,6 +231,7 @@ type BadgeIntent =
 const BADGE_MAP: Record<string, string> = {
   active:     "bg-emerald-50  text-emerald-700 border-emerald-200 dark:bg-emerald-950 dark:text-emerald-400 dark:border-emerald-800",
   available:  "bg-emerald-50  text-emerald-700 border-emerald-200 dark:bg-emerald-950 dark:text-emerald-400 dark:border-emerald-800",
+  checked_in: "bg-emerald-50  text-emerald-700 border-emerald-200 dark:bg-emerald-950 dark:text-emerald-400 dark:border-emerald-800",
   success:    "bg-emerald-50  text-emerald-700 border-emerald-200 dark:bg-emerald-950 dark:text-emerald-400 dark:border-emerald-800",
   successful: "bg-emerald-50  text-emerald-700 border-emerald-200 dark:bg-emerald-950 dark:text-emerald-400 dark:border-emerald-800",
   sent:       "bg-emerald-50  text-emerald-700 border-emerald-200 dark:bg-emerald-950 dark:text-emerald-400 dark:border-emerald-800",
@@ -253,6 +254,7 @@ const BADGE_MAP: Record<string, string> = {
   overdue:    "bg-red-50      text-red-600     border-red-200     dark:bg-red-950     dark:text-red-400     dark:border-red-800",
   unpaid:     "bg-red-50      text-red-600     border-red-200     dark:bg-red-950     dark:text-red-400     dark:border-red-800",
   rejected:   "bg-red-50      text-red-600     border-red-200     dark:bg-red-950     dark:text-red-400     dark:border-red-800",
+  denied:     "bg-red-50      text-red-600     border-red-200     dark:bg-red-950     dark:text-red-400     dark:border-red-800",
   failed:     "bg-red-50      text-red-600     border-red-200     dark:bg-red-950     dark:text-red-400     dark:border-red-800",
   urgent:     "bg-red-50      text-red-600     border-red-200     dark:bg-red-950     dark:text-red-400     dark:border-red-800",
   expired:    "bg-red-50      text-red-600     border-red-200     dark:bg-red-950     dark:text-red-400     dark:border-red-800",
@@ -261,6 +263,7 @@ const BADGE_MAP: Record<string, string> = {
 
   cancelled:  "bg-muted       text-muted-foreground   border-border",
   inactive:   "bg-muted       text-muted-foreground   border-border",
+  checked_out:"bg-muted       text-muted-foreground   border-border",
   unavailable:"bg-muted       text-muted-foreground   border-border",
   low:        "bg-muted       text-muted-foreground   border-border",
   reversed:   "bg-muted       text-muted-foreground   border-border",

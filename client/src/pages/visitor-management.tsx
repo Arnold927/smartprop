@@ -8,9 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { QrCode, Plus, UserCheck, Clock, CheckCircle, XCircle, Shield, Download, X, Search, MoreHorizontal, Trash2, Ban } from "lucide-react";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { QrCode, Plus, UserCheck, Clock, CheckCircle, XCircle, Shield, Download, Trash2, Ban } from "lucide-react";
 import QRCode from "qrcode";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, ensureArray } from "@/lib/queryClient";
@@ -65,15 +63,6 @@ function VisitorQRCode({ value, size = 160 }: { value: string; size?: number }) 
   if (!svgData) return <div style={{ width: size, height: size }} className="bg-muted animate-pulse rounded" />;
   return <div dangerouslySetInnerHTML={{ __html: svgData }} style={{ width: size, height: size }} />;
 }
-
-const statusColors: Record<string, string> = {
-  pending: "bg-yellow-100 text-yellow-800",
-  approved: "bg-blue-100 text-blue-800",
-  checked_in: "bg-emerald-50 text-emerald-700 border border-emerald-200",
-  checked_out: "bg-muted text-foreground",
-  expired: "bg-red-100 text-red-800",
-  denied: "bg-red-100 text-red-800",
-};
 
 const accessMethods = [
   { value: "qr_code", label: "QR Code", icon: QrCode },
@@ -389,74 +378,71 @@ export default function VisitorManagement() {
   }
 
   return (
-    <div className="container mx-auto p-6 space-y-8">
-      {/* Header */}
-      <div className="flex justify-between items-center">
-        <div>
-          <h1 className="text-3xl font-bold">Visitor Access Management</h1>
-          <p className="text-muted-foreground">
-            QR-code based visitor access with smart gate integration and real-time tracking
-          </p>
-        </div>
-        <Dialog open={isCreateDialogOpen} onOpenChange={(open) => {
-          setIsCreateDialogOpen(open);
-          if (!open) {
-            setFormHostTenantId("");
-            setFormHostUnitId("");
-            setFormPropertyId("");
-            setFormAccessMethod("qr_code");
-          }
-        }}>
-          <DialogTrigger asChild>
-            <Button>
-              <Plus className="h-4 w-4 mr-2" />
-              Create Visitor Access
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="max-w-2xl">
-            <DialogHeader>
-              <DialogTitle>Create Visitor Access</DialogTitle>
-              <DialogDescription>
-                Generate QR code for visitor access with smart gate integration
-              </DialogDescription>
-            </DialogHeader>
-            <form onSubmit={handleCreateVisitorAccess} className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="visitorName">Visitor Name *</Label>
-                  <Input name="visitorName" placeholder="Full name" required />
+    <PageShell>
+      <PageHeader
+        title="Visitor Access Management"
+        subtitle="QR-code based visitor access with smart gate integration and real-time tracking"
+        icon={<Shield className="w-5 h-5" />}
+        actions={
+          <Dialog open={isCreateDialogOpen} onOpenChange={(open) => {
+            setIsCreateDialogOpen(open);
+            if (!open) {
+              setFormHostTenantId("");
+              setFormHostUnitId("");
+              setFormPropertyId("");
+              setFormAccessMethod("qr_code");
+            }
+          }}>
+            <DialogTrigger asChild>
+              <Button>
+                <Plus className="h-4 w-4 mr-2" />
+                Create Visitor Access
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-2xl">
+              <DialogHeader>
+                <DialogTitle>Create Visitor Access</DialogTitle>
+                <DialogDescription>
+                  Generate QR code for visitor access with smart gate integration
+                </DialogDescription>
+              </DialogHeader>
+              <form onSubmit={handleCreateVisitorAccess} className="space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="visitorName">Visitor Name *</Label>
+                    <Input name="visitorName" placeholder="Full name" required />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="visitorPhone">Phone Number</Label>
+                    <Input name="visitorPhone" type="tel" placeholder="+254..." />
+                  </div>
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="visitorPhone">Phone Number</Label>
-                  <Input name="visitorPhone" type="tel" placeholder="+254..." />
-                </div>
-              </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="visitorIdNumber">ID/Passport Number</Label>
-                <Input name="visitorIdNumber" placeholder="ID or Passport number" />
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label>Host Tenant</Label>
-                  <Select value={formHostTenantId} onValueChange={handleTenantChange}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select host" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {tenants.length === 0 ? (
-                        <SelectItem value="__none" disabled>No tenants available</SelectItem>
-                      ) : (
-                        tenants.map((tenant: any) => (
-                          <SelectItem key={tenant.id} value={tenant.id.toString()}>
-                            {tenant.firstName} {tenant.lastName}
-                          </SelectItem>
-                        ))
-                      )}
-                    </SelectContent>
-                  </Select>
+                  <Label htmlFor="visitorIdNumber">ID/Passport Number</Label>
+                  <Input name="visitorIdNumber" placeholder="ID or Passport number" />
                 </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label>Host Tenant</Label>
+                    <Select value={formHostTenantId} onValueChange={handleTenantChange}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select host" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {tenants.length === 0 ? (
+                          <SelectItem value="__none" disabled>No tenants available</SelectItem>
+                        ) : (
+                          tenants.map((tenant: any) => (
+                            <SelectItem key={tenant.id} value={tenant.id.toString()}>
+                              {tenant.firstName} {tenant.lastName}
+                            </SelectItem>
+                          ))
+                        )}
+                      </SelectContent>
+                    </Select>
+                  </div>
 
                 <div className="space-y-2">
                   <Label>Unit</Label>
@@ -544,29 +530,18 @@ export default function VisitorManagement() {
             </form>
           </DialogContent>
         </Dialog>
-      </div>
+        }
+      />
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-6 gap-4">
-        {[
-          { title: "Total Visitors", value: stats.total, icon: UserCheck, color: "text-muted-foreground" },
-          { title: "Pending", value: stats.pending, icon: Clock, color: "text-yellow-600" },
-          { title: "Checked In", value: stats.checkedIn, icon: CheckCircle, color: "text-green-600" },
-          { title: "Checked Out", value: stats.checkedOut, icon: XCircle, color: "text-muted-foreground" },
-          { title: "Today's Visitors", value: stats.todayVisitors, icon: Clock, color: "text-blue-600" },
-          { title: "Currently Inside", value: stats.activeVisitors, icon: Shield, color: "text-green-600" },
-        ].map((stat) => (
-          <Card key={stat.title}>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">{stat.title}</CardTitle>
-              <stat.icon className={`h-4 w-4 ${stat.color}`} />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-semibold">{stat.value}</div>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
+      <StatsGrid cols={3}>
+        <StatTile label="Total Visitors" value={stats.total} icon={<UserCheck className="w-4 h-4" />} accent="blue" />
+        <StatTile label="Pending" value={stats.pending} icon={<Clock className="w-4 h-4" />} accent="amber" />
+        <StatTile label="Checked In" value={stats.checkedIn} icon={<CheckCircle className="w-4 h-4" />} accent="emerald" />
+        <StatTile label="Checked Out" value={stats.checkedOut} icon={<XCircle className="w-4 h-4" />} accent="blue" />
+        <StatTile label="Today's Visitors" value={stats.todayVisitors} icon={<Clock className="w-4 h-4" />} accent="blue" />
+        <StatTile label="Currently Inside" value={stats.activeVisitors} icon={<Shield className="w-4 h-4" />} accent="emerald" />
+      </StatsGrid>
 
       {/* Main Content */}
       <Tabs value={activeTab} onValueChange={setActiveTab}>
@@ -577,167 +552,120 @@ export default function VisitorManagement() {
         </TabsList>
 
         <TabsContent value="overview" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-                <div>
-                  <CardTitle>Visitor Access Management</CardTitle>
-                  <CardDescription>Real-time visitor tracking with QR-code based access control</CardDescription>
-                </div>
-                <div className="relative w-full sm:w-72">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
-                  <Input
-                    placeholder="Search visitors, codes, properties…"
-                    value={searchQuery}
-                    onChange={(e) => handleSearchChange(e.target.value)}
-                    className="pl-9 pr-9"
-                  />
-                  {searchQuery && (
-                    <button
-                      onClick={() => handleSearchChange("")}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                    >
-                      <X className="h-4 w-4" />
-                    </button>
-                  )}
-                </div>
-              </div>
-              {searchQuery && (
-                <p className="text-sm text-muted-foreground mt-1">
-                  {filteredVisitors.length} result{filteredVisitors.length !== 1 ? "s" : ""} for &quot;{searchQuery}&quot;
-                </p>
-              )}
-            </CardHeader>
-            <CardContent className="p-0">
-              <div className="overflow-x-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Visitor</TableHead>
-                      <TableHead>Property / Unit</TableHead>
-                      <TableHead>Expected</TableHead>
-                      <TableHead>Actual Arrival</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead className="text-right">Actions</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {filteredVisitors.length === 0 ? (
-                      <TableRow>
-                        <TableCell colSpan={6} className="text-center py-12 text-muted-foreground">
-                          {searchQuery ? `No visitors match "${searchQuery}"` : "No visitor access records found"}
-                        </TableCell>
-                      </TableRow>
-                    ) : (
-                      paginatedVisitors.map((visitor) => (
-                        <TableRow
-                          key={visitor.id}
-                          className="cursor-pointer hover:bg-muted/50"
-                          onClick={() => setDetailsVisitor(visitor)}
-                        >
-                          <TableCell>
-                            <div className="font-medium">{visitor.visitor_name}</div>
-                            <div className="text-xs text-muted-foreground font-mono">{visitor.visitor_code}</div>
-                          </TableCell>
-                          <TableCell>
-                            <div className="font-medium">{visitor.property_name ?? "—"}</div>
-                            <div className="text-xs text-muted-foreground">
-                              {visitor.unit_number ? `Unit ${visitor.unit_number}` : "—"}
-                            </div>
-                          </TableCell>
-                          <TableCell className="text-sm whitespace-nowrap">
-                            {new Date(visitor.expected_arrival).toLocaleString()}
-                          </TableCell>
-                          <TableCell className="text-sm whitespace-nowrap">
-                            {visitor.actual_arrival ? (
-                              <span className="text-green-600 dark:text-green-400 font-medium flex items-center gap-1">
-                                <CheckCircle className="w-3 h-3" />
-                                {new Date(visitor.actual_arrival).toLocaleString()}
-                              </span>
-                            ) : (
-                              <span className="text-muted-foreground italic text-xs">Not yet</span>
-                            )}
-                          </TableCell>
-                          <TableCell>
-                            <Badge className={statusColors[visitor.status] ?? statusColors.pending}>
-                              {visitor.status?.replace(/_/g, " ") || "pending"}
-                            </Badge>
-                          </TableCell>
-                          <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
-                            <DropdownMenu>
-                              <DropdownMenuTrigger asChild>
-                                <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
-                                  <MoreHorizontal className="h-4 w-4" />
-                                  <span className="sr-only">Open actions</span>
-                                </Button>
-                              </DropdownMenuTrigger>
-                              <DropdownMenuContent align="end" className="w-48">
-                                <DropdownMenuItem onClick={() => setDetailsVisitor(visitor)}>
-                                  <UserCheck className="h-4 w-4 mr-2" /> View Details
-                                </DropdownMenuItem>
-                                <DropdownMenuItem onClick={() => setQrModalVisitor(visitor)}>
-                                  <QrCode className="h-4 w-4 mr-2" /> View QR Code
-                                </DropdownMenuItem>
-                                <DropdownMenuItem onClick={() => downloadQR(visitor)}>
-                                  <Download className="h-4 w-4 mr-2" /> Download QR
-                                </DropdownMenuItem>
-                                <DropdownMenuSeparator />
-                                {visitor.status === "pending" && (
-                                  <DropdownMenuItem
-                                    onClick={() => approveVisitorMutation.mutate(visitor.visitor_code)}
-                                    disabled={approveVisitorMutation.isPending}
-                                  >
-                                    <CheckCircle className="h-4 w-4 mr-2 text-blue-600" /> Approve
-                                  </DropdownMenuItem>
-                                )}
-                                {visitor.status === "approved" && (
-                                  <DropdownMenuItem
-                                    onClick={() => {
-                                      setSelectedVisitor(visitor);
-                                      setFormCheckInLocation("Main Gate");
-                                      setIsCheckInDialogOpen(true);
-                                    }}
-                                  >
-                                    <UserCheck className="h-4 w-4 mr-2 text-green-600" /> Check In
-                                  </DropdownMenuItem>
-                                )}
-                                {visitor.status === "checked_in" && (
-                                  <DropdownMenuItem
-                                    onClick={() => handleCheckOut(visitor.visitor_code)}
-                                    disabled={checkOutVisitorMutation.isPending}
-                                  >
-                                    <XCircle className="h-4 w-4 mr-2 text-red-600" /> Check Out
-                                  </DropdownMenuItem>
-                                )}
-                                {(visitor.status === "approved" || visitor.status === "checked_in") && (
-                                  <DropdownMenuItem
-                                    onClick={() => revokeVisitorMutation.mutate(visitor.visitor_code)}
-                                    disabled={revokeVisitorMutation.isPending}
-                                    className="text-orange-600 focus:text-orange-600"
-                                  >
-                                    <Ban className="h-4 w-4 mr-2" /> Revoke Access
-                                  </DropdownMenuItem>
-                                )}
-                                {visitor.status === "pending" && (
-                                  <>
-                                    <DropdownMenuSeparator />
-                                    <DropdownMenuItem
-                                      onClick={() => setConfirmDeleteCode(visitor.visitor_code)}
-                                      className="text-red-600 focus:text-red-600"
-                                    >
-                                      <Trash2 className="h-4 w-4 mr-2" /> Delete
-                                    </DropdownMenuItem>
-                                  </>
-                                )}
-                              </DropdownMenuContent>
-                            </DropdownMenu>
-                          </TableCell>
-                        </TableRow>
-                      ))
-                    )}
-                  </TableBody>
-                </Table>
-              </div>
+          <SectionCard
+            title="Visitor Access Management"
+            subtitle="Real-time visitor tracking with QR-code based access control"
+            padding="none"
+          >
+            <div className="px-5 pb-4">
+              <FilterBar
+                search={searchQuery}
+                onSearch={handleSearchChange}
+                placeholder="Search visitors, codes, properties…"
+                actions={searchQuery ? (
+                  <span className="text-sm text-muted-foreground whitespace-nowrap">
+                    {filteredVisitors.length} result{filteredVisitors.length !== 1 ? "s" : ""} for &quot;{searchQuery}&quot;
+                  </span>
+                ) : undefined}
+              />
+            </div>
+            <SPTable
+              data={paginatedVisitors}
+              onRowClick={(visitor: any) => setDetailsVisitor(visitor)}
+              emptyState={
+                <EmptyState
+                  icon={<UserCheck />}
+                  title={searchQuery ? `No visitors match "${searchQuery}"` : "No visitor access records found"}
+                  size="lg"
+                />
+              }
+              columns={[
+                {
+                  header: "Visitor",
+                  cell: (visitor: any) => (
+                    <>
+                      <div className="font-medium">{visitor.visitor_name}</div>
+                      <div className="text-xs text-muted-foreground font-mono">{visitor.visitor_code}</div>
+                    </>
+                  ),
+                },
+                {
+                  header: "Property / Unit",
+                  hideOnMobile: true,
+                  cell: (visitor: any) => (
+                    <>
+                      <div className="font-medium">{visitor.property_name ?? "—"}</div>
+                      <div className="text-xs text-muted-foreground">
+                        {visitor.unit_number ? `Unit ${visitor.unit_number}` : "—"}
+                      </div>
+                    </>
+                  ),
+                },
+                {
+                  header: "Expected",
+                  hideOnMobile: true,
+                  cell: (visitor: any) => (
+                    <span className="text-sm whitespace-nowrap">{new Date(visitor.expected_arrival).toLocaleString()}</span>
+                  ),
+                },
+                {
+                  header: "Actual Arrival",
+                  hideOnMobile: true,
+                  cell: (visitor: any) => visitor.actual_arrival ? (
+                    <span className="text-sm whitespace-nowrap text-green-600 dark:text-green-400 font-medium flex items-center gap-1">
+                      <CheckCircle className="w-3 h-3" />
+                      {new Date(visitor.actual_arrival).toLocaleString()}
+                    </span>
+                  ) : (
+                    <span className="text-muted-foreground italic text-xs">Not yet</span>
+                  ),
+                },
+                {
+                  header: "Status",
+                  cell: (visitor: any) => <SPBadge status={visitor.status || "pending"} />,
+                },
+                {
+                  header: "",
+                  align: "right",
+                  cell: (visitor: any) => (
+                    <div onClick={(e) => e.stopPropagation()}>
+                      <ActionMenu items={[
+                        { label: "View Details", icon: <UserCheck className="h-4 w-4" />, onClick: () => setDetailsVisitor(visitor) },
+                        { label: "View QR Code", icon: <QrCode className="h-4 w-4" />, onClick: () => setQrModalVisitor(visitor) },
+                        { label: "Download QR", icon: <Download className="h-4 w-4" />, onClick: () => downloadQR(visitor) },
+                        ...(visitor.status === "pending" ? [{
+                          label: "Approve", icon: <CheckCircle className="h-4 w-4 text-blue-600" />, separator: true,
+                          onClick: () => approveVisitorMutation.mutate(visitor.visitor_code),
+                          disabled: approveVisitorMutation.isPending,
+                        }] : []),
+                        ...(visitor.status === "approved" ? [{
+                          label: "Check In", icon: <UserCheck className="h-4 w-4 text-green-600" />, separator: true,
+                          onClick: () => {
+                            setSelectedVisitor(visitor);
+                            setFormCheckInLocation("Main Gate");
+                            setIsCheckInDialogOpen(true);
+                          },
+                        }] : []),
+                        ...(visitor.status === "checked_in" ? [{
+                          label: "Check Out", icon: <XCircle className="h-4 w-4 text-red-600" />, separator: true,
+                          onClick: () => handleCheckOut(visitor.visitor_code),
+                          disabled: checkOutVisitorMutation.isPending,
+                        }] : []),
+                        ...((visitor.status === "approved" || visitor.status === "checked_in") ? [{
+                          label: "Revoke Access", icon: <Ban className="h-4 w-4" />, destructive: true,
+                          onClick: () => revokeVisitorMutation.mutate(visitor.visitor_code),
+                          disabled: revokeVisitorMutation.isPending,
+                        }] : []),
+                        ...(visitor.status === "pending" ? [{
+                          label: "Delete", icon: <Trash2 className="h-4 w-4" />, destructive: true, separator: true,
+                          onClick: () => setConfirmDeleteCode(visitor.visitor_code),
+                        }] : []),
+                      ]} />
+                    </div>
+                  ),
+                },
+              ]}
+            />
               {filteredVisitors.length > 0 && (
                 <div className="flex flex-col sm:flex-row items-center justify-between gap-3 px-4 py-3 border-t">
                   <div className="flex items-center gap-2 text-sm text-muted-foreground">
@@ -820,8 +748,7 @@ export default function VisitorManagement() {
                   </div>
                 </div>
               )}
-            </CardContent>
-          </Card>
+          </SectionCard>
         </TabsContent>
 
         <TabsContent value="qr-codes" className="space-y-4">
@@ -845,9 +772,7 @@ export default function VisitorManagement() {
                       {visitor.property_name}{visitor.unit_number ? ` · Unit ${visitor.unit_number}` : ""}
                     </div>
                     <div className="flex items-center justify-between">
-                      <Badge className={statusColors[visitor.status] ?? statusColors.pending}>
-                        {visitor.status?.replace("_", " ") || "pending"}
-                      </Badge>
+                      <SPBadge status={visitor.status || "pending"} />
                       <span className="text-xs text-muted-foreground">
                         {visitor.expected_departure
                           ? `Expires ${new Date(visitor.expected_departure).toLocaleDateString()}`
@@ -942,9 +867,7 @@ export default function VisitorManagement() {
                   <p className="text-sm text-muted-foreground">{qrModalVisitor.visit_purpose}</p>
                 )}
                 <div className="flex justify-center gap-2 pt-1">
-                  <Badge className={statusColors[qrModalVisitor.status] ?? statusColors.pending}>
-                    {qrModalVisitor.status?.replace("_", " ") || "pending"}
-                  </Badge>
+                  <SPBadge status={qrModalVisitor.status || "pending"} />
                   {qrModalVisitor.unit_number && (
                     <Badge variant="outline">Unit {qrModalVisitor.unit_number}</Badge>
                   )}
@@ -1047,9 +970,7 @@ export default function VisitorManagement() {
                     <DialogTitle className="text-xl">{detailsVisitor.visitor_name}</DialogTitle>
                     <DialogDescription className="font-mono text-xs mt-0.5">{detailsVisitor.visitor_code}</DialogDescription>
                   </div>
-                  <Badge className={`${statusColors[detailsVisitor.status] ?? statusColors.pending} mt-1 shrink-0`}>
-                    {detailsVisitor.status?.replace(/_/g, " ") || "pending"}
-                  </Badge>
+                  <SPBadge status={detailsVisitor.status || "pending"} className="mt-1 shrink-0" />
                 </div>
               </DialogHeader>
 
@@ -1173,6 +1094,6 @@ export default function VisitorManagement() {
           )}
         </DialogContent>
       </Dialog>
-    </div>
+    </PageShell>
   );
 }
