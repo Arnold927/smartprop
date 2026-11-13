@@ -34,6 +34,7 @@ import {
   eq, and, gte, lte, desc, asc, sql, inArray, sum,
 } from "drizzle-orm";
 import { format, startOfMonth, endOfMonth, getDaysInMonth } from "date-fns";
+import { maxSequenceSuffix, withNumberRetry } from "../utils/sequenceNumber";
 import { authenticateJWT } from "../middleware/auth";
 import { requireOrg }      from "../middleware/requireOrg";
 
@@ -45,22 +46,16 @@ const auth   = [authenticateJWT as any, requireOrg as any];
 const pad   = (n: number) => String(n).padStart(2, "0");
 const money = (n: any)    => Number(n ?? 0);
 
-/** Generate next sequential statement number */
+/** Next sequential statement number, e.g. OWS-2026-017 (numeric comparison — see utils/sequenceNumber.ts). */
 async function nextStatementNumber(): Promise<string> {
   const year = new Date().getFullYear();
-  const [row] = await db
-    .select({ max: sql<string>`MAX(statement_number)` })
-    .from(ownerStatements);
-  const last = parseInt((row?.max ?? "OWS-0000-000").split("-").pop() ?? "0") || 0;
+  const last = await maxSequenceSuffix(ownerStatements, ownerStatements.statementNumber, `OWS-${year}`);
   return `OWS-${year}-${String(last + 1).padStart(3, "0")}`;
 }
 
 async function nextAgreementNumber(): Promise<string> {
   const year = new Date().getFullYear();
-  const [row] = await db
-    .select({ max: sql<string>`MAX(agreement_number)` })
-    .from(pmAgreements);
-  const last = parseInt((row?.max ?? "PMA-0000-000").split("-").pop() ?? "0") || 0;
+  const last = await maxSequenceSuffix(pmAgreements, pmAgreements.agreementNumber, `PMA-${year}`);
   return `PMA-${year}-${String(last + 1).padStart(3, "0")}`;
 }
 
@@ -144,7 +139,6 @@ router.post("/agreements", ...auth, async (req: any, res: any) => {
   }
   try {
     const orgId = req.user.organizationId;
-    const agreementNumber = await nextAgreementNumber();
 
     // Auto-resolve ownerUserId from the property's ownerId if not supplied in body
     let ownerUserId = req.body.ownerUserId ?? null;
@@ -157,13 +151,13 @@ router.post("/agreements", ...auth, async (req: any, res: any) => {
       if (prop?.ownerId) ownerUserId = prop.ownerId;
     }
 
-    const [created] = await db.insert(pmAgreements).values({
+    const [created] = await withNumberRetry(async () => db.insert(pmAgreements).values({
       ...req.body,
       organizationId: orgId,
-      agreementNumber,
+      agreementNumber: await nextAgreementNumber(),
       ownerUserId,
       createdBy: req.user.id,
-    } as any).returning();
+    } as any).returning());
     res.status(201).json(created);
   } catch (err: any) { res.status(400).json({ message: err.message }); }
 });
@@ -248,6 +242,7 @@ router.get("/:id", ...auth, async (req: any, res: any) => {
       .select({
         statement: ownerStatements,
         ownerId:   properties.ownerId,
+        propertyName: properties.name,
       })
       .from(ownerStatements)
       .leftJoin(properties, eq(ownerStatements.propertyId, properties.id))
@@ -259,7 +254,7 @@ router.get("/:id", ...auth, async (req: any, res: any) => {
       .limit(1);
 
     if (!row) return res.status(404).json({ message: "Statement not found" });
-    res.json(row.statement);
+    res.json({ ...row.statement, propertyName: row.propertyName });
   } catch (err: any) { res.status(500).json({ message: err.message }); }
 });
 
@@ -465,13 +460,12 @@ router.post("/generate", ...auth, async (req: any, res: any) => {
       return res.json(updated);
     }
 
-    const statementNumber = await nextStatementNumber();
-    const [created] = await db.insert(ownerStatements).values({
+    const [created] = await withNumberRetry(async () => db.insert(ownerStatements).values({
       organizationId:   orgId,
       pmAgreementId:    agreement.id,
       propertyId,
       ownerUserId:      agreement.ownerUserId,
-      statementNumber,
+      statementNumber:  await nextStatementNumber(),
       periodMonth:      month,
       periodYear:       year,
       grossRent:        String(grossRent),
@@ -490,7 +484,7 @@ router.post("/generate", ...auth, async (req: any, res: any) => {
       paymentDetails,
       expenseDetails,
       generatedBy:      req.user.id,
-    } as any).returning();
+    } as any).returning());
 
     res.status(201).json(created);
   } catch (err: any) {

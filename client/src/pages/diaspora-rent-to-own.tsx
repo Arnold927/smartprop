@@ -977,7 +977,7 @@ export default function DiasporaRentToOwn() {
                     }`} />
                     <CardHeader className="pb-2">
                       <div className="flex justify-between items-start gap-2 flex-wrap">
-                        <div className="space-y-1 min-w-0 flex-1">
+                        <div className="space-y-1 min-w-0 basis-full sm:basis-0 sm:flex-1">
                           <div className="flex items-center gap-2">
                             <span className="text-xl flex-shrink-0">{countryFlags[contract.clientCountry] || "🌍"}</span>
                             <CardTitle className="text-base leading-tight truncate">{contract.clientName}</CardTitle>

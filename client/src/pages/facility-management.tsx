@@ -703,7 +703,7 @@ const FacilityManagement = () => {
                           className={`p-4 rounded-xl border border-border ${isActive ? "bg-orange-50/30 dark:bg-orange-950/10" : ""}`}
                         >
                           <div className="flex items-start justify-between gap-3 flex-wrap">
-                            <div className="min-w-0 flex-1">
+                            <div className="min-w-0 basis-full sm:basis-0 sm:flex-1">
                               <div className="flex items-center gap-2 flex-wrap">
                                 {isActive && <span className="w-2 h-2 bg-orange-500 rounded-full animate-pulse flex-shrink-0" />}
                                 {wo.status === "completed" && <CheckCircle className="w-4 h-4 text-green-500 flex-shrink-0" />}

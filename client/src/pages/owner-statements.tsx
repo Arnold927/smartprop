@@ -287,7 +287,7 @@ function StatementDetailDialog({ statementId, onClose }: { statementId: number |
               ].map(({ label, value, color }) => (
                 <Card key={label}><CardContent className="pt-3 pb-2">
                   <p className="text-xs text-muted-foreground">{label}</p>
-                  <p className={`text-sm font-semibold ${color}`}>{value}</p>
+                  <p className={`text-sm font-semibold whitespace-nowrap ${color}`}>{value}</p>
                 </CardContent></Card>
               ))}
             </div>
@@ -511,14 +511,14 @@ function StatementsTab({ isReadOnly, onGoToAgreements }: { isReadOnly: boolean; 
           <Card key={s.id}>
             <CardContent className="pt-4">
               <div className="flex items-start justify-between gap-3 flex-wrap">
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className="font-semibold">{s.propertyName ?? `Property #${s.propertyId}`}</span>
-                    <span className="text-muted-foreground text-sm">— {MONTHS[(s.periodMonth ?? 1) - 1]} {s.periodYear}</span>
+                <div className="basis-full sm:basis-0 sm:flex-1 min-w-0">
+                  <div className="flex items-center gap-x-2 gap-y-1 flex-wrap">
+                    <span className="font-semibold break-words">{s.propertyName ?? `Property #${s.propertyId}`}</span>
+                    <span className="text-muted-foreground text-sm whitespace-nowrap">— {MONTHS[(s.periodMonth ?? 1) - 1]} {s.periodYear}</span>
                     <SPBadge status={s.status ?? "draft"} />
                     {s.statementNumber && <span className="text-xs font-mono text-muted-foreground">{s.statementNumber}</span>}
                   </div>
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-6 gap-y-0.5 mt-2 text-sm">
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-4 sm:gap-x-6 gap-y-2 mt-3 text-sm [&_p]:whitespace-nowrap">
                     <div><p className="text-xs text-muted-foreground">Gross rent</p><p className="font-medium">{fmtKES(s.grossRent)}</p></div>
                     <div><p className="text-xs text-muted-foreground">PM fee</p><p className="font-medium text-red-600">-{fmtKES(s.pmFee)}</p></div>
                     <div><p className="text-xs text-muted-foreground">Deductions</p><p className="font-medium text-red-600">-{fmtKES(s.totalDeductions ?? (Number(s.maintenanceCosts??0)+Number(s.utilityCosts??0)+Number(s.insuranceCosts??0)+Number(s.otherDeductions??0)))}</p></div>
