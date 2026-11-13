@@ -23,7 +23,7 @@ import {
   guardShifts,
   registeredVehicles,
 } from "@shared/schema";
-import { eq, and, desc, gte, lte, or, ilike, sql } from "drizzle-orm";
+import { eq, and, desc, gte, lte, or, ilike, like, sql } from "drizzle-orm";
 import { authenticateGuard } from "./gate-pins";
 import { authenticateJWT } from "../middleware/auth";
 import { requireOrg } from "../middleware/requireOrg";
@@ -429,6 +429,10 @@ router.get("/gate-passes", ...guard, async (req: any, res: any) => {
       .where(
         and(
           eq(visitors.propertyId, propertyId),
+          // Same gap as the admin gate-passes endpoint (security.ts) and the fix is the same:
+          // without this, every ordinary Visitor Access entry for the property showed up here
+          // too, mislabelled as a "visitor" type gate pass just because the marker was absent.
+          like(visitors.notes, "pass_type:%"),
           search
             ? or(
                 ilike(visitors.visitorName, `%${search}%`),

@@ -1,23 +1,25 @@
 /**
  * reportScheduler.ts
  *
- * Runs a monthly job on the 5th of every month at 08:00 EAT that:
- *   1. Scans all organisations with `reportSchedule.enabled = true`
- *      in their organizationSettings.emailSettings JSON column.
- *   2. For each org, finds all active PM agreements (one per property).
- *   3. Generates (or re-uses) the owner statement for last month.
- *   4. Emails the HTML statement to the property owner via Resend.
- *   5. Updates the statement status to "sent" and records the timestamp.
+ * Emails each property owner their monthly statement.
  *
- * Integration: import { startReportScheduler } and call from server/index.ts
- * alongside startRentScheduler / startLeaseScheduler.
+ *   • Scheduled: a check runs every day at 08:00 EAT (and once shortly after the server boots).
+ *     An organisation is processed when reporting is enabled AND today falls within the
+ *     one-week window that starts on the organisation's chosen day of the month. The window
+ *     is what makes a missed 08:00 (server asleep or restarting) harmless, while a late
+ *     "enable" does not suddenly fire last month's emails weeks after the chosen day.
+ *   • Manual ("Send now"): processes ONE organisation, regardless of its toggle or chosen day.
  *
- * The toggle lives in organizationSettings.emailSettings:
- *   { reportSchedule: { enabled: boolean, dayOfMonth: number } }
- * Default dayOfMonth: 5.
+ * For each organisation it finds all active PM agreements (one per property), generates (or
+ * re-uses) last month's owner statement, emails the HTML statement to the owner via Resend,
+ * and marks the statement "sent". A statement already sent or paid is skipped, so running the
+ * check on consecutive days never emails an owner twice.
  *
- * All statement-generation logic is self-contained here (extracted from
- * the /api/owner-statements/generate HTTP route) so the cron doesn't need
+ * Settings live in organizationSettings.emailSettings:
+ *   { reportSchedule: { enabled: boolean, dayOfMonth: number (1-28) } }   default day: 5
+ *
+ * All statement-generation logic is self-contained here (extracted from the
+ * /api/owner-statements/generate HTTP route) so the cron doesn't need
  * to make internal HTTP requests.
  */
 
@@ -37,35 +39,29 @@ import {
 import { eq, and, gte, lte, inArray, sql } from "drizzle-orm";
 import { format, startOfMonth, endOfMonth, subMonths } from "date-fns";
 import { sendOwnerStatementEmail, StatementEmailData } from "../lib/ownerStatementEmail";
+import { maxSequenceSuffix, withNumberRetry } from "../utils/sequenceNumber";
 
 const log = (msg: string) => console.log(`[ReportScheduler] ${msg}`);
 
-// ── EAT scheduler (same pattern as rentScheduler) ────────────────────────────
+// ── EAT scheduling ────────────────────────────────────────────────────────────
 
-function msUntilNextMonthlyRun(dayOfMonth = 5, hh = 8, mm = 0): number {
-  const now   = new Date();
-  // Work in EAT (UTC+3)
-  const eatNow = new Date(now.getTime() + 3 * 60 * 60 * 1000);
+const EAT_OFFSET_MS = 3 * 60 * 60 * 1000; // East Africa Time = UTC+3, no daylight saving
 
-  let target = new Date(Date.UTC(
-    eatNow.getUTCFullYear(),
-    eatNow.getUTCMonth(),
-    dayOfMonth,
-    hh - 3, mm, 0, 0, // back to UTC
-  ));
-
-  // If this month's run has already passed, schedule for next month
-  if (target.getTime() <= now.getTime()) {
-    target = new Date(Date.UTC(
-      eatNow.getUTCFullYear(),
-      eatNow.getUTCMonth() + 1,
-      dayOfMonth,
-      hh - 3, mm, 0, 0,
-    ));
-  }
-
+/** Milliseconds until the next occurrence of hh:mm East Africa Time. */
+function msUntilNextDailyRun(hh = 8, mm = 0): number {
+  const now = new Date();
+  const target = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), hh - 3, mm, 0, 0));
+  if (target.getTime() <= now.getTime()) target.setUTCDate(target.getUTCDate() + 1);
   return target.getTime() - now.getTime();
 }
+
+/** The chosen day of month, kept inside the 1–28 range the settings screen offers. */
+function clampDay(d: any): number {
+  return Math.min(28, Math.max(1, parseInt(d) || 5));
+}
+
+/** How many days after the chosen day a missed run may still be made up. */
+const CATCH_UP_DAYS = 6;
 
 // ── Statement generation (mirrors /api/owner-statements/generate) ─────────────
 
@@ -87,10 +83,7 @@ function computePmFee(
 
 async function nextStatementNumber(): Promise<string> {
   const year = new Date().getFullYear();
-  const [row] = await db
-    .select({ max: sql<string>`MAX(statement_number)` })
-    .from(ownerStatements);
-  const last = parseInt((row?.max ?? "OWS-0000-000").split("-").pop() ?? "0") || 0;
+  const last = await maxSequenceSuffix(ownerStatements, ownerStatements.statementNumber, `OWS-${year}`);
   return `OWS-${year}-${String(last + 1).padStart(3, "0")}`;
 }
 
@@ -281,13 +274,12 @@ async function generateStatement(
       .where(eq(ownerStatements.id, existing.id))
       .returning();
   } else {
-    const statementNumber = await nextStatementNumber();
-    [statement] = await db.insert(ownerStatements).values({
+    [statement] = await withNumberRetry(async () => db.insert(ownerStatements).values({
       organizationId: orgId,
       pmAgreementId:  agreement.id,
       propertyId,
       ownerUserId:    agreement.ownerUserId,
-      statementNumber,
+      statementNumber: await nextStatementNumber(),
       periodMonth:    month,
       periodYear:     year,
       grossRent:      String(grossRent),
@@ -304,7 +296,7 @@ async function generateStatement(
       status:         "draft",
       paymentDetails, expenseDetails,
       generatedBy:    agreement.ownerUserId ?? null,
-    } as any).returning();
+    } as any).returning());
   }
 
   return { statement, property: prop, owner, agreement };
@@ -312,50 +304,72 @@ async function generateStatement(
 
 // ── Main monthly job ──────────────────────────────────────────────────────────
 
-export async function runMonthlyReportJob(): Promise<void> {
-  // Report for the previous calendar month
-  const now       = new Date();
-  const lastMonth = subMonths(now, 1);
-  const year      = lastMonth.getFullYear();
-  const month     = lastMonth.getMonth() + 1; // 1-based
-  const periodLabel = format(lastMonth, "MMMM yyyy");
+export interface ReportJobOptions {
+  /**
+   * Process ONE organisation only — used by the "Send now" button. That is an explicit request,
+   * so this organisation's on/off toggle and chosen day are ignored. Without it the job covers
+   * every organisation that is due today according to its own settings.
+   */
+  orgId?: number;
+  /** Override "now" (tests). */
+  now?: Date;
+}
 
-  log(`Starting monthly report job for ${periodLabel}`);
+export interface ReportJobResult {
+  sent: number;
+  skipped: number;
+  errors: number;
+  organisations: number;
+}
 
-  // All orgs with reporting enabled
-  const allSettings = await db
-    .select()
-    .from(organizationSettings);
+export async function runMonthlyReportJob(opts: ReportJobOptions = {}): Promise<ReportJobResult> {
+  const now    = opts.now ?? new Date();
+  const eatNow = new Date(now.getTime() + EAT_OFFSET_MS);
+  const eatDay = eatNow.getUTCDate();
 
-  const enabledOrgIds: number[] = allSettings
-    .filter(s => {
-      const es = (s.emailSettings as any) ?? {};
-      return es?.reportSchedule?.enabled === true;
-    })
-    .map(s => s.organizationId);
+  // Report for the previous calendar month, judged in EAT
+  const thisMonth0 = eatNow.getUTCMonth();                       // 0-based current month
+  const year  = thisMonth0 === 0 ? eatNow.getUTCFullYear() - 1 : eatNow.getUTCFullYear();
+  const month = thisMonth0 === 0 ? 12 : thisMonth0;              // 1-based previous month
+  const periodLabel = format(new Date(year, month - 1, 1), "MMMM yyyy");
 
-  if (enabledOrgIds.length === 0) {
-    log("No organisations have scheduled reporting enabled — nothing to do");
-    return;
+  const result: ReportJobResult = { sent: 0, skipped: 0, errors: 0, organisations: 0 };
+
+  // Which organisations are we doing?
+  let orgIds: number[];
+  if (opts.orgId !== undefined) {
+    orgIds = [opts.orgId];
+    log(`Manual report run for org #${opts.orgId} — ${periodLabel}`);
+  } else {
+    const allSettings = await db.select().from(organizationSettings);
+    orgIds = allSettings
+      .filter(s => {
+        const rs = ((s.emailSettings as any) ?? {}).reportSchedule;
+        if (rs?.enabled !== true) return false;
+        const day = clampDay(rs.dayOfMonth);
+        return eatDay >= day && eatDay <= day + CATCH_UP_DAYS;
+      })
+      .map(s => s.organizationId);
+
+    if (orgIds.length === 0) {
+      log(`Scheduled check for ${periodLabel}: no organisation is due today (EAT day ${eatDay}) — nothing to do`);
+      return result;
+    }
+    log(`Scheduled run for ${periodLabel}: ${orgIds.length} organisation(s) due: [${orgIds.join(", ")}]`);
   }
-
-  log(`Processing ${enabledOrgIds.length} organisation(s): [${enabledOrgIds.join(", ")}]`);
 
   // Org names (for email branding)
   const orgs = await db
     .select({ id: organizations.id, name: organizations.name })
     .from(organizations)
-    .where(inArray(organizations.id, enabledOrgIds));
+    .where(inArray(organizations.id, orgIds));
 
   const orgNameMap = new Map(orgs.map(o => [o.id, o.name]));
 
-  let totalSent    = 0;
-  let totalSkipped = 0;
-  let totalErrors  = 0;
-
-  for (const orgId of enabledOrgIds) {
+  for (const orgId of orgIds) {
     const orgName = orgNameMap.get(orgId) ?? `Org #${orgId}`;
     log(`\nOrg: ${orgName} (#${orgId})`);
+    result.organisations++;
 
     // Org settings (for timezone / currency)
     const [orgSettings] = await db
@@ -363,8 +377,6 @@ export async function runMonthlyReportJob(): Promise<void> {
       .from(organizationSettings)
       .where(eq(organizationSettings.organizationId, orgId))
       .limit(1);
-
-    const emailSettings = (orgSettings?.emailSettings as any) ?? {};
 
     // All active PM agreements for this org
     const agreements = await db
@@ -379,10 +391,10 @@ export async function runMonthlyReportJob(): Promise<void> {
 
     for (const { propertyId } of agreements) {
       try {
-        const result = await generateStatement(orgId, propertyId, year, month);
-        if (!result) { totalSkipped++; continue; }
+        const generated = await generateStatement(orgId, propertyId, year, month);
+        if (!generated) { result.skipped++; continue; }
 
-        const { statement, property: prop, owner, agreement } = result;
+        const { statement, property: prop, owner, agreement } = generated;
 
         const pmFeeLabel = agreement.feeType === "percentage"
           ? `PM fee (${Number(agreement.feeRate)}% of gross rent)`
@@ -427,15 +439,16 @@ export async function runMonthlyReportJob(): Promise<void> {
           .where(eq(ownerStatements.id, statement.id));
 
         log(`  ✓ Sent to ${owner.email} for ${prop.name}`);
-        totalSent++;
+        result.sent++;
       } catch (err: any) {
         log(`  ✗ Error for property #${propertyId}: ${err.message}`);
-        totalErrors++;
+        result.errors++;
       }
     }
   }
 
-  log(`\nJob complete — sent: ${totalSent}, skipped: ${totalSkipped}, errors: ${totalErrors}`);
+  log(`\nJob complete — sent: ${result.sent}, skipped: ${result.skipped}, errors: ${result.errors}`);
+  return result;
 }
 
 // ── Scheduler entry point ─────────────────────────────────────────────────────
@@ -443,21 +456,26 @@ export async function runMonthlyReportJob(): Promise<void> {
 export function startReportScheduler(): void {
   log("Report scheduler initialised");
 
-  const schedule = async () => {
-    const delay = msUntilNextMonthlyRun(5, 8, 0); // 5th of month, 08:00 EAT
-    const days  = Math.round(delay / 86_400_000);
-    log(`Next run in ~${days} day(s) (5th of the month at 08:00 EAT)`);
+  const check = async (why: string) => {
+    try {
+      await runMonthlyReportJob();
+    } catch (err) {
+      log(`Top-level error in ${why} report check: ${err}`);
+    }
+  };
 
+  const scheduleDaily = () => {
+    const delay = msUntilNextDailyRun(8, 0);
+    log(`Next report check in ~${Math.round(delay / 3_600_000)}h (08:00 EAT daily)`);
     setTimeout(async () => {
-      try {
-        await runMonthlyReportJob();
-      } catch (err) {
-        log(`Top-level error in monthly job: ${err}`);
-      }
-      // Reschedule for next month
-      schedule();
+      await check("daily");
+      scheduleDaily();
     }, delay);
   };
 
-  schedule();
+  scheduleDaily();
+
+  // Catch-up shortly after boot: the host may have been asleep or restarting at 08:00 on the
+  // chosen day. Safe to repeat — statements already sent are skipped.
+  setTimeout(() => { void check("startup"); }, 2 * 60 * 1000);
 }

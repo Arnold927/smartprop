@@ -12,7 +12,7 @@ import { db } from "../db";
 import { visitors, visitorLog, tenants, units, properties,
   parkingAssignments,
 } from "@shared/schema";
-import { eq, and, desc, inArray } from "drizzle-orm";
+import { eq, and, desc, inArray, notLike, isNull, or } from "drizzle-orm";
 import { authenticateJWT } from "../middleware/auth";
 import { requireOrg } from "../middleware/requireOrg";
 import { storage } from "../storage";
@@ -107,11 +107,18 @@ router.get("/", ...auth, async (req: any, res: any) => {
       if (landlordPropertyIds.length === 0) return res.json([]);
     }
 
+    // Gate passes (see security.ts) live in this same table, marked with a "pass_type:" prefix
+    // in notes — excluded here so a gate pass doesn't also show up as an ordinary Visitor Access
+    // entry with its internal marker string leaking into the visible notes field.
+    // NOT LIKE against a NULL notes column evaluates to NULL, not TRUE, so it would silently
+    // exclude every ordinary visitor whose notes were never set — treat NULL as "not a gate pass".
+    const notAGatePass = or(isNull(visitors.notes), notLike(visitors.notes, "pass_type:%"));
+
     const whereClause = caretakerPropertyId !== null
-      ? and(eq(properties.organizationId, orgId), eq(visitors.propertyId, caretakerPropertyId))
+      ? and(eq(properties.organizationId, orgId), eq(visitors.propertyId, caretakerPropertyId), notAGatePass)
       : landlordPropertyIds !== null
-        ? and(eq(properties.organizationId, orgId), inArray(visitors.propertyId, landlordPropertyIds))
-        : eq(properties.organizationId, orgId);
+        ? and(eq(properties.organizationId, orgId), inArray(visitors.propertyId, landlordPropertyIds), notAGatePass)
+        : and(eq(properties.organizationId, orgId), notAGatePass);
 
     const rows = await db
       .select({

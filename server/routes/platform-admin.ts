@@ -32,6 +32,7 @@ import { db } from "../db";
 import { organizations, properties, users, rentPayments, utilityBills, tenants, units } from "@shared/schema";
 import { eq, and, gte, lt, sql } from "drizzle-orm";
 import { authenticateJWT } from "../middleware/auth";
+import { countsTowardUserLimit } from "../middleware/billing";
 
 const router = Router();
 router.use(authenticateJWT as any);
@@ -97,6 +98,7 @@ router.get("/organizations", async (req: any, res: any) => {
     const userCounts = await db
       .select({ organizationId: users.organizationId, count: sql<number>`count(*)::int` })
       .from(users)
+      .where(countsTowardUserLimit)   // same rule the plan limit enforces: team seats, not tenant/contractor logins
       .groupBy(users.organizationId);
 
     // Rent revenue — all-time and for the selected month, by org (via tenantId -> tenants.organizationId)

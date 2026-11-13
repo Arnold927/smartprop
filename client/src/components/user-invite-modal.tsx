@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import {
   Dialog,
   DialogContent,
@@ -23,6 +23,13 @@ import { useAuth } from "@/hooks/useAuth";
 import { apiRequest } from "@/lib/queryClient";
 import { CheckCircle, UserPlus, Shield } from "lucide-react";
 import { Label } from "@/components/ui/label";
+
+/** apiRequest throws on a non-2xx response with the raw response TEXT as e.message — for a JSON
+ *  error body like {"message":"..."} that would show up as a literal JSON blob in a toast. */
+function errMsg(e: any): string {
+  try { const j = JSON.parse(e?.message); if (j?.message) return String(j.message); } catch { /* not JSON */ }
+  return e?.message || "Failed to send invite";
+}
 
 /**
  * client/src/components/user-invite-modal.tsx
@@ -62,6 +69,7 @@ const ROLE_OPTIONS: { value: string; label: string; description: string }[] = [
 
 export default function UserInviteModal({ triggerText }: { triggerText: string }) {
   const [open, setOpen] = useState(false);
+  const formRef = useRef<HTMLFormElement>(null);
   const { toast } = useToast();
   const { user } = useAuth();
   const queryClient = useQueryClient();
@@ -82,11 +90,12 @@ export default function UserInviteModal({ triggerText }: { triggerText: string }
       });
       queryClient.invalidateQueries({ queryKey: ["/api/users"] });
       setOpen(false);
+      formRef.current?.reset();
     },
     onError: (err: any) =>
       toast({
         title: "Error sending invite",
-        description: err.message || "Failed to send invite",
+        description: errMsg(err),
         variant: "destructive",
       }),
   });
@@ -122,7 +131,7 @@ export default function UserInviteModal({ triggerText }: { triggerText: string }
               </DialogDescription>
             </DialogHeader>
 
-            <form onSubmit={handleInviteUser} className="space-y-6 mt-6">
+            <form ref={formRef} onSubmit={handleInviteUser} className="space-y-6 mt-6">
               <div className="space-y-3">
                 <Label htmlFor="invite-email" className="text-sm font-medium text-foreground">
                   Email Address

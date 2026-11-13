@@ -12,7 +12,28 @@
 import { Request, Response, NextFunction } from "express";
 import { db } from "../db.js";
 import { organizations, properties, users } from "@shared/schema";
-import { eq, count } from "drizzle-orm";
+import { eq, and, count, notInArray, sql } from "drizzle-orm";
+
+/**
+ * Which logins use up one of a plan's "users".
+ *
+ * The plans sell team seats ("Up to 5 users", "Up to 20 users"). The limit used to count EVERY login
+ * in the organisation, so an 80-unit building with ~80 tenant logins was over even the Growth limit
+ * on tenants alone and could never invite a colleague. Tenants and contractors are portal logins
+ * that come in through their own flows, not team seats, and a deactivated account no longer
+ * occupies one.
+ *
+ * Exported so the platform admin's "users / limit" figure uses exactly the same rule.
+ */
+// Matches RECORD_BACKED_ROLES in user-management.tsx: these three are each tied to their own
+// business record (a lease, a contractor profile, a property assignment) via a dedicated page,
+// not invited as general team members — so they shouldn't eat into a "team seats" plan limit
+// any more than tenants should. A large complex can have many caretakers, one per building/shift.
+export const NON_SEAT_ROLES = ["tenant", "contractor", "caretaker"];
+export const countsTowardUserLimit = and(
+  notInArray(users.role, NON_SEAT_ROLES),
+  sql`${users.isActive} IS DISTINCT FROM false`,
+);
 
 async function getOrg(organizationId: number) {
   const [org] = await db
@@ -118,7 +139,7 @@ export async function enforceUserLimit(
     const [{ value }] = await db
       .select({ value: count() })
       .from(users)
-      .where(eq(users.organizationId, orgId));
+      .where(and(eq(users.organizationId, orgId), countsTowardUserLimit));
 
     const current = Number(value ?? 0);
     const max = org.maxUsers ?? 10;

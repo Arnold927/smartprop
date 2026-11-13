@@ -57,6 +57,14 @@ import {
   Filter,
 } from "lucide-react";
 
+/** apiRequest already throws on a non-2xx response with the raw response TEXT as e.message —
+ *  for a JSON error body like {"message":"..."} that would show up as a literal JSON blob in
+ *  a toast otherwise. Module-scoped so every component in this file (not just SecurityPage) can use it. */
+function errMsg(e: any, fallback = "Something went wrong"): string {
+  try { const j = JSON.parse(e?.message); if (j?.message) return String(j.message); } catch { /* not JSON */ }
+  return e?.message || fallback;
+}
+
 // ── Hardware Integration Panel ────────────────────────────────────────────────
 // Optional — properties without hardware work exactly as before.
 // Config is stored in properties.siteSettings.hardwareIntegration.
@@ -108,7 +116,7 @@ function HardwareIntegrationPanel({ properties: props }: { properties: any[] }) 
       qc.invalidateQueries({ queryKey: ["/api/security/hardware-config", selectedPropId] });
       toast({ title: "Hardware config saved" });
     },
-    onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
+    onError: (e: any) => toast({ title: "Error", description: errMsg(e, "Failed to save hardware config"), variant: "destructive" }),
   });
 
   const testEvent = async () => {
@@ -123,7 +131,7 @@ function HardwareIntegrationPanel({ properties: props }: { properties: any[] }) 
       toast({ title: "Test event fired", description: data.message });
       qc.invalidateQueries({ queryKey: ["/api/guard/admin/vehicle-log"] });
     } catch (e: any) {
-      toast({ title: "Test failed", description: e.message, variant: "destructive" });
+      toast({ title: "Test failed", description: errMsg(e, "Failed to fire test event"), variant: "destructive" });
     } finally {
       setTestLoading(false);
     }
@@ -1121,10 +1129,6 @@ export default function SecurityPage() {
         `/api/visitor-access-management/${encodeURIComponent(code)}/${action}`,
         { method: "PATCH", data: { location: "Main Gate" } }
       );
-      if (!r.ok) {
-        const err = await r.json().catch(() => ({}));
-        throw new Error((err as any).message || "Scan failed");
-      }
       return r.json();
     },
     onSuccess: (data, vars) => {
@@ -1141,7 +1145,7 @@ export default function SecurityPage() {
       lastScannedRef.current = "";
     },
     onError: (err: any, vars) => {
-      const msg = err.message || "Invalid QR code or visitor not found.";
+      const msg = errMsg(err, "Invalid QR code or visitor not found.");
       toast({
         title: "Scan Failed",
         description: msg,
@@ -1164,7 +1168,6 @@ export default function SecurityPage() {
         `/api/visitor-access-management/${encodeURIComponent(code)}/approve`,
         { method: "PATCH" }
       );
-      if (!r.ok) throw new Error("Approval failed");
       return r.json();
     },
     onSuccess: () => {
@@ -1172,7 +1175,7 @@ export default function SecurityPage() {
       queryClient.invalidateQueries({ queryKey: ["/api/visitor-access-management"] });
     },
     onError: (err: any) => {
-      toast({ title: "Approval Failed", description: err.message, variant: "destructive" });
+      toast({ title: "Approval Failed", description: errMsg(err, "Approval failed"), variant: "destructive" });
     },
   });
 
@@ -1182,7 +1185,6 @@ export default function SecurityPage() {
         `/api/visitor-access-management/${encodeURIComponent(code)}/check-out`,
         { method: "PATCH", data: { location: "Main Gate" } }
       );
-      if (!r.ok) throw new Error("Check-out failed");
       return r.json();
     },
     onSuccess: () => {
@@ -1190,7 +1192,7 @@ export default function SecurityPage() {
       queryClient.invalidateQueries({ queryKey: ["/api/visitor-access-management"] });
     },
     onError: (err: any) => {
-      toast({ title: "Check-out Failed", description: err.message, variant: "destructive" });
+      toast({ title: "Check-out Failed", description: errMsg(err, "Check-out failed"), variant: "destructive" });
     },
   });
 
@@ -1212,10 +1214,6 @@ export default function SecurityPage() {
           isResident: data.ownerType === "tenant",
         },
       });
-      if (!r.ok) {
-        const err = await r.json().catch(() => ({}));
-        throw new Error((err as any).message || "Registration failed");
-      }
       return r.json();
     },
     onSuccess: () => {
@@ -1228,7 +1226,7 @@ export default function SecurityPage() {
       setIsVehicleOpen(false);
     },
     onError: (err: any) => {
-      toast({ title: "Registration Failed", description: err.message, variant: "destructive" });
+      toast({ title: "Registration Failed", description: errMsg(err, "Registration failed"), variant: "destructive" });
     },
   });
 
@@ -1238,10 +1236,6 @@ export default function SecurityPage() {
         method: "PATCH",
         data: { status },
       });
-      if (!r.ok) {
-        const err = await r.json().catch(() => ({}));
-        throw new Error((err as any).message || "Failed to update vehicle status");
-      }
       return r.json();
     },
     onSuccess: (_, vars) => {
@@ -1250,7 +1244,7 @@ export default function SecurityPage() {
       queryClient.invalidateQueries({ queryKey: ["/api/registered-vehicles"] });
     },
     onError: (err: any) => {
-      toast({ title: "Update Failed", description: err.message, variant: "destructive" });
+      toast({ title: "Update Failed", description: errMsg(err, "Failed to update vehicle status"), variant: "destructive" });
     },
   });
 
@@ -1270,10 +1264,6 @@ export default function SecurityPage() {
           notes: data.notes || undefined,
         },
       });
-      if (!r.ok) {
-        const err = await r.json().catch(() => ({}));
-        throw new Error((err as any).message || "Failed to create gate pass");
-      }
       return r.json();
     },
     onSuccess: (created: any) => {
@@ -1286,7 +1276,7 @@ export default function SecurityPage() {
       setIsGatePassOpen(false);
     },
     onError: (err: any) => {
-      toast({ title: "Gate Pass Failed", description: err.message, variant: "destructive" });
+      toast({ title: "Gate Pass Failed", description: errMsg(err, "Failed to create gate pass"), variant: "destructive" });
     },
   });
 
@@ -1296,10 +1286,6 @@ export default function SecurityPage() {
         method: "PATCH",
         data: { status },
       });
-      if (!r.ok) {
-        const err = await r.json().catch(() => ({}));
-        throw new Error((err as any).message || "Failed to update gate pass");
-      }
       return r.json();
     },
     onSuccess: (_, vars) => {
@@ -1307,7 +1293,7 @@ export default function SecurityPage() {
       queryClient.invalidateQueries({ queryKey: ["/api/security/gate-passes"] });
     },
     onError: (err: any) => {
-      toast({ title: "Update Failed", description: err.message, variant: "destructive" });
+      toast({ title: "Update Failed", description: errMsg(err, "Failed to update gate pass"), variant: "destructive" });
     },
   });
 

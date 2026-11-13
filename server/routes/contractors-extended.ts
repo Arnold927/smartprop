@@ -21,13 +21,16 @@ import {
   contractorsRegistry,
   properties,
   contractors,
+  users,
 } from "../../shared/schema";
 import {
   insertContractorCategorySchema,
   insertServiceContractSchema,
 } from "@shared/schema";
-import { eq, inArray } from "drizzle-orm";
+import { eq, inArray, and } from "drizzle-orm";
 import { z } from "zod";
+import { sendInviteEmail } from "../lib/email";
+import { randomUUID } from "crypto";
 
 // ─── Contractor Categories ────────────────────────────────────────────────────
 // These are a global reference table (shared across orgs).
@@ -302,7 +305,56 @@ contractorRegistryListRouter.get("/", authenticateJWT, async (_req: any, res) =>
 
 export const contractorCreateHookRouter = Router();
 
+// Adding a contractor here (before the generic CRUD create below) invites them
+// to the contractor portal, the same way POST /api/users invites staff — a
+// login row keyed by email, activated via the same /accept-invite flow. This
+// was previously a no-op (just called next()), so contractors added through
+// the UI had no way to ever get portal access — the contractor portal already
+// matches a session to its contractor record by email (contractor-portal.ts),
+// there just wasn't anything creating that login in the first place.
+// Skipped silently when no email is given — a contractor doesn't strictly
+// need portal access to be assigned work orders.
 contractorCreateHookRouter.post("/", authenticateJWT, requireOrg, async (req: any, res, next) => {
+  try {
+    const email: string | undefined = req.body?.email?.trim();
+    if (email) {
+      const orgId: number = req.user.organizationId;
+      const inviteToken = randomUUID();
+      const inviteExpiresAt = new Date(Date.now() + 1000 * 60 * 60 * 24); // 24h
+
+      await db
+        .insert(users)
+        .values({
+          id: randomUUID(),
+          email: email.toLowerCase(),
+          role: "contractor",
+          organizationId: orgId,
+          invitedAt: new Date(),
+          invitedBy: req.user.id,
+          emailVerificationToken: inviteToken,
+          emailVerificationExpiresAt: inviteExpiresAt,
+          passwordHash: "",
+          emailVerified: false,
+        } as any)
+        .onConflictDoUpdate({
+          target: [users.organizationId, users.email],
+          set: {
+            invitedAt: new Date(),
+            emailVerificationToken: inviteToken,
+            emailVerificationExpiresAt: inviteExpiresAt,
+            role: "contractor",
+          },
+        });
+
+      const inviteLink = `${process.env.APP_URL || "http://localhost:5173"}/accept-invite/${inviteToken}`;
+      await sendInviteEmail({ to: email, inviteLink });
+    }
+  } catch (err) {
+    // Don't block contractor creation if the invite fails (e.g. email
+    // service down) — the contractor record is still useful without portal
+    // access, and this can be retried by re-saving the contractor's email.
+    console.error("Contractor invite error:", err);
+  }
   next();
 });
 

@@ -9,12 +9,16 @@
 import { Router } from "express";
 import { db } from "../db";
 import { visitors, properties } from "@shared/schema";
-import { eq, and, desc } from "drizzle-orm";
+import { eq, and, desc, like } from "drizzle-orm";
 import { authenticateJWT } from "../middleware/auth";
 import { requireOrg } from "../middleware/requireOrg";
 
 const router = Router();
 const auth = [authenticateJWT as any, requireOrg as any];
+
+/** True gate passes are marked with this notes prefix — see the header comment. Regular Visitor
+ *  Access entries never have it, so this is what tells the two apart in one shared table. */
+const GATE_PASS_MARKER = "pass_type:%";
 
 /** Map a DB visitors row → GatePass shape expected by security.tsx */
 function mapToGatePass(row: any): object {
@@ -52,11 +56,14 @@ router.get("/gate-passes", ...auth, async (req: any, res: any) => {
   try {
     const orgId: number = req.user.organizationId;
 
+    // Previously unfiltered, so this returned every visitor in the org — including ordinary
+    // Visitor Access entries with no gate pass ever created, mislabelled here as "visitor" type
+    // gate passes just because that's mapToGatePass()'s fallback when the marker is absent.
     const rows = await db
       .select()
       .from(visitors)
       .innerJoin(properties, eq(visitors.propertyId, properties.id))
-      .where(eq(properties.organizationId, orgId))
+      .where(and(eq(properties.organizationId, orgId), like(visitors.notes, GATE_PASS_MARKER)))
       .orderBy(desc(visitors.createdAt));
 
     const passes = rows.map((r) => mapToGatePass(r.visitors));

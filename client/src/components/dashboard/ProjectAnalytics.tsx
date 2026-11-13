@@ -56,7 +56,7 @@ export function ProjectAnalytics() {
  </CardHeader>
  <CardContent>
  <div className="space-y-3">
- <div className="p-3 bg-emerald-50 rounded-lg border border-emerald-200' >
+ <div className="p-3 bg-emerald-50 rounded-lg border border-emerald-200">
  <h4 className="font-medium text-emerald-900">Meeting with Arc Company</h4>
  <p className="text-sm text-emerald-700 mt-1">Time: 10:00 pm - 04:00 pm</p>
  <Button size="sm" className="mt-2 bg-emerald-600 hover:bg-emerald-700">
