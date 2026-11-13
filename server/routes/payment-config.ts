@@ -66,6 +66,45 @@ async function getOrCreateOrgSettings(orgId: number) {
   return settings;
 }
 
+// ── Validation ────────────────────────────────────────────────────────────────
+// This blob is shown to tenants as "pay rent here", so anything stored here is a payment
+// instruction. It used to be saved exactly as received: any shape, any type, any length.
+
+const ACCOUNT_TEXT_FIELDS = [
+  "mpesaPaybill", "mpesaTill", "mpesaAccountName",
+  "bankName", "bankAccountNumber", "bankAccountName", "bankBranch", "instructions",
+] as const;
+
+type Cleaned = { ok: true; value: Record<string, any> } | { ok: false; message: string };
+
+/** Keep only the known fields, trimmed and bounded; reject malformed Paybill/Till numbers. */
+function cleanAccount(input: any, label: string): Cleaned {
+  if (!input || typeof input !== "object" || Array.isArray(input)) {
+    return { ok: false, message: `${label} must be an object` };
+  }
+  const out: Record<string, any> = {};
+  if (typeof input.useSingleAccount === "boolean") out.useSingleAccount = input.useSingleAccount;
+  if (typeof input.sameAsRent === "boolean")       out.sameAsRent       = input.sameAsRent;
+
+  for (const f of ACCOUNT_TEXT_FIELDS) {
+    const v = input[f];
+    if (v === undefined || v === null) { out[f] = ""; continue; }
+    if (typeof v !== "string") return { ok: false, message: `${label}: ${f} must be text` };
+    const t = v.trim();
+    if (t.length > (f === "instructions" ? 1000 : 100)) {
+      return { ok: false, message: `${label}: ${f} is too long` };
+    }
+    out[f] = t;
+  }
+  if (out.mpesaPaybill && !/^\d{5,7}$/.test(out.mpesaPaybill)) {
+    return { ok: false, message: `${label}: the Paybill number should be 5–7 digits` };
+  }
+  if (out.mpesaTill && !/^\d{5,7}$/.test(out.mpesaTill)) {
+    return { ok: false, message: `${label}: the Till number should be 5–7 digits` };
+  }
+  return { ok: true, value: out };
+}
+
 // ── GET /api/payment-config ───────────────────────────────────────────────────
 paymentConfigRouter.get("/", requireOrg as any, async (req: any, res: any) => {
   try {
@@ -123,18 +162,38 @@ paymentConfigRouter.get("/", requireOrg as any, async (req: any, res: any) => {
 paymentConfigRouter.put("/", requireOrg as any, async (req: any, res: any) => {
   try {
     const orgId: number = req.user.organizationId;
-    const { rentPayment, utilityPayment, mpesaCredentials } = req.body;
+    const { rentPayment: rentIn, utilityPayment: utilityIn, mpesaCredentials } = req.body;
 
-    if (!rentPayment) {
+    // This route is mounted for staff too (they can read it), but CHANGING where tenants are told to
+    // send rent is a financial decision — a staff login must not be able to repoint it at another
+    // account. Admin and manager only (the Organization page that hosts this is already limited to them).
+    if (!["admin", "manager", "platform_admin"].includes(req.user.role)) {
+      return res.status(403).json({ message: "Only an admin or manager can change payment details." });
+    }
+
+    if (!rentIn) {
       return res.status(400).json({ message: "rentPayment is required" });
     }
 
-    // Daraja credentials (consumer key/secret/passkey) are restricted to
-    // admin/manager/platform_admin even though staff can edit the regular
-    // Paybill/Till display fields via this same route — same reasoning as
-    // the per-landlord case: these are API secrets, not display data.
+    const rentChecked = cleanAccount(rentIn, "Rent payment");
+    if (!rentChecked.ok) return res.status(400).json({ message: rentChecked.message });
+    const rentPayment = rentChecked.value;
+
+    let utilityPayment: Record<string, any> | undefined;
+    if (utilityIn !== undefined && utilityIn !== null) {
+      const utilChecked = cleanAccount(utilityIn, "Utility payment");
+      if (!utilChecked.ok) return res.status(400).json({ message: utilChecked.message });
+      utilityPayment = utilChecked.value;
+    }
+
+    if (mpesaCredentials?.environment && !["sandbox", "production"].includes(mpesaCredentials.environment)) {
+      return res.status(400).json({ message: "environment must be 'sandbox' or 'production'" });
+    }
+
+    // Daraja credentials (consumer key/secret/passkey) are stricter still: admin (or platform_admin)
+    // only, not manager — these are API secrets, not display data.
     if (mpesaCredentials && !["admin", "platform_admin"].includes(req.user.role)) {
-      return res.status(403).json({ message: "Only an admin, manager, or platform admin can set Daraja API credentials." });
+      return res.status(403).json({ message: "Only an admin can set Daraja API credentials." });
     }
     if (mpesaCredentials && (mpesaCredentials.consumerSecret || mpesaCredentials.passkey) && !encryptionConfigured()) {
       return res.status(503).json({ message: "Credential storage isn't configured on this server yet. Contact your platform administrator." });
@@ -234,7 +293,9 @@ paymentConfigRouter.post("/test-stk", requireOrg as any, async (req: any, res: a
 // Previously this always returned the plain org-wide blob regardless of
 // which landlord a tenant's property actually belongs to — fine for a
 // single-landlord org, wrong for a multi-landlord one.
-paymentConfigRouter.get("/public", async (req: any, res: any) => {
+/** Mounted separately at /api/payment-config/public (see routes/index.ts). */
+export const paymentConfigPublicRouter = Router();
+paymentConfigPublicRouter.get("/", async (req: any, res: any) => {
   try {
     const orgId = req.user?.organizationId;
     if (!orgId) return res.status(401).json({ message: "Unauthorized" });

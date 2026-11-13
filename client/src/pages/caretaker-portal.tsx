@@ -200,8 +200,8 @@ export default function CaretakerPortalPage() {
                         <p className="text-xs text-muted-foreground">{m.ticketNumber}{m.unitNumber ? ` · Unit ${m.unitNumber}` : ""}</p>
                       </div>
                       <div className="flex items-center gap-2 shrink-0">
-                        <Badge variant="outline" className="text-[10px] px-1.5 py-0 capitalize">{m.priority}</Badge>
-                        <Badge variant="outline" className={`text-[10px] px-1.5 py-0 capitalize ${STATUS_COLORS[m.status] ?? ""}`}>{m.status}</Badge>
+                        <Badge variant="outline" className="text-[10px] px-1.5 py-0 capitalize">{String(m.priority ?? "").replace(/_/g, " ")}</Badge>
+                        <Badge variant="outline" className={`text-[10px] px-1.5 py-0 capitalize ${STATUS_COLORS[m.status] ?? ""}`}>{String(m.status ?? "").replace(/_/g, " ")}</Badge>
                       </div>
                     </div>
                   ))}

@@ -57,10 +57,12 @@ import {
 } from "./utility-management";
 import { utilityBillSenderRouter } from "./utility-bill-sender";
 import utilityMeterReadingsRouter from "./utility-meter-readings";
-import { paymentConfigRouter } from "./payment-config";
+import { paymentConfigRouter, paymentConfigPublicRouter } from "./payment-config";
 import externalLandlordsRouter from "./external-landlords";
 import platformAdminRouter from "./platform-admin";
 import landlordPaymentConfigRouter from "./landlord-payment-config";
+import { userActivityRouter, featureAnnouncementsRouter, featureInteractionsRouter } from "./telemetry";
+import orgDirectoryRouter from "./org-directory";
 import { parkingSpacesRouter, registeredVehiclesRouter, parkingAssignmentsRouter } from "./parking";
 import visitorAccessManagementRouter from "./visitor-access-management";
 import securityRouter from "./security";
@@ -158,8 +160,6 @@ export function registerModularRoutes(app: Express) {
   app.post("/api/mpesa/c2b/confirmation", (req, res, next) => mpesaActionsRouter(req, res, next));
   app.post("/api/mpesa/c2b/validation",  (req, res, next) => mpesaActionsRouter(req, res, next));
 
-  // Payment config public read (tenant portal reads M-Pesa paybill # before auth completes)
-  app.get("/api/payment-config/public",  (req, res, next) => paymentConfigRouter(req, res, next));
 
   // Public short-term stay marketplace + direct-link booking — the one
   // deliberately cross-organisation, unauthenticated surface in this app.
@@ -195,7 +195,26 @@ export function registerModularRoutes(app: Express) {
   mount(app, "/api/payment-reminders",                 paymentRemindersRouter);
   mount(app, "/api/risk-assessments",                  riskAssessmentsRouter);
   mount(app, "/api/tenant-behavior-logs",              tenantBehaviorLogsRouter);
+  // Tenant-facing chat endpoints. Their handlers already confine a tenant to
+  // their own record, but the "/api/whatsapp" policy below is admin/manager
+  // only, so the tenant portal chat got 403 on every call. Let tenants (and
+  // admin/manager) reach exactly these three paths and nothing else.
+  const WA_TENANT_PATHS = new Set(["/tenant-lookup", "/tenant-thread", "/tenant-send"]);
+  app.use("/api/whatsapp", (req: any, res: any, next: any) => {
+    if (!WA_TENANT_PATHS.has(req.path)) return next();
+    (authenticateJWT as any)(req, res, (err?: any) => {
+      if (err) return next(err);
+      if (!["admin", "manager", "tenant", "platform_admin"].includes(req.user?.role)) {
+        return res.status(403).json({ message: "Not available for your role." });
+      }
+      return whatsappRouter(req, res, next);
+    });
+  });
   mount(app, "/api/whatsapp",                          whatsappRouter);
+  mount(app, "/api/auth/users",                        orgDirectoryRouter);
+  mount(app, "/api/user-activity",                     userActivityRouter);
+  mount(app, "/api/feature-announcements",             featureAnnouncementsRouter);
+  mount(app, "/api/feature-interactions",              featureInteractionsRouter);
   mount(app, "/api/gate-pins",                         gatePinsRouter);
   mount(app, "/api/purchase-requisitions",             purchaseRequisitionsRouter);
   mount(app, "/api/expense-reports",                   expenseReportsRouter);
@@ -281,10 +300,15 @@ export function registerModularRoutes(app: Express) {
   mount(app, "/api/maintenance-requests",              maintenanceItemGuardRouter); // GET/PUT/PATCH/DELETE /:id org+role scoping (must be before maintenanceRouter)
   mount(app, "/api/maintenance-requests",              maintenanceRouter);
   mount(app, "/api/maintenance-requests",              maintenanceActionsRouter);
+  // More specific payment-config prefixes MUST be mounted before the bare
+  // "/api/payment-config": Express matches by prefix in order, so the admin/
+  // manager/staff guard on the bare prefix used to answer 403 for tenants
+  // (/public) and landlords (/landlord/mine) before they were ever reached.
+  mount(app, "/api/payment-config/public",             paymentConfigPublicRouter);
+  mount(app, "/api/payment-config/landlord",           landlordPaymentConfigRouter);
   mount(app, "/api/payment-config",                    paymentConfigRouter);
   mount(app, "/api/external-landlords",                externalLandlordsRouter);
   mount(app, "/api/platform",                          platformAdminRouter);
-  mount(app, "/api/payment-config/landlord",           landlordPaymentConfigRouter);
 
   // Guard station (guards + staff + managers)
   mount(app, "/api/guard",                             guardFeaturesRouter);

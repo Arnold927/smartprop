@@ -233,7 +233,7 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
                 >
                   <Wrench className="mr-2 h-4 w-4" />
                   <span>{r.title}</span>
-                  <span className="ml-2 text-xs text-muted-foreground capitalize">{r.status}</span>
+                  <span className="ml-2 text-xs text-muted-foreground capitalize">{String(r.status ?? "").replace(/_/g, " ")}</span>
                 </CommandItem>
               ))}
             </CommandGroup>

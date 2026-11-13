@@ -94,7 +94,7 @@ export function RentPaymentCard({
                 : "Unknown tenant"}
             </p>
             <div className="flex items-center gap-2 mt-0.5 flex-wrap text-xs text-muted-foreground">
-              <span className={`capitalize font-medium ${statusColor}`}>{payment.status}</span>
+              <span className={`capitalize font-medium ${statusColor}`}>{String(payment.status ?? "").replace(/_/g, " ")}</span>
               {billingLabel && <><span>·</span><span className="font-medium text-foreground">{billingLabel}</span></>}
               {daysOverdue > 0 && <><span>·</span><span className="text-red-500 font-medium">{daysOverdue}d overdue</span></>}
               {payment.unit?.unitNumber && <><span>·</span><span>Unit {payment.unit.unitNumber}</span></>}

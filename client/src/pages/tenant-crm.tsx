@@ -604,9 +604,9 @@ export default function TenantCRM() {
   return (
     <div className="container mx-auto p-6 space-y-8">
       {/* Header */}
-      <div className="flex justify-between items-center">
-        <div>
-          <h1 className="text-3xl font-bold">Tenant CRM & Digital Lease Management</h1>
+      <div className="flex flex-wrap justify-between items-center gap-3">
+        <div className="min-w-0">
+          <h1 className="text-2xl sm:text-3xl font-bold">Tenant CRM & Digital Lease Management</h1>
           <p className="text-muted-foreground">
             Manage digital leases, KYC verification, and tenant relationships
           </p>
@@ -802,7 +802,7 @@ export default function TenantCRM() {
               </div>
               {/* Pagination */}
               {overviewFiltered.length > overviewPageSize && (
-                <div className="flex items-center justify-between px-6 py-4 border-t">
+                <div className="flex flex-wrap items-center justify-between gap-3 px-4 sm:px-6 py-4 border-t">
                   <p className="text-sm text-muted-foreground">
                     Showing {(overviewPageSafe - 1) * overviewPageSize + 1}–{Math.min(overviewPageSafe * overviewPageSize, overviewFiltered.length)} of {overviewFiltered.length} leases
                   </p>
@@ -973,7 +973,7 @@ export default function TenantCRM() {
                   </div>
                   {/* Pagination */}
                   {kycFiltered.length > kycPageSize && (
-                    <div className="flex items-center justify-between px-6 py-4 border-t">
+                    <div className="flex flex-wrap items-center justify-between gap-3 px-4 sm:px-6 py-4 border-t">
                       <p className="text-sm text-muted-foreground">
                         Showing {(kycPageSafe - 1) * kycPageSize + 1}–{Math.min(kycPageSafe * kycPageSize, kycFiltered.length)} of {kycFiltered.length} tenants
                       </p>

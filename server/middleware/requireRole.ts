@@ -65,6 +65,10 @@ export const ROUTE_POLICY: Record<string, AppRole[]> = {
   '/api/roles':                      ADMIN_MANAGER,
   '/api/users/me':                   ALL_AUTHENTICATED,      // every role manages their OWN profile/password/activity here
   '/api/users':                      ADMIN_MANAGER,
+  '/api/auth/users':                 ['admin', 'manager', 'staff', 'caretaker', 'landlord'], // minimal org directory (no contact details)
+  '/api/user-activity':              ALL_AUTHENTICATED,
+  '/api/feature-announcements':      ALL_AUTHENTICATED,
+  '/api/feature-interactions':       ALL_AUTHENTICATED,
   '/api/organizations':              ADMIN_MANAGER,           // org settings & multi-tenant admin
   '/api/billing':                    ADMIN_ONLY,
   '/api/billing-cycles':             ADMIN_MANAGER,
@@ -157,6 +161,8 @@ export const ROUTE_POLICY: Record<string, AppRole[]> = {
   '/api/rent-payments':              STAFF_AND_ABOVE,
   '/api/invoices':                   STAFF_AND_ABOVE,
   '/api/mpesa-transactions':         STAFF_AND_ABOVE,
+  // Tenants read the paybill/till to pay rent (handler resolves it for the caller's own tenancy).
+  '/api/payment-config/public':      ['admin', 'manager', 'staff', 'landlord', 'tenant'],
   '/api/payment-config':             ADMIN_MANAGER_STAFF,    // org-wide default/fallback; landlords use /api/payment-config/landlord/mine instead
   '/api/external-landlords':         [...ADMIN_MANAGER, 'platform_admin'], // landlords with no user account — staff excluded, matching internal checks
   '/api/payment-config/landlord':    ADMIN_MANAGER_LANDLORD, // per-landlord override (multi-landlord orgs) — /mine for landlords, /:ownerId for admin/manager on their behalf

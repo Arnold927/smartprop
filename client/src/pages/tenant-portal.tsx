@@ -1227,7 +1227,7 @@ function PaymentHistoryTable({ payments, isLoading, tenant, unitNumber, property
                       <p className="text-xs text-muted-foreground">Due {fmtDate(p.dueDate)}</p>
                       {p.paidDate && <span className="text-xs text-green-600 font-medium">· Paid {fmtDate(p.paidDate)}</span>}
                     </div>
-                    {p.paymentMethod && <p className="text-xs text-muted-foreground mt-0.5 capitalize">{p.paymentMethod}</p>}
+                    {p.paymentMethod && <p className="text-xs text-muted-foreground mt-0.5 capitalize">{String(p.paymentMethod ?? "").replace(/_/g, " ")}</p>}
                     {(p.mpesaTransactionId || p.invoiceNumber) && (
                       <p className="text-xs font-mono text-muted-foreground mt-0.5">
                         {p.mpesaTransactionId ? `M-Pesa: ${p.mpesaTransactionId}` : `Inv: ${p.invoiceNumber}`}

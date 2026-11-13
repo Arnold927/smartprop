@@ -4,7 +4,7 @@
  */
 import { Router } from "express";
 import { db } from "../db";
-import { maintenanceRequests, tenants, units, properties, staffMembers, users } from "@shared/schema";
+import { maintenanceRequests, tenants, units, properties, staffMembers, users, documents } from "@shared/schema";
 import { eq, sql, and, desc } from "drizzle-orm";
 import { authenticateJWT } from "../middleware/auth";
 import { requireOrg } from "../middleware/requireOrg";
@@ -430,6 +430,38 @@ router.get("/:id/photos", async (req: any, res) => {
   } catch (error) {
     console.error("Get photos error:", error);
     res.status(500).json({ message: "Failed to fetch photos" });
+  }
+});
+
+// GET /api/maintenance-requests/:id/documents
+// The detail page asks for attachments here; the route did not exist, so every
+// request-detail page load produced a 404. Same org + role scoping as /photos.
+router.get("/:id/documents", async (req: any, res) => {
+  try {
+    const id = parseInt(req.params.id);
+    if (!Number.isInteger(id)) return res.status(400).json({ message: "Invalid id" });
+
+    const scoped = await resolveScopedRequest(id, req.user.organizationId);
+    if (!scoped || !(await callerCanAccess(scoped, req))) {
+      return res.status(404).json({ message: "Request not found" });
+    }
+
+    const rows = await db
+      .select({
+        id: documents.id,
+        name: documents.name,
+        type: documents.type,
+        url: documents.url,
+        size: documents.size,
+        createdAt: documents.createdAt,
+      })
+      .from(documents)
+      .where(eq(documents.maintenanceRequestId, id))
+      .orderBy(desc(documents.createdAt));
+    res.json(rows);
+  } catch (error) {
+    console.error("Get maintenance documents error:", error);
+    res.status(500).json({ message: "Failed to fetch documents" });
   }
 });
 

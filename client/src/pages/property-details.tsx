@@ -827,7 +827,7 @@ export default function PropertyDetailsPage() {
                   { header: "Ticket", cell: (r: any) => r.ticketNumber ?? `#${r.id}` },
                   { header: "Title", cell: (r: any) => r.title },
                   { header: "Unit", cell: (r: any) => r.unitNumber ?? "—", hideOnMobile: true },
-                  { header: "Priority", cell: (r: any) => <span className="capitalize">{r.priority}</span>, hideOnMobile: true },
+                  { header: "Priority", cell: (r: any) => <span className="capitalize">{String(r.priority ?? "").replace(/_/g, " ")}</span>, hideOnMobile: true },
                   { header: "Status", cell: (r: any) => <SPBadge status={r.status} /> },
                 ]}
               />

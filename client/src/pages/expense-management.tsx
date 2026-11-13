@@ -1,10 +1,10 @@
 import { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { format, startOfDay, endOfDay, startOfWeek, endOfWeek, startOfMonth, endOfMonth, startOfQuarter, endOfQuarter, startOfYear, endOfYear, subMonths, subQuarters, subYears, isWithinInterval, parseISO } from "date-fns";
-import { Plus, Pencil, Receipt, DollarSign, Calendar, TrendingUp, FileText, CheckCircle, XCircle, Clock, ChevronLeft, ChevronRight, Search, X } from "lucide-react";
+import { Plus, Pencil, Receipt, DollarSign, Calendar, TrendingUp, FileText, CheckCircle, XCircle, Clock, ChevronLeft, ChevronRight, X } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -300,21 +300,6 @@ interface ServiceContract {
   updatedAt: string;
 }
 
-const StatusBadge = ({ status }: { status: string }) => {
-  const variants: Record<string, { label: string; variant: any; color: string }> = {
-    pending:    { label: "Pending",    variant: "outline",     color: "text-yellow-600" },
-    approved:   { label: "Approved",   variant: "default",     color: "text-blue-600"   },
-    rejected:   { label: "Rejected",   variant: "destructive", color: "text-red-600"    },
-    paid:       { label: "Paid",       variant: "default",     color: "text-green-600"  },
-    draft:      { label: "Draft",      variant: "outline",     color: "text-gray-500"   },
-    active:     { label: "Active",     variant: "default",     color: "text-green-600"  },
-    completed:  { label: "Completed",  variant: "default",     color: "text-blue-600"   },
-    terminated: { label: "Terminated", variant: "destructive", color: "text-red-600"    },
-  };
-  const config = variants[status] || variants.pending;
-  return <Badge variant={config.variant} className={config.color}>{config.label}</Badge>;
-};
-
 const CategoryBadge = ({ category }: { category: string }) => {
   const colors: Record<string, string> = {
     maintenance: "bg-blue-100 text-blue-800",
@@ -348,6 +333,7 @@ export default function ExpenseManagement() {
   const [servicesSearch, setServicesSearch]     = useState("");
   const [servicesStatus, setServicesStatus]     = useState("all");
   const [servicesType, setServicesType]         = useState("all");
+  const [servicesProperty, setServicesProperty] = useState<number | null>(null);
   const [servicesPeriod, setServicesPeriod]     = useState<DatePeriod>("all");
   const [servicesCustomRange, setServicesCustomRange] = useState<DateRange>({ from: "", to: "" });
 
@@ -470,11 +456,12 @@ export default function ExpenseManagement() {
       c.contractTitle?.toLowerCase().includes(q) ||
       c.serviceType?.toLowerCase().includes(q) ||
       c.contractNumber?.toLowerCase().includes(q);
-    const matchesStatus = servicesStatus === "all" || c.status === servicesStatus;
-    const matchesType   = servicesType   === "all" || c.contractType === servicesType;
-    const matchesDate   = isDateInRange(c.startDate, servicesDateRange);
-    return matchesSearch && matchesStatus && matchesType && matchesDate;
-  }), [serviceContracts, servicesSearch, servicesStatus, servicesType, servicesDateRange]);
+    const matchesStatus   = servicesStatus === "all" || c.status === servicesStatus;
+    const matchesType     = servicesType   === "all" || c.contractType === servicesType;
+    const matchesProperty = servicesProperty === null || c.propertyId === servicesProperty;
+    const matchesDate     = isDateInRange(c.startDate, servicesDateRange);
+    return matchesSearch && matchesStatus && matchesType && matchesProperty && matchesDate;
+  }), [serviceContracts, servicesSearch, servicesStatus, servicesType, servicesProperty, servicesDateRange]);
 
   // Payments tab — paid expenses only, then filtered further
   const allPaid = useMemo(
@@ -632,158 +619,144 @@ export default function ExpenseManagement() {
   }
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">Expense Management & Contractors</h1>
-          <p className="text-muted-foreground">
-            Track property expenses, manage contractor services, and process payments
-          </p>
-        </div>
-        <Dialog open={isAddExpenseOpen} onOpenChange={(open) => { setIsAddExpenseOpen(open); if (!open) resetForm(); }}>
-          <DialogTrigger asChild>
-            <Button className="bg-emerald-600 hover:bg-emerald-700">
-              <Plus className="h-4 w-4 mr-2" />
-              Add Expense
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="max-w-2xl">
-            <DialogHeader>
-              <DialogTitle>Create New Expense</DialogTitle>
-              <DialogDescription>Record a new property expense or service payment</DialogDescription>
-            </DialogHeader>
-            <form onSubmit={handleSubmitExpense} className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
+    <PageShell>
+      <PageHeader
+        title="Expense Management & Contractors"
+        subtitle="Track property expenses, manage contractor services, and process payments"
+        icon={<Receipt className="w-5 h-5" />}
+        actions={
+          <Dialog open={isAddExpenseOpen} onOpenChange={(open) => { setIsAddExpenseOpen(open); if (!open) resetForm(); }}>
+            <DialogTrigger asChild>
+              <Button className="bg-emerald-600 hover:bg-emerald-700">
+                <Plus className="h-4 w-4 mr-2" />
+                Add Expense
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-2xl">
+              <DialogHeader>
+                <DialogTitle>Create New Expense</DialogTitle>
+                <DialogDescription>Record a new property expense or service payment</DialogDescription>
+              </DialogHeader>
+              <form onSubmit={handleSubmitExpense} className="space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="propertyId">Property *</Label>
+                    <Select value={formPropertyId} onValueChange={setFormPropertyId} required>
+                      <SelectTrigger><SelectValue placeholder="Select property" /></SelectTrigger>
+                      <SelectContent>
+                        {properties.length === 0
+                          ? <SelectItem value="none" disabled>No properties available</SelectItem>
+                          : properties.map((p: any) => (
+                              <SelectItem key={p.id} value={p.id.toString()}>{p.name}</SelectItem>
+                            ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="category">Category *</Label>
+                    <Select value={formCategory} onValueChange={setFormCategory} required>
+                      <SelectTrigger><SelectValue placeholder="Select category" /></SelectTrigger>
+                      <SelectContent>
+                        {["maintenance","utilities","supplies","services","insurance","taxes","legal","marketing","other"].map(c => (
+                          <SelectItem key={c} value={c}>{c.charAt(0).toUpperCase()+c.slice(1)}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
                 <div className="space-y-2">
-                  <Label htmlFor="propertyId">Property *</Label>
-                  <Select value={formPropertyId} onValueChange={setFormPropertyId} required>
-                    <SelectTrigger><SelectValue placeholder="Select property" /></SelectTrigger>
+                  <Label htmlFor="vendorName">Vendor/Supplier *</Label>
+                  <Input id="vendorName" name="vendorName" required />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="description">Description *</Label>
+                  <Textarea id="description" name="description" required />
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="amount">Amount (KSh) *</Label>
+                    <Input type="number" step="0.01" id="amount" name="amount" required />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="expenseDate">Expense Date *</Label>
+                    <Input type="date" id="expenseDate" name="expenseDate" required />
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="dueDate">Due Date</Label>
+                  <Input type="date" id="dueDate" name="dueDate" />
+                </div>
+                <div className="flex items-center space-x-2">
+                  <input
+                    type="checkbox"
+                    id="isRecurring"
+                    checked={formIsRecurring}
+                    onChange={(e) => { setFormIsRecurring(e.target.checked); if (!e.target.checked) setFormRecurringFrequency(""); }}
+                  />
+                  <Label htmlFor="isRecurring">Recurring Expense</Label>
+                </div>
+                {formIsRecurring && (
+                <div className="space-y-2">
+                  <Label htmlFor="recurringFrequency">Frequency</Label>
+                  <Select value={formRecurringFrequency} onValueChange={setFormRecurringFrequency}>
+                    <SelectTrigger><SelectValue placeholder="Select frequency" /></SelectTrigger>
                     <SelectContent>
-                      {properties.length === 0
-                        ? <SelectItem value="none" disabled>No properties available</SelectItem>
-                        : properties.map((p: any) => (
-                            <SelectItem key={p.id} value={p.id.toString()}>{p.name}</SelectItem>
-                          ))}
+                      <SelectItem value="monthly">Monthly</SelectItem>
+                      <SelectItem value="quarterly">Quarterly</SelectItem>
+                      <SelectItem value="annually">Annually</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
+                )}
                 <div className="space-y-2">
-                  <Label htmlFor="category">Category *</Label>
-                  <Select value={formCategory} onValueChange={setFormCategory} required>
-                    <SelectTrigger><SelectValue placeholder="Select category" /></SelectTrigger>
-                    <SelectContent>
-                      {["maintenance","utilities","supplies","services","insurance","taxes","legal","marketing","other"].map(c => (
-                        <SelectItem key={c} value={c}>{c.charAt(0).toUpperCase()+c.slice(1)}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <Label htmlFor="notes">Notes</Label>
+                  <Textarea id="notes" name="notes" placeholder="Additional notes" />
                 </div>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="vendorName">Vendor/Supplier *</Label>
-                <Input id="vendorName" name="vendorName" required />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="description">Description *</Label>
-                <Textarea id="description" name="description" required />
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="amount">Amount (KSh) *</Label>
-                  <Input type="number" step="0.01" id="amount" name="amount" required />
+                <div className="flex gap-2 pt-4">
+                  <Button type="submit" disabled={createExpenseMutation.isPending} className="flex-1">
+                    {createExpenseMutation.isPending ? "Creating..." : "Create Expense"}
+                  </Button>
+                  <Button type="button" variant="outline" onClick={() => setIsAddExpenseOpen(false)}>
+                    Cancel
+                  </Button>
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="expenseDate">Expense Date *</Label>
-                  <Input type="date" id="expenseDate" name="expenseDate" required />
-                </div>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="dueDate">Due Date</Label>
-                <Input type="date" id="dueDate" name="dueDate" />
-              </div>
-              <div className="flex items-center space-x-2">
-                <input
-                  type="checkbox"
-                  id="isRecurring"
-                  checked={formIsRecurring}
-                  onChange={(e) => { setFormIsRecurring(e.target.checked); if (!e.target.checked) setFormRecurringFrequency(""); }}
-                />
-                <Label htmlFor="isRecurring">Recurring Expense</Label>
-              </div>
-              {formIsRecurring && (
-              <div className="space-y-2">
-                <Label htmlFor="recurringFrequency">Frequency</Label>
-                <Select value={formRecurringFrequency} onValueChange={setFormRecurringFrequency}>
-                  <SelectTrigger><SelectValue placeholder="Select frequency" /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="monthly">Monthly</SelectItem>
-                    <SelectItem value="quarterly">Quarterly</SelectItem>
-                    <SelectItem value="annually">Annually</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              )}
-              <div className="space-y-2">
-                <Label htmlFor="notes">Notes</Label>
-                <Textarea id="notes" name="notes" placeholder="Additional notes" />
-              </div>
-              <div className="flex gap-2 pt-4">
-                <Button type="submit" disabled={createExpenseMutation.isPending} className="flex-1">
-                  {createExpenseMutation.isPending ? "Creating..." : "Create Expense"}
-                </Button>
-                <Button type="button" variant="outline" onClick={() => setIsAddExpenseOpen(false)}>
-                  Cancel
-                </Button>
-              </div>
-            </form>
-          </DialogContent>
-        </Dialog>
-      </div>
+              </form>
+            </DialogContent>
+          </Dialog>
+        }
+      />
 
       {/* Metrics */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Expenses</CardTitle>
-            <DollarSign className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-semibold">{formatCurrency(totalExpenses, "KES")}</div>
-            <p className="text-xs text-muted-foreground">{hasExpensesFilter ? `${filteredExpenses.length} filtered expense${filteredExpenses.length !== 1 ? "s" : ""}` : "All time expenses"}</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Pending Approval</CardTitle>
-            <Clock className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-semibold">{pendingExpenses}</div>
-            <p className="text-xs text-muted-foreground">{hasExpensesFilter ? "In current filter" : "Awaiting approval"}</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Paid This Month</CardTitle>
-            <CheckCircle className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-semibold">{paidThisMonth}</div>
-            <p className="text-xs text-muted-foreground">{hasExpensesFilter ? "In current filter" : "Completed payments"}</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Overdue</CardTitle>
-            <XCircle className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-semibold text-red-600">{overdueExpenses}</div>
-            <p className="text-xs text-muted-foreground">{hasExpensesFilter ? "In current filter" : "Past due date"}</p>
-          </CardContent>
-        </Card>
-      </div>
+      <StatsGrid cols={4}>
+        <StatTile
+          label="Total Expenses"
+          value={formatCurrency(totalExpenses, "KES")}
+          sub={hasExpensesFilter ? `${filteredExpenses.length} filtered expense${filteredExpenses.length !== 1 ? "s" : ""}` : "All time expenses"}
+          icon={<DollarSign className="w-4 h-4" />}
+          accent="emerald"
+        />
+        <StatTile
+          label="Pending Approval"
+          value={pendingExpenses}
+          sub={hasExpensesFilter ? "In current filter" : "Awaiting approval"}
+          icon={<Clock className="w-4 h-4" />}
+          accent="amber"
+        />
+        <StatTile
+          label="Paid This Month"
+          value={paidThisMonth}
+          sub={hasExpensesFilter ? "In current filter" : "Completed payments"}
+          icon={<CheckCircle className="w-4 h-4" />}
+          accent="blue"
+        />
+        <StatTile
+          label="Overdue"
+          value={overdueExpenses}
+          sub={hasExpensesFilter ? "In current filter" : "Past due date"}
+          icon={<XCircle className="w-4 h-4" />}
+          accent="red"
+        />
+      </StatsGrid>
 
       {/* Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab}>
@@ -795,46 +768,43 @@ export default function ExpenseManagement() {
 
         {/* ── EXPENSES TAB ─────────────────────────────────────────────────── */}
         <TabsContent value="expenses" className="space-y-4">
-          <Card>
-            <CardHeader><CardTitle>Filter Expenses</CardTitle></CardHeader>
-            <CardContent className="space-y-3">
-              <div className="flex gap-3 flex-wrap">
-                <div className="relative flex-1 min-w-[200px]">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                  <Input
-                    className="pl-9"
-                    placeholder="Search by vendor or description..."
-                    value={searchTerm}
-                    onChange={(e) => { setSearchTerm(e.target.value); expensesPag.reset(); }}
-                  />
-                </div>
-                <Select value={selectedProperty?.toString() || "all"} onValueChange={(v) => { setSelectedProperty(v === "all" ? null : parseInt(v)); expensesPag.reset(); }}>
-                  <SelectTrigger className="w-48"><SelectValue placeholder="All Properties" /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Properties</SelectItem>
-                    {properties.map((p: any) => <SelectItem key={p.id} value={p.id.toString()}>{p.name}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-                <Select value={selectedCategory} onValueChange={(v) => { setSelectedCategory(v); expensesPag.reset(); }}>
-                  <SelectTrigger className="w-44"><SelectValue placeholder="All Categories" /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Categories</SelectItem>
-                    {["maintenance","utilities","supplies","services","insurance","taxes","legal","marketing","other"].map(c => (
-                      <SelectItem key={c} value={c}>{c.charAt(0).toUpperCase()+c.slice(1)}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <Select value={selectedStatus} onValueChange={(v) => { setSelectedStatus(v); expensesPag.reset(); }}>
-                  <SelectTrigger className="w-40"><SelectValue placeholder="All Statuses" /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Statuses</SelectItem>
-                    <SelectItem value="pending">Pending</SelectItem>
-                    <SelectItem value="approved">Approved</SelectItem>
-                    <SelectItem value="rejected">Rejected</SelectItem>
-                    <SelectItem value="paid">Paid</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
+          <SectionCard title="Filter Expenses">
+            <div className="space-y-3">
+              <FilterBar
+                search={searchTerm}
+                onSearch={(v) => { setSearchTerm(v); expensesPag.reset(); }}
+                placeholder="Search by vendor or description..."
+                filters={
+                  <>
+                    <Select value={selectedProperty?.toString() || "all"} onValueChange={(v) => { setSelectedProperty(v === "all" ? null : parseInt(v)); expensesPag.reset(); }}>
+                      <SelectTrigger className="w-48"><SelectValue placeholder="All Properties" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All Properties</SelectItem>
+                        {properties.map((p: any) => <SelectItem key={p.id} value={p.id.toString()}>{p.name}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                    <Select value={selectedCategory} onValueChange={(v) => { setSelectedCategory(v); expensesPag.reset(); }}>
+                      <SelectTrigger className="w-44"><SelectValue placeholder="All Categories" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All Categories</SelectItem>
+                        {["maintenance","utilities","supplies","services","insurance","taxes","legal","marketing","other"].map(c => (
+                          <SelectItem key={c} value={c}>{c.charAt(0).toUpperCase()+c.slice(1)}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <Select value={selectedStatus} onValueChange={(v) => { setSelectedStatus(v); expensesPag.reset(); }}>
+                      <SelectTrigger className="w-40"><SelectValue placeholder="All Statuses" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All Statuses</SelectItem>
+                        <SelectItem value="pending">Pending</SelectItem>
+                        <SelectItem value="approved">Approved</SelectItem>
+                        <SelectItem value="rejected">Rejected</SelectItem>
+                        <SelectItem value="paid">Paid</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </>
+                }
+              />
               <DateFilterControls
                 period={expensesPeriod}
                 customRange={expensesCustomRange}
@@ -842,8 +812,8 @@ export default function ExpenseManagement() {
                 onCustomRangeChange={(r) => { setExpensesCustomRange(r); expensesPag.reset(); }}
                 onReset={() => { setExpensesPeriod("all"); setExpensesCustomRange({ from: "", to: "" }); expensesPag.reset(); }}
               />
-            </CardContent>
-          </Card>
+            </div>
+          </SectionCard>
 
           <div className="grid gap-4">
             {loadingExpenses ? (
@@ -851,13 +821,9 @@ export default function ExpenseManagement() {
                 <div className="animate-spin w-8 h-8 border-4 border-primary border-t-transparent rounded-full" />
               </div>
             ) : expensesPag.paginated.length === 0 ? (
-              <Card>
-                <CardContent className="flex flex-col items-center justify-center p-8">
-                  <Receipt className="h-12 w-12 text-muted-foreground mb-4" />
-                  <h3 className="text-lg font-semibold mb-2">No expenses found</h3>
-                  <p className="text-muted-foreground text-center">No expenses match your current filters.</p>
-                </CardContent>
-              </Card>
+              <SectionCard>
+                <EmptyState icon={<Receipt />} title="No expenses found" description="No expenses match your current filters." size="lg" />
+              </SectionCard>
             ) : (
               expensesPag.paginated.map((expense: PropertyExpense) => (
                 <Card key={expense.id}>
@@ -866,7 +832,7 @@ export default function ExpenseManagement() {
                       <div className="space-y-2 flex-1">
                         <div className="flex items-center gap-3 flex-wrap">
                           <h3 className="text-lg font-semibold">{expense.vendorName}</h3>
-                          <StatusBadge status={expense.status} />
+                          <SPBadge status={expense.status} />
                           <CategoryBadge category={expense.category} />
                           {expense.isRecurring && (
                             <Badge variant="outline" className="text-blue-600">
@@ -954,39 +920,43 @@ export default function ExpenseManagement() {
         {/* ── SERVICES TAB ─────────────────────────────────────────────────── */}
         {/* FIX 1: uses /api/service-contracts, not the unmounted /api/contractor-services */}
         <TabsContent value="services" className="space-y-4">
-          <Card>
-            <CardHeader><CardTitle>Filter Service Contracts</CardTitle></CardHeader>
-            <CardContent className="space-y-3">
-              <div className="flex gap-3 flex-wrap">
-                <div className="relative flex-1 min-w-[200px]">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                  <Input
-                    className="pl-9"
-                    placeholder="Search by title, service type, or contract #..."
-                    value={servicesSearch}
-                    onChange={(e) => { setServicesSearch(e.target.value); servicesPag.reset(); }}
-                  />
-                </div>
-                <Select value={servicesStatus} onValueChange={(v) => { setServicesStatus(v); servicesPag.reset(); }}>
-                  <SelectTrigger className="w-40"><SelectValue placeholder="All Statuses" /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Statuses</SelectItem>
-                    <SelectItem value="draft">Draft</SelectItem>
-                    <SelectItem value="active">Active</SelectItem>
-                    <SelectItem value="completed">Completed</SelectItem>
-                    <SelectItem value="terminated">Terminated</SelectItem>
-                  </SelectContent>
-                </Select>
-                <Select value={servicesType} onValueChange={(v) => { setServicesType(v); servicesPag.reset(); }}>
-                  <SelectTrigger className="w-44"><SelectValue placeholder="All Types" /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Types</SelectItem>
-                    {serviceContractTypes.map((t: string) => (
-                      <SelectItem key={t} value={t}>{t.replace("_", " ")}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+          <SectionCard title="Filter Service Contracts">
+            <div className="space-y-3">
+              <FilterBar
+                search={servicesSearch}
+                onSearch={(v) => { setServicesSearch(v); servicesPag.reset(); }}
+                placeholder="Search by title, service type, or contract #..."
+                filters={
+                  <>
+                    <Select value={servicesStatus} onValueChange={(v) => { setServicesStatus(v); servicesPag.reset(); }}>
+                      <SelectTrigger className="w-40"><SelectValue placeholder="All Statuses" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All Statuses</SelectItem>
+                        <SelectItem value="draft">Draft</SelectItem>
+                        <SelectItem value="active">Active</SelectItem>
+                        <SelectItem value="completed">Completed</SelectItem>
+                        <SelectItem value="terminated">Terminated</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <Select value={servicesType} onValueChange={(v) => { setServicesType(v); servicesPag.reset(); }}>
+                      <SelectTrigger className="w-44"><SelectValue placeholder="All Types" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All Types</SelectItem>
+                        {serviceContractTypes.map((t: string) => (
+                          <SelectItem key={t} value={t}>{t.replace("_", " ")}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <Select value={servicesProperty?.toString() || "all"} onValueChange={(v) => { setServicesProperty(v === "all" ? null : parseInt(v)); servicesPag.reset(); }}>
+                      <SelectTrigger className="w-48"><SelectValue placeholder="All Properties" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All Properties</SelectItem>
+                        {properties.map((p: any) => <SelectItem key={p.id} value={p.id.toString()}>{p.name}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </>
+                }
+              />
               <DateFilterControls
                 period={servicesPeriod}
                 customRange={servicesCustomRange}
@@ -994,125 +964,115 @@ export default function ExpenseManagement() {
                 onCustomRangeChange={(r) => { setServicesCustomRange(r); servicesPag.reset(); }}
                 onReset={() => { setServicesPeriod("all"); setServicesCustomRange({ from: "", to: "" }); servicesPag.reset(); }}
               />
-            </CardContent>
-          </Card>
+            </div>
+          </SectionCard>
 
-          <Card>
-            <CardHeader>
-              <CardTitle>Contractor Service Contracts</CardTitle>
-              <CardDescription>Active and historical service contracts with contractors</CardDescription>
-            </CardHeader>
-            <CardContent>
-              {loadingServices ? (
-                <div className="flex justify-center p-8">
-                  <div className="animate-spin w-8 h-8 border-4 border-primary border-t-transparent rounded-full" />
-                </div>
-              ) : servicesPag.paginated.length === 0 ? (
-                <div className="text-center p-8">
-                  <FileText className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                  <h3 className="text-lg font-semibold mb-2">No Service Contracts</h3>
-                  <p className="text-muted-foreground">
-                    {filteredServices.length === 0 && serviceContracts.length > 0
-                      ? "No contracts match your filters."
-                      : "No service contracts have been created yet."}
-                  </p>
-                </div>
-              ) : (
-                <div className="grid gap-4">
-                  {servicesPag.paginated.map((contract: ServiceContract) => (
-                    <Card key={contract.id}>
-                      <CardContent className="p-5">
-                        <div className="flex items-start justify-between">
-                          <div className="space-y-1 flex-1">
-                            <div className="flex items-center gap-3 flex-wrap">
-                              <h3 className="font-semibold">{contract.contractTitle}</h3>
-                              <StatusBadge status={contract.status} />
-                              <Badge variant="outline">{contract.contractType.replace("_", " ")}</Badge>
+          <SectionCard title="Contractor Service Contracts" subtitle="Active and historical service contracts with contractors">
+            {loadingServices ? (
+              <div className="flex justify-center p-8">
+                <div className="animate-spin w-8 h-8 border-4 border-primary border-t-transparent rounded-full" />
+              </div>
+            ) : servicesPag.paginated.length === 0 ? (
+              <EmptyState
+                icon={<FileText />}
+                title="No Service Contracts"
+                description={filteredServices.length === 0 && serviceContracts.length > 0
+                  ? "No contracts match your filters."
+                  : "No service contracts have been created yet."}
+                size="lg"
+              />
+            ) : (
+              <div className="grid gap-4">
+                {servicesPag.paginated.map((contract: ServiceContract) => (
+                  <Card key={contract.id}>
+                    <CardContent className="p-5">
+                      <div className="flex items-start justify-between">
+                        <div className="space-y-1 flex-1">
+                          <div className="flex items-center gap-3 flex-wrap">
+                            <h3 className="font-semibold">{contract.contractTitle}</h3>
+                            <SPBadge status={contract.status} />
+                            <Badge variant="outline">{contract.contractType.replace("_", " ")}</Badge>
+                          </div>
+                          <p className="text-sm text-muted-foreground">{contract.serviceType}</p>
+                          {contract.description && (
+                            <p className="text-sm text-muted-foreground">{contract.description}</p>
+                          )}
+                          <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-sm mt-2">
+                            <div>
+                              <p className="font-medium">Contract #</p>
+                              <p className="text-muted-foreground">{contract.contractNumber}</p>
                             </div>
-                            <p className="text-sm text-muted-foreground">{contract.serviceType}</p>
-                            {contract.description && (
-                              <p className="text-sm text-muted-foreground">{contract.description}</p>
-                            )}
-                            <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-sm mt-2">
+                            <div>
+                              <p className="font-medium">Start Date</p>
+                              <p className="text-muted-foreground">
+                                {format(new Date(contract.startDate), "MMM dd, yyyy")}
+                              </p>
+                            </div>
+                            {contract.contractValue && (
                               <div>
-                                <p className="font-medium">Contract #</p>
-                                <p className="text-muted-foreground">{contract.contractNumber}</p>
-                              </div>
-                              <div>
-                                <p className="font-medium">Start Date</p>
-                                <p className="text-muted-foreground">
-                                  {format(new Date(contract.startDate), "MMM dd, yyyy")}
+                                <p className="font-medium">Contract Value</p>
+                                <p className="text-muted-foreground font-semibold">
+                                  {formatCurrency(Number(contract.contractValue), contract.currency as any)}
                                 </p>
                               </div>
-                              {contract.contractValue && (
-                                <div>
-                                  <p className="font-medium">Contract Value</p>
-                                  <p className="text-muted-foreground font-semibold">
-                                    {formatCurrency(Number(contract.contractValue), contract.currency as any)}
-                                  </p>
-                                </div>
-                              )}
-                            </div>
+                            )}
                           </div>
-                          {contract.autoRenewal && (
-                            <Badge variant="outline" className="ml-4 text-blue-600">
-                              <Calendar className="h-3 w-3 mr-1" />Auto-Renew
-                            </Badge>
-                          )}
                         </div>
-                      </CardContent>
-                    </Card>
-                  ))}
-                </div>
-              )}
+                        {contract.autoRenewal && (
+                          <Badge variant="outline" className="ml-4 text-blue-600">
+                            <Calendar className="h-3 w-3 mr-1" />Auto-Renew
+                          </Badge>
+                        )}
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            )}
 
-              {filteredServices.length > 0 && (
-                <PaginationControls
-                  page={servicesPag.page}
-                  totalPages={servicesPag.totalPages}
-                  totalItems={servicesPag.totalItems}
-                  pageSize={servicesPag.pageSize}
-                  onPageChange={servicesPag.setPage}
-                  onPageSizeChange={servicesPag.setPageSize}
-                />
-              )}
-            </CardContent>
-          </Card>
+            {filteredServices.length > 0 && (
+              <PaginationControls
+                page={servicesPag.page}
+                totalPages={servicesPag.totalPages}
+                totalItems={servicesPag.totalItems}
+                pageSize={servicesPag.pageSize}
+                onPageChange={servicesPag.setPage}
+                onPageSizeChange={servicesPag.setPageSize}
+              />
+            )}
+          </SectionCard>
         </TabsContent>
 
         {/* ── PAYMENTS TAB ─────────────────────────────────────────────────── */}
         {/* FIX 2: derived from property-expenses filtered to status=paid — no dead /api/contractor-payments call */}
         <TabsContent value="payments" className="space-y-4">
-          <Card>
-            <CardHeader><CardTitle>Filter Paid Expenses</CardTitle></CardHeader>
-            <CardContent className="space-y-3">
-              <div className="flex gap-3 flex-wrap">
-                <div className="relative flex-1 min-w-[200px]">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                  <Input
-                    className="pl-9"
-                    placeholder="Search by vendor or description..."
-                    value={paymentsSearch}
-                    onChange={(e) => { setPaymentsSearch(e.target.value); paymentsPag.reset(); }}
-                  />
-                </div>
-                <Select value={paymentsProperty?.toString() || "all"} onValueChange={(v) => { setPaymentsProperty(v === "all" ? null : parseInt(v)); paymentsPag.reset(); }}>
-                  <SelectTrigger className="w-48"><SelectValue placeholder="All Properties" /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Properties</SelectItem>
-                    {properties.map((p: any) => <SelectItem key={p.id} value={p.id.toString()}>{p.name}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-                <Select value={paymentsCategory} onValueChange={(v) => { setPaymentsCategory(v); paymentsPag.reset(); }}>
-                  <SelectTrigger className="w-44"><SelectValue placeholder="All Categories" /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Categories</SelectItem>
-                    {["maintenance","utilities","supplies","services","insurance","taxes","legal","marketing","other"].map(c => (
-                      <SelectItem key={c} value={c}>{c.charAt(0).toUpperCase()+c.slice(1)}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+          <SectionCard title="Filter Paid Expenses">
+            <div className="space-y-3">
+              <FilterBar
+                search={paymentsSearch}
+                onSearch={(v) => { setPaymentsSearch(v); paymentsPag.reset(); }}
+                placeholder="Search by vendor or description..."
+                filters={
+                  <>
+                    <Select value={paymentsProperty?.toString() || "all"} onValueChange={(v) => { setPaymentsProperty(v === "all" ? null : parseInt(v)); paymentsPag.reset(); }}>
+                      <SelectTrigger className="w-48"><SelectValue placeholder="All Properties" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All Properties</SelectItem>
+                        {properties.map((p: any) => <SelectItem key={p.id} value={p.id.toString()}>{p.name}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                    <Select value={paymentsCategory} onValueChange={(v) => { setPaymentsCategory(v); paymentsPag.reset(); }}>
+                      <SelectTrigger className="w-44"><SelectValue placeholder="All Categories" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All Categories</SelectItem>
+                        {["maintenance","utilities","supplies","services","insurance","taxes","legal","marketing","other"].map(c => (
+                          <SelectItem key={c} value={c}>{c.charAt(0).toUpperCase()+c.slice(1)}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </>
+                }
+              />
               <DateFilterControls
                 period={paymentsPeriod}
                 customRange={paymentsCustomRange}
@@ -1120,87 +1080,80 @@ export default function ExpenseManagement() {
                 onCustomRangeChange={(r) => { setPaymentsCustomRange(r); paymentsPag.reset(); }}
                 onReset={() => { setPaymentsPeriod("all"); setPaymentsCustomRange({ from: "", to: "" }); paymentsPag.reset(); }}
               />
-            </CardContent>
-          </Card>
+            </div>
+          </SectionCard>
 
-          <Card>
-            <CardHeader>
-              <CardTitle>Paid Expenses</CardTitle>
-              <CardDescription>Property expenses that have been marked as paid</CardDescription>
-            </CardHeader>
-            <CardContent>
-              {loadingExpenses ? (
-                <div className="flex justify-center p-8">
-                  <div className="animate-spin w-8 h-8 border-4 border-primary border-t-transparent rounded-full" />
-                </div>
-              ) : paymentsPag.paginated.length === 0 ? (
-                <div className="text-center p-8">
-                  <TrendingUp className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                  <h3 className="text-lg font-semibold mb-2">No Paid Expenses</h3>
-                  <p className="text-muted-foreground">
-                    {filteredPayments.length === 0 && allPaid.length > 0
-                      ? "No paid expenses match your filters."
-                      : "No expenses have been marked as paid yet."}
-                  </p>
-                </div>
-              ) : (
-                <div className="grid gap-4">
-                  {paymentsPag.paginated.map((expense: PropertyExpense) => (
-                    <Card key={expense.id}>
-                      <CardContent className="p-5">
-                        <div className="space-y-1">
-                          <div className="flex items-center gap-3 flex-wrap">
-                            <h3 className="font-semibold">{expense.vendorName}</h3>
-                            <StatusBadge status={expense.status} />
-                            <CategoryBadge category={expense.category} />
-                          </div>
-                          <p className="text-sm text-muted-foreground">{expense.description}</p>
-                          <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-sm mt-2">
-                            <div>
-                              <p className="font-medium">Amount Paid</p>
-                              <p className="text-muted-foreground font-semibold">
-                                {formatCurrency(Number(expense.amount), expense.currency as any)}
-                              </p>
-                            </div>
-                            <div>
-                              <p className="font-medium">Expense Date</p>
-                              <p className="text-muted-foreground">
-                                {format(new Date(expense.expenseDate), "MMM dd, yyyy")}
-                              </p>
-                            </div>
-                            {expense.paymentDate && (
-                              <div>
-                                <p className="font-medium">Payment Date</p>
-                                <p className="text-muted-foreground">
-                                  {format(new Date(expense.paymentDate), "MMM dd, yyyy")}
-                                </p>
-                              </div>
-                            )}
-                          </div>
-                          {expense.paymentMethod && (
-                            <p className="text-sm text-muted-foreground">
-                              Method: <span className="font-medium capitalize">{expense.paymentMethod}</span>
+          <SectionCard title="Paid Expenses" subtitle="Property expenses that have been marked as paid">
+            {loadingExpenses ? (
+              <div className="flex justify-center p-8">
+                <div className="animate-spin w-8 h-8 border-4 border-primary border-t-transparent rounded-full" />
+              </div>
+            ) : paymentsPag.paginated.length === 0 ? (
+              <EmptyState
+                icon={<TrendingUp />}
+                title="No Paid Expenses"
+                description={filteredPayments.length === 0 && allPaid.length > 0
+                  ? "No paid expenses match your filters."
+                  : "No expenses have been marked as paid yet."}
+                size="lg"
+              />
+            ) : (
+              <div className="grid gap-4">
+                {paymentsPag.paginated.map((expense: PropertyExpense) => (
+                  <Card key={expense.id}>
+                    <CardContent className="p-5">
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-3 flex-wrap">
+                          <h3 className="font-semibold">{expense.vendorName}</h3>
+                          <SPBadge status={expense.status} />
+                          <CategoryBadge category={expense.category} />
+                        </div>
+                        <p className="text-sm text-muted-foreground">{expense.description}</p>
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-sm mt-2">
+                          <div>
+                            <p className="font-medium">Amount Paid</p>
+                            <p className="text-muted-foreground font-semibold">
+                              {formatCurrency(Number(expense.amount), expense.currency as any)}
                             </p>
+                          </div>
+                          <div>
+                            <p className="font-medium">Expense Date</p>
+                            <p className="text-muted-foreground">
+                              {format(new Date(expense.expenseDate), "MMM dd, yyyy")}
+                            </p>
+                          </div>
+                          {expense.paymentDate && (
+                            <div>
+                              <p className="font-medium">Payment Date</p>
+                              <p className="text-muted-foreground">
+                                {format(new Date(expense.paymentDate), "MMM dd, yyyy")}
+                              </p>
+                            </div>
                           )}
                         </div>
-                      </CardContent>
-                    </Card>
-                  ))}
-                </div>
-              )}
+                        {expense.paymentMethod && (
+                          <p className="text-sm text-muted-foreground">
+                            Method: <span className="font-medium capitalize">{String(expense.paymentMethod ?? "").replace(/_/g, " ")}</span>
+                          </p>
+                        )}
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            )}
 
-              {filteredPayments.length > 0 && (
-                <PaginationControls
-                  page={paymentsPag.page}
-                  totalPages={paymentsPag.totalPages}
-                  totalItems={paymentsPag.totalItems}
-                  pageSize={paymentsPag.pageSize}
-                  onPageChange={paymentsPag.setPage}
-                  onPageSizeChange={paymentsPag.setPageSize}
-                />
-              )}
-            </CardContent>
-          </Card>
+            {filteredPayments.length > 0 && (
+              <PaginationControls
+                page={paymentsPag.page}
+                totalPages={paymentsPag.totalPages}
+                totalItems={paymentsPag.totalItems}
+                pageSize={paymentsPag.pageSize}
+                onPageChange={paymentsPag.setPage}
+                onPageSizeChange={paymentsPag.setPageSize}
+              />
+            )}
+          </SectionCard>
         </TabsContent>
       </Tabs>
 
@@ -1297,6 +1250,6 @@ export default function ExpenseManagement() {
           )}
         </DialogContent>
       </Dialog>
-    </div>
+    </PageShell>
   );
 }

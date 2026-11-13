@@ -197,8 +197,8 @@ function Pagination({
   const endItem = Math.min(currentPage * pageSize, totalItems);
 
   return (
-    <div className="flex items-center justify-between mt-4 pt-4 border-t">
-      <div className="flex items-center gap-2 text-sm text-muted-foreground">
+    <div className="flex flex-wrap items-center justify-between gap-3 mt-4 pt-4 border-t">
+      <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
         <span>Show</span>
         <Select value={pageSize.toString()} onValueChange={(v) => onPageSizeChange(parseInt(v))}>
           <SelectTrigger className="w-20 h-8">
@@ -211,7 +211,7 @@ function Pagination({
           </SelectContent>
         </Select>
         <span>entries</span>
-        <span className="ml-4">
+        <span className="sm:ml-4">
           Showing {startItem} to {endItem} of {totalItems} results
         </span>
       </div>
@@ -1154,9 +1154,9 @@ export default function TenantSubletting() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">Short-Term Rental Listings</h1>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="min-w-0">
+          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Short-Term Rental Listings</h1>
           <p className="text-muted-foreground">Short-term rental listings — tenant sublets and owner-managed properties</p>
         </div>
         <Dialog open={isAddListingOpen || !!editingListing} onOpenChange={(open) => {

@@ -507,7 +507,7 @@ const PurchaseRequisitions = () => {
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center">
+      <div className="flex flex-wrap justify-between items-center gap-3">
         <div>
           <h3 className="text-lg font-semibold">Purchase Requisitions</h3>
           <p className="text-sm text-muted-foreground">Manage procurement requests with 3-level approval workflow</p>
@@ -2958,9 +2958,9 @@ export default function EnterpriseFinance() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex justify-between items-start">
-        <div>
-          <h1 className="text-3xl font-bold">Enterprise Finance</h1>
+      <div className="flex flex-wrap justify-between items-start gap-3">
+        <div className="min-w-0">
+          <h1 className="text-2xl sm:text-3xl font-bold">Enterprise Finance</h1>
           <p className="text-muted-foreground mt-1">
             Comprehensive financial management with 3-level approval workflows and enterprise-grade controls
           </p>

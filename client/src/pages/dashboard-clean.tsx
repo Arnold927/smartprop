@@ -145,7 +145,7 @@ function MetricCard({
           <Icon className={`w-4.5 h-4.5 ${accent.replace("bg-", "text-")}`} />
         </div>
         {trend && (
-          <span className={`inline-flex items-center gap-1 text-[11px] font-medium px-2 py-0.5 rounded-full ${
+          <span className={`inline-flex items-center gap-1 whitespace-nowrap shrink-0 text-[11px] font-medium px-2 py-0.5 rounded-full ${
             trend.positive ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400" : "bg-red-500/10 text-red-600 dark:text-red-400"
           }`}>
             {trend.positive ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
@@ -399,14 +399,14 @@ export default function DashboardClean() {
 
       {/* ── Header ── */}
       <header className="bg-card border-b border-border sticky top-0 z-20">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 h-14 flex items-center justify-between gap-4">
-          <div>
-            <p className="text-sm font-semibold text-foreground leading-none">{greet(user?.firstName ?? undefined)}</p>
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 min-h-14 py-2 flex items-center justify-between gap-3">
+          <div className="min-w-0">
+            <p className="text-sm font-semibold text-foreground leading-tight">{greet(user?.firstName ?? undefined)}</p>
             <p className="text-xs text-muted-foreground mt-0.5 flex items-center gap-1">
-              <Calendar className="w-3 h-3" />{format(new Date(), "EEEE, d MMMM yyyy")}
+              <Calendar className="w-3 h-3 shrink-0" /><span className="sm:hidden whitespace-nowrap">{format(new Date(), "EEE, d MMM yyyy")}</span><span className="hidden sm:inline">{format(new Date(), "EEEE, d MMMM yyyy")}</span>
             </p>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 shrink-0">
             {m.urgentMaint > 0 && (
               <button onClick={() => navigate("/maintenance")} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-red-500/10 border border-red-200 dark:border-red-900 text-red-600 dark:text-red-400 text-xs font-medium hover:bg-red-500/20 transition-colors">
                 <AlertTriangle className="w-3.5 h-3.5" />{m.urgentMaint} urgent
@@ -662,9 +662,9 @@ export default function DashboardClean() {
                     <Av name={`${t.firstName ?? ""} ${t.lastName ?? ""}`} />
                     <div className="flex-1 min-w-0">
                       <p className="text-xs font-medium text-foreground truncate">{t.firstName} {t.lastName}</p>
-                      <p className="text-xs text-muted-foreground capitalize">{t.status}</p>
+                      <p className="text-xs text-muted-foreground capitalize">{String(t.status ?? "").replace(/_/g, " ")}</p>
                     </div>
-                    <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium capitalize ${t.status === "active" ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400" : "bg-muted text-muted-foreground"}`}>{t.status}</span>
+                    <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium capitalize ${t.status === "active" ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400" : "bg-muted text-muted-foreground"}`}>{String(t.status ?? "").replace(/_/g, " ")}</span>
                   </button>
                 ))}
               </div>

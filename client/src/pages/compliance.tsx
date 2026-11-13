@@ -2597,7 +2597,7 @@ export default function NairobiCompliance() {
   return (
     <div className="min-h-screen bg-background text-foreground">
       {/* Page header */}
-      <div className="border-b border-border bg-card/50 px-6 py-5">
+      <div className="border-b border-border bg-card/50 px-4 sm:px-6 py-5">
         <div className="max-w-7xl mx-auto flex items-center gap-3">
           <div className="rounded-xl bg-emerald-500/10 p-2.5">
             <Shield className="h-5 w-5 text-emerald-600" />
@@ -2616,7 +2616,7 @@ export default function NairobiCompliance() {
       </div>
 
       {/* Two-column layout: left nav + content */}
-      <div className="max-w-7xl mx-auto flex min-h-[calc(100vh-5rem)]">
+      <div className="max-w-7xl mx-auto flex flex-col lg:flex-row lg:min-h-[calc(100vh-5rem)]">
 
         {/* Left sidebar nav — desktop only */}
         <nav className="hidden lg:flex flex-col w-56 shrink-0 border-r border-border py-4 sticky top-0 h-[calc(100vh-5rem)] overflow-y-auto bg-card/30">
@@ -2642,7 +2642,7 @@ export default function NairobiCompliance() {
 
         {/* Mobile: scrollable pill tabs */}
         <div className="lg:hidden w-full">
-          <div className="flex gap-1 overflow-x-auto scrollbar-hide p-3 border-b border-border bg-card/30">
+          <div className="flex gap-1 overflow-x-auto scrollbar-hide p-3 border-b border-border bg-card/30 [scrollbar-width:none]">
             {COMPLIANCE_TABS.map(tab => (
               <button key={tab.id} onClick={() => handleTabChange(tab.id)}
                 className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium whitespace-nowrap shrink-0 transition-all ${
@@ -2658,7 +2658,7 @@ export default function NairobiCompliance() {
         </div>
 
         {/* Content area */}
-        <Tabs value={activeTab} onValueChange={handleTabChange} className="flex-1 min-w-0">
+        <Tabs value={activeTab} onValueChange={handleTabChange} className="flex-1 min-w-0 w-full">
           <TabsList className="hidden">
             {!landlordSeesRentNoticesOnly && (
               <>

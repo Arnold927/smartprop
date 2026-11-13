@@ -240,7 +240,7 @@ export default function MaintenancePage() {
  <td className="py-3 px-4">
  <div>
  <p className="font-medium">{request.title}</p>
- <p className="text-sm text-muted-foreground capitalize">{request.category}</p>
+ <p className="text-sm text-muted-foreground capitalize">{String(request.category ?? "").replace(/_/g, " ")}</p>
  </div>
  </td>
  <td className="py-3 px-4">

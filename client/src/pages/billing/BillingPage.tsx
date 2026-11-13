@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
+import { apiRequest } from "@/lib/queryClient";
 import { PageShell, PageHeader, SectionCard, SPBadge, EmptyState, PrimaryButton, SecondaryButton, FilterBar, SPTable, SPAvatar, StatTile, StatsGrid, KESAmount, ActionMenu, ConfirmDialog } from "@/components/ui/sp-ui";
 
 interface Plan {
@@ -71,12 +72,12 @@ export default function BillingPage() {
   }, [searchParams, toast]);
 
   useEffect(() => {
-    const token = localStorage.getItem("token");
-    const headers = { Authorization: `Bearer ${token}`, "Content-Type": "application/json" };
-
+    // apiRequest sends the stored access token (key "access_token") and
+    // refreshes it on 401; this page used to read a "token" key that is never
+    // set, so it sent "Bearer null" and every call was rejected.
     Promise.all([
-      fetch("/api/billing/status", { headers }).then((r) => r.json()),
-      fetch("/api/billing/plans", { headers }).then((r) => r.json()),
+      apiRequest("/api/billing/status").then((r) => r.json()),
+      apiRequest("/api/billing/plans").then((r) => r.json()),
     ])
       .then(([statusData, plansData]) => {
         setStatus(statusData);
@@ -90,19 +91,15 @@ export default function BillingPage() {
 
   async function handleCheckout(planId: string) {
     setCheckingOut(planId);
-    const token = localStorage.getItem("token");
     try {
-      const res = await fetch("/api/billing/checkout", {
-        method: "POST",
-        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ planId }),
-      });
+      const res = await apiRequest("/api/billing/checkout", { method: "POST", data: { planId } });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.message ?? "Checkout failed");
       // Redirect user to Pesapal hosted payment page
       window.location.href = data.redirectUrl;
     } catch (err: any) {
-      toast({ title: "Checkout failed", description: err.message, variant: "destructive" });
+      let msg = err?.message ?? "Checkout failed";
+      try { msg = JSON.parse(msg.replace(/^\d+:\s*/, "")).message ?? msg; } catch {}
+      toast({ title: "Checkout failed", description: msg, variant: "destructive" });
       setCheckingOut(null);
     }
   }

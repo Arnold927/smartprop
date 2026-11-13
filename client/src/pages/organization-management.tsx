@@ -12,16 +12,14 @@ import {
 } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import PaymentConfigPanel from "@/components/payment-config-panel";
+import UserInviteModal from "@/components/user-invite-modal";
 import {
   Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
-import {
-  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
-} from "@/components/ui/table";
 import { Switch } from "@/components/ui/switch";
 import { Separator } from "@/components/ui/separator";
 import {
-  Building2, Users, Settings, Palette, CreditCard, Plus,
+  Building2, Users, Settings, Palette, CreditCard,
   Shield, Globe, Bell, Mail, MessageSquare,
   TrendingUp, CheckCircle2, XCircle, Clock, AlertTriangle,
   RefreshCw, Zap, ExternalLink, ChevronRight, ChevronLeft, Loader2,
@@ -33,6 +31,14 @@ import { PageShell, PageHeader, SectionCard, SPBadge, EmptyState, PrimaryButton,
 import { useRoleGuard, ROLES } from "@/hooks/useRoleGuard";
 import { useAuth } from "@/hooks/useAuth";
 
+
+/** apiRequest already throws on a non-2xx response, with the raw response TEXT as e.message —
+ *  so a JSON error body like {"message":"..."} would otherwise show up as a literal JSON blob
+ *  in a toast. This pulls the real message out, and falls back to the raw text if it isn't JSON. */
+function errMsg(e: any): string {
+  try { const j = JSON.parse(e?.message); if (j?.message) return String(j.message); } catch { /* not JSON */ }
+  return e?.message || "Something went wrong";
+}
 
 /* ─── Backend types (matching real API responses) ───────────────────────────── */
 
@@ -110,38 +116,6 @@ const PLAN_COLOR: Record<string, string> = {
 
 /* ─── Small reusable components ─────────────────────────────────────────────── */
 
-function StatCard({
-  title, value, subtitle, icon: Icon, color = "blue",
-}: {
-  title: string; value: string | number; subtitle?: string;
-  icon: React.ElementType; color?: string;
-}) {
-  const colorMap: Record<string, string> = {
-    blue:   "text-blue-600 bg-blue-50",
-    green:  "text-emerald-600 bg-emerald-50",
-    amber:  "text-amber-600 bg-amber-50",
-    red:    "text-red-600 bg-red-50",
-    violet: "text-violet-600 bg-violet-50",
-    slate:  "text-muted-foreground bg-slate-50",
-  };
-  return (
-    <Card>
-      <CardContent className="p-5">
-        <div className="flex items-start justify-between">
-          <div>
-            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">{title}</p>
-            <p className="text-2xl font-semibold mt-1 tabular-nums">{value}</p>
-            {subtitle && <p className="text-xs text-muted-foreground mt-0.5">{subtitle}</p>}
-          </div>
-          <div className={`p-2.5 rounded-lg ${colorMap[color]}`}>
-            <Icon className="h-5 w-5" />
-          </div>
-        </div>
-      </CardContent>
-    </Card>
-  );
-}
-
 function UsageBar({ used, max, label }: { used: number; max: number; label: string }) {
   const pct   = max > 0 ? Math.min(100, Math.round((used / max) * 100)) : 0;
   const color = pct >= 90 ? "bg-red-500" : pct >= 70 ? "bg-amber-500" : "bg-emerald-500";
@@ -155,91 +129,6 @@ function UsageBar({ used, max, label }: { used: number; max: number; label: stri
         <div className={`h-full rounded-full transition-all ${color}`} style={{ width: `${pct}%` }} />
       </div>
     </div>
-  );
-}
-
-/* ─── Invite User Dialog ─────────────────────────────────────────────────────── */
-
-// All invitable roles. Admin option is filtered out for non-admin users at render time.
-// Kept in sync with the backend's real allowed list (see the role schema
-// in server/routes/users.ts's POST / handler) — tenant, contractor, and
-// caretaker are deliberately excluded here. Each has its own dedicated
-// invite flow elsewhere that correctly links the login to a business
-// record; inviting any of them through this general flow would create a
-// login with nothing behind it, and the backend rejects the request
-// outright if attempted.
-const ROLE_OPTIONS = [
-  { value: "admin",       label: "Admin" },
-  { value: "manager",     label: "Property Manager" },
-  { value: "landlord",    label: "Landlord" },
-  { value: "staff",       label: "Staff" },
-  { value: "guard",       label: "Guard" },
-];
-
-function InviteUserDialog({
-  open, onOpenChange, onSubmit, isPending, currentUserRole,
-}: {
-  open: boolean; onOpenChange: (v: boolean) => void;
-  onSubmit: (data: { email: string; role: string }) => void;
-  isPending: boolean;
-  currentUserRole?: string;
-}) {
-  const [email, setEmail] = useState("");
-  const [role, setRole]   = useState("manager");
-  // Only admins can invite other admins
-  const visibleRoles = ROLE_OPTIONS.filter(r =>
-    r.value !== "admin" || currentUserRole === "admin"
-  );
-
-  const handleSubmit = () => {
-    if (!email) return;
-    onSubmit({ email, role });
-  };
-
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-xl">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <Plus className="h-5 w-5" /> Invite Team Member
-          </DialogTitle>
-          <DialogDescription>
-            An invitation email will be sent to the address below. The user clicks the link,
-            sets their password, and their account is created automatically with the selected role.
-          </DialogDescription>
-        </DialogHeader>
-        <div className="space-y-4 pt-1">
-          <div className="space-y-1.5">
-            <Label>Email address <span className="text-red-500">*</span></Label>
-            <Input
-              type="email"
-              value={email}
-              onChange={e => setEmail(e.target.value)}
-              placeholder="colleague@company.com"
-            />
-          </div>
-          <div className="space-y-1.5">
-            <Label>Role</Label>
-            <Select value={role} onValueChange={setRole}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent>
-                {visibleRoles.map(r => (
-                  <SelectItem key={r.value} value={r.value}>{r.label}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="flex justify-end gap-3 pt-1">
-            <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
-            <Button onClick={handleSubmit} disabled={isPending || !email}>
-              {isPending
-                ? <><RefreshCw className="h-4 w-4 mr-2 animate-spin" />Sending…</>
-                : "Send Invite"}
-            </Button>
-          </div>
-        </div>
-      </DialogContent>
-    </Dialog>
   );
 }
 
@@ -481,11 +370,7 @@ function NotificationsTab({ activeTab }: { activeTab: string }) {
 
   const saveMut = useMutation({
     mutationFn: async (patch: Partial<NotifPrefs>) => {
-      const r = await apiRequest("/api/notifications/preferences", {
-        method: "PATCH",
-        data: patch,
-      });
-      if (!r.ok) throw new Error((await r.json()).message ?? "Save failed");
+      const r = await apiRequest("/api/notifications/preferences", { method: "PATCH", data: patch });
       return r.json();
     },
     onSuccess: () => {
@@ -493,7 +378,7 @@ function NotificationsTab({ activeTab }: { activeTab: string }) {
       toast({ title: "Notification preferences saved" });
     },
     onError: (e: any) =>
-      toast({ title: "Could not save preferences", description: e.message, variant: "destructive" }),
+      toast({ title: "Could not save preferences", description: errMsg(e), variant: "destructive" }),
   });
 
   if (activeTab !== "notifications") return null;
@@ -515,7 +400,17 @@ function NotificationsTab({ activeTab }: { activeTab: string }) {
   };
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 gap-5 max-w-3xl">
+    <div className="space-y-4 max-w-3xl">
+      <div className="flex items-start gap-3 px-4 py-3 rounded-xl bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-900">
+        <Bell className="h-4 w-4 text-blue-500 mt-0.5 shrink-0" />
+        <p className="text-xs text-blue-700 dark:text-blue-300 leading-relaxed">
+          These are <strong>your own</strong> alert preferences for this account — not an organisation-wide policy, and they
+          don't change what tenants or other staff receive. WhatsApp/email opt-outs are live; the in-app toggles below are
+          saved but not yet wired up to anything that reads them.
+        </p>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
 
       {/* ── In-App / Real-time ─────────────────────────────────────────────── */}
       <Card>
@@ -523,15 +418,15 @@ function NotificationsTab({ activeTab }: { activeTab: string }) {
           <CardTitle className="flex items-center gap-2 text-base">
             <Bell className="h-4 w-4" /> In-App Notifications
           </CardTitle>
-          <CardDescription>Live alerts that appear inside the app</CardDescription>
+          <CardDescription>Not yet wired to delivery — saved for when this ships</CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
           {[
-            { key: "maintenanceUpdates",   label: "Maintenance Updates",   desc: "Real-time alerts for maintenance status changes" },
-            { key: "paymentReminders",     label: "Payment Confirmations", desc: "Notified when rent payments are confirmed" },
-            { key: "inAppNotifications",   label: "New Tenant Messages",   desc: "Alerts for new tenant or contractor messages" },
-            { key: "securityAlerts",       label: "Security Alerts",       desc: "Visitor check-ins, gate events, and security incidents" },
-            { key: "featureAnnouncements", label: "System Announcements",  desc: "Important updates about SmartProp features" },
+            { key: "maintenanceUpdates",   label: "Maintenance Updates",   desc: "Maintenance status changes" },
+            { key: "paymentReminders",     label: "Payment Confirmations", desc: "Rent payments confirmed" },
+            { key: "inAppNotifications",   label: "New Messages",          desc: "New tenant or contractor messages" },
+            { key: "securityAlerts",       label: "Security Alerts",       desc: "Visitor check-ins, gate events, security incidents" },
+            { key: "featureAnnouncements", label: "System Announcements",  desc: "Updates about SmartProp features" },
           ].map(({ key, label, desc }) => (
             <div key={key} className="flex items-center justify-between gap-4">
               <div>
@@ -558,9 +453,9 @@ function NotificationsTab({ activeTab }: { activeTab: string }) {
         </CardHeader>
         <CardContent className="space-y-3">
           {[
-            { key: "whatsappNotifications", label: "WhatsApp Alerts",  desc: "Primary channel — payment reminders, maintenance, visitor notifications" },
-            { key: "weeklyDigest",          label: "Weekly Email Digest", desc: "Weekly KPI summary sent every Monday morning" },
-            { key: "marketingEmails",       label: "Marketing Emails",    desc: "Product tips, updates, and promotional communications" },
+            { key: "whatsappNotifications", label: "WhatsApp Alerts",  desc: "Your primary channel for the alerts above, once they're wired up" },
+            { key: "weeklyDigest",          label: "Weekly Email Digest", desc: "Planned, not yet built — this just saves your preference for later" },
+            { key: "marketingEmails",       label: "Marketing Emails",    desc: "Not yet wired to delivery — saved for when this ships" },
           ].map(({ key, label, desc }) => (
             <div key={key} className="flex items-center justify-between gap-4">
               <div>
@@ -603,7 +498,9 @@ function NotificationsTab({ activeTab }: { activeTab: string }) {
           <CardTitle className="flex items-center gap-2 text-base">
             <Bell className="h-4 w-4" /> Quiet Hours
           </CardTitle>
-          <CardDescription>Suppress non-urgent notifications during these hours</CardDescription>
+          <CardDescription>
+            Saved here, but WhatsApp delivery currently always pauses 21:00–07:00 EAT regardless of this setting
+          </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="flex items-center justify-between gap-4">
@@ -646,41 +543,15 @@ function NotificationsTab({ activeTab }: { activeTab: string }) {
         </CardContent>
       </Card>
 
-      {/* ── Rent Due Warning ───────────────────────────────────────────────── */}
-      <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="flex items-center gap-2 text-base">
-            <Bell className="h-4 w-4" /> Rent Due Reminder
-          </CardTitle>
-          <CardDescription>How many days before rent is due should tenants be notified</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-1.5">
-            <Label className="text-xs">Days before due date</Label>
-            <Select
-              value={String(p.rentDueWarningDays ?? 3)}
-              onValueChange={v => saveMut.mutate({ rentDueWarningDays: parseInt(v) })}
-              disabled={saveMut.isPending}
-            >
-              <SelectTrigger className="w-40">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {[1, 2, 3, 5, 7, 10, 14].map(d => (
-                  <SelectItem key={d} value={String(d)}>{d} day{d > 1 ? "s" : ""} before</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <p className="text-xs text-muted-foreground mt-2">
-              Tenants receive a WhatsApp/in-app reminder this many days before rent is due.
-            </p>
-          </div>
-        </CardContent>
-      </Card>
-
+      </div>
     </div>
   );
 }
+// Note: a "days before rent is due" reminder setting used to live here, but it edited THIS
+// account's own preference row — meaningless for an admin/manager, since rent reminders are
+// sent using each TENANT's own preference. That control already exists, correctly scoped, in
+// the tenant's own portal (see tenant-portal.tsx), so it was removed from here rather than left
+// as a decoy that looked like an org-wide policy setting but silently did nothing.
 
 // ── Report Delivery Panel ──────────────────────────────────────────────────────
 // Standalone component so it keeps its own query state cleanly.
@@ -703,24 +574,25 @@ function ReportDeliveryPanel({ activeTab }: { activeTab: string }) {
   const saveMut = useMutation({
     mutationFn: async (payload: { enabled: boolean; dayOfMonth: number }) => {
       const res = await apiRequest("/api/report-schedule", { method: "PUT", data: payload });
-      if (!res.ok) throw new Error((await res.json()).message ?? "Failed");
       return res.json();
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["/api/report-schedule"] });
       toast({ title: "Report schedule saved" });
     },
-    onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
+    onError: (e: any) => toast({ title: "Error", description: errMsg(e), variant: "destructive" }),
   });
 
   const sendNowMut = useMutation({
     mutationFn: async () => {
       const res = await apiRequest("/api/report-schedule/send-now", { method: "POST" });
-      if (!res.ok) throw new Error((await res.json()).message ?? "Failed");
       return res.json();
     },
-    onSuccess: () => toast({ title: "Reports queued", description: "Owner statement emails will be sent within a few minutes." }),
-    onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
+    // The server already tells us exactly what will happen (how many properties, or why it can't
+    // run) — showing a generic "queued" message regardless hid that, including outright failures
+    // like "no PM agreement yet" that used to surface as a false success.
+    onSuccess: (data: any) => toast({ title: "Sending statements", description: data?.message }),
+    onError: (e: any) => toast({ title: "Couldn't send statements", description: errMsg(e), variant: "destructive" }),
   });
 
   if (activeTab !== "reports") return null;
@@ -858,7 +730,6 @@ export default function OrganizationManagement() {
   const { user } = useAuth();
 
   const [activeTab,      setActiveTab]      = useState("team");
-  const [isInviteOpen,   setIsInviteOpen]   = useState(false);
   const [roleFilter,     setRoleFilter]     = useState("all"); // for Team tab role filter
 
   const { toast }        = useToast();
@@ -872,9 +743,12 @@ export default function OrganizationManagement() {
       const r = await apiRequest("/api/billing/status");
       return r.json();
     },
+    // Billing is admin-only on the server; managers would just get a 403.
+    enabled:  user?.role === "admin" || user?.role === "platform_admin",
+    retry:    false,
   });
 
-  const { data: properties = [], isLoading: loadingProperties } = useQuery<OrgProperty[]>({
+  const { data: properties = [] } = useQuery<OrgProperty[]>({
     queryKey: ["/api/properties"],
     queryFn:  async () => {
       const r = await apiRequest("/api/properties");
@@ -888,20 +762,6 @@ export default function OrganizationManagement() {
       const r = await apiRequest("/api/users");
       return ensureArray(await r.json());
     },
-  });
-
-  /* ── Mutations ──────────────────────────────────────────────────────────── */
-
-  const inviteMutation = useMutation({
-    mutationFn: (data: { email: string; role: string }) =>
-      apiRequest("/api/users", { method: "POST", data }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/users"] });
-      setIsInviteOpen(false);
-      toast({ title: "Invite sent", description: "An invitation email has been dispatched." });
-    },
-    onError: (e: any) =>
-      toast({ title: "Failed to send invite", description: e.message, variant: "destructive" }),
   });
 
   /* ── Derived values ─────────────────────────────────────────────────────── */
@@ -919,6 +779,10 @@ export default function OrganizationManagement() {
   );
 
   // Apply role filter on top of search
+  // Roles to offer in the Team tab's filter — every role actually present, not just invitable
+  // ones (a tenant or caretaker login could show up here too), sorted for a stable order.
+  const teamRoleOptions = Array.from(new Set(users.map(u => u.role))).sort();
+
   const teamFiltered = roleFilter === "all"
     ? teamControls.filtered
     : teamControls.filtered.filter(u => u.role === roleFilter);
@@ -940,33 +804,17 @@ export default function OrganizationManagement() {
 
   /* ── Page ───────────────────────────────────────────────────────────────── */
   return (
-    <div className="container mx-auto p-6 space-y-6 max-w-7xl">
+    <PageShell>
+      <PageHeader
+        title="Organization"
+        subtitle="Manage team access, roles, notification preferences, and payment settings."
+        icon={<Building2 className="w-5 h-5" />}
+      />
 
-      {/* ── Header ───────────────────────────────────────────────────────── */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Organization</h1>
-          <p className="text-muted-foreground text-sm mt-0.5">
-            Manage team access, roles, notification preferences, and payment settings.
-          </p>
-        </div>
-      </div>
-
-      {/* ── KPI strip ────────────────────────────────────────────────────── */}
-      <div className="grid grid-cols-2 md:grid-cols-2 gap-3 max-w-lg">
-        <StatCard
-          title="Team Members"
-          value={users.length}
-          icon={Users}
-          color="violet"
-        />
-        <StatCard
-          title="Properties"
-          value={properties.length}
-          icon={Building2}
-          color="blue"
-        />
-      </div>
+      <StatsGrid cols={2}>
+        <StatTile label="Team Members" value={users.length} icon={<Users className="w-4 h-4" />} accent="violet" />
+        <StatTile label="Properties" value={properties.length} icon={<Building2 className="w-4 h-4" />} accent="blue" />
+      </StatsGrid>
 
       {/* ── Tabs ─────────────────────────────────────────────────────────── */}
       <Tabs value={activeTab} onValueChange={setActiveTab}>
@@ -1002,32 +850,26 @@ export default function OrganizationManagement() {
         {/* ── Team ─────────────────────────────────────────────────────────── */}
         <TabsContent value="team" className="mt-4 space-y-4">
           {/* Toolbar */}
-          <div className="flex flex-col sm:flex-row gap-3">
-            <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input
-                className="pl-9"
-                placeholder="Search by name, email, or role…"
-                value={teamControls.query}
-                onChange={e => teamControls.setQuery(e.target.value)}
-              />
-            </div>
-            <Select value={roleFilter} onValueChange={v => { setRoleFilter(v); }}>
-              <SelectTrigger className="w-48">
-                <Filter className="h-3.5 w-3.5 mr-2 text-muted-foreground" />
-                <SelectValue placeholder="All roles" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All roles</SelectItem>
-                {ROLE_OPTIONS.map(r => (
-                  <SelectItem key={r.value} value={r.value}>{r.label}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <Button onClick={() => setIsInviteOpen(true)} size="sm" className="shrink-0">
-              <Plus className="h-4 w-4 mr-2" /> Invite Member
-            </Button>
-          </div>
+          <FilterBar
+            search={teamControls.query}
+            onSearch={teamControls.setQuery}
+            placeholder="Search by name, email, or role…"
+            filters={
+              <Select value={roleFilter} onValueChange={v => { setRoleFilter(v); }}>
+                <SelectTrigger className="w-48">
+                  <Filter className="h-3.5 w-3.5 mr-2 text-muted-foreground" />
+                  <SelectValue placeholder="All roles" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All roles</SelectItem>
+                  {teamRoleOptions.map(r => (
+                    <SelectItem key={r} value={r}>{r.replace(/_/g, " ")}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            }
+            actions={<UserInviteModal triggerText="Invite Member" />}
+          />
 
           {/* Capacity warning */}
           {billingStatus && users.length >= billingStatus.maxUsers && (
@@ -1037,92 +879,82 @@ export default function OrganizationManagement() {
             </div>
           )}
 
-          <Card>
-            <CardContent className="p-0">
-              {loadingUsers ? (
-                <div className="h-40 flex items-center justify-center">
-                  <div className="animate-spin w-5 h-5 border-2 border-primary border-t-transparent rounded-full" />
-                </div>
-              ) : users.length === 0 ? (
-                <div className="py-16 text-center">
-                  <Users className="h-8 w-8 text-muted-foreground mx-auto mb-3" />
-                  <p className="text-sm font-medium">No team members yet</p>
-                  <p className="text-xs text-muted-foreground mt-1 mb-4">Invite your first colleague to get started.</p>
-                  <Button size="sm" onClick={() => setIsInviteOpen(true)}>
-                    <Plus className="h-4 w-4 mr-2" /> Invite Member
-                  </Button>
-                </div>
-              ) : teamPaged.length === 0 ? (
-                <div className="py-12 text-center">
-                  <Search className="h-6 w-6 text-muted-foreground mx-auto mb-2" />
-                  <p className="text-sm text-muted-foreground">No members match your search.</p>
-                </div>
-              ) : (
-                <>
-                  <Table>
-                    <TableHeader>
-                      <TableRow className="hover:bg-transparent">
-                        <TableHead>Member</TableHead>
-                        <TableHead>Role</TableHead>
-                        <TableHead>Verified</TableHead>
-                        <TableHead>Last Login</TableHead>
-                        <TableHead>Joined</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {teamPaged.map(u => (
-                        <TableRow key={u.id}>
-                          <TableCell>
-                            <div className="flex items-center gap-3">
-                              <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-primary font-semibold text-xs shrink-0">
-                                {(u.firstName?.[0] ?? u.email[0]).toUpperCase()}
-                              </div>
-                              <div>
-                                <p className="text-sm font-medium leading-tight">
-                                  {u.firstName || u.lastName
-                                    ? `${u.firstName ?? ""} ${u.lastName ?? ""}`.trim()
-                                    : u.email}
-                                </p>
-                                <p className="text-xs text-muted-foreground">{u.email}</p>
-                              </div>
-                            </div>
-                          </TableCell>
-                          <TableCell>
-                            <Badge variant="outline" className="text-xs capitalize">
-                              {u.role.replace(/_/g, " ")}
-                            </Badge>
-                          </TableCell>
-                          <TableCell>
-                            {u.emailVerified
-                              ? <CheckCircle2 className="h-4 w-4 text-emerald-500" />
-                              : <Clock className="h-4 w-4 text-amber-500" />}
-                          </TableCell>
-                          <TableCell className="text-sm text-muted-foreground">
-                            {u.lastLoginAt
-                              ? new Date(u.lastLoginAt).toLocaleDateString("en-GB", { day: "numeric", month: "short" })
-                              : "Never"}
-                          </TableCell>
-                          <TableCell className="text-sm text-muted-foreground">
-                            {new Date(u.createdAt).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                  <PaginationBar
-                    page={teamSafePage}
-                    totalPages={teamTotalPages}
-                    pageSize={teamControls.pageSize}
-                    setPage={teamControls.setPage}
-                    setPageSize={teamControls.setPageSize}
-                    totalItems={teamFiltered.length}
-                    shownItems={teamPaged.length}
-                    noun="members"
-                  />
-                </>
-              )}
-            </CardContent>
-          </Card>
+          <SectionCard padding="none">
+            {loadingUsers ? (
+              <div className="h-40 flex items-center justify-center">
+                <div className="animate-spin w-5 h-5 border-2 border-primary border-t-transparent rounded-full" />
+              </div>
+            ) : users.length === 0 ? (
+              <EmptyState
+                icon={<Users />}
+                title="No team members yet"
+                description="Invite your first colleague to get started."
+                size="lg"
+              />
+            ) : teamPaged.length === 0 ? (
+              <EmptyState icon={<Search />} title="No members match your search" size="lg" />
+            ) : (
+              <>
+                <SPTable
+                  data={teamPaged}
+                  columns={[
+                    {
+                      header: "Member",
+                      cell: (u: OrgUser) => (
+                        <div className="flex items-center gap-3">
+                          <SPAvatar name={u.firstName || u.lastName ? `${u.firstName ?? ""} ${u.lastName ?? ""}`.trim() : u.email} />
+                          <div>
+                            <p className="text-sm font-medium leading-tight">
+                              {u.firstName || u.lastName
+                                ? `${u.firstName ?? ""} ${u.lastName ?? ""}`.trim()
+                                : u.email}
+                            </p>
+                            <p className="text-xs text-muted-foreground">{u.email}</p>
+                          </div>
+                        </div>
+                      ),
+                    },
+                    {
+                      header: "Role",
+                      cell: (u: OrgUser) => <Badge variant="outline" className="text-xs capitalize">{u.role.replace(/_/g, " ")}</Badge>,
+                    },
+                    {
+                      header: "Verified",
+                      cell: (u: OrgUser) => <SPBadge status={u.emailVerified ? "verified" : "pending"} />,
+                    },
+                    {
+                      header: "Last Login",
+                      hideOnMobile: true,
+                      cell: (u: OrgUser) => (
+                        <span className="text-sm text-muted-foreground">
+                          {u.lastLoginAt ? new Date(u.lastLoginAt).toLocaleDateString("en-GB", { day: "numeric", month: "short" }) : "Never"}
+                        </span>
+                      ),
+                    },
+                    {
+                      header: "Joined",
+                      hideOnMobile: true,
+                      cell: (u: OrgUser) => (
+                        <span className="text-sm text-muted-foreground">
+                          {new Date(u.createdAt).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}
+                        </span>
+                      ),
+                    },
+                  ]}
+                />
+                <PaginationBar
+                  page={teamSafePage}
+                  totalPages={teamTotalPages}
+                  pageSize={teamControls.pageSize}
+                  setPage={teamControls.setPage}
+                  setPageSize={teamControls.setPageSize}
+                  totalItems={teamFiltered.length}
+                  shownItems={teamPaged.length}
+                  noun="members"
+                />
+              </>
+            )}
+          </SectionCard>
         </TabsContent>
 
         {/* ── Branding ─────────────────────────────────────────────────────── */}
@@ -1158,17 +990,8 @@ export default function OrganizationManagement() {
         </TabsContent>
       </Tabs>
 
-      {/* ── Dialogs ──────────────────────────────────────────────────────── */}
-      <InviteUserDialog
-        open={isInviteOpen}
-        onOpenChange={setIsInviteOpen}
-        onSubmit={data => inviteMutation.mutate(data)}
-        isPending={inviteMutation.isPending}
-        currentUserRole={user?.role}
-      />
-
       {/* Report Delivery Panel — rendered outside Tabs so it can use its own hooks cleanly */}
       <ReportDeliveryPanel activeTab={activeTab} />
-    </div>
+    </PageShell>
   );
 }

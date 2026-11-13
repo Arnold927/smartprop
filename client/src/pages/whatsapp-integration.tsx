@@ -1284,7 +1284,7 @@ export default function WhatsAppIntegration() {
             Send automated notifications and manage WhatsApp communications with tenants and landlords
           </p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
 
           {/* Send Message dialog */}
           <Dialog open={isMessageModalOpen} onOpenChange={setMessageModal}>
@@ -1941,7 +1941,7 @@ export default function WhatsAppIntegration() {
                             <p className="truncate text-sm" title={msg.content}>{msg.content}</p>
                           </TableCell>
                           <TableCell>
-                            <Badge variant="outline" className="capitalize">{msg.type}</Badge>
+                            <Badge variant="outline" className="capitalize">{String(msg.type ?? "").replace(/_/g, " ")}</Badge>
                           </TableCell>
                           <TableCell>
                             {(() => {

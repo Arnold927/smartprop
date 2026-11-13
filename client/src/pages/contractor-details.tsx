@@ -244,9 +244,9 @@ export default function ContractorDetailsPage() {
  });
  
 const { data: contractor, isLoading, error } = useQuery<ServiceContractor>({
-  queryKey: [`/api/service-contractors/${id}`],
+  queryKey: [`/api/contractors/${id}`],
  queryFn: async () => {
- const response = await apiRequest(`/api/service-contractors/${id}`);
+ const response = await apiRequest(`/api/contractors/${id}`);
  return response.json();
  },
  enabled: !!id,

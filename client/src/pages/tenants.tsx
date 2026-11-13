@@ -17,6 +17,7 @@ import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import ComprehensiveTenantModal from "@/components/modals/comprehensive-tenant-modal";
+import QueryError from "@/components/query-error";
 import { PageShell, PageHeader, SectionCard, SPBadge, EmptyState, PrimaryButton, SecondaryButton, FilterBar, SPTable, SPAvatar, StatTile, StatsGrid, KESAmount, ActionMenu, ConfirmDialog } from "@/components/ui/sp-ui";
 import { useRoleGuard, ROLES } from "@/hooks/useRoleGuard";
 
@@ -183,7 +184,7 @@ export default function Tenants() {
   // When the API returns { results: [...] } the default is overwritten with the
   // object, and anything calling .map() on it throws immediately.
   // Use `undefined` as default and call toArray() after.
-  const { data: tenantsRaw, isLoading } = useQuery<any>({
+  const { data: tenantsRaw, isLoading, isError: tenantsError, refetch: refetchTenants } = useQuery<any>({
     queryKey: tenantQueryKey,
     queryFn: async () => { const r = await apiRequest(tenantQueryKey[0] as string); return ensureArray(await r.json()); },
     staleTime: 5 * 60 * 1000,
@@ -267,11 +268,20 @@ export default function Tenants() {
     return (
       <div className="p-6 space-y-5 animate-pulse">
         <div className="h-8 bg-muted rounded w-48" />
-        <div className="grid grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
           {[...Array(4)].map((_, i) => <div key={i} className="h-24 bg-muted rounded-2xl" />)}
         </div>
         <div className="h-96 bg-muted rounded-2xl" />
       </div>
+    );
+  }
+
+  if (tenantsError && !tenantsRaw) {
+    return (
+      <PageShell>
+        <PageHeader title="Tenants" subtitle="" />
+        <QueryError what="tenants" onRetry={() => refetchTenants()} />
+      </PageShell>
     );
   }
 

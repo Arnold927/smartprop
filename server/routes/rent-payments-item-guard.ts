@@ -26,6 +26,14 @@ import { requireOrg } from "../middleware/requireOrg";
 const router = Router();
 router.use(authenticateJWT as any, requireOrg as any);
 
+// Only numeric ids belong to this router. Anything else ("/stats", "/summary",
+// ...) is a named route on a later router: hand it on instead of treating it
+// as an id (it used to be parsed to NaN and answered 500).
+router.param("id", (_req: any, _res: any, next: any, id: string) => {
+  if (/^\d+$/.test(id)) return next();
+  return next("router");
+});
+
 /** Resolve whether this caller (given their role) may access a rent payment
  *  whose tenant belongs to tenantOrgId / tenant row tenantRowId. */
 async function callerCanAccess(tenantRowId: number, orgId: number, role: string, userId: string): Promise<boolean> {

@@ -1,36 +1,38 @@
-import { Home, Bell, Menu } from "lucide-react";
+import { Home, Menu } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { useIsMobile } from "@/hooks/use-mobile";
+import { useIsCompact } from "@/hooks/use-mobile";
+import { NotificationBell } from "@/components/layout/top-bar";
 
 interface MobileHeaderProps {
  onMenuClick: () => void;
 }
 
+// In-flow (not fixed): it is a flex child of the shell column, so <main> starts
+// below it and page titles are never hidden underneath.
 export default function MobileHeader({ onMenuClick }: MobileHeaderProps) {
- const isMobile = useIsMobile();
- if (!isMobile) return null;
+ const isCompact = useIsCompact();
+ if (!isCompact) return null;
 
  return (
- <div className="lg:hidden fixed top-0 left-0 right-0 chrome-scope bg-background shadow-sm z-40 border-b border-border ">
- <div className="flex items-center justify-between px-4 h-14">
- {/* Logo */}
- <div className="flex items-center gap-2">
- <div className="w-7 h-7 bg-blue-600 rounded-lg flex items-center justify-center">
+ <header
+ className="lg:hidden shrink-0 chrome-scope bg-background shadow-sm z-40 border-b border-border"
+ style={{ paddingTop: "env(safe-area-inset-top, 0px)" }}
+ >
+ <div className="flex items-center justify-between px-3 sm:px-4 h-14">
+ <div className="flex items-center gap-2 min-w-0">
+ <div className="w-8 h-8 bg-emerald-600 rounded-lg flex items-center justify-center shrink-0">
  <Home className="w-4 h-4 text-white" />
  </div>
- <span className="text-base font-bold text-foreground tracking-tight">SmartProp</span>
+ <span className="text-base font-bold text-foreground tracking-tight truncate">SmartProp</span>
  </div>
 
- {/* Right side: notifications + menu (for deep nav access) */}
  <div className="flex items-center gap-1">
- <Button variant="ghost" size="sm" className="h-8 w-8 p-0 relative">
- <Bell className="w-4 h-4 text-muted-foreground dark:text-muted-foreground" />
- </Button>
- <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={onMenuClick}>
- <Menu className="w-4 h-4 text-muted-foreground dark:text-muted-foreground" />
+ <NotificationBell />
+ <Button variant="ghost" size="sm" className="h-11 w-11 p-0" onClick={onMenuClick} aria-label="Open menu">
+ <Menu className="w-5 h-5 text-muted-foreground" />
  </Button>
  </div>
  </div>
- </div>
+ </header>
  );
 }

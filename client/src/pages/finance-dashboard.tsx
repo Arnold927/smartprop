@@ -146,7 +146,7 @@ export default function FinanceDashboard() {
 
         {/* Header */}
         <div className="bg-card border-b border-border">
-          <div className="max-w-7xl mx-auto px-6 py-6 flex items-center justify-between gap-4">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6 flex items-center justify-between gap-4 flex-wrap">
             <div className="flex items-center gap-4">
               <div className="w-10 h-10 bg-gradient-to-br from-emerald-500 to-teal-600 rounded-xl flex items-center justify-center shadow-sm">
                 <Wallet className="w-5 h-5 text-white" />
@@ -158,7 +158,7 @@ export default function FinanceDashboard() {
                 </p>
               </div>
             </div>
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-3 flex-wrap">
               <span className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border ${collectionRate >= 95 ? "bg-emerald-500/10 border-emerald-200 dark:border-emerald-900 text-emerald-700 dark:text-emerald-400" : "bg-amber-500/10 border-amber-200 dark:border-amber-900 text-amber-700 dark:text-amber-400"}`}>
                 <Target className="w-3.5 h-3.5" />{collectionRate}% Collection
               </span>

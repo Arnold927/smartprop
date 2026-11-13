@@ -8,7 +8,8 @@ import { fileURLToPath } from "url";
 import express, { type Request, Response, NextFunction } from "express";
 import cors from "cors";
 import cookieParser from "cookie-parser";
-import rateLimit from "express-rate-limit";
+import rateLimit, { ipKeyGenerator } from "express-rate-limit";
+import jwt from "jsonwebtoken";
 import { registerModularRoutes } from "./routes/index";
 
 import { ensureIpnRegistered } from "./services/pesapal.js";
@@ -72,29 +73,69 @@ app.use(express.urlencoded({ extended: false, limit: "10mb" }));
 app.use(cookieParser());
 
 // ── Rate limiting ─────────────────────────────────────────────────────────────
-// Strict limit on auth endpoints to block brute-force attacks
-const authLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
+// Offices, estates and gate posts often share ONE public IP (NAT / mobile
+// data), so limits keyed purely on IP lock out a whole team together. Rules:
+//   - login: only FAILED attempts count (brute force is still capped at 20 per
+//     15 min per IP) — a team signing in at 8am never trips it.
+//   - signup / forgot-password: 20 per 15 min per IP.
+//   - token refresh: generous, it runs silently for every signed-in user.
+//   - general API: per signed-in USER (verified token), not per IP; requests
+//     with no valid token share a smaller per-IP bucket.
+const tooMany = { message: "Too many requests, please try again later." };
+
+const loginLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
   max: 20,
-  message: { message: "Too many requests, please try again later." },
+  skipSuccessfulRequests: true,
+  message: tooMany,
   standardHeaders: true,
   legacyHeaders: false,
 });
 
-// General API limit (generous — just protects against abuse)
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 20,
+  message: tooMany,
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+const refreshLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 200,
+  message: tooMany,
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+function apiLimitKey(req: Request): string {
+  const header = req.headers.authorization;
+  const secret = process.env.JWT_SECRET;
+  if (header?.startsWith("Bearer ") && secret) {
+    try {
+      const decoded: any = jwt.verify(header.slice(7), secret);
+      const id = decoded?.userId ?? decoded?.id ?? decoded?.sub;
+      if (id) return `u:${id}`;
+    } catch { /* invalid or expired: fall through to the IP bucket */ }
+  }
+  return `ip:${ipKeyGenerator(req.ip ?? "")}`;
+}
+
 const apiLimiter = rateLimit({
-  windowMs: 60 * 1000, // 1 minute
-  max: 300,
-  message: { message: "Too many requests, please try again later." },
+  windowMs: 60 * 1000,
+  // 300/min per signed-in user; 120/min per IP for anonymous traffic.
+  max: (req) => (apiLimitKey(req as Request).startsWith("u:") ? 300 : 120),
+  keyGenerator: (req) => apiLimitKey(req as Request),
+  message: tooMany,
   standardHeaders: true,
   legacyHeaders: false,
   skip: (req) => process.env.NODE_ENV === "development",
 });
 
-app.use("/api/auth/login", authLimiter);
+app.use("/api/auth/login", loginLimiter);
 app.use("/api/auth/signup", authLimiter);
 app.use("/api/auth/forgot-password", authLimiter);
-app.use("/api/auth/refresh", authLimiter);
+app.use("/api/auth/refresh", refreshLimiter);
 app.use("/api", apiLimiter);
 
 // ── Request logging ───────────────────────────────────────────────────────────

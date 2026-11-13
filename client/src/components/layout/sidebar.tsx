@@ -7,7 +7,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { useAuth, useLogout } from "@/hooks/useAuth";
 import { useDarkModeContext } from "@/context/DarkModeContext";
-import { useIsMobile } from "@/hooks/use-mobile";
+import { useIsCompact } from "@/hooks/use-mobile";
 import { useWebSocket } from "@/hooks/useWebSocket";
 import { useTranslation } from "react-i18next";
 import {
@@ -163,10 +163,12 @@ interface SidebarProps {
   onToggleCollapse?: () => void;
 }
 
-export default function Sidebar({ isOpen, onClose, isCollapsed = false, onToggleCollapse }: SidebarProps) {
+export default function Sidebar({ isOpen, onClose, isCollapsed: isCollapsedProp = false, onToggleCollapse }: SidebarProps) {
   const { user } = useAuth();
   const logout = useLogout();
-  const isMobile = useIsMobile();
+  const isMobile = useIsCompact();
+  // The icon-only collapsed rail is a desktop affordance; the compact drawer is always full width.
+  const isCollapsed = isCollapsedProp && !isMobile;
   const { isDark, theme, toggle: toggleDark } = useDarkModeContext();
   const { connected } = useWebSocket();
   const { t } = useTranslation();
@@ -230,15 +232,14 @@ export default function Sidebar({ isOpen, onClose, isCollapsed = false, onToggle
   return (
     <>
       {isMobile && isOpen && (
-        <div className="fixed inset-0 bg-black/50 z-20 lg:hidden backdrop-blur-sm" onClick={onClose} />
+        <div className="fixed inset-0 bg-black/50 z-[55] lg:hidden backdrop-blur-sm" onClick={onClose} />
       )}
       <div className={`
-        fixed left-0 top-0 h-full chrome-scope bg-background 
-        border-r border-border z-30 flex flex-col
+        fixed left-0 top-0 bottom-0 chrome-scope bg-background
+        border-r border-border ${isMobile ? "z-[60] w-[min(18rem,85vw)]" : "z-30"} flex flex-col
         transition-all duration-200 ease-in-out
-        ${isCollapsed ? "w-16" : "w-64"}
+        ${isMobile ? "" : (isCollapsed ? "w-16" : "w-64")}
         ${isMobile ? (isOpen ? "translate-x-0" : "-translate-x-full") : "translate-x-0"}
-        lg:translate-x-0
       `}>
 
         {/* Logo header */}
@@ -298,7 +299,7 @@ export default function Sidebar({ isOpen, onClose, isCollapsed = false, onToggle
         </nav>
 
         {/* Bottom user area */}
-        <div className={`p-3 space-y-1 ${isCollapsed ? "flex flex-col items-center" : ""}`}>
+        <div className={`p-3 space-y-1 ${isCollapsed ? "flex flex-col items-center" : ""}`} style={{ paddingBottom: "max(0.75rem, env(safe-area-inset-bottom, 0px))" }}>
 
           {/* Collapse toggle — always visible, not part of the collapsible extras below */}
           {!isCollapsed ? (
@@ -306,7 +307,7 @@ export default function Sidebar({ isOpen, onClose, isCollapsed = false, onToggle
               variant="ghost"
               size="sm"
               onClick={onToggleCollapse}
-              className="w-full flex items-center justify-start gap-2.5 px-3 h-9 text-muted-foreground hover:bg-muted hover:text-foreground rounded-lg"
+              className={`w-full items-center justify-start gap-2.5 px-3 h-9 text-muted-foreground hover:bg-muted hover:text-foreground rounded-lg ${isMobile ? "hidden" : "flex"}`}
             >
               <PanelLeftClose className="w-4 h-4" />
               <span className="text-sm">Collapse sidebar</span>

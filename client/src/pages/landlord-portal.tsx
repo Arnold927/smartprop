@@ -2701,7 +2701,7 @@ export default function LandlordPortal({ ownerId }: LandlordPortalProps) {
                             <p className="text-sm font-bold text-emerald-600">
                               <CurrencyDisplay amount={Number(report.netIncome)} currency="KES" locale="en-KE" />
                             </p>
-                            <Badge variant="secondary" className="text-[10px] capitalize">{report.status}</Badge>
+                            <Badge variant="secondary" className="text-[10px] capitalize">{String(report.status ?? "").replace(/_/g, " ")}</Badge>
                           </div>
                         </div>
                       ))}
@@ -2905,7 +2905,7 @@ export default function LandlordPortal({ ownerId }: LandlordPortalProps) {
                                   {isExpiring && (
                                     <Badge className="text-[10px] bg-orange-100 text-orange-800 border-orange-200" >Lease expiring in {daysLeft}d</Badge>
                                   )}
-                                  <Badge variant="secondary" className="text-[10px] capitalize">{t.status}</Badge>
+                                  <Badge variant="secondary" className="text-[10px] capitalize">{String(t.status ?? "").replace(/_/g, " ")}</Badge>
                                 </div>
                               </div>
                               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-2 text-xs">
@@ -3715,7 +3715,7 @@ export default function LandlordPortal({ ownerId }: LandlordPortalProps) {
                             <tr key={e.id} className="hover:bg-muted/40 transition-colors">
                               <td className="py-3 pr-4 whitespace-nowrap text-xs text-muted-foreground">{e.expenseDate ? format(new Date(e.expenseDate), "d MMM yyyy") : "—"}</td>
                               <td className="py-3 pr-4 font-medium">{e.vendorName}</td>
-                              <td className="py-3 pr-4"><Badge variant="secondary" className="text-[10px] capitalize">{e.category}</Badge></td>
+                              <td className="py-3 pr-4"><Badge variant="secondary" className="text-[10px] capitalize">{String(e.category ?? "").replace(/_/g, " ")}</Badge></td>
                               <td className="py-3 pr-4 text-muted-foreground max-w-[200px] truncate">{e.description}</td>
                               <td className="py-3 pr-4 text-right font-semibold">{e.currency || "KES"} {(Number(e.amount) || 0).toLocaleString("en-KE")}</td>
                               <td className="py-3 pr-4">

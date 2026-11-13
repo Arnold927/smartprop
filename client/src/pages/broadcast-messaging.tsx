@@ -351,7 +351,7 @@ export default function BroadcastMessaging() {
               type="date"
               value={dateFrom}
               onChange={e => { setDateFrom(e.target.value); setCurrentPage(1); }}
-              className="h-7 text-xs w-full"
+              className="h-7 text-xs w-full min-w-0"
               placeholder="From"
             />
             <span className="text-xs text-muted-foreground shrink-0">to</span>
@@ -360,7 +360,7 @@ export default function BroadcastMessaging() {
               value={dateTo}
               min={dateFrom || undefined}
               onChange={e => { setDateTo(e.target.value); setCurrentPage(1); }}
-              className="h-7 text-xs w-full"
+              className="h-7 text-xs w-full min-w-0"
               placeholder="To"
             />
           </div>

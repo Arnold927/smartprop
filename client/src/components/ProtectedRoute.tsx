@@ -12,10 +12,11 @@
  *   )} />
  */
 
-import React from "react";
+import React, { useEffect } from "react";
 import { useLocation } from "wouter";
 import { useAuth } from "@/hooks/useAuth";
 import { isRouteAllowed, getHomeForRole } from "@/lib/roleNav";
+import { useToast } from "@/hooks/use-toast";
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
@@ -24,21 +25,27 @@ interface ProtectedRouteProps {
 export default function ProtectedRoute({ children }: ProtectedRouteProps) {
   const { user, isLoading } = useAuth();
   const [location, navigate] = useLocation();
+  const { toast } = useToast();
+  const allowed = isLoading || isRouteAllowed(user?.role, location);
+
+  // Redirect to the role's home (in an effect, not during render) and say why,
+  // instead of silently bouncing.
+  useEffect(() => {
+    if (!allowed) {
+      toast({ title: "Not available for your account", description: "You were taken to your home page." });
+      navigate(getHomeForRole(user?.role), { replace: true });
+    }
+  }, [allowed, location]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (isLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
+      <div className="min-h-[50vh] flex items-center justify-center">
         <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-primary" />
       </div>
     );
   }
 
-  if (!isRouteAllowed(user?.role, location)) {
-    // Redirect them to their appropriate home instead of a blank 403
-    const home = getHomeForRole(user?.role);
-    navigate(home);
-    return null;
-  }
+  if (!allowed) return null;
 
   return <>{children}</>;
 }

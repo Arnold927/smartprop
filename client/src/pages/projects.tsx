@@ -289,12 +289,12 @@ export default function Projects() {
  return (
  <div className="p-6 space-y-6">
  {/* Header */}
- <div className="flex items-center justify-between">
+ <div className="flex items-center justify-between flex-wrap gap-3">
  <div>
  <h1 className="text-2xl font-semibold text-foreground">Project Management</h1>
  <p className="text-muted-foreground">Construction, renovations, and maintenance projects</p>
  </div>
- <div className="flex items-center space-x-3">
+ <div className="flex items-center gap-3 flex-wrap">
  <Button variant="outline">
  <Download className="mr-2 h-4 w-4" />
  Export Report

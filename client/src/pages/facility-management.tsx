@@ -556,7 +556,7 @@ const FacilityManagement = () => {
                       <p className="text-xs text-muted-foreground">
                         Page {safeLeasePage} of {leaseTotalPages}
                       </p>
-                      <div className="flex items-center gap-1">
+                      <div className="flex items-center gap-1 flex-wrap">
                         <button onClick={() => setLeasePage(p => Math.max(1, p - 1))} disabled={safeLeasePage === 1}
                           className="text-xs px-2.5 py-1 rounded-md border border-border text-muted-foreground hover:bg-muted disabled:opacity-40 disabled:cursor-not-allowed">
                           ‹ Prev
@@ -794,7 +794,7 @@ const FacilityManagement = () => {
                       <p className="text-xs text-muted-foreground">
                         Page {safeWoPage} of {woTotalPages}
                       </p>
-                      <div className="flex items-center gap-1">
+                      <div className="flex items-center gap-1 flex-wrap">
                         <button onClick={() => setWoPage(p => Math.max(1, p - 1))} disabled={safeWoPage === 1}
                           className="text-xs px-2.5 py-1 rounded-md border border-border text-muted-foreground hover:bg-muted disabled:opacity-40 disabled:cursor-not-allowed">
                           ‹ Prev

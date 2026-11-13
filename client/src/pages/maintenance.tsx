@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import { apiRequest, ensureArray } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import QueryError from "@/components/query-error";
 import { useIsMobile } from "@/hooks/use-mobile";
 import {
  Plus, Search, Wrench, AlertTriangle, CheckCircle, Clock,
@@ -356,7 +357,7 @@ export default function Maintenance() {
  const canCreate = isManager || isStaff;
  const canAct    = isManager || isStaff || guard.isLandlord;
 
- const { data: raw = [], isLoading } = useQuery<any>({
+ const { data: raw = [], isLoading, isError: loadError, refetch } = useQuery<any>({
  queryKey: ["/api/maintenance-requests"],
  queryFn: async () => { const r = await apiRequest("/api/maintenance-requests"); return ensureArray(await r.json()); },
  staleTime: 2 * 60 * 1000,
@@ -414,10 +415,11 @@ export default function Maintenance() {
  if (isLoading) return (
  <div className="p-6 space-y-5 animate-pulse">
  <div className="h-8 bg-muted dark:bg-gray-700 rounded w-48" />
- <div className="grid grid-cols-4 gap-4">{[...Array(4)].map((_,i) => <div key={i} className="h-24 bg-muted dark:bg-gray-700 rounded-2xl" />)}</div>
+ <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">{[...Array(4)].map((_,i) => <div key={i} className="h-24 bg-muted dark:bg-gray-700 rounded-2xl" />)}</div>
  <div className="h-96 bg-muted dark:bg-gray-700 rounded-2xl" />
  </div>
  );
+ if (loadError && requests.length === 0) return <QueryError what="maintenance requests" onRetry={() => refetch()} />;
 
  return (
  <div className="min-h-screen bg-background">

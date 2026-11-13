@@ -439,6 +439,7 @@ export function getHomeForRole(role?: string): string {
   switch (role) {
     case "platform_admin": return "/organisations";
     case "tenant":     return "/tenant-portal";
+    case "diaspora_buyer": return "/diaspora-portal";
     case "landlord":   return "/landlord-portal";
     case "staff":      return "/staff-portal";
     case "caretaker":  return "/caretaker-portal";
@@ -516,6 +517,11 @@ export const ROLE_ALLOWED_ROUTES: Record<string, string[]> = {
     "/guard-checkin", "/not-found",
   ],
 
+  // Tenant-role users who are diaspora buyers keep their own role name in some flows.
+  diaspora_buyer: [
+    "/diaspora-portal", "/messages", "/documents", "/profile", "/not-found",
+  ],
+
   contractor: [
     "/contractor-portal",
     "/messages", "/profile",
@@ -524,7 +530,8 @@ export const ROLE_ALLOWED_ROUTES: Record<string, string[]> = {
 };
 
 export function isRouteAllowed(role: string | undefined, pathname: string): boolean {
-  const allowed = ROLE_ALLOWED_ROUTES[role ?? ""] ?? ROLE_ALLOWED_ROUTES["manager"];
+  // Fail closed: a role with no entry (or no role yet) may only reach its profile.
+  const allowed = ROLE_ALLOWED_ROUTES[role ?? ""] ?? ["/profile", "/not-found"];
   if (allowed.includes("*")) return true;
   return allowed.some(prefix =>
     pathname === prefix ||

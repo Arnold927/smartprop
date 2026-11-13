@@ -243,7 +243,7 @@ export default function Utilities() {
  {utilityIcons[provider.type.toLowerCase()] || <Activity className="h-4 w-4" />}
  <div>
  <p className="font-medium">{provider.name}</p>
- <p className="text-sm text-muted-foreground capitalize">{provider.type}</p>
+ <p className="text-sm text-muted-foreground capitalize">{String(provider.type ?? "").replace(/_/g, " ")}</p>
  </div>
  </div>
  ),

@@ -290,7 +290,7 @@ export default function MaintenanceApprovals() {
                           <TableCell className="font-medium text-sm">{formatCost(req.estimatedCost)}</TableCell>
                           <TableCell>
                             {req.category ? (
-                              <span className="text-xs px-2 py-0.5 rounded-full border border-border bg-muted/50 capitalize">{req.category}</span>
+                              <span className="text-xs px-2 py-0.5 rounded-full border border-border bg-muted/50 capitalize">{String(req.category ?? "").replace(/_/g, " ")}</span>
                             ) : (
                               <span className="text-muted-foreground text-xs">—</span>
                             )}
@@ -369,7 +369,7 @@ export default function MaintenanceApprovals() {
                         <TableCell className="text-sm font-medium">{formatCost(req.estimatedCost)}</TableCell>
                         <TableCell>
                           {req.category ? (
-                            <span className="text-xs px-2 py-0.5 rounded-full border border-border bg-muted/50 capitalize">{req.category}</span>
+                            <span className="text-xs px-2 py-0.5 rounded-full border border-border bg-muted/50 capitalize">{String(req.category ?? "").replace(/_/g, " ")}</span>
                           ) : (
                             <span className="text-muted-foreground text-xs">—</span>
                           )}

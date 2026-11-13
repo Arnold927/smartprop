@@ -827,7 +827,7 @@ function AdminPanel() {
           {maintenance.filter((r:any) => ["urgent","critical"].includes(r.priority) && !["completed","cancelled"].includes(r.status)).slice(0,3).map((r:any) => (
             <div key={r.id} className="flex items-center justify-between text-xs py-1 border-t border-red-100 first:border-0">
               <span className="text-red-800 font-medium">{r.title ?? r.description?.slice(0,50) ?? "Ticket #"+r.id}</span>
-              <Badge className="text-xs py-0 bg-red-100 text-red-700 border-red-300 capitalize">{r.status}</Badge>
+              <Badge className="text-xs py-0 bg-red-100 text-red-700 border-red-300 capitalize">{String(r.status ?? "").replace(/_/g, " ")}</Badge>
             </div>
           ))}
         </div>
@@ -846,7 +846,7 @@ function AdminPanel() {
                 <p className="text-sm font-medium text-foreground">{s.first_name} {s.last_name}</p>
                 <p className="text-xs text-muted-foreground capitalize">{s.position?.replace(/_/g," ")} · {s.department?.replace(/_/g," ")}</p>
               </div>
-              <Badge className={`text-xs py-0 capitalize ${s.status === "active" ? "bg-emerald-50 text-emerald-700 border border-emerald-200" : "bg-muted text-muted-foreground border-border"}`}>{s.status}</Badge>
+              <Badge className={`text-xs py-0 capitalize ${s.status === "active" ? "bg-emerald-50 text-emerald-700 border border-emerald-200" : "bg-muted text-muted-foreground border-border"}`}>{String(s.status ?? "").replace(/_/g, " ")}</Badge>
             </div>
           ))}
         </div>

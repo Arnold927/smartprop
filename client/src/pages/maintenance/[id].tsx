@@ -1224,7 +1224,7 @@ export default function MaintenanceDetails() {
                         <Paperclip className="h-4 w-4 text-muted-foreground" />
                         <span className="text-sm truncate max-w-[150px]">{doc.name}</span>
                       </div>
-                      <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                      <Button variant="ghost" size="sm" className="h-8 w-8 p-0" aria-label={`Download ${doc.name}`} onClick={() => { if ((doc as any).url) window.open((doc as any).url, "_blank", "noopener"); }}>
                         <Download className="h-4 w-4" />
                       </Button>
                     </div>

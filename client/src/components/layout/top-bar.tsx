@@ -80,7 +80,7 @@ const notifIcons: Record<string, any> = {
   general: AlertCircle,
 };
 
-function NotificationBell() {
+export function NotificationBell() {
   const { notifications, unreadCount, markAllAsRead, markAsRead, dismissNotification, replyToNotification, clearAll } = useNotifications();
   const [showAll, setShowAll] = React.useState(false);
   const [replyingTo, setReplyingTo] = React.useState<string | null>(null);
@@ -148,7 +148,7 @@ function NotificationBell() {
       if (!open) { setReplyingTo(null); setReplyText(""); }
     }}>
       <DropdownMenuTrigger asChild>
-        <Button variant="ghost" size="sm" className="relative h-9 w-9 p-0 rounded-lg hover:bg-muted">
+        <Button variant="ghost" size="sm" className="relative h-11 w-11 lg:h-9 lg:w-9 p-0 rounded-lg hover:bg-muted" aria-label="Notifications">
           <Bell className="h-4 w-4 text-muted-foreground" />
           {unreadCount > 0 && (
             <span className="absolute -top-0.5 -right-0.5 w-4 h-4 rounded-full bg-destructive text-destructive-foreground text-[10px] font-bold flex items-center justify-center shadow-sm">
@@ -158,7 +158,7 @@ function NotificationBell() {
         </Button>
       </DropdownMenuTrigger>
 
-      <DropdownMenuContent align="end" className="w-96 p-0 shadow-xl border-border rounded-xl overflow-hidden">
+      <DropdownMenuContent align="end" className="w-[min(24rem,calc(100vw-1rem))] p-0 shadow-xl border-border rounded-xl overflow-hidden">
 
         {/* Header */}
         <div className="px-4 py-3 border-b border-border flex items-center justify-between bg-muted/30">

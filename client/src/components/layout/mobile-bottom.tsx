@@ -14,7 +14,7 @@ import { useLocation, Link } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import { apiRequest, ensureArray } from "@/lib/queryClient";
 import { useAuth } from "@/hooks/useAuth";
-import { useIsMobile } from "@/hooks/use-mobile";
+import { useIsCompact } from "@/hooks/use-mobile";
 import {
   LayoutDashboard, Home, Users, DollarSign, Wrench, FileText,
   MessageSquare, BarChart2, Truck, Settings, X,
@@ -162,11 +162,49 @@ const getConfigs = (t: (key: string) => string): Record<string, RoleConfig> => {
       ],
     },
 
-    // Guard — check-in station only
+    // Guard — check-in station only. One destination, so no tab bar
+    // (their menu drawer still has Sign out); "/visitor-management" is not
+    // an allowed route for guards.
     guard: {
+      primary: [],
+      groups: [],
+    },
+
+    // Caretaker — only routes in ROLE_ALLOWED_ROUTES.caretaker
+    caretaker: {
       primary: [
-        { label: t("gatePortal.checkIn"), href: "/guard-checkin",     icon: LogIn },
-        { label: t("tenantPortal.visitors"), href: "/visitor-management",icon: Users },
+        { label: t("nav.dashboard"),   href: "/caretaker-portal", icon: LayoutDashboard },
+        { label: t("nav.maintenance"), href: "/maintenance",      icon: Wrench, badgeKey: "maintenance" },
+        { label: t("nav.visitors"),    href: "/visitor-management", icon: Users },
+        { label: t("common.all"),      href: null,                icon: MoreHorizontal },
+      ],
+      groups: [
+        {
+          label: t("nav.group_operations"),
+          items: [
+            { label: t("nav.properties"), href: "/properties",   icon: Home },
+            { label: t("nav.inspections"), href: "/inspections", icon: ClipboardList },
+            { label: t("nav.messages"),   href: "/messages",     icon: MessageSquare },
+            { label: t("nav.my_profile"), href: "/profile",      icon: UserCog },
+          ],
+        },
+      ],
+    },
+
+    // Contractor — portal, messages, profile
+    contractor: {
+      primary: [
+        { label: t("nav.my_portal"), href: "/contractor-portal", icon: LayoutDashboard },
+        { label: t("nav.messages"),  href: "/messages",          icon: MessageSquare, badgeKey: "messages" },
+        { label: t("nav.my_profile"), href: "/profile",          icon: UserCog },
+      ],
+      groups: [],
+    },
+
+    // Platform admin — organisations only
+    platform_admin: {
+      primary: [
+        { label: t("nav.organisations"), href: "/organisations", icon: Building },
       ],
       groups: [],
     },
@@ -179,7 +217,7 @@ const getConfigs = (t: (key: string) => string): Record<string, RoleConfig> => {
 // ── Component ─────────────────────────────────────────────────────────────────
 
 export default function MobileBottomNav() {
-  const isMobile = useIsMobile();
+  const isMobile = useIsCompact();
   const { user } = useAuth();
   const { t } = useTranslation();
   
@@ -211,7 +249,10 @@ export default function MobileBottomNav() {
 
   const role   = user?.role ?? "manager";
   const configs = getConfigs(t);
-  const config = configs[role] ?? configs.manager;
+  // Unknown roles get an empty bar rather than the manager's tabs.
+  const config = configs[role] ?? { primary: [], groups: [] };
+
+  if (config.primary.length === 0) return null;
 
   const badges: Record<string, number> = {
     maintenance: Array.isArray(maintRaw)
@@ -230,8 +271,9 @@ export default function MobileBottomNav() {
   return (
     <>
       {/* Bottom bar */}
-      <nav className="fixed bottom-0 left-0 right-0 z-50 chrome-scope bg-background/95 backdrop-blur-md border-t border-border"
+      <nav className="lg:hidden shrink-0 relative z-40 chrome-scope bg-background border-t border-border"
         style={{ paddingBottom: "env(safe-area-inset-bottom, 0px)" }}
+        aria-label="Primary"
       >
         <div className="flex items-stretch h-16 px-1">
           {config.primary.map((tab, idx) => {
@@ -245,7 +287,7 @@ export default function MobileBottomNav() {
                 <button
                   key="more"
                   onClick={() => setSheetOpen(true)}
-                  className={`flex-1 min-w-0 flex flex-col items-center justify-center gap-1 py-2 text-[10px] font-medium transition-colors ${
+                  className={`flex-1 basis-0 min-w-0 min-h-[44px] flex flex-col items-center justify-center gap-1 py-2 text-[11px] font-medium transition-colors ${
                     sheetOpen ? "text-primary" : "text-muted-foreground hover:text-foreground"
                   }`}
                 >
@@ -256,8 +298,8 @@ export default function MobileBottomNav() {
             }
 
             return (
-              <Link key={tab.href! + idx} href={tab.href!}>
-                <div className={`flex-1 min-w-0 flex flex-col items-center justify-center gap-1 py-2 text-[10px] font-medium transition-colors cursor-pointer relative ${
+              <Link key={tab.href! + idx} href={tab.href!} className="flex-1 basis-0 min-w-0 flex">
+                <div className={`flex-1 min-w-0 min-h-[44px] flex flex-col items-center justify-center gap-1 py-2 text-[11px] font-medium transition-colors cursor-pointer relative ${
                   active ? "text-primary" : "text-muted-foreground hover:text-foreground"
                 }`}>
                   {active && (
@@ -335,8 +377,6 @@ export default function MobileBottomNav() {
         </>
       )}
 
-      {/* Spacer so page content isn't hidden behind the nav bar */}
-      <div className="h-16 lg:hidden" style={{ paddingBottom: "env(safe-area-inset-bottom, 0px)" }} />
     </>
   );
 }

@@ -8,6 +8,14 @@ const ACCESS_TOKEN_LIFETIME_MS           = 4 * 60 * 60 * 1000;
 // Proactively refresh 5 minutes before expiry so the user never gets kicked out
 const PROACTIVE_REFRESH_BEFORE_EXPIRY_MS = 5 * 60 * 1000;
 
+/** Errors that say "try again" rather than "you are not signed in". */
+class AuthTransientError extends Error {
+  transient = true;
+}
+function isTransient(err: unknown): boolean {
+  return !!err && (err as any).transient === true;
+}
+
 export function useAuth() {
   const token = localStorage.getItem("access_token") || sessionStorage.getItem("access_token");
   const refreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -45,13 +53,19 @@ export function useAuth() {
       const currentToken = localStorage.getItem("access_token") || sessionStorage.getItem("access_token");
       if (!currentToken) throw new Error("No token found");
 
-      let res = await fetch("/api/auth/user", {
-        headers: {
-          Authorization: `Bearer ${currentToken}`,
-          "Content-Type": "application/json",
-        },
-        credentials: "include",
-      });
+      let res: Response;
+      try {
+        res = await fetch("/api/auth/user", {
+          headers: {
+            Authorization: `Bearer ${currentToken}`,
+            "Content-Type": "application/json",
+          },
+          credentials: "include",
+        });
+      } catch {
+        // Offline / dropped connection: not a sign-out.
+        throw new AuthTransientError("Network error");
+      }
 
       if (res.status === 401) {
         const newToken = await refreshAccessToken();
@@ -66,6 +80,9 @@ export function useAuth() {
         }
       }
 
+      if (res.status === 429 || res.status >= 500) {
+        throw new AuthTransientError(`HTTP ${res.status}`);
+      }
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
 
       const data = await res.json();
@@ -73,7 +90,10 @@ export function useAuth() {
       return data;
     },
     enabled: !!token,
-    retry: false,
+    // Retry only "try again" failures (network, 429, 5xx) with backoff, so a
+    // brief blip on mobile data does not look like being signed out.
+    retry: (failureCount, err) => isTransient(err) && failureCount < 3,
+    retryDelay: (attempt) => Math.min(1000 * 2 ** attempt, 6000),
     staleTime: ACCESS_TOKEN_LIFETIME_MS, // cache for full token lifetime — no unnecessary re-fetches
     refetchOnWindowFocus: false,         // switching tabs no longer triggers a re-auth check
     refetchOnMount: true,
@@ -83,7 +103,11 @@ export function useAuth() {
   const isAuthenticated = !!user && !error;
   const isLoading = !!token && queryLoading;
 
-  return { user, isLoading, isAuthenticated, error, refetch };
+  // Token present but the server could not be reached or is busy: show a
+  // "reconnecting" state, never the public landing page.
+  const isTransientError = !!token && !user && isTransient(error);
+
+  return { user, isLoading, isAuthenticated, error, refetch, isTransientError };
 }
 
 export function useLogout() {
@@ -98,6 +122,14 @@ export function useLogout() {
     sessionStorage.removeItem("access_token");
     sessionStorage.removeItem("refresh_token");
     queryClient.clear();
+    // The service worker caches GET /api/* responses. Drop them so the next
+    // person on a shared phone can never be served this user's data offline.
+    try {
+      if ("caches" in window) {
+        const keys = await caches.keys();
+        await Promise.all(keys.filter(k => k.startsWith("smartprop-api")).map(k => caches.delete(k)));
+      }
+    } catch {}
     window.location.href = "/auth";
   };
 }

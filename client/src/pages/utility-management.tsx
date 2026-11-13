@@ -1196,7 +1196,7 @@ export default function UtilityManagement() {
             </div>
             <div>
               <p className="font-medium">{p.name}</p>
-              <p className="text-xs text-muted-foreground capitalize">{p.type}</p>
+              <p className="text-xs text-muted-foreground capitalize">{String(p.type ?? "").replace(/_/g, " ")}</p>
             </div>
           </div>
         );
@@ -1257,7 +1257,7 @@ export default function UtilityManagement() {
       header: "Category & Date", accessorKey: "category",
       cell: (e: PropertyExpense) => (
         <div>
-          <Badge variant="outline" className="capitalize text-xs">{e.category}</Badge>
+          <Badge variant="outline" className="capitalize text-xs">{String(e.category ?? "").replace(/_/g, " ")}</Badge>
           <p className="text-xs text-muted-foreground mt-1">{format(new Date(e.expenseDate), "MMM dd, yyyy")}</p>
         </div>
       ),

@@ -819,3 +819,39 @@ a:focus-visible {
   outline-offset: 2px;
   border-radius: 4px;
 }
+/* ── Touch & legibility floor ────────────────────────────────────────────────
+   Phones, tablets and any touch screen:
+   - Form fields are at least 16px so iOS Safari does not zoom the page on focus.
+   - Buttons and similar controls are at least 40px tall/wide (a comfortable
+     thumb target). Switches, checkboxes and radios keep their own shape. */
+@media (max-width: 1023px), (pointer: coarse) {
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="hidden"]),
+  select,
+  textarea {
+    font-size: 16px;
+  }
+  button:not([role="switch"]):not([role="checkbox"]):not([role="radio"]):not([role="slider"]):not([data-no-touch-target]),
+  [role="button"]:not([data-no-touch-target]),
+  [role="tab"],
+  [role="menuitem"] {
+    min-height: 40px;
+    min-width: 40px;
+  }
+}
+
+/* Nothing smaller than 11px, anywhere (the app uses text-[8px]..[10px] for
+   badges and captions; they were unreadable on phones and fail contrast). */
+.text-\[8px\],
+.text-\[9px\],
+.text-\[10px\] {
+  font-size: 11px;
+  line-height: 1.25;
+}
+
+/* Safety net against sideways scrolling: media and tables never push a page
+   wider than the screen. */
+main img,
+main video {
+  max-width: 100%;
+  height: auto;
+}

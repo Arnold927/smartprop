@@ -624,7 +624,7 @@ export default function DiasporaContractDetail() {
                       <div>
                         <div className="flex items-center gap-2 flex-wrap">
                           <p className="font-bold text-foreground">KES {Math.round(Number(p.amount)).toLocaleString("en-KE")}</p>
-                          <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold border capitalize ${sc}`}>{p.status}</span>
+                          <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold border capitalize ${sc}`}>{String(p.status ?? "").replace(/_/g, " ")}</span>
                           <span className="text-xs text-muted-foreground bg-muted rounded-full px-2 py-0.5">#{p.paymentNumber}</span>
                         </div>
                         <p className="text-xs text-muted-foreground mt-0.5">

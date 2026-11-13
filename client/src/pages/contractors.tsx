@@ -501,7 +501,7 @@ export default function ContractorsManagement() {
                   </div>
                 )}
               </div>
-              <div className="flex items-center justify-between px-6 py-4 border-t bg-muted/20">
+              <div className="flex flex-wrap items-center justify-between gap-3 px-4 sm:px-6 py-4 border-t bg-muted/20">
                 <Button variant="destructive" size="sm" onClick={() => { deleteMutation.mutate(selectedContractor.id); }}>
                   <Trash2 className="h-3.5 w-3.5 mr-1.5" />Delete
                 </Button>

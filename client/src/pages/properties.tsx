@@ -1,3 +1,4 @@
+import QueryError from "@/components/query-error";
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useLocation, useSearch } from "wouter";
@@ -94,7 +95,7 @@ export default function Properties() {
   const orgIdParam = getOrgIdFromSearch(search); // only meaningful for platform_admin
   const queryClient = useQueryClient();
 
-  const { data: raw = [], isLoading } = useQuery<any>({
+  const { data: raw = [], isLoading, isError: loadError, refetch } = useQuery<any>({
     queryKey: ["/api/properties", orgIdParam],
     queryFn: async () => { const r = await apiRequest(withOrgParam("/api/properties", orgIdParam)); return ensureArray(await r.json()); },
     staleTime: 5 * 60 * 1000,
@@ -173,6 +174,8 @@ export default function Properties() {
     );
   }
 
+  if (loadError && properties.length === 0) return <QueryError what="properties" onRetry={() => refetch()} />;
+
   return (
     <PageShell>
       {/* ── Page header ── */}
@@ -190,14 +193,14 @@ export default function Properties() {
               <ArrowLeft className="w-3.5 h-3.5 mr-1.5" /> Back to Organisations
             </Button>
           )}
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between flex-wrap gap-3">
           <div>
             <h1 className="text-2xl font-bold text-foreground tracking-tight">Properties</h1>
             <p className="text-sm text-muted-foreground mt-1">
               {properties.length} {properties.length === 1 ? "property" : "properties"}&ensp;·&ensp;{allUnits.length || totalUnits} units
             </p>
           </div>
-          <div className="flex items-center gap-2.5">
+          <div className="flex items-center gap-2.5 flex-wrap">
             <Button variant="outline" size="sm" onClick={handleExport} className="h-9">
               <Download className="w-4 h-4 mr-1.5" /> Export
             </Button>

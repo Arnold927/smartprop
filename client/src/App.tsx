@@ -17,7 +17,7 @@
  *   - GatePortal (guards log in here without the main app JWT)
  */
 
-import React, { lazy, Suspense, useState } from "react";
+import React, { lazy, Suspense, useEffect, useState } from "react";
 import { Switch, Route, useLocation } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import { queryClient } from "./lib/queryClient";
@@ -36,6 +36,7 @@ import Sidebar          from "@/components/layout/sidebar";
 import MobileHeader     from "@/components/layout/mobile-header";
 import TopBar           from "@/components/layout/top-bar";
 import MobileBottomNav  from "@/components/layout/mobile-bottom";
+import ModuleUnavailable from "@/components/module-unavailable";
 import WhatsAppWidget   from "@/components/ui/whatsapp-widget"; // kept for future use
 import NotFound         from "@/pages/not-found";
 import PayPropLanding   from "@/pages/payprop-landing";
@@ -111,19 +112,15 @@ const MaintenanceDetails = lazy(() => import("@/pages/maintenance/[id]"));
 const Contractors        = lazy(() => import("@/pages/contractors"));
 const ContractorDetailsPage = lazy(() => import("@/pages/contractor-details"));
 const WorkOrderDetailsPage  = lazy(() => import("@/pages/work-order-details"));
-const ConstructionProjectManagement = lazy(() => import("@/pages/construction-project-management"));
 
 // Security & operations
 const Security           = lazy(() => import("@/pages/security"));
 const VisitorManagement  = lazy(() => import("@/pages/visitor-management"));
 const ParkingManagement  = lazy(() => import("@/pages/parking-management"));
-const SecurityOperations = lazy(() => import("@/pages/security-operations"));
 
 // Staff & HR
 const StaffDetailsPage   = lazy(() => import("@/pages/staff/[id]"));
-const WorkforceManagement= lazy(() => import("@/pages/workforce-management"));
 const UserManagement     = lazy(() => import("@/pages/user-management"));
-const EnhancedServiceProviders = lazy(() => import("@/pages/enhanced-service-providers"));
 
 // Communications
 const Messages           = lazy(() => import("@/pages/messages"));
@@ -264,6 +261,23 @@ function Router() {
 
   // Gate portal is public — guard enters a PIN here, no main JWT
   const [loc, navigate] = useLocation();
+
+  // ALL hooks run before ANY early return below. Returning early for /gate or
+  // /stays before these hooks ran changed the hook count between renders when
+  // navigating away from those pages, crashing the app (React error #310).
+  const { isAuthenticated, isLoading, user, isTransientError, refetch } = useAuth();
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+
+  const roleHome = getHomeForRole(user?.role);
+  const needsRoleRedirect = isAuthenticated && loc === "/" && roleHome !== "/";
+  useEffect(() => {
+    if (needsRoleRedirect) navigate(roleHome);
+  }, [needsRoleRedirect, roleHome, navigate]);
+
+  // Close the mobile drawer whenever the route changes.
+  useEffect(() => { setSidebarOpen(false); }, [loc]);
+
   if (loc === "/gate" || loc.startsWith("/gate?")) return <GatePortal />;
 
   // Public stays marketplace + booking pages — checked here, before
@@ -284,14 +298,31 @@ function Router() {
     );
   }
 
-  const { isAuthenticated, isLoading, user } = useAuth();
-  const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-
   if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-primary" />
+      </div>
+    );
+  }
+
+  // Signed in, but the server was busy or unreachable: offer a retry instead of
+  // dropping a logged-in user onto the public landing page.
+  if (isTransientError) {
+    return (
+      <div className="min-h-screen flex items-center justify-center p-6 bg-background text-foreground">
+        <div className="max-w-sm text-center space-y-4">
+          <h1 className="text-lg font-semibold">Can't reach SmartProp right now</h1>
+          <p className="text-sm text-muted-foreground">
+            Your connection may be weak or the server is busy. You are still signed in.
+          </p>
+          <button
+            onClick={() => refetch()}
+            className="inline-flex items-center justify-center h-11 px-5 rounded-lg bg-primary text-primary-foreground text-sm font-medium"
+          >
+            Try again
+          </button>
+        </div>
       </div>
     );
   }
@@ -315,9 +346,8 @@ function Router() {
     );
   }
 
-  // Redirect non-manager roles to their home on "/"
-  const roleHome = getHomeForRole(user?.role);
-  if (loc === "/" && roleHome !== "/") { navigate(roleHome); return null; }
+  // Redirect non-manager roles to their home on "/" (effect above does the navigation)
+  if (needsRoleRedirect) return null;
 
   // Landing page must render outside the h-screen/overflow-hidden app shell
   // so the browser's native scroll works (not a clipped inner container).
@@ -326,7 +356,7 @@ function Router() {
   }
 
   return (
-    <div className="flex h-screen bg-background text-foreground overflow-hidden">
+    <div className="flex h-screen bg-background text-foreground overflow-hidden" style={{ height: "100dvh" }}>
       <Sidebar
         isOpen={sidebarOpen}
         onClose={() => setSidebarOpen(false)}
@@ -338,7 +368,7 @@ function Router() {
         <MobileHeader onMenuClick={() => setSidebarOpen(true)} />
         <TopBar />
 
-        <main className="flex-1 overflow-auto">
+        <main className="flex-1 min-h-0 overflow-auto">
           <Switch>
             {/* Core */}
             <Route path="/"          component={() => <P><DashboardClean /></P>} />
@@ -404,19 +434,19 @@ function Router() {
             <Route path="/contractors/:id"         component={() => <P><ContractorDetailsPage /></P>} />
             <Route path="/contractors"             component={() => <P><Contractors /></P>} />
             <Route path="/work-orders/:id"         component={() => <P><WorkOrderDetailsPage /></P>} />
-            <Route path="/construction-projects"   component={() => <P><ConstructionProjectManagement /></P>} />
+            <Route path="/construction-projects"   component={() => <P><ModuleUnavailable name="Construction projects" alternative={{ label: "Go to maintenance", href: "/maintenance" }} /></P>} />
 
             {/* Security & operations */}
             <Route path="/security"            component={() => <P><Security /></P>} />
             <Route path="/visitor-management"  component={() => <P><VisitorManagement /></P>} />
             <Route path="/parking-management"  component={() => <P><ParkingManagement /></P>} />
-            <Route path="/security-operations" component={() => <P><SecurityOperations /></P>} />
+            <Route path="/security-operations" component={() => <P><ModuleUnavailable name="Security operations" alternative={{ label: "Open security & visitors", href: "/security" }} /></P>} />
 
             {/* Staff & HR */}
             <Route path="/staff/:id"              component={() => <P><StaffDetailsPage /></P>} />
-            <Route path="/workforce-management"   component={() => <P><WorkforceManagement /></P>} />
+            <Route path="/workforce-management"   component={() => <P><ModuleUnavailable name="Workforce management" alternative={{ label: "Go to staff portal", href: "/staff-portal" }} /></P>} />
             <Route path="/user-management"        component={() => <P><UserManagement /></P>} />
-            <Route path="/enhanced-service-providers" component={() => <P><EnhancedServiceProviders /></P>} />
+            <Route path="/enhanced-service-providers" component={() => <P><ModuleUnavailable name="Service providers" alternative={{ label: "Open contractors", href: "/contractors" }} /></P>} />
 
             {/* Communications */}
             <Route path="/messages"            component={() => <P><Messages /></P>} />
@@ -439,10 +469,11 @@ function Router() {
             <Route component={NotFound} />
           </Switch>
         </main>
-      </div>
 
-      {/* Role-aware mobile bottom nav */}
-      <MobileBottomNav />
+        {/* Role-aware bottom nav: an in-flow flex child below <main>, so the
+            scroll area ends above it and the last rows are never covered. */}
+        <MobileBottomNav />
+      </div>
     </div>
   );
 }
