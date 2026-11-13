@@ -179,7 +179,7 @@ export default function Properties() {
   return (
     <PageShell>
       {/* ── Page header ── */}
-      <div className="bg-card dark:bg-gray-900 border-b border-border dark:border-gray-800 px-8 py-6">
+      <div className="bg-card dark:bg-gray-900 border-b border-border dark:border-gray-800 px-2 sm:px-8 py-5 sm:py-6">
         <div className="max-w-7xl mx-auto">
           {/* Only shown when we arrived here via platform_admin selecting an
               org — previously there was no way back to Organisations at all. */}
@@ -213,23 +213,23 @@ export default function Properties() {
         </div>
       </div>
 
-      <div className="max-w-7xl mx-auto px-8 py-8 space-y-7">
+      <div className="max-w-7xl mx-auto px-2 sm:px-8 py-5 sm:py-8 space-y-5 sm:space-y-7">
 
         {/* ── KPI strip ── */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
+        <div className="grid grid-cols-3 gap-2 sm:gap-5">
           {[
             { icon: Building2, label: "Properties",  value: properties.length,          bg: "bg-emerald-50 dark:bg-emerald-950/40", fg: "text-emerald-600" },
             { icon: Home,      label: "Total units",  value: allUnits.length || totalUnits, bg: "bg-sky-50 dark:bg-sky-950/40",     fg: "text-sky-600" },
             { icon: TrendingUp,label: "Occupancy",    value: `${overallOcc}%`,           bg: overallOcc >= 80 ? "bg-emerald-50 dark:bg-emerald-950/40" : "bg-amber-50 dark:bg-amber-950/40", fg: overallOcc >= 80 ? "text-emerald-600" : "text-amber-600" },
           ].map(({ icon: Icon, label, value, bg, fg }) => (
             <Card key={label} className="rounded-2xl border border-border/60 shadow-none hover:shadow-sm transition-shadow">
-              <CardContent className="p-6 flex items-center gap-5">
-                <div className={`w-12 h-12 ${bg} rounded-2xl flex items-center justify-center flex-shrink-0`}>
+              <CardContent className="p-3 sm:p-6 flex flex-col sm:flex-row items-start sm:items-center gap-2 sm:gap-5">
+                <div className={`w-9 h-9 sm:w-12 sm:h-12 ${bg} rounded-xl sm:rounded-2xl flex items-center justify-center flex-shrink-0`}>
                   <Icon className={`w-5 h-5 ${fg}`} />
                 </div>
-                <div>
-                  <p className="text-3xl font-bold text-foreground tabular-nums">{value}</p>
-                  <p className="text-xs text-muted-foreground uppercase tracking-widest font-semibold mt-0.5">{label}</p>
+                <div className="min-w-0">
+                  <p className="text-2xl sm:text-3xl font-bold text-foreground tabular-nums">{value}</p>
+                  <p className="text-[10px] sm:text-xs text-muted-foreground uppercase tracking-wide sm:tracking-widest font-semibold mt-0.5 [overflow-wrap:anywhere]">{label}</p>
                 </div>
               </CardContent>
             </Card>

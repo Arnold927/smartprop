@@ -893,7 +893,7 @@ function TabToolbar({
         <div className="relative flex-1 min-w-[180px]">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
           <Input
-            placeholder="Search tenant, property, unit, lease no…"
+            placeholder="Search leases…"
             value={search}
             onChange={e => { onSearch(e.target.value); onPage(1); }}
             className="pl-9 h-9"
@@ -1169,7 +1169,7 @@ export default function LeasesPage() {
                 <div className="relative flex-1 min-w-[180px]">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                   <Input
-                    placeholder="Search tenant, property, unit, lease no…"
+                    placeholder="Search leases…"
                     value={allTab.search}
                     onChange={e => { allTab.setSearch(e.target.value); allTab.setPage(1); }}
                     className="pl-9 h-9"

@@ -712,8 +712,8 @@ export default function PropertyManagerDashboard() {
               { value:"messages",    label:"Messages",    icon:MessageSquare },
               { value:"ratings",     label:"Ratings",     icon:Star },
             ].map(t=>(
-              <TabsTrigger key={t.value} value={t.value} className="flex-1 min-w-[80px] rounded-lg text-xs data-[state=active]:bg-primary data-[state=active]:text-primary-foreground text-muted-foreground flex items-center justify-center gap-1">
-                <t.icon className="h-3.5 w-3.5"/><span className="hidden sm:inline">{t.label}</span>
+              <TabsTrigger key={t.value} value={t.value} className="group flex-1 min-w-[44px] rounded-lg text-xs data-[state=active]:bg-primary data-[state=active]:text-primary-foreground text-muted-foreground flex items-center justify-center gap-1">
+                <t.icon className="h-3.5 w-3.5"/><span className="hidden sm:inline group-data-[state=active]:inline">{t.label}</span>
                 {t.badge&&<span className="h-4 min-w-4 rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center px-1">{t.badge}</span>}
               </TabsTrigger>
             ))}

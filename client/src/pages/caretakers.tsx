@@ -228,16 +228,16 @@ export default function CaretakersPage() {
             <Card key={c.id}>
               <CardContent className="py-4 flex items-center justify-between gap-4">
                 <div className="min-w-0">
-                  <div className="flex items-center gap-2">
+                  <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
                     <p className="text-sm font-semibold">{c.userName}</p>
                     <Badge variant="outline" className="text-[10px] px-1.5 py-0 capitalize">{c.caretakerType}</Badge>
                     <SPBadge status={c.status} />
                   </div>
-                  <p className="text-xs text-muted-foreground mt-1">{c.userEmail}</p>
-                  <div className="flex items-center gap-4 mt-2 text-xs text-muted-foreground">
-                    <span className="flex items-center gap-1"><Home className="h-3 w-3" /> {c.propertyName}</span>
-                    {c.shift && <span className="capitalize">{c.shift} shift</span>}
-                    {c.contactNumber && <span className="flex items-center gap-1"><Phone className="h-3 w-3" /> {c.contactNumber}</span>}
+                  <p className="text-xs text-muted-foreground mt-1 break-all">{c.userEmail}</p>
+                  <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-2 text-xs text-muted-foreground">
+                    <span className="flex items-center gap-1"><Home className="h-3 w-3 shrink-0" /> {c.propertyName}</span>
+                    {c.shift && <span className="capitalize whitespace-nowrap">{c.shift} shift</span>}
+                    {c.contactNumber && <span className="flex items-center gap-1 whitespace-nowrap"><Phone className="h-3 w-3" /> {c.contactNumber}</span>}
                   </div>
                 </div>
 

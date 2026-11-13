@@ -378,14 +378,14 @@ const FacilityManagement = () => {
 
         {/* Tabs */}
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-          <TabsList className="grid w-full grid-cols-3 rounded-xl h-10">
-            <TabsTrigger value="leases" className="flex items-center gap-1.5">
+          <TabsList className="flex w-full justify-start overflow-x-auto sm:grid sm:grid-cols-3 rounded-xl h-auto min-h-10">
+            <TabsTrigger value="leases" className="flex items-center gap-1.5 whitespace-nowrap shrink-0 sm:shrink">
               <FileText className="w-4 h-4" /> Lease Administration
             </TabsTrigger>
-            <TabsTrigger value="workorders" className="flex items-center gap-1.5">
+            <TabsTrigger value="workorders" className="flex items-center gap-1.5 whitespace-nowrap shrink-0 sm:shrink">
               <Wrench className="w-4 h-4" /> Work Orders
             </TabsTrigger>
-            <TabsTrigger value="analytics" className="flex items-center gap-1.5">
+            <TabsTrigger value="analytics" className="flex items-center gap-1.5 whitespace-nowrap shrink-0 sm:shrink">
               <BarChart3 className="w-4 h-4" /> Portfolio Analytics
             </TabsTrigger>
           </TabsList>

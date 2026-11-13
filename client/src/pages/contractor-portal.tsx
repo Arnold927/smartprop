@@ -1331,7 +1331,13 @@ export default function ContractorPortal() {
             <AlertTriangle className="w-7 h-7 text-red-500" />
           </div>
           <h2 className="text-foreground font-semibold text-lg mb-2">Contractor Profile Not Found</h2>
-          <p className="text-muted-foreground/70 text-sm">{(profileError as any)?.message ?? "No contractor profile is linked to your account. Please contact your property manager."}</p>
+          <p className="text-muted-foreground/70 text-sm">{(() => {
+            const raw = String((profileError as any)?.message ?? "");
+            const m = raw.match(/\{[\s\S]*\}/);
+            if (m) { try { const j = JSON.parse(m[0]); if (j?.message) return String(j.message); } catch {} }
+            const plain = raw.replace(/^\d{3}:\s*/, "").trim();
+            return plain && !plain.startsWith("{") ? plain : "No contractor profile is linked to your account. Please contact your property manager.";
+          })()}</p>
         </div>
       </div>
     );

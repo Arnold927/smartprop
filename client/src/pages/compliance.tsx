@@ -775,9 +775,9 @@ function KraReturnsTab() {
       {/* KRA profile summary */}
       <Card className={kraProfile?.kraPin ? "border-emerald-200" : "border-amber-200"}>
         <CardContent className="pt-4">
-          <div className="flex items-center gap-3 flex-wrap">
-            <Shield className="h-5 w-5 text-muted-foreground" />
-            <div className="flex-1 min-w-0">
+          <div className="flex items-start sm:items-center gap-3 flex-wrap">
+            <Shield className="h-5 w-5 text-muted-foreground shrink-0 mt-0.5 sm:mt-0" />
+            <div className="flex-1 min-w-[min(14rem,calc(100%-2.5rem))] [overflow-wrap:anywhere]">
               <p className="font-semibold text-sm">KRA Profile</p>
               <p className="text-xs text-muted-foreground">
                 PIN: <strong>{kraProfile?.kraPin ?? "Not set"}</strong>
@@ -796,7 +796,7 @@ function KraReturnsTab() {
                 </p>
               )}
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 w-full sm:w-auto pl-8 sm:pl-0">
               <Badge variant="outline">{kraProfile?.kraStatus ?? "pending"}</Badge>
               <Button variant="outline" size="sm" onClick={() => {
                 setProfileForm({
@@ -1458,7 +1458,7 @@ function ValuationsTab() {
       {showForm && (
         <Card>
           <CardHeader className="pb-3"><h3 className="text-sm font-semibold text-foreground">Record Valuation</h3></CardHeader>
-          <CardContent className="grid grid-cols-2 gap-3">
+          <CardContent className="grid grid-cols-1 min-[420px]:grid-cols-2 gap-3">
             <div>
               <Label className="text-xs">Date</Label>
               <Input type="date" value={form.valuationDate ?? ""} onChange={e => setForm((f: any) => ({ ...f, valuationDate: e.target.value }))} />
@@ -1514,7 +1514,7 @@ function ValuationsTab() {
               <Label className="text-xs">Notes</Label>
               <Input value={form.notes ?? ""} onChange={e => setForm((f: any) => ({ ...f, notes: e.target.value }))} />
             </div>
-            <div className="col-span-2 flex gap-2 justify-end">
+            <div className="min-[420px]:col-span-2 flex gap-2 justify-end">
               <Button variant="outline" onClick={() => setShowForm(false)}>Cancel</Button>
               <Button onClick={() => addValuation.mutate()} disabled={!form.valuationDate || !form.marketValue || addValuation.isPending}>
                 {addValuation.isPending && <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" />} Save
@@ -2373,8 +2373,8 @@ function RrtNoticesTab() {
       {activeSubtab === "increase" && (
         <Card>
           <CardHeader className="pb-3"><h3 className="text-sm font-semibold">Generate Rent Increase Notice (s.9 RRA)</h3></CardHeader>
-          <CardContent className="grid grid-cols-2 gap-3">
-            <div className="col-span-2">
+          <CardContent className="grid grid-cols-1 min-[420px]:grid-cols-2 gap-3">
+            <div className="min-[420px]:col-span-2">
               <Label className="text-xs">Lease *</Label>
               <Select value={increaseForm.leaseId ?? ""} onValueChange={v => setIncreaseForm((f: any) => ({ ...f, leaseId: v }))}>
                 <SelectTrigger><SelectValue placeholder="Select lease…" /></SelectTrigger>
@@ -2398,7 +2398,7 @@ function RrtNoticesTab() {
               <Label className="text-xs">Reason (optional)</Label>
               <Input value={increaseForm.reason ?? ""} onChange={e => setIncreaseForm((f: any) => ({ ...f, reason: e.target.value }))} placeholder="e.g. market rate adjustment" />
             </div>
-            <div className="col-span-2 flex justify-end">
+            <div className="min-[420px]:col-span-2 flex justify-end">
               <Button onClick={() => generateIncrease.mutate()}
                 disabled={!increaseForm.leaseId || !increaseForm.newRent || !increaseForm.effectiveDate || generateIncrease.isPending}>
                 {generateIncrease.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <FilePlus className="h-4 w-4 mr-1" />}
@@ -2412,15 +2412,15 @@ function RrtNoticesTab() {
       {activeSubtab === "eviction" && (
         <Card>
           <CardHeader className="pb-3"><h3 className="text-sm font-semibold">Generate Notice to Vacate (s.12 RRA)</h3></CardHeader>
-          <CardContent className="grid grid-cols-2 gap-3">
-            <div className="col-span-2">
+          <CardContent className="grid grid-cols-1 min-[420px]:grid-cols-2 gap-3">
+            <div className="min-[420px]:col-span-2">
               <Label className="text-xs">Lease *</Label>
               <Select value={evictionForm.leaseId ?? ""} onValueChange={v => setEvictionForm((f: any) => ({ ...f, leaseId: v }))}>
                 <SelectTrigger><SelectValue placeholder="Select lease…" /></SelectTrigger>
                 <SelectContent>{leaseOptions.map((l: any) => <SelectItem key={l.id} value={String(l.id)}>{l.label}</SelectItem>)}</SelectContent>
               </Select>
             </div>
-            <div className="col-span-2">
+            <div className="min-[420px]:col-span-2">
               <Label className="text-xs">Statutory ground *</Label>
               <Select value={evictionForm.groundCode ?? ""} onValueChange={v => setEvictionForm((f: any) => ({ ...f, groundCode: v }))}>
                 <SelectTrigger><SelectValue placeholder="Select ground…" /></SelectTrigger>
@@ -2462,7 +2462,7 @@ function RrtNoticesTab() {
               <Label className="text-xs">Additional reason / particulars</Label>
               <Input value={evictionForm.reason ?? ""} onChange={e => setEvictionForm((f: any) => ({ ...f, reason: e.target.value }))} placeholder="Specific details of the ground…" />
             </div>
-            <div className="col-span-2 flex justify-end">
+            <div className="min-[420px]:col-span-2 flex justify-end">
               <Button onClick={() => generateEviction.mutate()}
                 disabled={!evictionForm.leaseId || !evictionForm.groundCode || !evictionForm.vacateDate || generateEviction.isPending}>
                 {generateEviction.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <FilePlus className="h-4 w-4 mr-1" />}

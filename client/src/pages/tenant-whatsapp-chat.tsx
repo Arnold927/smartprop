@@ -607,11 +607,11 @@ export default function TenantWhatsAppChat({ tenantId, initialPhone }: TenantCha
             )}
           </p>
         </div>
-        <div className="flex items-center gap-2 shrink-0">
+        <div className="flex items-center gap-2 shrink-0 whitespace-nowrap">
           {tenant.unitNumber && (
             <Badge variant="secondary" className="text-xs">Unit {tenant.unitNumber}</Badge>
           )}
-          <div className="text-right">
+          <div className="text-right hidden sm:block">
             <p className="text-xs font-semibold text-foreground leading-tight">{tenant.firstName} {tenant.lastName}</p>
             <p className="text-[10px] font-mono text-muted-foreground">{tenant.phone}</p>
           </div>

@@ -901,25 +901,31 @@ export default function OrganizationManagement() {
                     {
                       header: "Member",
                       cell: (u: OrgUser) => (
-                        <div className="flex items-center gap-3">
+                        <div className="flex items-center gap-3 min-w-0">
                           <SPAvatar name={u.firstName || u.lastName ? `${u.firstName ?? ""} ${u.lastName ?? ""}`.trim() : u.email} />
-                          <div>
-                            <p className="text-sm font-medium leading-tight">
+                          <div className="min-w-0">
+                            <p className="text-sm font-medium leading-tight break-words">
                               {u.firstName || u.lastName
                                 ? `${u.firstName ?? ""} ${u.lastName ?? ""}`.trim()
                                 : u.email}
                             </p>
-                            <p className="text-xs text-muted-foreground">{u.email}</p>
+                            <p className="text-xs text-muted-foreground break-all">{u.email}</p>
+                            <div className="flex flex-wrap items-center gap-1.5 mt-1 sm:hidden">
+                              <Badge variant="outline" className="text-[11px] capitalize whitespace-nowrap">{u.role.replace(/_/g, " ")}</Badge>
+                              <SPBadge status={u.emailVerified ? "verified" : "pending"} />
+                            </div>
                           </div>
                         </div>
                       ),
                     },
                     {
                       header: "Role",
+                      hideOnMobile: true,
                       cell: (u: OrgUser) => <Badge variant="outline" className="text-xs capitalize">{u.role.replace(/_/g, " ")}</Badge>,
                     },
                     {
                       header: "Verified",
+                      hideOnMobile: true,
                       cell: (u: OrgUser) => <SPBadge status={u.emailVerified ? "verified" : "pending"} />,
                     },
                     {

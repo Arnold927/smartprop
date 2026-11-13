@@ -209,7 +209,7 @@ function VisitorCard({ visitor, onCancel }: { visitor: Visitor; onCancel: (id: n
             <p className="font-semibold text-sm">{visitor.visitorName}</p>
             <Badge className={`text-[11px] px-2 py-0 shrink-0 ${STATUS_STYLE[visitor.status] ?? STATUS_STYLE.pending}`}>
               <StatusIcon className="w-2.5 h-2.5 mr-1 inline" />
-              {visitor.status.charAt(0).toUpperCase() + visitor.status.slice(1)}
+              {visitor.status.replace(/_/g, " ").replace(/^\w/, (c: string) => c.toUpperCase())}
             </Badge>
           </div>
           <p className="text-xs text-muted-foreground mt-0.5">{visitor.purposeOfVisit}</p>

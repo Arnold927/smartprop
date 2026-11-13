@@ -94,7 +94,7 @@ function RoleBadge({ role }: { role: string | null | undefined }) {
   if (!role) return null;
   const colors = ROLE_BADGE_COLORS[role.toLowerCase()] ?? "bg-muted text-muted-foreground";
   return (
-    <span className={`inline-flex items-center px-1.5 py-0 rounded text-[10px] font-semibold capitalize ${colors}`}>
+    <span className={`inline-flex items-center shrink-0 whitespace-nowrap px-1.5 py-0 rounded text-[10px] font-semibold capitalize ${colors}`}>
       {role}
     </span>
   );
@@ -204,9 +204,9 @@ function MessageRow({ message, isSelected, onSelect }: {
         </Avatar>
         <div className="flex-1 min-w-0">
           <div className="flex items-center justify-between gap-2 mb-0.5">
-            <span className={`text-sm truncate flex items-center gap-1.5 ${unread ? "font-semibold text-foreground" : "text-foreground/80"}`}>
+            <span className={`text-sm min-w-0 flex items-center gap-1.5 ${unread ? "font-semibold text-foreground" : "text-foreground/80"}`}>
               {message.isSentByMe && <SendHorizonal className="w-3 h-3 text-muted-foreground flex-shrink-0" />}
-              {counterpart}
+              <span className="truncate min-w-0">{counterpart}</span>
               <RoleBadge role={message.isSentByMe ? message.toRole : message.fromRole} />
             </span>
             <span className="text-[10px] text-muted-foreground whitespace-nowrap flex-shrink-0">

@@ -504,7 +504,7 @@ export default function Inspections() {
       <FilterBar
         search={search}
         onSearch={setSearch}
-        placeholder="Search by number, property, unit or tenant…"
+        placeholder="Search inspections…"
         filters={
           <>
             <Select value={filterProp} onValueChange={setFilterProp}>

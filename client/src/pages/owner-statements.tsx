@@ -587,7 +587,7 @@ function RentRollTab() {
   return (
     <div className="space-y-4">
       <div className="flex gap-3 flex-wrap">
-        <Input type="month" value={month} onChange={e => setMonth(e.target.value)} className="w-44" />
+        <Input type="month" value={month} onChange={e => setMonth(e.target.value)} className="w-full sm:w-48 min-w-[10rem]" />
         <Select value={filterProp} onValueChange={setFilterProp}>
           <SelectTrigger className="w-52"><SelectValue placeholder="All properties" /></SelectTrigger>
           <SelectContent>

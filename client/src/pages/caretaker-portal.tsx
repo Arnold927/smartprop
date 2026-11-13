@@ -117,24 +117,24 @@ export default function CaretakerPortalPage() {
             <CardContent className="py-5">
               <div className="flex items-center justify-between flex-wrap gap-3">
                 <div>
-                  <div className="flex items-center gap-2">
+                  <div className="flex flex-wrap items-center gap-2">
                     <Home className="h-4 w-4 text-muted-foreground" />
                     <span className="text-base font-semibold">{me.propertyName}</span>
                     <Badge variant="outline" className="text-[10px] px-1.5 py-0 capitalize">{me.caretakerType}</Badge>
                   </div>
-                  <div className="flex items-center gap-4 mt-2 text-sm text-muted-foreground">
+                  <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 mt-2 text-sm text-muted-foreground">
                     {me.shift && (
-                      <span className="flex items-center gap-1.5 capitalize">
+                      <span className="flex items-center gap-1.5 capitalize whitespace-nowrap">
                         <Clock className="h-3.5 w-3.5" /> {me.shift} shift
                       </span>
                     )}
                     {me.contactNumber && (
-                      <span className="flex items-center gap-1.5">
+                      <span className="flex items-center gap-1.5 whitespace-nowrap">
                         <Phone className="h-3.5 w-3.5" /> {me.contactNumber}
                       </span>
                     )}
                     {me.accommodationProvided && (
-                      <Badge variant="outline" className="text-[10px] px-1.5 py-0">On-site accommodation</Badge>
+                      <Badge variant="outline" className="text-[10px] px-1.5 py-0 whitespace-nowrap">On-site accommodation</Badge>
                     )}
                   </div>
                 </div>

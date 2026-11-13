@@ -25,13 +25,13 @@ function Tile({ label, value, sub, icon: Icon, accent, positive = true }: {
   label: string; value: string; sub: string; icon: any; accent: string; positive?: boolean;
 }) {
   return (
-    <div className="bg-card border border-border rounded-2xl p-6 relative overflow-hidden">
+    <div className="bg-card border border-border rounded-2xl p-4 sm:p-6 relative overflow-hidden">
       <div className={`absolute top-0 left-0 w-1 h-full ${accent} rounded-l-2xl`} />
-      <div className="ml-3">
-        <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-widest mb-3">{label}</p>
+      <div className="ml-3 flex flex-col sm:block">
+        <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide sm:tracking-widest mb-3 sm:pr-11">{label}</p>
         <p className="text-xl sm:text-2xl font-bold text-foreground tracking-tight tabular-nums leading-tight break-words">{value}</p>
         <p className="text-xs text-muted-foreground mt-2">{sub}</p>
-        <div className={`absolute right-5 top-5 w-9 h-9 ${accent.replace("bg-", "bg-").replace("-500","-500/10")} rounded-xl flex items-center justify-center`}>
+        <div className={`order-first sm:order-none mb-2 sm:mb-0 sm:absolute sm:right-5 sm:top-5 w-8 h-8 sm:w-9 sm:h-9 ${accent.replace("bg-", "bg-").replace("-500","-500/10")} rounded-xl flex items-center justify-center`}>
           <Icon className={`w-4.5 h-4.5 ${accent.replace("bg-", "text-")}`} />
         </div>
       </div>

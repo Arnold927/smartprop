@@ -587,12 +587,12 @@ export default function MaintenanceDetails() {
               <ArrowLeft className="h-4 w-4" />
             </Link>
           </Button>
-          <div>
-            <h1 className="text-2xl font-semibold text-foreground">
+          <div className="min-w-0">
+            <h1 className="text-xl sm:text-2xl font-semibold text-foreground break-words">
               {request.title}
             </h1>
-            <div className="flex items-center space-x-3 mt-1">
-              <span className="text-sm font-medium text-foreground">
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 mt-1">
+              <span className="text-sm font-medium text-foreground whitespace-nowrap">
                 Ticket #{request.ticketNumber}
               </span>
               <Badge className={cn("capitalize", getPriorityColor(request.priority))}>

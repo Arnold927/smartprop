@@ -137,8 +137,8 @@ function PaymentMethodSection({
           <Smartphone className="w-4 h-4 text-green-600" />
           M-Pesa Paybill
         </div>
-        <div className="grid grid-cols-2 gap-3">
-          <div className="space-y-1.5">
+        <div className="grid grid-cols-1 min-[420px]:grid-cols-2 gap-3">
+          <div className="space-y-1.5 min-w-0">
             <Label className="text-xs">Business No. (Paybill)</Label>
             <Input
               placeholder="e.g. 174379"
@@ -148,7 +148,7 @@ function PaymentMethodSection({
             />
             {/* Show the server .env value so the user can see if they match */}
             {serverShortcode && (
-              <div className="flex items-center gap-1.5 text-[11px]">
+              <div className="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-[11px]">
                 <span className="text-gray-400">Server shortcode (.env):</span>
                 <span className={`font-mono font-semibold px-1.5 py-0.5 rounded text-[11px] ${
                   account.mpesaPaybill && account.mpesaPaybill !== serverShortcode
@@ -170,7 +170,7 @@ function PaymentMethodSection({
               </div>
             )}
           </div>
-          <div className="space-y-1.5">
+          <div className="space-y-1.5 min-w-0">
             <Label className="text-xs">Account Name shown to tenant</Label>
             <Input
               placeholder="e.g. RENT / UTILITY"
