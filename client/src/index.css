@@ -830,7 +830,7 @@ a:focus-visible {
   textarea {
     font-size: 16px;
   }
-  button:not([role="switch"]):not([role="checkbox"]):not([role="radio"]):not([role="slider"]):not([data-no-touch-target]),
+  button:not([role="switch"]):not([role="checkbox"]):not([role="radio"]):not([role="slider"]):not([role="combobox"]):not([data-no-touch-target]),
   [role="button"]:not([data-no-touch-target]),
   [role="tab"],
   [role="menuitem"] {
@@ -854,4 +854,102 @@ main img,
 main video {
   max-width: 100%;
   height: auto;
+}
+
+/* ── Words are never cut off ─────────────────────────────────────────────────
+   The app uses Tailwind's `truncate` (one line + "…") for titles, names and
+   descriptions. On phones that chops real words ("Bedroom light switch not
+   wor…"). Inside page content and dialogs, such text now wraps onto up to two
+   lines instead; only text longer than that is shortened with an ellipsis.
+   Inline spans keep their normal flow (only flex/grid children are changed). */
+:is(main, [role="dialog"], [role="alertdialog"]) :is(p, h1, h2, h3, h4, h5, h6, div, li).truncate:not(.flex):not(.inline-flex):not(.grid):not(.line-clamp-1),
+:is(main, [role="dialog"], [role="alertdialog"]) :is(.flex, .inline-flex, .grid) > :is(span, a, label).truncate:not(.flex):not(.inline-flex):not(.line-clamp-1) {
+  white-space: normal;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow-wrap: anywhere;
+}
+/* flex containers and table cells that were set to truncate: let them wrap */
+:is(main, [role="dialog"], [role="alertdialog"]) .truncate:is(.flex, .inline-flex),
+:is(main, [role="dialog"], [role="alertdialog"]) :is(td, th).truncate {
+  white-space: normal;
+  overflow: visible;
+  text-overflow: clip;
+  overflow-wrap: anywhere;
+}
+
+/* A dropdown button is never narrower than the value it shows ("25 / page"). */
+button[role="combobox"][class] {
+  min-width: max-content;
+  max-width: 100%;
+  min-height: 40px;
+}
+button[role="combobox"][class] > span:not(:empty) {
+  -webkit-line-clamp: unset;
+  display: block;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+button[role="combobox"] > span {
+  min-width: 0;
+}
+
+/* ── Tabs ────────────────────────────────────────────────────────────────────
+   A row of 4+ tabs on a phone scrolls sideways as one tidy line (instead of a
+   cramped grid whose labels get cut, or a ragged multi-row wrap). The edges
+   fade where more tabs are hidden, so it is obvious the row scrolls. */
+@media (max-width: 767px) {
+  [role="tablist"]:not(.hidden):has(> [role="tab"]:nth-child(4)) {
+    display: flex;
+    flex-wrap: nowrap;
+    justify-content: flex-start;
+    align-items: center;
+    overflow-x: auto;
+    overflow-y: hidden;
+    width: 100%;
+    max-width: 100%;
+    height: auto;
+    min-width: 0;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+  }
+  [role="tablist"]:has(> [role="tab"]:nth-child(4))::-webkit-scrollbar { display: none; }
+  [role="tablist"]:has(> [role="tab"]:nth-child(4)) > [role="tab"] {
+    flex: 0 0 auto;
+    white-space: nowrap;
+  }
+}
+[role="tablist"][data-fade-right="true"]:not([data-fade-left="true"]) {
+  -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent);
+  mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent);
+}
+[role="tablist"][data-fade-left="true"]:not([data-fade-right="true"]) {
+  -webkit-mask-image: linear-gradient(to left, #000 calc(100% - 28px), transparent);
+  mask-image: linear-gradient(to left, #000 calc(100% - 28px), transparent);
+}
+[role="tablist"][data-fade-left="true"][data-fade-right="true"] {
+  -webkit-mask-image: linear-gradient(to right, transparent, #000 28px, #000 calc(100% - 28px), transparent);
+  mask-image: linear-gradient(to right, transparent, #000 28px, #000 calc(100% - 28px), transparent);
+}
+
+
+/* ── Forms in dialogs on phones ───────────────────────────────────────────────
+   Two fields side by side leave each one ~140px wide: placeholders and values
+   ("contact@comp…", "+254 700 000 (") are cut. On small phones such rows stack. */
+@media (max-width: 480px) {
+  :is([role="dialog"], [role="alertdialog"]) :is(.grid-cols-2, .grid-cols-3):has(input:not([type="checkbox"]):not([type="radio"]), textarea, button[role="combobox"]) {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* A grid that only declares columns at larger breakpoints ("md:grid-cols-3")
+   has one auto-sized column on phones, which grows to its widest child and
+   pushes the page sideways. Give that phone column a hard width limit. The
+   :where() keeps specificity at zero, so any real grid-cols-* class wins. */
+:where(main .grid:is([class*="sm:grid-cols"], [class*="md:grid-cols"], [class*="lg:grid-cols"], [class*="xl:grid-cols"])) {
+  grid-template-columns: minmax(0, 1fr);
 }

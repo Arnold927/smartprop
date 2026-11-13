@@ -698,14 +698,14 @@ function ReportDeliveryPanel({ activeTab }: { activeTab: string }) {
               </div>
 
               {/* Send now */}
-              <div className="pt-2 border-t flex items-center justify-between">
-                <div>
+              <div className="pt-2 border-t flex flex-wrap items-center justify-between gap-3">
+                <div className="min-w-0 flex-1 basis-56">
                   <p className="text-sm font-medium">Send statements now</p>
                   <p className="text-xs text-muted-foreground">Immediately email last month's statement to all eligible landlords in this organisation</p>
                 </div>
                 <Button
                   variant="outline"
-                  className="gap-1.5"
+                  className="gap-1.5 shrink-0"
                   disabled={sendNowMut.isPending}
                   onClick={() => sendNowMut.mutate()}
                 >

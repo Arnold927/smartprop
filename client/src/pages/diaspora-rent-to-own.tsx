@@ -681,7 +681,7 @@ export default function DiasporaRentToOwn() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="max-w-7xl mx-auto w-full px-4 sm:px-6 py-6 space-y-6 min-w-0">
 
       {/* ── HERO BANNER ───────────────────────────────────────────────── */}
       <div className="relative rounded-2xl overflow-hidden" style={{ minHeight: 240 }}>
@@ -1040,8 +1040,8 @@ export default function DiasporaRentToOwn() {
           <TabsContent value="payments" className="space-y-4">
 
             {/* Header row with Record Payment button */}
-            <div className="flex items-center justify-between">
-              <div>
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="min-w-0">
                 <h2 className="text-lg font-bold">International Payment History</h2>
                 <p className="text-sm text-muted-foreground">Cross-border transfers from diaspora investors</p>
               </div>
@@ -1527,8 +1527,8 @@ export default function DiasporaRentToOwn() {
           <TabsContent value="certificates" className="space-y-4">
 
             {/* Header */}
-            <div className="flex items-center justify-between">
-              <div>
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="min-w-0">
                 <h2 className="text-lg font-bold">Digital Ownership Certificates</h2>
                 <p className="text-sm text-muted-foreground">Cryptographically signed certificates issued to diaspora investors</p>
               </div>
@@ -1738,7 +1738,7 @@ export default function DiasporaRentToOwn() {
                                   <p className="text-[10px] uppercase tracking-widest font-bold" style={{ color: "#94a3b8" }}>CERT HASH</p>
                                   <p className="font-semibold text-sm mt-0.5">SmartProp Registry</p>
                                   {cert.blockchainHash && (
-                                    <p className="text-[10px] font-mono mt-0.5" style={{ color: "#64748b" }}>
+                                    <p className="text-[10px] font-mono mt-0.5 break-all" style={{ color: "#64748b" }}>
                                       {cert.blockchainHash.substring(0, 18)}…
                                     </p>
                                   )}

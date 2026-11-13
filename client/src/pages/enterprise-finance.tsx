@@ -278,7 +278,7 @@ const AddAccountDialog = ({ open, onOpenChange, onSuccess }: AddAccountDialogPro
               rows={2}
             />
           </div>
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             <Button
               className="flex-1 bg-emerald-600 hover:bg-emerald-700"
               onClick={() => createMutation.mutate(form)}
@@ -375,7 +375,7 @@ const ApproveRejectDialog = ({
               className="mt-1"
             />
           </div>
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             <Button
               className={`flex-1 ${mode === "approve" ? "bg-green-600 hover:bg-green-700" : "bg-red-600 hover:bg-red-700"}`}
               onClick={() =>
@@ -598,7 +598,7 @@ const PurchaseRequisitions = () => {
                   <p className="font-medium">{formatDate(req.requiredDate)}</p>
                 </div>
               </div>
-              <div className="flex gap-2">
+              <div className="flex flex-wrap gap-2">
                 <Button
                   variant="outline"
                   size="sm"
@@ -647,7 +647,7 @@ const PurchaseRequisitions = () => {
           </DialogHeader>
           {viewReq && (
             <div className="space-y-4 text-sm">
-              <div className="flex justify-between items-center">
+              <div className="flex flex-wrap justify-between items-center gap-3">
                 <span className="text-muted-foreground">Status</span>
                 <ApprovalStatusBadge status={viewReq.approvalStatus} />
               </div>
@@ -800,7 +800,7 @@ const PurchaseRequisitions = () => {
                 </SelectContent>
               </Select>
             </div>
-            <div className="flex gap-2">
+            <div className="flex flex-wrap gap-2">
               <Button
                 className="flex-1 bg-emerald-600 hover:bg-emerald-700"
                 onClick={() => createRequisitionMutation.mutate(newRequisition)}
@@ -941,12 +941,12 @@ const ExpenseReports = () => {
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center">
+      <div className="flex flex-wrap justify-between items-center gap-3">
         <div>
           <h3 className="text-lg font-semibold">Expense Reports</h3>
           <p className="text-sm text-muted-foreground">Track and approve employee expense reimbursements</p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <input
             ref={fileInputRef}
             type="file"
@@ -1045,7 +1045,7 @@ const ExpenseReports = () => {
                   <p className="font-medium">{formatDate(report.submittedDate)}</p>
                 </div>
               </div>
-              <div className="flex gap-2">
+              <div className="flex flex-wrap gap-2">
                 <Button
                   variant="outline"
                   size="sm"
@@ -1094,7 +1094,7 @@ const ExpenseReports = () => {
           </DialogHeader>
           {viewReport && (
             <div className="space-y-4 text-sm">
-              <div className="flex justify-between items-center">
+              <div className="flex flex-wrap justify-between items-center gap-3">
                 <span className="text-muted-foreground">Status</span>
                 <ApprovalStatusBadge status={viewReport.approvalStatus} />
               </div>
@@ -1223,7 +1223,7 @@ const ExpenseReports = () => {
                 data-testid="input-expense-description"
               />
             </div>
-            <div className="flex gap-2">
+            <div className="flex flex-wrap gap-2">
               <Button
                 className="flex-1 bg-purple-600 hover:bg-purple-700"
                 onClick={() => createExpenseMutation.mutate(newExpense)}
@@ -1326,7 +1326,7 @@ const PayrollManagement = () => {
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center">
+      <div className="flex flex-wrap justify-between items-center gap-3">
         <div>
           <h3 className="text-lg font-semibold">Payroll Management</h3>
           <p className="text-sm text-muted-foreground">Manage staff payroll periods and disbursements</p>
@@ -1584,7 +1584,7 @@ const PayrollManagement = () => {
                 data-testid="input-pay-date"
               />
             </div>
-            <div className="flex gap-2">
+            <div className="flex flex-wrap gap-2">
               <Button
                 className="flex-1 bg-green-600 hover:bg-green-700"
                 onClick={() => createPayrollPeriodMutation.mutate(newPeriod)}
@@ -1690,7 +1690,7 @@ const GeneralLedger = ({ onNavigateToSettings }: { onNavigateToSettings?: () => 
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center">
+      <div className="flex flex-wrap justify-between items-center gap-3">
         <div>
           <h3 className="text-lg font-semibold">General Ledger</h3>
           <p className="text-sm text-muted-foreground">Double-entry bookkeeping records for the organisation</p>
@@ -1699,7 +1699,7 @@ const GeneralLedger = ({ onNavigateToSettings }: { onNavigateToSettings?: () => 
             Manual entries are also supported.
           </p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <Button variant="outline" onClick={handleExport} data-testid="button-export-ledger">
             <Download className="h-4 w-4 mr-2" />
             Export
@@ -1904,7 +1904,7 @@ const GeneralLedger = ({ onNavigateToSettings }: { onNavigateToSettings?: () => 
                 data-testid="input-gl-reference"
               />
             </div>
-            <div className="flex gap-2">
+            <div className="flex flex-wrap gap-2">
               <Button
                 className="flex-1 bg-emerald-600 hover:bg-emerald-700"
                 onClick={() => createEntryMutation.mutate(newEntry)}
@@ -2564,7 +2564,7 @@ const FinancialReports = () => {
                 data-testid="input-report-end"
               />
             </div>
-            <div className="flex gap-2">
+            <div className="flex flex-wrap gap-2">
               <Button variant="outline" size="sm" onClick={() => { setDateRange({ startDate: yearStart, endDate: today }); setReportResult(null); setActiveReport(null); }}>YTD</Button>
               <Button variant="outline" size="sm" onClick={() => {
                 const now = new Date();
@@ -2956,7 +2956,7 @@ export default function EnterpriseFinance() {
   const navigateToSettings = () => setActiveTab("settings");
 
   return (
-    <div className="space-y-6">
+    <div className="max-w-7xl mx-auto w-full px-4 sm:px-6 py-6 space-y-6 min-w-0">
       {/* Header */}
       <div className="flex flex-wrap justify-between items-start gap-3">
         <div className="min-w-0">

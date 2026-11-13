@@ -15,6 +15,7 @@
  *   PATCH /api/maintenance-requests/:id/feedback — rate resolved request
  */
 
+import { renderWhatsAppText } from "@/lib/whatsapp-text";
 import { useState, useMemo, useEffect, useRef } from "react";
 import { useLocation } from "wouter";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -1894,7 +1895,7 @@ function MessagesPanel({
                             ? "bg-slate-900 dark:bg-white text-white dark:text-foreground rounded-br-sm"
                             : "bg-white dark:bg-card border border-border text-foreground rounded-bl-sm shadow-sm"
                         }`}>
-                          {m.content}
+                          <span className="whitespace-pre-wrap break-words">{renderWhatsAppText(m.content)}</span>
                         </div>
                         <p className="text-[10px] text-muted-foreground/50 mt-0.5 px-1">
                           {fmtDateTime(m.createdAt)}
@@ -2648,7 +2649,7 @@ export default function TenantPortal({ tenantId, initialTenantData }: TenantPort
       )}
 
       {/* ── Header ─────────────────────────────────────────────────────────── */}
-      <div className="bg-slate-900 text-white px-6 py-6 border-b border-white/10">
+      <div className="bg-slate-900 text-white px-4 sm:px-6 py-4 sm:py-6 border-b border-white/10">
         <div className="max-w-5xl mx-auto">
           <div className="flex items-start justify-between flex-wrap gap-4">
             <div className="flex items-center gap-4">
@@ -2674,7 +2675,7 @@ export default function TenantPortal({ tenantId, initialTenantData }: TenantPort
                     </span>
                   )}
                   {tenant?.email && (
-                    <span className="flex items-center gap-1 text-white/70 text-xs">
+                    <span className="hidden sm:flex items-center gap-1 text-white/70 text-xs">
                       <Mail className="w-3 h-3" /> {tenant.email}
                     </span>
                   )}
@@ -2682,8 +2683,8 @@ export default function TenantPortal({ tenantId, initialTenantData }: TenantPort
               </div>
             </div>
 
-            {/* Status chips + language toggle */}
-            <div className="flex items-center gap-2 flex-wrap">
+            {/* Status chips + language toggle (on phones only on the home tab, so other tabs start with their content) */}
+            <div className={`${activeTab === "dashboard" ? "flex" : "hidden sm:flex"} items-center gap-2 flex-wrap`}>
               <LanguageToggle variant="full" className="text-white/80 hover:text-white hover:bg-white/10 border border-white/20 rounded-full px-2 h-7 text-xs" />
               {unreadMessages > 0 && (
                 <button onClick={() => setActiveTab("messages")}
@@ -2712,7 +2713,7 @@ export default function TenantPortal({ tenantId, initialTenantData }: TenantPort
 
           {/* Lease progress bar */}
           {tenant?.leaseStartDate && tenant?.leaseEndDate && (
-            <div className="mt-5 pt-4 border-t border-white/10">
+            <div className={`${activeTab === "dashboard" ? "block" : "hidden sm:block"} mt-5 pt-4 border-t border-white/10`}>
               <div className="flex items-center justify-between text-xs text-white/60 mb-1.5">
                 <span>Lease progress</span>
                 <span>{leasePct}% elapsed · {leaseEndDays !== null && leaseEndDays > 0 ? `${leaseEndDays} days remaining` : leaseEndDays === 0 ? "Ends today" : "Expired"}</span>

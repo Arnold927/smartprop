@@ -733,19 +733,20 @@ export default function UserManagement() {
                   {
                     header: "User",
                     cell: (u: any) => (
-                      <div className="flex items-center gap-3">
+                      <div className="flex items-center gap-3 min-w-[9.5rem]">
                         <SPAvatar name={displayName(u)} />
                         <div className="min-w-0">
-                          <p className="font-medium text-foreground truncate">
+                          <p className="font-medium text-foreground break-words">
                             {displayName(u)}
                             {u.id === callerId && <span className="ml-2 text-xs font-normal text-muted-foreground">(you)</span>}
                           </p>
-                          {u.email && <p className="text-xs text-muted-foreground truncate">{u.email}</p>}
+                          {u.email && <p className="text-xs text-muted-foreground break-all">{u.email}</p>}
+                          <div className="mt-1 sm:hidden"><RoleBadge role={u.role} /></div>
                         </div>
                       </div>
                     ),
                   },
-                  { header: "Role", cell: (u: any) => <RoleBadge role={u.role} /> },
+                  { header: "Role", hideOnMobile: true, cell: (u: any) => <RoleBadge role={u.role} /> },
                   { header: "Status", cell: (u: any) => <SPBadge status={statusOf(u)} /> },
                   {
                     header: "Last login",

@@ -1127,15 +1127,15 @@ export default function UtilityManagement() {
         const resolvedType = (bill as any).utilityType || bill.account?.provider.type || "";
         const Icon = utilityTypeIcons[resolvedType] || Zap;
         return (
-          <div className="flex items-center gap-2 min-w-0">
+          <div className="flex items-center gap-2 min-w-[10.5rem]">
             <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center shrink-0">
               <Icon className="w-4 h-4 text-blue-600" />
             </div>
             <div className="min-w-0">
-              <p className="font-medium text-foreground truncate">
+              <p className="font-medium text-foreground break-words">
                 {bill.account?.provider.name || <span className="text-muted-foreground">—</span>}
               </p>
-              <p className="text-xs text-muted-foreground truncate">
+              <p className="text-xs text-muted-foreground break-words">
                 {bill.account?.property.name || "—"}
                 {bill.billNumber && <span className="ml-1 font-mono text-blue-500">· {bill.billNumber}</span>}
               </p>
@@ -1248,7 +1248,7 @@ export default function UtilityManagement() {
       header: "Description & Property", accessorKey: "description",
       cell: (e: PropertyExpense) => (
         <div>
-          <p className="text-sm truncate max-w-[220px]">{e.description}</p>
+          <p className="text-sm break-words line-clamp-2 max-w-[220px]">{e.description}</p>
           <p className="text-xs text-muted-foreground">{e.property?.name || "—"}</p>
         </div>
       ),
@@ -1309,10 +1309,10 @@ export default function UtilityManagement() {
 
       {/* Tabs */}
       <div className="border-b border-border">
-        <nav className="-mb-px flex space-x-8 overflow-x-auto">
+        <nav className="-mb-px flex gap-6 sm:gap-8 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           {tabs.map(tab => (
             <button key={tab.key} onClick={() => { setActiveTab(tab.key); setSearchTerm(""); }}
-              className={`whitespace-nowrap py-2 px-1 border-b-2 font-medium text-sm transition-colors ${
+              className={`shrink-0 whitespace-nowrap py-2.5 px-1 border-b-2 font-medium text-sm transition-colors ${
                 activeTab === tab.key
                   ? "border-blue-500 text-blue-600"
                   : "border-transparent text-muted-foreground hover:text-foreground"

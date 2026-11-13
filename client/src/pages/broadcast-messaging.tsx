@@ -500,7 +500,7 @@ export default function BroadcastMessaging() {
     <div className="min-h-screen bg-background">
       {/* Header */}
       <div className="bg-card dark:bg-gray-900 border-b border-border dark:border-gray-800 px-6 py-5">
-        <div className="max-w-7xl mx-auto flex items-center justify-between">
+        <div className="flex flex-col max-w-7xl mx-auto gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h1 className="text-xl font-semibold text-foreground">Broadcast Messaging</h1>
             <p className="text-sm text-muted-foreground mt-0.5">

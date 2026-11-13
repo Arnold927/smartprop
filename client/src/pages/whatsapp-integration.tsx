@@ -1,4 +1,5 @@
 import { MediaUploader } from "@/components/ui/media-uploader";
+import { renderWhatsAppText } from "@/lib/whatsapp-text";
 import React, { useState, useMemo, useRef, useEffect, useCallback } from "react";
 import { useWsEvent } from "@/hooks/useWebSocket";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -1277,9 +1278,9 @@ export default function WhatsAppIntegration() {
     <div className="p-6 space-y-6">
 
       {/* Header */}
-      <div className="flex justify-between items-center">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-foreground">WhatsApp Business Integration</h1>
+          <h1 className="text-2xl sm:text-3xl font-bold text-foreground">WhatsApp Business Integration</h1>
           <p className="text-muted-foreground mt-1">
             Send automated notifications and manage WhatsApp communications with tenants and landlords
           </p>
@@ -1836,8 +1837,8 @@ export default function WhatsAppIntegration() {
 
       {/* Main Content Tabs */}
       <Tabs defaultValue="conversations" className="w-full">
-        <TabsList className="grid w-full grid-cols-3 max-w-lg">
-          <TabsTrigger value="conversations" className="relative">
+        <TabsList className="flex w-full max-w-lg">
+          <TabsTrigger value="conversations" className="relative flex-1 min-w-fit whitespace-nowrap">
             Conversations
             {(() => {
               const unread = conversations.filter(c => c.unreadCount > 0).length;
@@ -1848,20 +1849,20 @@ export default function WhatsAppIntegration() {
               ) : null;
             })()}
           </TabsTrigger>
-          <TabsTrigger value="messages">Sent</TabsTrigger>
-          <TabsTrigger value="templates">Templates</TabsTrigger>
+          <TabsTrigger value="messages" className="flex-1 min-w-fit">Sent</TabsTrigger>
+          <TabsTrigger value="templates" className="flex-1 min-w-fit">Templates</TabsTrigger>
         </TabsList>
 
         {/* ── Messages tab ── */}
         <TabsContent value="messages" className="space-y-4">
           <Card className="rounded-2xl border-border shadow-none">
             <CardHeader className="pb-3">
-              <div className="flex items-center justify-between">
-                <div>
+              <div className="flex items-center justify-between gap-3">
+                <div className="min-w-0">
                   <CardTitle>Sent Messages</CardTitle>
                   <CardDescription>WhatsApp messages sent from your organisation</CardDescription>
                 </div>
-                <Button variant="outline" size="sm" onClick={() => refetchMessages()}>
+                <Button variant="outline" size="sm" className="shrink-0" onClick={() => refetchMessages()}>
                   <RefreshCw className="h-4 w-4 mr-1" />Refresh
                 </Button>
               </div>
@@ -2168,7 +2169,7 @@ export default function WhatsAppIntegration() {
                                 : "bg-blue-600 text-white rounded-br-sm"
                               : "bg-muted text-foreground rounded-bl-sm"
                           } ${isPending ? "opacity-60" : ""}`}>
-                            <p className="whitespace-pre-wrap break-words">{msg.content}</p>
+                            <p className="whitespace-pre-wrap break-words">{renderWhatsAppText(msg.content)}</p>
                             <div className={`flex items-center gap-1.5 mt-1.5 text-[10px] ${isOut ? (isFailed ? "text-red-500 justify-end" : "text-blue-100 justify-end") : "text-muted-foreground"}`}>
                               {isPending && <Loader2 className="h-2.5 w-2.5 animate-spin" />}
                               <span>{isPending ? "Sending…" : safeFormat(msg.timestamp)}</span>
@@ -2438,12 +2439,12 @@ export default function WhatsAppIntegration() {
         <TabsContent value="templates" className="space-y-4">
           <Card className="rounded-2xl border-border shadow-none">
             <CardHeader className="pb-3">
-              <div className="flex items-center justify-between">
-                <div>
+              <div className="flex items-center justify-between gap-3">
+                <div className="min-w-0">
                   <CardTitle>Message Templates</CardTitle>
                   <CardDescription>Reusable templates for common property management notifications</CardDescription>
                 </div>
-                <Button variant="outline" size="sm" onClick={() => refetchTemplates()}>
+                <Button variant="outline" size="sm" className="shrink-0" onClick={() => refetchTemplates()}>
                   <RefreshCw className="h-4 w-4 mr-1" />Refresh
                 </Button>
               </div>

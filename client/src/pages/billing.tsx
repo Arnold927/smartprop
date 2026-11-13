@@ -305,7 +305,7 @@ export default function Billing() {
 
   // ═══════════════════════════════════════════════════════════════════════════
   return (
-    <div className="space-y-5">
+    <div className="max-w-7xl mx-auto w-full px-4 sm:px-6 py-6 space-y-5 min-w-0">
 
       {/* ── Page header ── */}
       <div className="flex flex-wrap items-start justify-between gap-3">

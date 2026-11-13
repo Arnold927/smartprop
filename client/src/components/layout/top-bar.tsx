@@ -439,7 +439,7 @@ export default function TopBar() {
  {user?.firstName?.[0] || "U"}{user?.lastName?.[0] || ""}
  </span>
  </div>
- <span className="text-sm font-medium text-foreground dark:text-muted-foreground hidden md:inline max-w-28 truncate">
+ <span className="text-sm font-medium text-foreground dark:text-muted-foreground hidden md:inline max-w-44 truncate">
  {user?.firstName} {user?.lastName}
  </span>
  <ChevronDown className="h-3.5 w-3.5 text-muted-foreground hidden md:block" />

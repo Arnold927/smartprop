@@ -425,7 +425,7 @@ export default function TenantDetails() {
             </div>
 
             <div className="flex-1 min-w-0">
-              <div className="flex items-start justify-between gap-3">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                 <div className="min-w-0">
                   <h1 className="text-2xl font-semibold text-foreground leading-tight">
                     {tenant.firstName} {tenant.lastName}
@@ -494,7 +494,7 @@ export default function TenantDetails() {
                 <div className={`p-2 rounded-lg ${kpi.accent} flex-shrink-0`}>{kpi.icon}</div>
                 <div className="min-w-0">
                   <p className="text-[11px] uppercase tracking-wide text-muted-foreground font-medium">{kpi.label}</p>
-                  <p className="text-base font-bold text-foreground leading-tight truncate">{kpi.value}</p>
+                  <p className="text-base font-bold text-foreground leading-tight tabular-nums break-words">{kpi.value}</p>
                   <p className={`text-[11px] ${kpi.sub.includes("overdue") || kpi.sub.includes("urgent") ? "text-red-500" : "text-muted-foreground"}`}>{kpi.sub}</p>
                 </div>
               </div>

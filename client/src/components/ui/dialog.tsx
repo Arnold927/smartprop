@@ -60,9 +60,9 @@ const DialogContent = React.forwardRef<
  "translate-x-[-50%] translate-y-[-50%]",
  // Sizing
  "w-[90vw] max-w-lg",
- "max-h-[85vh] overflow-y-auto",
+ "max-h-[85vh] overflow-y-auto overflow-x-hidden",
  // Appearance — resolves against active theme tokens
- "grid gap-4",
+ "grid grid-cols-[minmax(0,1fr)] gap-4",
  "bg-background text-foreground",
  "border border-border",
  "rounded-lg shadow-lg",

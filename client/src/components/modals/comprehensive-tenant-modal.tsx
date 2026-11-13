@@ -156,7 +156,7 @@ export default function ComprehensiveTenantModal({ isOpen, onClose, properties: 
     <Dialog open={isOpen} onOpenChange={handleClose}>
       <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle className="text-2xl font-bold text-foreground">
+          <DialogTitle className="text-xl sm:text-2xl font-bold text-foreground px-6 sm:px-0">
             Comprehensive Tenant Onboarding
           </DialogTitle>
           <DialogDescription>

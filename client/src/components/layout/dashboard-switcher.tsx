@@ -122,7 +122,7 @@ export default function DashboardSwitcher() {
  <DropdownMenuTrigger asChild>
  <Button 
  variant="outline" 
- className="flex items-center gap-2 bg-card hover:bg-muted border border-border"
+ className="flex items-center gap-2 bg-card hover:bg-muted border border-border text-foreground"
  >
  <div className={`w-2 h-2 rounded-full ${currentDashboard?.color ?? "bg-emerald-600"}`}></div>
  <Icon className="h-4 w-4" />

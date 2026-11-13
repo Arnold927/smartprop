@@ -8,16 +8,60 @@ const Tabs = TabsPrimitive.Root
 const TabsList = React.forwardRef<
  React.ElementRef<typeof TabsPrimitive.List>,
  React.ComponentPropsWithoutRef<typeof TabsPrimitive.List>
->(({ className, ...props }, ref) => (
+>(({ className, ...props }, ref) => {
+ const inner = React.useRef<HTMLDivElement | null>(null)
+ const setRefs = React.useCallback(
+ (node: HTMLDivElement | null) => {
+ inner.current = node
+ if (typeof ref === "function") ref(node)
+ else if (ref) (ref as React.MutableRefObject<HTMLDivElement | null>).current = node
+ },
+ [ref]
+ )
+
+ // When a row of tabs is wider than the screen it scrolls sideways. Mark which
+ // edges still have hidden tabs so CSS can fade them (a visible hint that there
+ // is more), and keep the selected tab in view when it changes.
+ React.useEffect(() => {
+ const el = inner.current
+ if (!el) return
+ const update = () => {
+ const max = el.scrollWidth - el.clientWidth
+ el.dataset.fadeRight = String(max > 2 && el.scrollLeft < max - 2)
+ el.dataset.fadeLeft = String(el.scrollLeft > 2)
+ }
+ const reveal = () => {
+ const active = el.querySelector<HTMLElement>('[data-state="active"]')
+ if (!active) return
+ const left = active.offsetLeft
+ const right = left + active.offsetWidth
+ if (left < el.scrollLeft + 8) el.scrollLeft = Math.max(0, left - 8)
+ else if (right > el.scrollLeft + el.clientWidth - 8) el.scrollLeft = right - el.clientWidth + 8
+ }
+ update()
+ el.addEventListener("scroll", update, { passive: true })
+ const ro = typeof ResizeObserver !== "undefined" ? new ResizeObserver(update) : null
+ ro?.observe(el)
+ const mo = new MutationObserver(() => { reveal(); update() })
+ mo.observe(el, { subtree: true, attributes: true, attributeFilter: ["data-state"], childList: true })
+ return () => {
+ el.removeEventListener("scroll", update)
+ ro?.disconnect()
+ mo.disconnect()
+ }
+ }, [])
+
+ return (
  <TabsPrimitive.List
- ref={ref}
+ ref={setRefs}
  className={cn(
  "inline-flex h-10 max-w-full items-center justify-start overflow-x-auto overflow-y-hidden rounded-md bg-muted p-1 text-muted-foreground [scrollbar-width:none] [&::-webkit-scrollbar]:hidden",
  className
  )}
  {...props}
  />
-))
+ )
+})
 TabsList.displayName = TabsPrimitive.List.displayName
 
 const TabsTrigger = React.forwardRef<

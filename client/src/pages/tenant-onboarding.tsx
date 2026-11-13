@@ -208,7 +208,7 @@ export default function TenantOnboarding() {
 
   return (
     <div className="min-h-screen bg-background">
-      <div className="max-w-3xl mx-auto space-y-8">
+      <div className="max-w-3xl mx-auto space-y-8 px-4 sm:px-6 py-6">
         
         {/* Header */}
         <div className="text-center space-y-2">

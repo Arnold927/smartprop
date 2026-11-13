@@ -207,7 +207,7 @@ export function PropertyHeader({ property, onAddUnit, onAddTenant, onEdit, onDel
               </div>
               <div className="min-w-0">
                 <p className="text-[11px] uppercase tracking-wide text-muted-foreground font-medium">{kpi.label}</p>
-                <p className="text-base font-bold text-foreground leading-tight truncate">{kpi.value}</p>
+                <p className="text-base font-bold text-foreground leading-tight tabular-nums break-words">{kpi.value}</p>
                 <p className="text-[11px] text-muted-foreground">{kpi.sub}</p>
               </div>
             </div>

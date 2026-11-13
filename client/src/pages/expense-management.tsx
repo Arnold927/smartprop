@@ -843,7 +843,7 @@ export default function ExpenseManagement() {
                         <div className="grid grid-cols-1 md:grid-cols-4 gap-4 text-sm">
                           <div>
                             <p className="font-medium">Description</p>
-                            <p className="text-muted-foreground">{expense.description}</p>
+                            <p className="text-muted-foreground break-words">{expense.description}</p>
                           </div>
                           <div>
                             <p className="font-medium">Amount</p>
@@ -1108,7 +1108,7 @@ export default function ExpenseManagement() {
                           <SPBadge status={expense.status} />
                           <CategoryBadge category={expense.category} />
                         </div>
-                        <p className="text-sm text-muted-foreground">{expense.description}</p>
+                        <p className="text-sm text-muted-foreground break-words">{expense.description}</p>
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-sm mt-2">
                           <div>
                             <p className="font-medium">Amount Paid</p>

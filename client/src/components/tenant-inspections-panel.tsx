@@ -83,9 +83,9 @@ export default function TenantInspectionsPanel() {
       >
         <div className="divide-y divide-border">
           {data.map(i => (
-            <div key={i.id} className="flex items-center gap-3 py-3 first:pt-0 last:pb-0">
+            <div key={i.id} className="flex flex-wrap items-center gap-x-3 gap-y-2 py-3 first:pt-0 last:pb-0">
               <div className="h-9 w-9 rounded-lg bg-muted flex items-center justify-center shrink-0"><ClipboardList className="h-4 w-4 text-muted-foreground" /></div>
-              <div className="flex-1 min-w-0">
+              <div className="flex-1 min-w-[12rem]">
                 <p className="text-sm font-medium capitalize">{i.inspectionType?.replace(/_/g, " ")} inspection · {i.inspectionNumber}</p>
                 <p className="text-xs text-muted-foreground">{i.propertyName} · Unit {i.unitNumber ?? "—"} · {fmt(i.conductedDate)}</p>
               </div>

@@ -1166,7 +1166,7 @@ export default function RentToOwn() {
   // ─── JSX ──────────────────────────────────────────────────────────────────
 
   return (
-    <div className="space-y-6 min-w-0 w-full">
+    <div className="max-w-7xl mx-auto w-full px-4 sm:px-6 py-6 space-y-6 min-w-0">
       {/* Page Header */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>

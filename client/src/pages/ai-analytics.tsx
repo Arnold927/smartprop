@@ -385,7 +385,7 @@ export default function AIAnalytics() {
 
       {/* Header */}
       <div className="bg-card dark:bg-gray-900 border-b border-border px-6 py-5">
-        <div className="max-w-7xl mx-auto flex items-start justify-between">
+        <div className="flex flex-col max-w-7xl mx-auto gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div>
             <h1 className="text-xl font-semibold text-foreground flex items-center gap-2">
               <Brain className="w-5 h-5 text-purple-600" />
@@ -449,8 +449,8 @@ export default function AIAnalytics() {
               </Card>
             ) : insights.map(ins => (
               <Card key={ins.id} className="rounded-2xl border-border shadow-none">
-                <CardContent className="p-5">
-                  <div className="flex items-start justify-between gap-4">
+                <CardContent className="p-4 sm:p-5">
+                  <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 sm:gap-4">
                     <div className="flex items-start gap-3 flex-1 min-w-0">
                       <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${
                         ins.type === "maintenance_prediction" ? "bg-amber-50 dark:bg-amber-950" :
@@ -463,8 +463,8 @@ export default function AIAnalytics() {
                       </div>
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-2 flex-wrap">
-                          <h4 className="font-semibold text-sm text-foreground">{ins.title}</h4>
-                          <Badge className={`text-[10px] px-1.5 py-0 ${priorityColors[ins.priority]}`}>
+                          <h4 className="font-semibold text-sm text-foreground break-words min-w-0">{ins.title}</h4>
+                          <Badge className={`text-[10px] px-1.5 py-0 shrink-0 ${priorityColors[ins.priority]}`}>
                             {ins.priority.toUpperCase()}
                           </Badge>
                         </div>
@@ -491,9 +491,9 @@ export default function AIAnalytics() {
                         </div>
                       </div>
                     </div>
-                    <div className="text-right flex-shrink-0">
-                      <p className="text-xs font-medium text-green-600">{ins.impact}</p>
-                      <p className="text-[10px] text-muted-foreground mt-0.5">{ins.dataPoints} data pts</p>
+                    <div className="flex items-baseline justify-between gap-3 pl-11 sm:pl-0 sm:block sm:text-right sm:max-w-[10rem] sm:flex-shrink-0">
+                      <p className="text-xs font-medium text-green-600 break-words">{ins.impact}</p>
+                      <p className="text-[10px] text-muted-foreground sm:mt-0.5 whitespace-nowrap">{ins.dataPoints} data pts</p>
                     </div>
                   </div>
                 </CardContent>
@@ -930,7 +930,7 @@ export default function AIAnalytics() {
 
                     <div className="space-y-3">
                       {dimensionLabels.map(({ key, label, desc }) => {
-                        const score = scores[key];
+                        const score = Math.round(Number(scores[key]) || 0);
                         const scoreCls = score >= 80 ? "text-green-600" : score >= 60 ? "text-amber-600" : "text-red-600";
                         return (
                           <div key={key} className="flex items-center gap-3">
@@ -938,7 +938,7 @@ export default function AIAnalytics() {
                             <div className="flex-1">
                               <Progress value={score} className={`h-1.5 ${score >= 80 ? "[&>div]:bg-green-500" : score >= 60 ? "[&>div]:bg-amber-500" : "[&>div]:bg-red-500"}`} />
                             </div>
-                            <span className={`text-xs font-medium w-8 text-right ${scoreCls}`}>{score}</span>
+                            <span className={`text-xs font-medium w-10 shrink-0 text-right tabular-nums ${scoreCls}`}>{score}</span>
                             <span className="text-[10px] text-muted-foreground w-40 hidden lg:block">{desc}</span>
                           </div>
                         );
@@ -975,10 +975,10 @@ export default function AIAnalytics() {
                           </div>
                           <div className="flex items-center gap-2">
                             <Progress value={p.rate} className="h-2 flex-1" />
-                            <span className={`text-xs font-medium w-8 text-right ${
+                            <span className={`text-xs font-medium w-10 shrink-0 text-right tabular-nums ${
                               p.rate >= 85 ? "text-green-600" :
                               p.rate >= 60 ? "text-amber-600" : "text-red-500"
-                            }`}>{p.rate}%</span>
+                            }`}>{Math.round(p.rate)}%</span>
                           </div>
                           {p.vacant > 0 && (
                             <p className="text-xs text-amber-600">{p.vacant} vacant unit(s)</p>

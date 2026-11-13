@@ -16,6 +16,7 @@
  *  • Message delivery status tick marks (sent / delivered / read)
  */
 
+import { renderWhatsAppText } from "@/lib/whatsapp-text";
 import React, {
   useState,
   useEffect,
@@ -702,7 +703,7 @@ export default function TenantWhatsAppChat({ tenantId, initialPhone }: TenantCha
                       )}
                       {/* Text */}
                       {msg.content && msg.content !== msg.mediaUrl && (
-                        <p className="whitespace-pre-wrap break-words leading-snug">{msg.content}</p>
+                        <p className="whitespace-pre-wrap break-words [overflow-wrap:anywhere] min-w-0 leading-snug">{renderWhatsAppText(msg.content)}</p>
                       )}
                       {/* Footer: time + status */}
                       <div className={`flex items-center gap-1 mt-1 ${isMine ? "justify-end" : "justify-start"}`}>

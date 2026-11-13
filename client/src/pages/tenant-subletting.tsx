@@ -1152,7 +1152,7 @@ export default function TenantSubletting() {
 
   // ─────────────────────────────────────────────────────────────────────────────
   return (
-    <div className="space-y-6">
+    <div className="max-w-7xl mx-auto w-full px-4 sm:px-6 py-6 space-y-6 min-w-0">
       {/* Header */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="min-w-0">
@@ -1397,7 +1397,7 @@ export default function TenantSubletting() {
       </div>
 
       {/* Metrics */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-6">
+      <div className="grid gap-4 grid-cols-2 lg:grid-cols-3 2xl:grid-cols-6">
         {[
           { title: "Total Listings", value: totalListings, sub: "All tenant listings", icon: <Home className="h-4 w-4 text-rose-500" />, color: "text-rose-500" },
           { title: "Approved", value: approvedListings, sub: "Manager approved", icon: <CheckCircle className="h-4 w-4 text-emerald-500" />, color: "text-emerald-500" },
@@ -1407,12 +1407,12 @@ export default function TenantSubletting() {
           { title: "Tenant Earnings", value: formatCurrency(tenantEarnings, "KES"), sub: "Tenant payouts", icon: <DollarSign className="h-4 w-4 text-emerald-600" />, color: "text-emerald-600" },
         ].map(({ title, value, sub, icon, color }) => (
           <Card key={title}>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">{title}</CardTitle>
-              {icon}
+            <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium min-w-0">{title}</CardTitle>
+              <span className="shrink-0">{icon}</span>
             </CardHeader>
             <CardContent>
-              <div className={`text-2xl font-bold ${color}`}>{value}</div>
+              <div className={`text-xl sm:text-2xl font-bold break-words ${color}`}>{value}</div>
               <p className="text-xs text-muted-foreground">{sub}</p>
             </CardContent>
           </Card>
@@ -1796,7 +1796,7 @@ export default function TenantSubletting() {
                   <p className="text-sm font-medium text-emerald-700">Total Tenant Earnings</p>
                   <DollarSign className="h-5 w-5 text-emerald-500" />
                 </div>
-                <p className="text-3xl font-bold text-emerald-700">{formatCurrency(tenantEarnings, "KES")}</p>
+                <p className="text-2xl sm:text-3xl font-bold text-emerald-700 break-words">{formatCurrency(tenantEarnings, "KES")}</p>
                 <p className="text-xs text-emerald-600 mt-1">All-time payouts to tenants</p>
               </CardContent>
             </Card>
@@ -1806,7 +1806,7 @@ export default function TenantSubletting() {
                   <p className="text-sm font-medium">Gross Revenue</p>
                   <TrendingUp className="h-5 w-5 text-violet-500" />
                 </div>
-                <p className="text-3xl font-bold">{formatCurrency(totalRevenue, "KES")}</p>
+                <p className="text-2xl sm:text-3xl font-bold break-words">{formatCurrency(totalRevenue, "KES")}</p>
                 <p className="text-xs text-muted-foreground mt-1">Before all deductions</p>
               </CardContent>
             </Card>
@@ -1816,7 +1816,7 @@ export default function TenantSubletting() {
                   <p className="text-sm font-medium">Avg. Nightly Rate</p>
                   <Star className="h-5 w-5 text-amber-500" />
                 </div>
-                <p className="text-3xl font-bold">{formatCurrency(earningsData.avgNightlyRate, "KES")}</p>
+                <p className="text-2xl sm:text-3xl font-bold break-words">{formatCurrency(earningsData.avgNightlyRate, "KES")}</p>
                 <p className="text-xs text-muted-foreground mt-1">Across confirmed bookings</p>
               </CardContent>
             </Card>
@@ -1826,7 +1826,7 @@ export default function TenantSubletting() {
                   <p className="text-sm font-medium">Total Nights Booked</p>
                   <Bed className="h-5 w-5 text-blue-500" />
                 </div>
-                <p className="text-3xl font-bold">{earningsData.totalNights}</p>
+                <p className="text-2xl sm:text-3xl font-bold break-words">{earningsData.totalNights}</p>
                 <p className="text-xs text-muted-foreground mt-1">Nights across all bookings</p>
               </CardContent>
             </Card>
@@ -1938,30 +1938,30 @@ export default function TenantSubletting() {
               ) : (
                 <>
                   <div className="overflow-x-auto">
-                    <table className="w-full text-sm">
+                    <table className="w-full min-w-[720px] text-sm">
                       <thead>
                         <tr className="border-b text-xs text-muted-foreground">
-                          <th className="text-left pb-2 font-medium">Booking Ref</th>
-                          <th className="text-left pb-2 font-medium">Guest</th>
-                          <th className="text-left pb-2 font-medium">Platform</th>
-                          <th className="text-left pb-2 font-medium">Dates</th>
-                          <th className="text-right pb-2 font-medium">Gross</th>
-                          <th className="text-right pb-2 font-medium">Fees</th>
-                          <th className="text-right pb-2 font-medium">Payout</th>
-                          <th className="text-left pb-2 font-medium">Status</th>
+                          <th className="px-3 whitespace-nowrap text-left pb-2.5 font-medium">Booking Ref</th>
+                          <th className="px-3 whitespace-nowrap text-left pb-2.5 font-medium">Guest</th>
+                          <th className="px-3 whitespace-nowrap text-left pb-2.5 font-medium">Platform</th>
+                          <th className="px-3 whitespace-nowrap text-left pb-2.5 font-medium">Dates</th>
+                          <th className="px-3 whitespace-nowrap text-right pb-2.5 font-medium">Gross</th>
+                          <th className="px-3 whitespace-nowrap text-right pb-2.5 font-medium">Fees</th>
+                          <th className="px-3 whitespace-nowrap text-right pb-2.5 font-medium">Payout</th>
+                          <th className="px-3 whitespace-nowrap text-left pb-2.5 font-medium">Status</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y">
                         {paginatedPayouts.map(b => (
                           <tr key={b.id} className="hover:bg-muted/30 cursor-pointer" onClick={() => setSelectedBooking(b)}>
-                            <td className="py-2 font-mono text-xs text-muted-foreground">{b.bookingReference}</td>
-                            <td className="py-2 font-medium">{b.guestName}</td>
-                            <td className="py-2"><PlatformBadge platform={b.platformSource} /></td>
-                            <td className="py-2 text-muted-foreground">{format(parseISO(b.checkInDate), "dd MMM")} – {format(parseISO(b.checkOutDate), "dd MMM yyyy")}</td>
-                            <td className="py-2 text-right">{formatCurrency(Number(b.totalAmount), b.currency)}</td>
-                            <td className="py-2 text-right text-red-500">−{formatCurrency(Number(b.platformFees || 0) + Number(b.propertyManagerCommission || 0), b.currency)}</td>
-                            <td className="py-2 text-right font-semibold text-emerald-600">{formatCurrency(Number(b.tenantPayout), b.currency)}</td>
-                            <td className="py-2"><BookingStatusBadge status={b.bookingStatus} /></td>
+                            <td className="px-3 whitespace-nowrap py-2.5 font-mono text-xs text-muted-foreground">{b.bookingReference}</td>
+                            <td className="px-3 whitespace-nowrap py-2.5 font-medium">{b.guestName}</td>
+                            <td className="px-3 whitespace-nowrap py-2.5"><PlatformBadge platform={b.platformSource} /></td>
+                            <td className="px-3 whitespace-nowrap py-2.5 text-muted-foreground">{format(parseISO(b.checkInDate), "dd MMM")} – {format(parseISO(b.checkOutDate), "dd MMM yyyy")}</td>
+                            <td className="px-3 whitespace-nowrap py-2.5 text-right">{formatCurrency(Number(b.totalAmount), b.currency)}</td>
+                            <td className="px-3 whitespace-nowrap py-2.5 text-right text-red-500">−{formatCurrency(Number(b.platformFees || 0) + Number(b.propertyManagerCommission || 0), b.currency)}</td>
+                            <td className="px-3 whitespace-nowrap py-2.5 text-right font-semibold text-emerald-600">{formatCurrency(Number(b.tenantPayout), b.currency)}</td>
+                            <td className="px-3 whitespace-nowrap py-2.5"><BookingStatusBadge status={b.bookingStatus} /></td>
                           </tr>
                         ))}
                       </tbody>
@@ -2004,19 +2004,19 @@ export default function TenantSubletting() {
                   <button
                     key={l.id}
                     onClick={() => setSelectedCalendarListingId(l.id === selectedCalendarListingId ? null : l.id)}
-                    className={`px-3 py-1 rounded-full text-xs font-medium border transition-colors flex items-center gap-1.5 ${selectedCalendarListingId === l.id ? "bg-rose-500 text-white border-rose-500" : "bg-muted hover:bg-muted/80 border-transparent text-muted-foreground hover:text-foreground"}`}
+                    className={`px-3 py-1 rounded-full text-xs font-medium border transition-colors flex items-center gap-1.5 max-w-full min-w-0 text-left ${selectedCalendarListingId === l.id ? "bg-rose-500 text-white border-rose-500" : "bg-muted hover:bg-muted/80 border-transparent text-muted-foreground hover:text-foreground"}`}
                   >
-                    {l.listingTitle}
-                    <StatusBadge status={l.approvalStatus} />
+                    <span className="min-w-0 truncate">{l.listingTitle}</span>
+                    <span className="shrink-0"><StatusBadge status={l.approvalStatus} /></span>
                   </button>
                 ))}
               </div>
             </CardContent>
           </Card>
 
-          <div className="grid gap-4 md:grid-cols-3">
+          <div className="grid gap-4 grid-cols-1 md:grid-cols-3">
             {/* Calendar grid */}
-            <div className="md:col-span-2">
+            <div className="md:col-span-2 min-w-0">
               <Card>
                 <CardHeader>
                   <div className="flex items-center justify-between">

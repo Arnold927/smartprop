@@ -2450,12 +2450,12 @@ export default function LandlordPortal({ ownerId }: LandlordPortalProps) {
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
               {/* Deposits held */}
               <Card className="border border-border shadow-sm rounded-xl">
-                <CardContent className="p-4 flex items-center gap-3">
+                <CardContent className="p-4 flex items-start gap-3">
                   <div className="w-9 h-9 rounded-xl bg-teal-50 flex items-center justify-center shrink-0">
                     <Landmark className="w-4 h-4 text-teal-600" />
                   </div>
                   <div className="min-w-0">
-                    <p className="text-sm font-semibold truncate">KES {(Number(summary.totalDeposits ?? 0)).toLocaleString("en-KE")}</p>
+                    <p className="text-sm font-semibold break-words">KES {(Number(summary.totalDeposits ?? 0)).toLocaleString("en-KE")}</p>
                     <p className="text-xs text-muted-foreground">Deposits held</p>
                   </div>
                 </CardContent>
@@ -2463,12 +2463,12 @@ export default function LandlordPortal({ ownerId }: LandlordPortalProps) {
               {/* Portfolio value */}
               {summary.portfolioValue && (
                 <Card className="border border-border shadow-sm rounded-xl">
-                  <CardContent className="p-4 flex items-center gap-3">
+                  <CardContent className="p-4 flex items-start gap-3">
                     <div className="w-9 h-9 rounded-xl bg-violet-50 flex items-center justify-center shrink-0">
                       <Building2 className="w-4 h-4 text-violet-600" />
                     </div>
                     <div className="min-w-0">
-                      <p className="text-sm font-semibold truncate">KES {(Number(summary.portfolioValue)).toLocaleString("en-KE")}</p>
+                      <p className="text-sm font-semibold break-words">KES {(Number(summary.portfolioValue)).toLocaleString("en-KE")}</p>
                       <p className="text-xs text-muted-foreground">
                         Portfolio value{summary.grossYield ? ` · ${Number(summary.grossYield).toFixed(1)}% yield` : ""}
                       </p>
@@ -2478,14 +2478,14 @@ export default function LandlordPortal({ ownerId }: LandlordPortalProps) {
               )}
               {/* This month: expected vs collected */}
               <Card className="border border-border shadow-sm rounded-xl">
-                <CardContent className="p-4 flex items-center gap-3">
+                <CardContent className="p-4 flex items-start gap-3">
                   <div className="w-9 h-9 rounded-xl bg-emerald-50 flex items-center justify-center shrink-0">
                     <CalendarCheck className="w-4 h-4 text-emerald-600" />
                   </div>
                   <div className="min-w-0">
-                    <p className="text-sm font-semibold truncate">
+                    <p className="text-sm font-semibold break-words">
                       KES {(Number(summary.collectedThisMonth ?? 0)).toLocaleString("en-KE")}
-                      <span className="text-xs font-normal text-muted-foreground"> / {(Number(summary.expectedThisMonth ?? 0)).toLocaleString("en-KE")}</span>
+                      <span className="block text-xs font-normal text-muted-foreground">of {(Number(summary.expectedThisMonth ?? 0)).toLocaleString("en-KE")}</span>
                     </p>
                     <p className="text-xs text-muted-foreground">Collected this month</p>
                   </div>
@@ -2494,7 +2494,7 @@ export default function LandlordPortal({ ownerId }: LandlordPortalProps) {
               {/* Collection rate this month */}
               {(Number(summary.expectedThisMonth) > 0) && (
                 <Card className="border border-border shadow-sm rounded-xl">
-                  <CardContent className="p-4 flex items-center gap-3">
+                  <CardContent className="p-4 flex items-start gap-3">
                     <div className="w-9 h-9 rounded-xl bg-blue-50 flex items-center justify-center shrink-0">
                       <PieChart className="w-4 h-4 text-blue-600" />
                     </div>

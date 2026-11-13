@@ -82,13 +82,13 @@ interface PageHeaderProps {
 export function PageHeader({ title, subtitle, icon, actions, breadcrumb }: PageHeaderProps) {
   return (
     <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
-      <div className="flex items-start gap-3">
+      <div className="flex items-start gap-3 min-w-0 flex-1">
         {icon && (
           <div className="w-10 h-10 rounded-xl bg-emerald-600 flex items-center justify-center flex-shrink-0 text-white">
             {icon}
           </div>
         )}
-        <div>
+        <div className="min-w-0">
           {breadcrumb && breadcrumb.length > 0 && (
             <div className="flex items-center gap-1 text-xs text-muted-foreground mb-1">
               {breadcrumb.map((b, i) => (
@@ -103,7 +103,7 @@ export function PageHeader({ title, subtitle, icon, actions, breadcrumb }: PageH
           {subtitle && <p className="text-sm text-muted-foreground mt-0.5">{subtitle}</p>}
         </div>
       </div>
-      {actions && <div className="flex items-center gap-2 flex-wrap">{actions}</div>}
+      {actions && <div className="flex items-center gap-2 flex-wrap sm:shrink-0">{actions}</div>}
     </div>
   );
 }
@@ -190,28 +190,29 @@ export function StatTile({ label, value, sub, icon, accent = "emerald", trend, o
     <Wrapper
       onClick={onClick}
       className={cn(
-        "group relative bg-card rounded-xl border border-border shadow-sm p-5 text-left overflow-hidden",
+        "group relative bg-card rounded-xl border border-border shadow-sm p-4 sm:p-5 text-left overflow-hidden min-w-0",
         onClick && "hover:border-muted hover:shadow-md transition-all duration-200 w-full cursor-pointer",
       )}
     >
       <div className={`absolute left-0 top-0 bottom-0 w-1 ${c.bar} rounded-l-xl`} />
-      <div className="flex items-start justify-between mb-3 ml-2">
-        <div className={cn("w-10 h-10 rounded-xl flex items-center justify-center", c.icon)}>
+      {/* Header: icon, label and optional trend share one row so they can never overlap */}
+      <div className="flex items-center gap-2.5 sm:gap-3 ml-2">
+        <div className={cn("w-9 h-9 sm:w-10 sm:h-10 shrink-0 rounded-xl flex items-center justify-center", c.icon)}>
           {icon}
         </div>
+        <p className="min-w-0 flex-1 text-[11px] sm:text-xs font-medium text-muted-foreground uppercase tracking-normal sm:tracking-wide leading-snug [overflow-wrap:anywhere]">{label}</p>
         {trend && (
-          <span className={cn("inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full", trend.up ? c.trend_up : c.trend_dn)}>
+          <span className={cn("shrink-0 inline-flex items-center gap-1 whitespace-nowrap text-xs font-medium px-2 py-0.5 rounded-full", trend.up ? c.trend_up : c.trend_dn)}>
             {trend.value}
           </span>
         )}
       </div>
-      <div className="ml-2">
-        <p className="text-2xl font-bold text-foreground tracking-tight leading-none">{value}</p>
+      <div className="ml-2 mt-3 min-w-0">
+        <p className="text-xl sm:text-2xl font-bold text-foreground tracking-tight tabular-nums leading-tight break-words">{value}</p>
         {sub && <p className="text-xs text-muted-foreground mt-1.5 leading-relaxed">{sub}</p>}
       </div>
-      <p className="absolute top-4 right-4 text-xs font-medium text-muted-foreground uppercase tracking-wide">{label}</p>
       {onClick && (
-        <div className="absolute right-4 bottom-4 opacity-0 group-hover:opacity-100 transition-opacity">
+        <div className="absolute right-3 bottom-3 opacity-0 group-hover:opacity-100 transition-opacity">
           <ChevronRight className="w-4 h-4 text-muted-foreground" />
         </div>
       )}
@@ -233,6 +234,7 @@ const BADGE_MAP: Record<string, string> = {
   available:  "bg-emerald-50  text-emerald-700 border-emerald-200 dark:bg-emerald-950 dark:text-emerald-400 dark:border-emerald-800",
   checked_in: "bg-emerald-50  text-emerald-700 border-emerald-200 dark:bg-emerald-950 dark:text-emerald-400 dark:border-emerald-800",
   success:    "bg-emerald-50  text-emerald-700 border-emerald-200 dark:bg-emerald-950 dark:text-emerald-400 dark:border-emerald-800",
+  verified:   "bg-emerald-50  text-emerald-700 border-emerald-200 dark:bg-emerald-950 dark:text-emerald-400 dark:border-emerald-800",
   successful: "bg-emerald-50  text-emerald-700 border-emerald-200 dark:bg-emerald-950 dark:text-emerald-400 dark:border-emerald-800",
   sent:       "bg-emerald-50  text-emerald-700 border-emerald-200 dark:bg-emerald-950 dark:text-emerald-400 dark:border-emerald-800",
   paid:       "bg-emerald-50  text-emerald-700 border-emerald-200 dark:bg-emerald-950 dark:text-emerald-400 dark:border-emerald-800",
@@ -365,8 +367,8 @@ interface FilterBarProps {
 export function FilterBar({ search, onSearch, placeholder = "Search…", filters, actions }: FilterBarProps) {
   return (
     <div className="flex flex-wrap items-center gap-3 justify-between">
-      <div className="flex items-center gap-2 flex-1 flex-wrap">
-        <div className="relative min-w-[200px] flex-1 max-w-sm">
+      <div className="flex items-center gap-2 w-full sm:w-auto sm:flex-1 flex-wrap min-w-0">
+        <div className="relative basis-full sm:basis-auto min-w-0 sm:min-w-[200px] flex-1 sm:max-w-sm">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
           <Input
             value={search}
@@ -441,7 +443,7 @@ export function SPTable<T>({
                   key={i}
                   style={col.width ? { width: col.width } : undefined}
                   className={cn(
-                    "px-5 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wide",
+                    "px-3 sm:px-5 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wide",
                     col.align === "right" ? "text-right" : col.align === "center" ? "text-center" : "text-left",
                     col.hideOnMobile && "hidden sm:table-cell",
                   )}
@@ -465,7 +467,7 @@ export function SPTable<T>({
                   <td
                     key={ci}
                     className={cn(
-                      "px-5 py-3.5 text-foreground",
+                      "px-3 sm:px-5 py-3 sm:py-3.5 text-foreground align-middle",
                       col.align === "right" ? "text-right" : col.align === "center" ? "text-center" : "",
                       col.hideOnMobile && "hidden sm:table-cell",
                     )}
@@ -662,7 +664,7 @@ export function PrimaryButton({
       onClick={onClick}
       disabled={disabled || loading}
       className={cn(
-        "inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed",
+        "inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-medium whitespace-nowrap shrink-0 transition-colors disabled:opacity-50 disabled:cursor-not-allowed",
         className,
       )}
     >
@@ -685,7 +687,7 @@ export function SecondaryButton({
       onClick={onClick}
       disabled={disabled}
       className={cn(
-        "inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-background border border-border hover:bg-muted text-foreground text-sm font-medium transition-colors disabled:opacity-50",
+        "inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-background border border-border hover:bg-muted text-foreground text-sm font-medium whitespace-nowrap transition-colors disabled:opacity-50",
         className,
       )}
     >

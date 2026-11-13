@@ -154,7 +154,7 @@ function MetricCard({
         )}
       </div>
 
-      <p className="text-2xl font-bold text-foreground tracking-tight tabular-nums leading-none">{value}</p>
+      <p className="text-xl sm:text-2xl font-bold text-foreground tracking-tight tabular-nums leading-tight break-words">{value}</p>
       <p className="text-xs text-muted-foreground mt-1.5">{detail}</p>
 
       <div className="flex items-end justify-between mt-3">

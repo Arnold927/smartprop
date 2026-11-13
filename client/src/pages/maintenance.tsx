@@ -299,9 +299,9 @@ function MobileMaintenanceCard({
           </div>
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 flex-wrap mb-0.5">
-              <p className="font-semibold text-foreground text-sm truncate">{r.title}</p>
+              <p className="font-semibold text-foreground text-sm break-words line-clamp-2">{r.title}</p>
             </div>
-            <p className="text-xs text-muted-foreground truncate mb-1.5">{r.description}</p>
+            <p className="text-xs text-muted-foreground break-words line-clamp-2 mb-1.5">{r.description}</p>
             <div className="flex items-center gap-2 flex-wrap">
               <PriorityBadge p={r.priority} />
               <StatusBadge s={r.status} />
@@ -424,7 +424,7 @@ export default function Maintenance() {
  return (
  <div className="min-h-screen bg-background">
  <div className="bg-card dark:bg-gray-900 border-b border-border dark:border-gray-800 px-4 md:px-6 py-4 md:py-5">
- <div className="max-w-7xl mx-auto flex items-center justify-between">
+ <div className="flex flex-col max-w-7xl mx-auto gap-3 sm:flex-row sm:items-center sm:justify-between">
  <div>
  <h1 className="text-xl font-semibold text-foreground">Maintenance</h1>
  <p className="text-sm text-muted-foreground mt-0.5">{requests.length} total · {stats.open} open{stats.pendingApproval > 0 ? ` · ${stats.pendingApproval} awaiting approval` : ""}</p>
@@ -573,10 +573,10 @@ export default function Maintenance() {
  <tr key={r.id} className="hover:bg-muted dark:bg-gray-950 transition-colors group cursor-pointer" onClick={() => { setSelected(r); setIsViewOpen(true); }}>
  <td className="px-4 py-3">
  <div className="flex items-center gap-2.5">
- <PriorityDot p={r.priority} />
+ <span className="shrink-0"><PriorityDot p={r.priority} /></span>
  <div className="min-w-0">
- <p className="font-medium text-foreground truncate max-w-[200px]">{r.title}</p>
- <p className="text-xs text-muted-foreground truncate max-w-[200px]">{r.description}</p>
+ <p className="font-medium text-foreground break-words line-clamp-2 min-w-[10rem] max-w-[16rem] xl:max-w-sm">{r.title}</p>
+ <p className="text-xs text-muted-foreground break-words line-clamp-2 min-w-[10rem] max-w-[16rem] xl:max-w-sm">{r.description}</p>
  </div>
  </div>
  </td>
