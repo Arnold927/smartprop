@@ -51,8 +51,31 @@ export async function refreshAccessToken(): Promise<string | null> {
   return refreshPromise;
 }
 
+// /api/tenants is paginated (20 per page by default). Most pages read it as "the
+// list of all tenants" (dropdowns, KPIs, arrears, leases…), so a plain GET of it
+// would silently stop at the first 20. For that exact URL we walk every page
+// (100 at a time) and hand back one merged response. Requests that pass their
+// own page/limit/search params (e.g. the Property Manager dashboard) are untouched.
+const ALL_PAGES_URL = /^\/api\/tenants(\?organizationId=\d+)?$/;
+
+async function apiRequestAllPages(url: string): Promise<Response> {
+  const sep = url.includes("?") ? "&" : "?";
+  const json = (body: unknown) => new Response(JSON.stringify(body), { status: 200, headers: { "Content-Type": "application/json" } });
+  const body = await (await apiRequest(`${url}${sep}limit=100&page=1`)).json();
+  if (!body || !Array.isArray(body.results) || !body.next) return json(body);
+  const results: unknown[] = [...body.results];
+  for (let page = 2; page <= 50; page++) {   // hard stop at 5,000 tenants
+    const b = await (await apiRequest(`${url}${sep}limit=100&page=${page}`)).json();
+    if (!Array.isArray(b?.results) || b.results.length === 0) break;
+    results.push(...b.results);
+    if (!b.next) break;
+  }
+  return json({ ...body, results, next: null, previous: null });
+}
+
 export async function apiRequest(url: string, options?: { method?: string; data?: unknown; headers?: Record<string, string> }): Promise<Response> {
   const method = options?.method || "GET";
+  if (method === "GET" && ALL_PAGES_URL.test(url)) return apiRequestAllPages(url);
   const data = options?.data;
   const headers: Record<string, string> = { ...getAuthHeader(), ...options?.headers, ...(data ? { "Content-Type": "application/json" } : {}) };
   let res = await fetch(`${API_BASE}${url}`, { method, headers, body: data ? JSON.stringify(data) : undefined, credentials: "include" });
@@ -79,6 +102,10 @@ type UnauthorizedBehavior = "returnNull" | "throw";
 
 export const getQueryFn: <T>(options: { on401: UnauthorizedBehavior }) => QueryFunction<T> =
   ({ on401 }) => async ({ queryKey }) => {
+    if (typeof queryKey[0] === "string" && ALL_PAGES_URL.test(queryKey[0])) {
+      const merged = await (await apiRequestAllPages(queryKey[0])).json();
+      return Array.isArray(merged?.results) ? merged.results : merged;
+    }
     const headers: Record<string, string> = { ...getAuthHeader() };
     let res = await fetch(`${API_BASE}${queryKey[0]}`, { credentials: "include", headers });
     if (res.status === 401) {

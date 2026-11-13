@@ -338,7 +338,7 @@
     "sessionExpired": "Your session has expired. Please log in again."
   },
   "topBar": {
-    "searchPlaceholder": "Search properties, tenants, maintenance…",
+    "searchPlaceholder": "Search tenants, properties, invoices, pages…",
     "notifications": "Notifications",
     "newCount": "{{count}} new",
     "allCaughtUp": "All caught up!",

@@ -81,6 +81,12 @@ const ALL_DASHBOARD_OPTIONS = [
   },
 ];
 
+/** Dashboard views a role can switch between. The switcher (and the divider
+ *  next to it in the top bar) only show when this has more than one entry. */
+export function dashboardOptionsForRole(role: string) {
+  return ALL_DASHBOARD_OPTIONS.filter(d => d.allowedRoles.includes(role));
+}
+
 export default function DashboardSwitcher({ compact = false }: { compact?: boolean } = {}) {
   const [location, navigate] = useLocation();
   const { user } = useAuth();

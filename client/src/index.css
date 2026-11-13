@@ -972,3 +972,17 @@ button[role="combobox"] > span {
     opacity: 1 !important;
   }
 }
+
+/* ── Legible destructive TEXT in dark and gray themes ───────────────────────
+   --destructive is tuned as a button background (dark red in .dark). Used as
+   text it measured ~1.6:1 on the dark surface (form errors, alerts, "overdue"
+   figures). Text now uses a lighter red; button backgrounds are untouched
+   because they use bg-destructive / text-destructive-foreground. */
+.dark .text-destructive,
+.gray .text-destructive {
+  color: hsl(0 90% 75%);
+}
+/* Light theme: the bright button red (3.3:1 as text) is darkened for text only. */
+html:not(.dark):not(.gray) .text-destructive {
+  color: hsl(0 72% 44%);
+}

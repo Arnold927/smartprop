@@ -2,6 +2,7 @@ import { Express } from "express";
 import authRouter from "./auth";
 import usersRouter, { meRouter as usersMeRouter } from "./users";
 import dashboardRouter from "./dashboard";
+import searchRouter from "./search";
 import landlordPortalRouter from "./landlord-portal";
 import organizationsRouter from "./organizations";
 import aiProxyRouter from "./ai-proxy";
@@ -188,6 +189,7 @@ export function registerModularRoutes(app: Express) {
   mount(app, "/api/organizations",                     organizationsRouter);
   mount(app, "/api/ai",                                aiProxyRouter);
   mount(app, "/api/dashboard",                         dashboardRouter);
+  mount(app, "/api/search",                            searchRouter);
   mount(app, "/api/reports",                           reportsRouter);
   mount(app, "/api/broadcast-messages",                broadcastMessagesRouter);
   mount(app, "/api/arrears",                           arrearsRouter);

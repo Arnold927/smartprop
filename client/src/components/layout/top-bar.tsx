@@ -17,23 +17,14 @@ import { useAuth, useLogout } from "@/hooks/useAuth";
 import { useDarkModeContext } from "@/context/DarkModeContext";
 import { useNotifications } from "@/context/NotificationContext";
 import { useToast } from "@/hooks/use-toast";
-import DashboardSwitcher from "./dashboard-switcher";
+import DashboardSwitcher, { dashboardOptionsForRole } from "./dashboard-switcher";
+import { useIsCompact } from "@/hooks/use-mobile";
 
-// Renders a divider only when DashboardSwitcher would be visible.
-// Mirrors the same role + count logic so they hide/show together.
+// Renders a divider only when DashboardSwitcher would be visible (it hides
+// itself when the role has a single dashboard — same helper, so they agree).
 function DashboardSwitcherDivider() {
   const { user } = useAuth();
-  const role = user?.role ?? '';
-  const ALLOWED: Record<string, string[]> = {
-    senior_manager:   ['admin'],
-    property_manager: ['admin', 'manager'],
-    finance:          ['admin', 'manager'],
-    maintenance:      ['admin', 'manager', 'staff', 'caretaker'],
-    landlord:         ['landlord'],
-    default:          ['admin', 'manager', 'staff', 'caretaker', 'contractor'],
-  };
-  const count = Object.values(ALLOWED).filter(roles => roles.includes(role)).length;
-  if (!user || count <= 1) return null;
+  if (!user || dashboardOptionsForRole(user.role ?? "").length <= 1) return null;
   return <div className="w-px h-5 bg-muted mx-1" />;
 }
 import { CommandPalette } from "./command-palette";
@@ -45,6 +36,7 @@ import { useTranslation } from "react-i18next";
 function GlobalSearch() {
   const [open, setOpen] = useState(false);
   const { t } = useTranslation();
+  const isCompact = useIsCompact();
 
   return (
     <div className="relative flex-1">
@@ -58,7 +50,7 @@ function GlobalSearch() {
           <span className="text-xs">⌘</span>K
         </kbd>
       </button>
-      <CommandPalette open={open} onOpenChange={setOpen} />
+      <CommandPalette open={open} onOpenChange={setOpen} enableShortcut={!isCompact} />
     </div>
   );
 }

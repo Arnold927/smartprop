@@ -1,8 +1,10 @@
-import { Home, Menu } from "lucide-react";
+import { useState } from "react";
+import { Home, Menu, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useIsCompact } from "@/hooks/use-mobile";
 import { NotificationBell } from "@/components/layout/top-bar";
 import DashboardSwitcher from "@/components/layout/dashboard-switcher";
+import { CommandPalette } from "@/components/layout/command-palette";
 
 interface MobileHeaderProps {
  onMenuClick: () => void;
@@ -12,6 +14,7 @@ interface MobileHeaderProps {
 // below it and page titles are never hidden underneath.
 export default function MobileHeader({ onMenuClick }: MobileHeaderProps) {
  const isCompact = useIsCompact();
+ const [searchOpen, setSearchOpen] = useState(false);
  if (!isCompact) return null;
 
  return (
@@ -34,10 +37,14 @@ export default function MobileHeader({ onMenuClick }: MobileHeaderProps) {
  </div>
 
  <div className="flex items-center gap-1">
+ <Button variant="ghost" size="sm" className="h-11 w-11 p-0 shrink-0" onClick={() => setSearchOpen(true)} aria-label="Search">
+ <Search className="w-5 h-5 text-muted-foreground" />
+ </Button>
  <DashboardSwitcher compact />
  <NotificationBell />
  </div>
  </div>
+ <CommandPalette open={searchOpen} onOpenChange={setSearchOpen} />
  </header>
  );
 }

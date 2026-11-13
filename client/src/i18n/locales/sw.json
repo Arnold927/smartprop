@@ -338,7 +338,7 @@
     "sessionExpired": "Kikao chako kimekwisha. Tafadhali ingia tena."
   },
   "topBar": {
-    "searchPlaceholder": "Tafuta majengo, wapangaji, matengenezo…",
+    "searchPlaceholder": "Tafuta wapangaji, majengo, ankara, kurasa…",
     "notifications": "Arifa",
     "newCount": "{{count}} mpya",
     "allCaughtUp": "Umesoma arifa zote!",
