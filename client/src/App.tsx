@@ -124,10 +124,8 @@ const StaffDetailsPage   = lazy(() => import("@/pages/staff/[id]"));
 const UserManagement     = lazy(() => import("@/pages/user-management"));
 
 // Communications
-const Messages           = lazy(() => import("@/pages/messages"));
-const BroadcastMessaging = lazy(() => import("@/pages/broadcast-messaging"));
+const Communications     = lazy(() => import("@/pages/communications"));
 const MarketingHub       = lazy(() => import("@/pages/marketing-hub"));
-const WhatsAppIntegration= lazy(() => import("@/pages/whatsapp-integration"));
 const CitizenReporting   = lazy(() => import("@/pages/citizen-reporting"));
 
 // Reports & admin
@@ -421,9 +419,12 @@ function Router() {
             <Route path="/owner-statements"    component={() => <P><OwnerStatements /></P>} />
             <Route path="/inspections"         component={() => <P><Inspections /></P>} />
             <Route path="/prospects"           component={() => <P><ProspectsPage /></P>} />
-            <Route path="/utility-management"  component={() => <P><UtilityManagement /></P>} />
+            {/* Admins/managers manage utilities inside Billing → Utilities; staff (no Billing access) keep the standalone page */}
+            <Route path="/utility-management"  component={() => (user?.role === "admin" || user?.role === "manager"
+              ? (navigate("/billing?tab=utilities", { replace: true }), null)
+              : <P><UtilityManagement /></P>)} />
             {/* Old duplicate of Utility Management — send old links/bookmarks to the full page */}
-            <Route path="/utilities"           component={() => { navigate("/utility-management", { replace: true }); return null; }} />
+            <Route path="/utilities"           component={() => { navigate("/billing?tab=utilities", { replace: true }); return null; }} />
             <Route path="/utility-bill-sender" component={() => <P><UtilityBillSenderPage /></P>} />
             <Route path="/payment-setup" component={() => <P><PaymentSetupPage /></P>} />
             <Route path="/external-landlords" component={() => <P><ExternalLandlordsPage /></P>} />
@@ -452,10 +453,10 @@ function Router() {
             <Route path="/enhanced-service-providers" component={() => <P><ModuleUnavailable name="Service providers" alternative={{ label: "Open contractors", href: "/contractors" }} /></P>} />
 
             {/* Communications */}
-            <Route path="/messages"            component={() => <P><Messages /></P>} />
-            <Route path="/broadcast-messaging" component={() => <P><BroadcastMessaging /></P>} />
+            <Route path="/messages"            component={() => <P><Communications tab="messages" /></P>} />
+            <Route path="/broadcast-messaging" component={() => <P><Communications tab="broadcast" /></P>} />
             <Route path="/marketing-hub"       component={() => <P><MarketingHub /></P>} />
-            <Route path="/whatsapp-integration"component={() => <P><WhatsAppIntegration /></P>} />
+            <Route path="/whatsapp-integration" component={() => <P><Communications tab="whatsapp" /></P>} />
             <Route path="/citizen-reporting"   component={() => <P><CitizenReporting /></P>} />
 
             {/* Reports & admin */}

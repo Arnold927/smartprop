@@ -264,7 +264,7 @@ function SearchBar({ value, onChange, placeholder = "Search…" }: SearchBarProp
 
 // ── Component ─────────────────────────────────────────────────────────────────
 
-export default function WhatsAppIntegration() {
+export default function WhatsAppIntegration({ embedded = false }: { embedded?: boolean } = {}) {
   const guard = useRoleGuard(ROLES.ADMIN_MANAGER);
   if (guard.gate) return guard.gate;
 
@@ -1279,13 +1279,15 @@ export default function WhatsAppIntegration() {
 
       {/* Header */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-2xl sm:text-3xl font-bold text-foreground">WhatsApp Business Integration</h1>
-          <p className="text-muted-foreground mt-1">
-            Send automated notifications and manage WhatsApp communications with tenants and landlords
-          </p>
-        </div>
-        <div className="flex flex-wrap gap-2">
+        {!embedded && (
+          <div>
+            <h1 className="text-2xl sm:text-3xl font-bold text-foreground">WhatsApp Business Integration</h1>
+            <p className="text-muted-foreground mt-1">
+              Send automated notifications and manage WhatsApp communications with tenants and landlords
+            </p>
+          </div>
+        )}
+        <div className={`flex flex-wrap gap-2 ${embedded ? "sm:ml-auto" : ""}`}>
 
           {/* Send Message dialog */}
           <Dialog open={isMessageModalOpen} onOpenChange={setMessageModal}>

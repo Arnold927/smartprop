@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import UtilityManagement from "@/pages/utility-management";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
@@ -74,10 +75,15 @@ export default function Billing() {
   const [search,       setSearch]       = useState("");
   const [propFilter,   setPropFilter]   = useState<number|null>(null);
   const [statusFilter, setStatusFilter] = useState("all");
-  const [activeTab,    setActiveTab]    = useState("overview");
+  const [activeTab,    setActiveTab]    = useState(() => {
+    // Deep links: /billing?tab=utilities (also accepts the old /utility-management links)
+    try {
+      const t = new URLSearchParams(window.location.search).get("tab");
+      return t && ["overview", "utilities", "recurring", "invoices", "setup"].includes(t) ? t : "overview";
+    } catch { return "overview"; }
+  });
 
   // Per-tab pagination
-  const [bPage, setBPage] = useState(1); const [bSize, setBSize] = useState(10);
   const [cPage, setCPage] = useState(1); const [cSize, setCSize] = useState(10);
   const [iPage, setIPage] = useState(1); const [iSize, setISize] = useState(10);
 
@@ -87,33 +93,23 @@ export default function Billing() {
   const closeDlg = (k: keyof typeof dlg) => setDlg(d => ({ ...d, [k]: false }));
 
   // Edit targets
-  const [editBill,   setEditBill]   = useState<UtilityBill|null>(null);
   const [editCharge, setEditCharge] = useState<RecurringCharge|null>(null);
   const [editInv,    setEditInv]    = useState<Invoice|null>(null);
   const [editCycle,  setEditCycle]  = useState<BillingCycle|null>(null);
 
   // Delete targets
-  const [delBill,     setDelBill]     = useState<number|null>(null);
   const [delCharge,   setDelCharge]   = useState<number|null>(null);
   const [delInv,      setDelInv]      = useState<number|null>(null);
   const [delCycle,    setDelCycle]    = useState<number|null>(null);
-  const [delProvider, setDelProvider] = useState<number|null>(null);
 
   // New-item forms
-  const blankBill    = { accountId: "", billingPeriodStart: "", billingPeriodEnd: "", dueDate: "", amount: "", unitsConsumed: "", status: "pending", notes: "" };
-  const blankAccount = { propertyId: "", providerId: "", accountNumber: "", meterNumber: "" };
   const blankCharge  = { propertyId: "", chargeName: "", chargeType: "service_charge", amount: "", frequency: "monthly", startDate: "", nextChargeDate: "", description: "" };
   const blankInvoice = { propertyId: "", tenantId: "", amount: "", dueDate: "", description: "", type: "rent" };
-  const blankProvider= { name: "", type: "electricity", billingCycle: "monthly", contactEmail: "", contactPhone: "", averageRate: "" };
   const blankCycle   = { propertyId: "", cycleName: "", type: "rent", frequency: "monthly", billingDay: "1", dueDay: "5", graceDay: "5" };
 
-  const [billForm,     setBillForm]     = useState(blankBill);
-  const [accountForm,  setAccountForm]  = useState(blankAccount);
   const [chargeForm,   setChargeForm]   = useState(blankCharge);
   const [invoiceForm,  setInvoiceForm]  = useState(blankInvoice);
-  const [providerForm, setProviderForm] = useState(blankProvider);
   const [cycleForm,    setCycleForm]    = useState(blankCycle);
-  const [billStep,     setBillStep]     = useState<"bill"|"account">("bill");
 
   // ── Data queries ────────────────────────────────────────────────────────────
 
@@ -149,41 +145,6 @@ export default function Billing() {
   });
 
   // Utility bills
-  const createAccountMut = useMutation({
-    mutationFn: (d: any) => apiRequest("/api/utility-accounts", { method: "POST", data: d }).then(r => { if (!r.ok) throw new Error(); return r.json(); }),
-    onSuccess: (created: any) => { ok("Account created", ["/api/utility-accounts"]); setBillForm(f => ({ ...f, accountId: String(created.id) })); setAccountForm(blankAccount); setBillStep("bill"); },
-    onError: () => err("Failed to create account."),
-  });
-  const createBillMut = useMutation({
-    mutationFn: (d: any) => apiRequest("/api/utility-bills", { method: "POST", data: d }).then(r => { if (!r.ok) throw new Error(); return r.json(); }),
-    onSuccess: () => { ok("Bill created", ["/api/utility-bills"]); closeDlg("bill"); setBillForm(blankBill); setBillStep("bill"); },
-    onError: () => err("Failed to create bill."),
-  });
-  const updateBillMut = useMutation({
-    mutationFn: ({ id, data }: { id: number; data: any }) => apiRequest(`/api/utility-bills/${id}`, { method: "PUT", data }).then(r => { if (!r.ok) throw new Error(); return r.json(); }),
-    onSuccess: () => { ok("Bill updated", ["/api/utility-bills"]); setEditBill(null); },
-    onError: () => err("Failed to update bill."),
-  });
-  const deleteBillMut = useMutation({
-    mutationFn: (id: number) => apiRequest(`/api/utility-bills/${id}`, { method: "DELETE" }),
-    onSuccess: () => { ok("Bill deleted", ["/api/utility-bills"]); setDelBill(null); },
-    onError: () => err("Failed to delete bill."),
-  });
-  const markBillPaidMut = useMutation({
-    mutationFn: (id: number) => apiRequest(`/api/utility-bills/${id}`, { method: "PUT", data: { status: "paid", paidDate: new Date().toISOString() } }).then(r => { if (!r.ok) throw new Error(); return r.json(); }),
-    onSuccess: () => ok("Bill marked as paid", ["/api/utility-bills"]),
-    onError: () => err("Failed to update."),
-  });
-  const deleteProviderMut = useMutation({
-    mutationFn: (id: number) => apiRequest(`/api/utility-providers/${id}`, { method: "DELETE" }),
-    onSuccess: () => { ok("Provider deleted", ["/api/utility-providers"]); setDelProvider(null); },
-    onError: () => err("Failed to delete provider."),
-  });
-  const createProviderMut = useMutation({
-    mutationFn: (d: any) => apiRequest("/api/utility-providers", { method: "POST", data: d }).then(r => { if (!r.ok) throw new Error(); return r.json(); }),
-    onSuccess: () => { ok("Provider added", ["/api/utility-providers"]); closeDlg("provider"); setProviderForm(blankProvider); },
-    onError: () => err("Failed to add provider."),
-  });
 
   // Recurring charges
   const createChargeMut = useMutation({
@@ -274,7 +235,6 @@ export default function Billing() {
     return r;
   };
 
-  const filteredBills    = filter(bills,    ["billNumber", "notes", "status"]);
   const filteredCharges  = filter(charges,  ["chargeName", "chargeType", "frequency"], c => c.isActive ? "active" : "inactive");
   const filteredInvoices = filter(invoices, ["invoiceNumber", "description", "status"]);
 
@@ -333,7 +293,7 @@ export default function Billing() {
                 <Icon className={`w-4 h-4 text-${color}-600`} />
               </div>
               <div className="min-w-0">
-                <p className="text-base sm:text-lg font-semibold break-words">{value}</p>
+                <p className="text-[15px] sm:text-lg font-semibold break-normal">{value}</p>
                 <p className="text-xs text-muted-foreground">{label}</p>
               </div>
             </CardContent>
@@ -341,8 +301,8 @@ export default function Billing() {
         ))}
       </div>
 
-      {/* ── Global filters ── */}
-      <Card className="rounded-xl border border-slate-100 shadow-sm">
+      {/* ── Global filters (the Utilities tab has its own) ── */}
+      {activeTab !== "utilities" && <Card className="rounded-xl border border-slate-100 shadow-sm">
         <CardContent className="pt-4 pb-3">
           <div className="flex flex-col sm:flex-row gap-3">
             <div className="relative flex-1 min-w-0">
@@ -361,13 +321,13 @@ export default function Billing() {
             </Select>
           </div>
         </CardContent>
-      </Card>
+      </Card>}
 
       {/* ── Tabs ── */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
         <TabsList className="flex flex-wrap w-full h-auto gap-0.5 p-1">
           <TabsTrigger value="overview">Overview</TabsTrigger>
-          <TabsTrigger value="utilities">Utility Bills</TabsTrigger>
+          <TabsTrigger value="utilities">Utilities</TabsTrigger>
           <TabsTrigger value="recurring">Recurring Charges</TabsTrigger>
           <TabsTrigger value="invoices">Invoices</TabsTrigger>
           <TabsTrigger value="setup">Setup</TabsTrigger>
@@ -417,114 +377,8 @@ export default function Billing() {
 
         {/* ══════════════════════ UTILITY BILLS ══════════════════════ */}
         <TabsContent value="utilities" className="space-y-3">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <h2 className="text-base font-semibold">Utility Bills</h2>
-            <div className="flex gap-2 flex-wrap">
-              <Button size="sm" variant="outline" className="gap-1 text-xs h-8" onClick={() => navigate("/utility-bill-sender")}>
-                <Send className="w-3.5 h-3.5" />Send bills by email
-              </Button>
-              <Dialog open={dlg.bill} onOpenChange={o => { if (o) openDlg("bill"); else { closeDlg("bill"); setBillStep("bill"); } }}>
-                <DialogTrigger asChild><Button size="sm" className="gap-1 text-xs h-8"><Plus className="w-3.5 h-3.5" />Add bill</Button></DialogTrigger>
-                <DialogContent>
-                  <DialogHeader>
-                    <DialogTitle>{billStep === "account" ? "Create utility account" : "Add utility bill"}</DialogTitle>
-                    <DialogDescription>{billStep === "account" ? "A utility account links a provider to a property." : "Log a bill against a utility account."}</DialogDescription>
-                  </DialogHeader>
-                  {billStep === "account" ? (
-                    <div className="space-y-3 pt-2">
-                      <div><Label>Property <span className="text-red-500">*</span></Label>
-                        <Select value={accountForm.propertyId} onValueChange={v => setAccountForm(f => ({...f,propertyId:v}))}><SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger><SelectContent>{(properties as any[]).map(p=><SelectItem key={p.id} value={String(p.id)}>{p.name}</SelectItem>)}</SelectContent></Select>
-                      </div>
-                      <div><Label>Provider <span className="text-red-500">*</span></Label>
-                        {utilityProviders.length === 0
-                          ? <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded p-2">No providers yet — add one in the Setup tab first.</p>
-                          : <Select value={accountForm.providerId} onValueChange={v => setAccountForm(f=>({...f,providerId:v}))}><SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger><SelectContent>{(utilityProviders as UtilityProvider[]).map(p=><SelectItem key={p.id} value={String(p.id)}>{p.name} ({p.type})</SelectItem>)}</SelectContent></Select>}
-                      </div>
-                      <div><Label>Account number <span className="text-red-500">*</span></Label><Input placeholder="e.g. 123456789" value={accountForm.accountNumber} onChange={e=>setAccountForm(f=>({...f,accountNumber:e.target.value}))} /></div>
-                      <div><Label>Meter number</Label><Input placeholder="e.g. MTR-001" value={accountForm.meterNumber} onChange={e=>setAccountForm(f=>({...f,meterNumber:e.target.value}))} /></div>
-                      <div className="flex justify-end gap-2 pt-1">
-                        <Button variant="outline" onClick={()=>setBillStep("bill")}>Back</Button>
-                        <Button disabled={createAccountMut.isPending||!accountForm.propertyId||!accountForm.providerId||!accountForm.accountNumber} onClick={()=>createAccountMut.mutate({propertyId:parseInt(accountForm.propertyId),providerId:parseInt(accountForm.providerId),accountNumber:accountForm.accountNumber,meterNumber:accountForm.meterNumber||undefined,isActive:true})}>
-                          {createAccountMut.isPending&&<Loader2 className="w-4 h-4 animate-spin mr-1"/>}Create &amp; continue
-                        </Button>
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="space-y-3 pt-2">
-                      <div><Label>Utility account <span className="text-red-500">*</span></Label>
-                        {utilityAccounts.length === 0
-                          ? <div className="space-y-2"><p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded p-2">No accounts yet.</p><Button variant="outline" size="sm" className="w-full text-xs" onClick={()=>setBillStep("account")}><Plus className="w-3.5 h-3.5 mr-1"/>Create account first</Button></div>
-                          : <div className="flex gap-2"><Select value={billForm.accountId} onValueChange={v=>setBillForm(f=>({...f,accountId:v}))}><SelectTrigger className="flex-1"><SelectValue placeholder="Select account" /></SelectTrigger><SelectContent>{(utilityAccounts as UtilityAccount[]).map(a=><SelectItem key={a.id} value={String(a.id)}>{a.accountNumber}{a.meterNumber?` — ${a.meterNumber}`:""}</SelectItem>)}</SelectContent></Select><Button variant="outline" size="sm" onClick={()=>setBillStep("account")} title="New account"><Plus className="w-4 h-4"/></Button></div>}
-                      </div>
-                      {utilityAccounts.length > 0 && <>
-                        <div className="grid grid-cols-2 gap-3">
-                          <div><Label>Period start <span className="text-red-500">*</span></Label><Input type="date" value={billForm.billingPeriodStart} onChange={e=>setBillForm(f=>({...f,billingPeriodStart:e.target.value}))} /></div>
-                          <div><Label>Period end <span className="text-red-500">*</span></Label><Input type="date" value={billForm.billingPeriodEnd} onChange={e=>setBillForm(f=>({...f,billingPeriodEnd:e.target.value}))} /></div>
-                        </div>
-                        <div className="grid grid-cols-2 gap-3">
-                          <div><Label>Due date <span className="text-red-500">*</span></Label><Input type="date" value={billForm.dueDate} onChange={e=>setBillForm(f=>({...f,dueDate:e.target.value}))} /></div>
-                          <div><Label>Amount (KSh) <span className="text-red-500">*</span></Label><Input type="number" placeholder="0.00" value={billForm.amount} onChange={e=>setBillForm(f=>({...f,amount:e.target.value}))} /></div>
-                        </div>
-                        <div className="grid grid-cols-2 gap-3">
-                          <div><Label>Units consumed</Label><Input type="number" value={billForm.unitsConsumed} onChange={e=>setBillForm(f=>({...f,unitsConsumed:e.target.value}))} /></div>
-                          <div><Label>Status</Label><Select value={billForm.status} onValueChange={v=>setBillForm(f=>({...f,status:v}))}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="pending">Pending</SelectItem><SelectItem value="paid">Paid</SelectItem><SelectItem value="overdue">Overdue</SelectItem></SelectContent></Select></div>
-                        </div>
-                        <div><Label>Notes</Label><Input placeholder="Optional" value={billForm.notes} onChange={e=>setBillForm(f=>({...f,notes:e.target.value}))} /></div>
-                        <div className="flex justify-end gap-2 pt-1">
-                          <Button variant="outline" onClick={()=>closeDlg("bill")}>Cancel</Button>
-                          <Button disabled={createBillMut.isPending||!billForm.accountId||!billForm.billingPeriodStart||!billForm.billingPeriodEnd||!billForm.dueDate||!billForm.amount} onClick={()=>createBillMut.mutate({...billForm,accountId:parseInt(billForm.accountId)})}>
-                            {createBillMut.isPending&&<Loader2 className="w-4 h-4 animate-spin mr-1"/>}Create bill
-                          </Button>
-                        </div>
-                      </>}
-                    </div>
-                  )}
-                </DialogContent>
-              </Dialog>
-            </div>
-          </div>
-
-          <div className="flex justify-end"><Select value={String(bSize)} onValueChange={v=>{setBSize(Number(v));setBPage(1);}}><SelectTrigger className="w-24 h-8 text-xs"><SelectValue/></SelectTrigger><SelectContent>{PAGE_SIZES.map(n=><SelectItem key={n} value={String(n)}>{n} rows</SelectItem>)}</SelectContent></Select></div>
-
-          <Card className="rounded-xl border border-slate-100 shadow-sm overflow-hidden">
-            <CardContent className="p-0">
-              {ldBills ? <div className="flex justify-center p-10"><Loader2 className="w-6 h-6 animate-spin text-muted-foreground"/></div>
-                : filteredBills.length === 0 ? <p className="text-center py-12 text-sm text-muted-foreground">No utility bills found</p>
-                : <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
-                    <thead><tr className="bg-muted border-b border-border text-xs text-muted-foreground uppercase">
-                      <th className="text-left px-4 py-3">Bill #</th><th className="text-left px-4 py-3">Account</th><th className="text-left px-4 py-3">Amount</th><th className="text-left px-4 py-3">Due</th><th className="text-left px-4 py-3">Units</th><th className="text-left px-4 py-3">Status</th><th className="px-4 py-3 w-8"/>
-                    </tr></thead>
-                    <tbody className="divide-y divide-border/50">
-                      {paged(filteredBills, bPage, bSize).map((b: UtilityBill) => {
-                        const acct = (utilityAccounts as UtilityAccount[]).find(a => a.id === b.accountId);
-                        return (
-                          <tr key={b.id} className="hover:bg-muted/40 transition-colors">
-                            <td className="px-4 py-2.5 font-mono text-xs">{b.billNumber||`BILL-${b.id}`}</td>
-                            <td className="px-4 py-2.5 text-xs max-w-[100px] break-words">{acct?.accountNumber||"—"}</td>
-                            <td className="px-4 py-2.5 text-xs whitespace-nowrap text-muted-foreground">
-                              {b.billingPeriodStart ? fmtDate(b.billingPeriodStart).replace(/\d\d$/, "").trim() : "—"}
-                            </td>
-                            <td className="px-4 py-2.5 whitespace-nowrap">{fmtMoney(b.amount)}</td>
-                            <td className="px-4 py-2.5 text-xs whitespace-nowrap">{fmtDate(b.dueDate)}</td>
-                            <td className="px-4 py-2.5"><StatusBadge status={b.status}/></td>
-                            <td className="px-4 py-2.5">
-                              <ActionMenu items={[
-                                {label:"Edit",           icon:<Edit2 className="w-4 h-4"/>,       onClick:()=>setEditBill(b)},
-                                ...(b.status==="pending"?[{label:"Mark as paid",icon:<CheckCircle className="w-4 h-4"/>,onClick:()=>markBillPaidMut.mutate(b.id)}]:[]),
-                                {label:"Send by email",  icon:<Send className="w-4 h-4"/>,        onClick:()=>navigate("/utility-bill-sender")},
-                                {label:"Delete",         icon:<Trash2 className="w-4 h-4"/>,      onClick:()=>setDelBill(b.id), destructive:true},
-                              ]}/>
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>}
-              <div className="px-4 pb-3"><Pager total={filteredBills.length} page={bPage} size={bSize} onPage={setBPage}/></div>
-            </CardContent>
-          </Card>
+          {/* One home for utilities: bills, providers, accounts, expenses, meter readings, analytics */}
+          <UtilityManagement embedded />
         </TabsContent>
 
         {/* ══════════════════════ RECURRING CHARGES ══════════════════════ */}
@@ -678,55 +532,10 @@ export default function Billing() {
         <TabsContent value="setup" className="space-y-4">
           <div className="flex items-start gap-3 px-4 py-3 rounded-xl bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-900 text-xs text-blue-700 dark:text-blue-300">
             <Settings className="w-4 h-4 mt-0.5 shrink-0"/>
-            <span>Billing setup — utility providers and billing cycle schedules for your properties. For account and user settings see <strong>Settings → Organisation</strong> in the sidebar.</span>
+            <span>Billing setup — billing cycle schedules for your properties. Utility providers and accounts are managed in the <strong>Utilities</strong> tab. For account and user settings see <strong>Settings → Organisation</strong> in the sidebar.</span>
           </div>
 
-          <div className="grid gap-4 grid-cols-1 lg:grid-cols-2">
-
-            {/* Utility Providers */}
-            <Card className="rounded-xl border border-slate-100 shadow-sm">
-              <CardHeader className="pb-2">
-                <div className="flex items-center justify-between">
-                  <div><CardTitle className="text-sm">Utility Providers</CardTitle><CardDescription className="text-xs">Water, electricity, gas, internet</CardDescription></div>
-                  <Dialog open={dlg.provider} onOpenChange={o=>o?openDlg("provider"):closeDlg("provider")}>
-                    <DialogTrigger asChild><Button size="sm" className="gap-1 text-xs h-8"><Plus className="w-3.5 h-3.5"/>Add</Button></DialogTrigger>
-                    <DialogContent>
-                      <DialogHeader><DialogTitle>Add Utility Provider</DialogTitle></DialogHeader>
-                      <div className="space-y-3 pt-2">
-                        <div><Label>Name <span className="text-red-500">*</span></Label><Input placeholder="e.g. Kenya Power" value={providerForm.name} onChange={e=>setProviderForm(f=>({...f,name:e.target.value}))}/></div>
-                        <div className="grid grid-cols-2 gap-3">
-                          <div><Label>Type</Label><Select value={providerForm.type} onValueChange={v=>setProviderForm(f=>({...f,type:v}))}><SelectTrigger><SelectValue/></SelectTrigger><SelectContent><SelectItem value="electricity">Electricity</SelectItem><SelectItem value="water">Water</SelectItem><SelectItem value="gas">Gas</SelectItem><SelectItem value="internet">Internet</SelectItem><SelectItem value="other">Other</SelectItem></SelectContent></Select></div>
-                          <div><Label>Billing cycle</Label><Select value={providerForm.billingCycle} onValueChange={v=>setProviderForm(f=>({...f,billingCycle:v}))}><SelectTrigger><SelectValue/></SelectTrigger><SelectContent><SelectItem value="monthly">Monthly</SelectItem><SelectItem value="quarterly">Quarterly</SelectItem><SelectItem value="annually">Annually</SelectItem></SelectContent></Select></div>
-                        </div>
-                        <div><Label>Contact email</Label><Input type="email" placeholder="billing@provider.com" value={providerForm.contactEmail} onChange={e=>setProviderForm(f=>({...f,contactEmail:e.target.value}))}/></div>
-                        <div><Label>Contact phone</Label><Input placeholder="+254…" value={providerForm.contactPhone} onChange={e=>setProviderForm(f=>({...f,contactPhone:e.target.value}))}/></div>
-                        <div><Label>Avg rate (KSh/unit)</Label><Input type="number" placeholder="e.g. 23.50" value={providerForm.averageRate} onChange={e=>setProviderForm(f=>({...f,averageRate:e.target.value}))}/></div>
-                        <div className="flex justify-end gap-2 pt-1">
-                          <Button variant="outline" onClick={()=>closeDlg("provider")}>Cancel</Button>
-                          <Button disabled={createProviderMut.isPending||!providerForm.name} onClick={()=>createProviderMut.mutate({...providerForm,currency:"KES",isActive:true,averageRate:providerForm.averageRate||undefined,contactEmail:providerForm.contactEmail||undefined,contactPhone:providerForm.contactPhone||undefined})}>
-                            {createProviderMut.isPending&&<Loader2 className="w-4 h-4 animate-spin mr-1"/>}Add provider
-                          </Button>
-                        </div>
-                      </div>
-                    </DialogContent>
-                  </Dialog>
-                </div>
-              </CardHeader>
-              <CardContent>
-                {utilityProviders.length === 0
-                  ? <p className="text-sm text-muted-foreground text-center py-6">No providers yet</p>
-                  : (utilityProviders as UtilityProvider[]).map(p => (
-                    <div key={p.id} className="flex items-center justify-between p-2.5 border border-border rounded-lg text-sm mb-2">
-                      <div><p className="font-medium">{p.name}</p><p className="text-xs text-muted-foreground capitalize">{p.type} · {p.billingCycle}</p></div>
-                      <div className="flex items-center gap-2">
-                        <Badge variant={p.isActive?"default":"secondary"} className="text-xs">{p.isActive?"Active":"Off"}</Badge>
-                        <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-red-500 hover:bg-red-50" onClick={()=>setDelProvider(p.id)}><Trash2 className="w-3.5 h-3.5"/></Button>
-                      </div>
-                    </div>
-                  ))
-                }
-              </CardContent>
-            </Card>
+          <div className="grid gap-4 grid-cols-1">
 
             {/* Billing Cycles */}
             <Card className="rounded-xl border border-slate-100 shadow-sm">
@@ -790,29 +599,6 @@ export default function Billing() {
       {/* ════════════════ EDIT DIALOGS ════════════════ */}
 
       {/* Edit Utility Bill */}
-      <Dialog open={!!editBill} onOpenChange={o=>{if(!o)setEditBill(null);}}>
-        <DialogContent><DialogHeader><DialogTitle>Edit Utility Bill</DialogTitle></DialogHeader>
-          {editBill && <div className="space-y-3 pt-2">
-            <div className="grid grid-cols-2 gap-3">
-              <div><Label>Amount (KSh)</Label><Input type="number" value={editBill.amount} disabled={editBill.status!=="pending"} onChange={e=>setEditBill(b=>b?{...b,amount:e.target.value}:b)}/></div>
-              <div><Label>Units consumed</Label><Input value={editBill.unitsConsumed||""} onChange={e=>setEditBill(b=>b?{...b,unitsConsumed:e.target.value}:b)}/></div>
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div><Label>Due date</Label><Input type="date" value={editBill.dueDate?.slice(0,10)||""} onChange={e=>setEditBill(b=>b?{...b,dueDate:e.target.value}:b)}/></div>
-              <div><Label>Status</Label><Select value={editBill.status} onValueChange={v=>setEditBill(b=>b?{...b,status:v}:b)}><SelectTrigger><SelectValue/></SelectTrigger><SelectContent><SelectItem value="pending">Pending</SelectItem><SelectItem value="paid">Paid</SelectItem><SelectItem value="overdue">Overdue</SelectItem><SelectItem value="cancelled">Cancelled</SelectItem></SelectContent></Select></div>
-            </div>
-            {editBill.status==="paid" && <div><Label>Paid date</Label><Input type="date" value={editBill.paidDate?.slice(0,10)||""} onChange={e=>setEditBill(b=>b?{...b,paidDate:e.target.value}:b)}/></div>}
-            <div><Label>Payment method</Label><Input placeholder="e.g. M-Pesa" value={editBill.paymentMethod||""} onChange={e=>setEditBill(b=>b?{...b,paymentMethod:e.target.value}:b)}/></div>
-            <div><Label>Notes</Label><Input value={editBill.notes||""} onChange={e=>setEditBill(b=>b?{...b,notes:e.target.value}:b)}/></div>
-            <div className="flex justify-end gap-2 pt-1">
-              <Button variant="outline" onClick={()=>setEditBill(null)}>Cancel</Button>
-              <Button disabled={updateBillMut.isPending} onClick={()=>updateBillMut.mutate({id:editBill.id,data:{amount:editBill.amount,unitsConsumed:editBill.unitsConsumed,dueDate:editBill.dueDate,status:editBill.status,paidDate:editBill.paidDate,paymentMethod:editBill.paymentMethod,notes:editBill.notes}})}>
-                {updateBillMut.isPending&&<Loader2 className="w-4 h-4 animate-spin mr-1"/>}Save
-              </Button>
-            </div>
-          </div>}
-        </DialogContent>
-      </Dialog>
 
       {/* Edit Recurring Charge */}
       <Dialog open={!!editCharge} onOpenChange={o=>{if(!o)setEditCharge(null);}}>
@@ -889,11 +675,9 @@ export default function Billing() {
       </Dialog>
 
       {/* ════════════════ DELETE CONFIRMS ════════════════ */}
-      <ConfirmDialog open={!!delBill}     title="Delete bill?"     description="This cannot be undone." confirmLabel="Delete" destructive onConfirm={()=>delBill    &&deleteBillMut.mutate(delBill)}        onClose={()=>setDelBill(null)}     loading={deleteBillMut.isPending}/>
       <ConfirmDialog open={!!delCharge}   title="Delete charge?"   description="This cannot be undone." confirmLabel="Delete" destructive onConfirm={()=>delCharge  &&deleteChargeMut.mutate(delCharge)}    onClose={()=>setDelCharge(null)}   loading={deleteChargeMut.isPending}/>
       <ConfirmDialog open={!!delInv}      title="Delete invoice?"  description="This cannot be undone." confirmLabel="Delete" destructive onConfirm={()=>delInv     &&deleteInvMut.mutate(delInv)}          onClose={()=>setDelInv(null)}      loading={deleteInvMut.isPending}/>
       <ConfirmDialog open={!!delCycle}    title="Delete cycle?"    description="This cannot be undone." confirmLabel="Delete" destructive onConfirm={()=>delCycle   &&deleteCycleMut.mutate(delCycle)}      onClose={()=>setDelCycle(null)}    loading={deleteCycleMut.isPending}/>
-      <ConfirmDialog open={!!delProvider} title="Delete provider?" description="Linked accounts will lose their provider link." confirmLabel="Delete" destructive onConfirm={()=>delProvider&&deleteProviderMut.mutate(delProvider)} onClose={()=>setDelProvider(null)} loading={deleteProviderMut.isPending}/>
     </div>
   );
 }

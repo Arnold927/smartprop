@@ -22,6 +22,7 @@
  *   admin    → header says "All Messages", Broadcast shortcut shown
  */
 
+import { useLocation } from "wouter";
 import { useState, useCallback } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest, ensureArray } from "@/lib/queryClient";
@@ -295,13 +296,14 @@ function OrgGuard() {
 
 // ── Main page ─────────────────────────────────────────────────────────────────
 
-export default function Messages() {
+export default function Messages({ embedded = false }: { embedded?: boolean } = {}) {
   const guard = useRoleGuard(ROLES.ALL_AUTHENTICATED);
   if (guard.gate) return guard.gate;
 
   const { user } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const [, navigate] = useLocation();
 
   // ── Org guard (client-side; server enforces this too via requireOrg) ─────────
   if (!user?.organizationId) {
@@ -437,30 +439,38 @@ export default function Messages() {
   // ── Render ──────────────────────────────────────────────────────────────────
   return (
     <PageShell>
-      <PageHeader
-        title={pageTitle(role)}
-        subtitle={`${pageSubtitle(role)}${unreadCount > 0 ? ` · ${unreadCount} unread` : ""}`}
-        icon={<Mail className="w-5 h-5" />}
-        actions={
-          <>
-            {/* Broadcast shortcut — staff only */}
-            {showBroadcastTab && (
-              <SecondaryButton icon={<Radio className="w-4 h-4" />} onClick={() => window.location.href = "/broadcast-messages"}>
-                Broadcast
-              </SecondaryButton>
-            )}
-            {/* Compose is available to all roles with at least one permitted recipient */}
-            {orgUsers.length > 0 && (
-              <PrimaryButton icon={<Plus className="w-4 h-4" />} onClick={() => { setCompose({ toUserId: "", subject: "", content: "", isReply: false }); setIsComposeOpen(true); }}>
-                Compose
-              </PrimaryButton>
-            )}
-          </>
+      {(() => {
+        const composeBtn = orgUsers.length > 0 ? (
+          <PrimaryButton icon={<Plus className="w-4 h-4" />} onClick={() => { setCompose({ toUserId: "", subject: "", content: "", isReply: false }); setIsComposeOpen(true); }}>
+            Compose
+          </PrimaryButton>
+        ) : null;
+        // Inside the Communications tabs the section strip already names the
+        // page, so only the action buttons are kept (Broadcast is its own tab).
+        if (embedded) {
+          return composeBtn ? <div className="flex justify-end mb-3">{composeBtn}</div> : null;
         }
-      />
+        return (
+          <PageHeader
+            title={pageTitle(role)}
+            subtitle={`${pageSubtitle(role)}${unreadCount > 0 ? ` · ${unreadCount} unread` : ""}`}
+            icon={<Mail className="w-5 h-5" />}
+            actions={
+              <>
+                {showBroadcastTab && (
+                  <SecondaryButton icon={<Radio className="w-4 h-4" />} onClick={() => navigate("/broadcast-messaging")}>
+                    Broadcast
+                  </SecondaryButton>
+                )}
+                {composeBtn}
+              </>
+            }
+          />
+        );
+      })()}
 
       <div className="w-full">
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-5 h-[calc(100vh-160px)]">
+        <div className={`grid grid-cols-1 lg:grid-cols-3 gap-5 ${embedded ? "h-[calc(100vh-240px)]" : "h-[calc(100vh-160px)]"}`}>
 
           {/* ── List panel ────────────────────────────────────────────────── */}
           <div className={`lg:col-span-1 flex flex-col gap-3 ${selected ? "hidden lg:flex" : "flex"}`}>

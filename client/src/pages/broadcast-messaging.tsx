@@ -149,7 +149,7 @@ function TemplatesDialog({ open, onClose, onApply }: {
 
 const PAGE_SIZE_OPTIONS = [5, 10, 20, 50];
 
-export default function BroadcastMessaging() {
+export default function BroadcastMessaging({ embedded = false }: { embedded?: boolean } = {}) {
   const { user } = useAuth();
   const isAdmin = user?.role === "admin";
 
@@ -497,21 +497,29 @@ export default function BroadcastMessaging() {
   );
 
   return (
-    <div className="min-h-screen bg-background">
-      {/* Header */}
-      <div className="bg-card dark:bg-gray-900 border-b border-border dark:border-gray-800 px-6 py-5">
-        <div className="flex flex-col max-w-7xl mx-auto gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <h1 className="text-xl font-semibold text-foreground">Broadcast Messaging</h1>
-            <p className="text-sm text-muted-foreground mt-0.5">
-              Send messages to multiple recipients across different channels
-            </p>
-          </div>
+    <div className={embedded ? "bg-background" : "min-h-screen bg-background"}>
+      {/* Header — inside the Communications tabs the strip already names the page */}
+      {embedded ? (
+        <div className="max-w-7xl mx-auto px-6 pt-4 flex justify-end">
           <Button variant="outline" size="sm" onClick={() => setTemplatesOpen(true)}>
             <Eye className="h-4 w-4 mr-2" />Templates
           </Button>
         </div>
-      </div>
+      ) : (
+        <div className="bg-card dark:bg-gray-900 border-b border-border dark:border-gray-800 px-6 py-5">
+          <div className="flex flex-col max-w-7xl mx-auto gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h1 className="text-xl font-semibold text-foreground">Broadcast Messaging</h1>
+              <p className="text-sm text-muted-foreground mt-0.5">
+                Send messages to multiple recipients across different channels
+              </p>
+            </div>
+            <Button variant="outline" size="sm" onClick={() => setTemplatesOpen(true)}>
+              <Eye className="h-4 w-4 mr-2" />Templates
+            </Button>
+          </div>
+        </div>
+      )}
 
       <div className="max-w-7xl mx-auto px-6 py-6 space-y-6">
 

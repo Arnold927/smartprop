@@ -67,8 +67,7 @@ const getCoreManagerItems = (t: (k: string) => string) => [
       { name: t("nav.rent_collection"),  href: "/rent-collection" },
       { name: t("nav.arrears_risk"),     href: "/arrears" },
       { name: t("nav.expenses"),         href: "/expense-management" },
-      { name: "Utility accounts",        href: "/utility-management" },
-      { name: "Billing & invoices",      href: "/billing" },
+      { name: "Billing & utilities",     href: "/billing" },
       { name: t("nav.owner_statements"), href: "/owner-statements" },
       { name: t("nav.general_ledger"),   href: "/general-ledger" },
     ],
@@ -150,6 +149,7 @@ const getManagerNav = (t: (k: string) => string): NavGroup[] => [{
       children: [
         { name: t("nav.internal_messages"), href: "/messages" },
         { name: t("nav.whatsapp_channel"),  href: "/whatsapp-integration" },
+        { name: t("nav.broadcast"),         href: "/broadcast-messaging" },
       ],
     },
     ...getCoreManagerItems(t).slice(5),

@@ -12,8 +12,9 @@ import { Switch } from "@/components/ui/switch";
 import {
   Plus, Search, Zap, Droplets, Flame, Trash2, Wifi,
   AlertTriangle, CheckCircle, DollarSign, Edit, Clock, X, Save,
-  TrendingUp, BarChart3, PieChart, CheckCircle2, FileText,
+  TrendingUp, BarChart3, PieChart, CheckCircle2, FileText, Send,
 } from "lucide-react";
+import { useLocation } from "wouter";
 import {
   LineChart, Line, BarChart, Bar, PieChart as RePieChart, Pie, Cell,
   XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
@@ -372,19 +373,23 @@ function EditAccountDialog({
 // ── Edit Bill Dialog ──────────────────────────────────────────────────────────
 
 function EditBillDialog({
-  bill, open, onClose,
-}: { bill: UtilityBill | null; open: boolean; onClose: () => void }) {
+  bill, open, onClose, accounts = [], providers = [], properties = [],
+}: {
+  bill: UtilityBill | null; open: boolean; onClose: () => void;
+  accounts?: UtilityAccount[]; providers?: UtilityProvider[]; properties?: { id: number; name: string }[];
+}) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const isNew = !bill;
 
   const toDate = (d?: string) => d ? format(new Date(d), "yyyy-MM-dd") : "";
-  const blank = { amount: "", currency: "KES", status: "pending", notes: "", billingPeriodStart: "", billingPeriodEnd: "", dueDate: "", utilityType: "water" };
+  const blank = { accountId: 0, amount: "", currency: "KES", status: "pending", notes: "", billingPeriodStart: "", billingPeriodEnd: "", dueDate: "", utilityType: "water" };
   const fromBill = (b: UtilityBill | null) => b ? {
     ...b,
     billingPeriodStart: toDate(b.billingPeriodStart),
     billingPeriodEnd: toDate(b.billingPeriodEnd),
     dueDate: toDate(b.dueDate),
+    paidDate: toDate((b as any).paidDate),
     utilityType: (b as any).utilityType || b.account?.provider.type || "water",
   } : blank;
 
@@ -434,6 +439,38 @@ function EditBillDialog({
       <DialogContent className="max-w-2xl">
         <DialogHeader><DialogTitle>{isNew ? "Add Utility Bill" : "Edit Utility Bill"}</DialogTitle></DialogHeader>
         <div className="grid grid-cols-2 gap-4 py-2">
+          {isNew && (
+            <div className="col-span-2 space-y-1">
+              <Label>Utility Account *</Label>
+              {accounts.length === 0 ? (
+                <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded p-2">
+                  No utility accounts yet — add one in the Accounts tab first (it links a provider to a property).
+                </p>
+              ) : (
+                <Select
+                  value={form.accountId ? String(form.accountId) : ""}
+                  onValueChange={v => {
+                    const acct = accounts.find(a => a.id === parseInt(v));
+                    const prov = acct ? providers.find(p => p.id === acct.providerId) : undefined;
+                    set({ accountId: parseInt(v), ...(prov?.type ? { utilityType: prov.type } : {}) });
+                  }}
+                >
+                  <SelectTrigger><SelectValue placeholder="Select the account this bill is for" /></SelectTrigger>
+                  <SelectContent>
+                    {accounts.map(a => {
+                      const prov = providers.find(p => p.id === a.providerId);
+                      const prop = properties.find(p => p.id === a.propertyId);
+                      return (
+                        <SelectItem key={a.id} value={String(a.id)}>
+                          {(prov?.name ?? "Provider")} · {a.accountNumber}{prop ? ` · ${prop.name}` : ""}
+                        </SelectItem>
+                      );
+                    })}
+                  </SelectContent>
+                </Select>
+              )}
+            </div>
+          )}
           <div className="col-span-2 space-y-1">
             <Label>Utility Type *</Label>
             <Select value={form.utilityType || "water"} onValueChange={v => set({ utilityType: v })}>
@@ -509,6 +546,16 @@ function EditBillDialog({
             <Label>Amount * <span className="text-xs text-muted-foreground font-normal">(auto-calculated from readings × rate)</span></Label>
             <Input type="number" step="0.01" value={form.amount || ""} onChange={e => set({ amount: e.target.value })} placeholder="0.00" className={form.amount && !isNaN(Number(form.amount)) ? "ring-1 ring-emerald-400" : ""} />
           </div>
+          {form.status === "paid" && (
+            <div className="space-y-1">
+              <Label>Paid Date</Label>
+              <Input type="date" value={form.paidDate || ""} onChange={e => set({ paidDate: e.target.value })} />
+            </div>
+          )}
+          <div className={`space-y-1 ${form.status === "paid" ? "" : "col-span-2"}`}>
+            <Label>Payment Method</Label>
+            <Input value={form.paymentMethod || ""} onChange={e => set({ paymentMethod: e.target.value })} placeholder="e.g. M-Pesa" />
+          </div>
           <div className="col-span-2 space-y-1">
             <Label>Notes</Label>
             <Textarea value={form.notes || ""} onChange={e => set({ notes: e.target.value })} placeholder="Optional notes…" rows={3} />
@@ -516,7 +563,7 @@ function EditBillDialog({
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={onClose}><X className="w-4 h-4 mr-1" />Cancel</Button>
-          <Button onClick={() => mutation.mutate(form)} disabled={mutation.isPending || !form.amount || !form.dueDate}>
+          <Button onClick={() => mutation.mutate(form)} disabled={mutation.isPending || !form.amount || !form.dueDate || !form.billingPeriodStart || !form.billingPeriodEnd || (isNew && !form.accountId)}>
             <Save className="w-4 h-4 mr-1" />{mutation.isPending ? "Saving…" : "Save"}
           </Button>
         </DialogFooter>
@@ -1001,7 +1048,7 @@ function AnalyticsTab({ bills, providers }: { bills: UtilityBill[]; providers: U
 
 // ── Main Page ─────────────────────────────────────────────────────────────────
 
-export default function UtilityManagement() {
+export default function UtilityManagement({ embedded = false }: { embedded?: boolean } = {}) {
   const guard = useRoleGuard(ROLES.ADMIN_MANAGER_STAFF); // landlord removed — nav trimmed to /utility-bill-sender only, see roleNav.ts
   if (guard.gate) return guard.gate;
 
@@ -1016,6 +1063,7 @@ export default function UtilityManagement() {
 
   const queryClient = useQueryClient();
   const { toast } = useToast();
+  const [, navigate] = useLocation();
 
   const { data: rawBills = [] } = useQuery<UtilityBill[]>({
     queryKey: ["/api/utility-bills"],
@@ -1281,23 +1329,32 @@ export default function UtilityManagement() {
     { key: "analytics" as const, label: "Analytics" },
   ];
 
+  const headerActions = (
+    <>
+      <SecondaryButton icon={<Send className="w-4 h-4" />} onClick={() => navigate("/utility-bill-sender")}>Send bills by email</SecondaryButton>
+      {activeTab === "bills" && (
+        <PrimaryButton icon={<Plus className="w-4 h-4" />} onClick={() => setEditBill("new")}>Add Utility Bill</PrimaryButton>
+      )}
+      {activeTab === "providers" && (
+        <PrimaryButton icon={<Plus className="w-4 h-4" />} onClick={() => setEditProvider("new")}>Add Provider</PrimaryButton>
+      )}
+    </>
+  );
+
+  const Shell: any = embedded ? "div" : PageShell;
+
   return (
-    <PageShell>
-      <PageHeader
-        title="Utility Management"
-        subtitle="Manage utility bills, providers, accounts, and expenses"
-        icon={<Zap className="w-5 h-5" />}
-        actions={
-          <>
-            {activeTab === "bills" && (
-              <PrimaryButton icon={<Plus className="w-4 h-4" />} onClick={() => setEditBill("new")}>Add Utility Bill</PrimaryButton>
-            )}
-            {activeTab === "providers" && (
-              <PrimaryButton icon={<Plus className="w-4 h-4" />} onClick={() => setEditProvider("new")}>Add Provider</PrimaryButton>
-            )}
-          </>
-        }
-      />
+    <Shell className={embedded ? "space-y-4" : undefined}>
+      {embedded ? (
+        <div className="flex flex-wrap items-center justify-end gap-2">{headerActions}</div>
+      ) : (
+        <PageHeader
+          title="Utility Management"
+          subtitle="Manage utility bills, providers, accounts, and expenses"
+          icon={<Zap className="w-5 h-5" />}
+          actions={headerActions}
+        />
+      )}
 
       {/* Metrics */}
       <StatsGrid cols={4}>
@@ -1413,12 +1470,15 @@ export default function UtilityManagement() {
         bill={editBill === "new" ? null : editBill}
         open={editBill !== null}
         onClose={() => setEditBill(null)}
+        accounts={allAccounts}
+        providers={providers}
+        properties={propertiesList}
       />
       <EditProviderDialog
         provider={editProvider === "new" ? null : editProvider}
         open={editProvider !== null}
         onClose={() => setEditProvider(null)}
       />
-    </PageShell>
+    </Shell>
   );
 }
