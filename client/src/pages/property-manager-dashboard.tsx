@@ -290,14 +290,14 @@ function TenantsPanel() {
           {tenants.map((t: any) => (
             <div key={t.id} className="bg-card border border-border rounded-xl p-3 shadow-sm">
               <div className="flex items-start justify-between gap-2">
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-3 min-w-0 flex-1">
                   <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
                     <span className="text-sm font-bold text-primary">{(t.firstName?.[0] ?? "?").toUpperCase()}</span>
                   </div>
-                  <div>
+                  <div className="min-w-0">
                     <p className="text-sm font-semibold text-foreground">{t.firstName} {t.lastName}</p>
                     <div className="flex items-center gap-3 text-xs text-muted-foreground mt-0.5 flex-wrap">
-                      {t.email && <span className="flex items-center gap-1"><Mail className="h-3 w-3" />{t.email}</span>}
+                      {t.email && <span className="flex items-center gap-1 min-w-0"><Mail className="h-3 w-3 shrink-0" /><span className="break-all">{t.email}</span></span>}
                       {t.phone && <span className="flex items-center gap-1"><Phone className="h-3 w-3" />{t.phone}</span>}
                     </div>
                     {t.unitNumber && <p className="text-xs text-muted-foreground mt-0.5 flex items-center gap-1"><MapPin className="h-3 w-3" />Unit {t.unitNumber}{t.propertyName ? ` · ${t.propertyName}` : ""}</p>}

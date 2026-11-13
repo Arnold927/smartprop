@@ -18,9 +18,8 @@
  *  • Org-scoping: all queries filter on organizationId from the general_ledger
  *    and chart_of_accounts tables (journalEntries table has no orgId column).
  *  • Account consistency: ALL operations use chartOfAccounts (org-scoped, has
- *    normalBalance). The journalEntryLines.accountId FK technically points to
- *    ledgerAccounts but we store chartOfAccounts.id values there — Postgres will
- *    enforce the FK by ID value only, so this works correctly in practice.
+ *    normalBalance). journalEntryLines.accountId references chartOfAccounts.id
+ *    (migrations/fix_journal_entry_lines_account_fk.sql).
  *  • Trial Balance: balance = normalBalance convention applied per account type.
  *    Debit-normal accounts: balance = Σdebits − Σcredits
  *    Credit-normal accounts: balance = Σcredits − Σdebits
@@ -41,7 +40,7 @@ import {
   chartOfAccounts,
   generalLedger,
 } from "@shared/schema";
-import { eq, and, lte, gte, desc, sql, asc, ilike, or } from "drizzle-orm";
+import { eq, and, lte, gte, desc, sql, asc, ilike, or, inArray } from "drizzle-orm";
 import { authenticateJWT } from "../middleware/auth";
 import { requireOrg } from "../middleware/requireOrg";
 import { auditLog } from "../middleware/auditLog";
@@ -180,7 +179,7 @@ router.get("/", ...auth, async (req: any, res: any) => {
     }
 
     const conditions: any[] = [
-      sql`${journalEntries.id} = ANY(${orgJeIds})`,
+      inArray(journalEntries.id, orgJeIds),
     ];
 
     if (req.query.status) conditions.push(eq(journalEntries.status, req.query.status as string));
@@ -236,7 +235,7 @@ router.post("/", ...auth, auditLog("journal_entry", "CREATE") as any, async (req
       .where(and(
         eq(chartOfAccounts.organizationId, orgId),
         eq(chartOfAccounts.isActive, true),
-        sql`${chartOfAccounts.id} = ANY(${accountIds})`,
+        inArray(chartOfAccounts.id, accountIds),
       ));
 
     if (validAccounts.length !== accountIds.length) {

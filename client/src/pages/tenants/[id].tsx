@@ -1,3 +1,4 @@
+import { downloadExcel } from "@/lib/excel";
 import { useState, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useParams, Link, useLocation } from "wouter";
@@ -320,12 +321,7 @@ export default function TenantDetails() {
       ["Lease Start", fmtDate(tenant.leaseStartDate)],
       ["Lease End", fmtDate(tenant.leaseEndDate)],
     ];
-    const csv = rows.map(([k, v]) => `"${k}","${v}"`).join("\n");
-    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-    const a = document.createElement("a");
-    a.href = URL.createObjectURL(blob);
-    a.download = `tenant-${tenant.firstName}-${tenant.lastName}.csv`;
-    a.click();
+    downloadExcel(`tenant-${tenant.firstName}-${tenant.lastName}`, ["Field", "Value"], rows, "Tenant");
     toast({ title: "Exported successfully" });
   };
 
@@ -470,7 +466,7 @@ export default function TenantDetails() {
                       <DropdownMenuItem className="sm:hidden" onClick={handleSendEmail}><Mail className="mr-2 h-4 w-4" />Email</DropdownMenuItem>
                       <DropdownMenuItem className="sm:hidden" onClick={handleCallTenant}><Phone className="mr-2 h-4 w-4" />Call</DropdownMenuItem>
                       <DropdownMenuItem onClick={() => window.print()}><Printer className="mr-2 h-4 w-4" />Print</DropdownMenuItem>
-                      <DropdownMenuItem onClick={handleExport}><Download className="mr-2 h-4 w-4" />Export CSV</DropdownMenuItem>
+                      <DropdownMenuItem onClick={handleExport}><Download className="mr-2 h-4 w-4" />Export Excel</DropdownMenuItem>
                       {isManager && <>
                         <DropdownMenuSeparator />
                         <DropdownMenuItem className="text-red-600"><Lock className="mr-2 h-4 w-4" />Deactivate</DropdownMenuItem>

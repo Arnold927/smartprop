@@ -1,3 +1,4 @@
+import { downloadExcel } from "@/lib/excel";
 import { useState } from "react";
 import { useLocation } from "wouter";
 import { useQuery } from "@tanstack/react-query";
@@ -191,15 +192,12 @@ export default function Finances() {
  const chartMax = Math.max(...(Array.isArray(chartData) ? chartData : []).map(d => Math.max(d.income, d.expense)), 1);
 
  const handleExport = () => {
- const csv = ["Date,Description,Type,Amount,Method,Status,Reference",
- ...filteredTxns.map(t => `"${t.date ? new Date(t.date).toLocaleDateString() : ""}","${t.description}","${t.type}","${t.amount}","${t.method}","${t.status}","${t.reference ?? ""}"`),
- ].join("\n");
- const url = URL.createObjectURL(new Blob([csv], { type: "text/csv" }));
- const a = Object.assign(document.createElement("a"), { href: url, download: `transactions-${new Date().toISOString().split("T")[0]}.csv` });
- document.body.appendChild(a);
- a.click();
- document.body.removeChild(a);
- URL.revokeObjectURL(url);
+ downloadExcel(
+ `transactions-${new Date().toISOString().split("T")[0]}`,
+ ["Date", "Description", "Type", "Amount", "Method", "Status", "Reference"],
+ filteredTxns.map(t => [t.date ? new Date(t.date).toLocaleDateString() : "", t.description, t.type, Number(t.amount), t.method, t.status, t.reference ?? ""]),
+ "Transactions",
+ );
  toast({ title: "Exported", description: `${filteredTxns.length} transactions exported` });
  };
 
@@ -376,7 +374,7 @@ export default function Finances() {
            <div className={`w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 ${t.type === "income" ? "bg-green-50 dark:bg-green-950" : "bg-red-50 dark:bg-red-950"}`}>
              {t.type === "income" ? <ArrowDownLeft className="w-3 h-3 text-green-600" /> : <ArrowUpRight className="w-3 h-3 text-red-500" />}
            </div>
-           <span className="text-foreground font-medium truncate max-w-[200px]">{t.description}</span>
+           <span className="text-foreground font-medium break-words sm:truncate sm:max-w-[200px]">{t.description}</span>
          </div>
        ),
      },
@@ -394,7 +392,7 @@ export default function Finances() {
  />
  {filteredTxns.length > 50 && (
  <div className="px-4 py-3 text-xs text-muted-foreground border-t border-border dark:border-gray-800 text-center">
- Showing 50 of {filteredTxns.length} transactions · Export CSV to see all
+ Showing 50 of {filteredTxns.length} transactions · Export to Excel to see all
  </div>
  )}
  </>

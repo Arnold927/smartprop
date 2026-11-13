@@ -574,7 +574,7 @@ export default function Billing() {
                     <tbody className="divide-y divide-border/50">
                       {paged(filteredCharges, cPage, cSize).map((c: RecurringCharge) => (
                         <tr key={c.id} className="hover:bg-muted/40 transition-colors">
-                          <td className="px-4 py-2.5 font-medium max-w-[130px] truncate">{c.chargeName}</td>
+                          <td className="px-4 py-2.5 font-medium break-words sm:max-w-[130px] sm:truncate">{c.chargeName}</td>
                           <td className="px-4 py-2.5 text-xs capitalize">{(c.chargeType||"").replace(/_/g," ")}</td>
                           <td className="px-4 py-2.5 whitespace-nowrap">{fmtMoney(c.amount)}</td>
                           <td className="px-4 py-2.5 text-xs capitalize">{c.frequency}</td>

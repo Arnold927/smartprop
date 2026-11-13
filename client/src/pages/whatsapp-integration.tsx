@@ -1838,7 +1838,7 @@ export default function WhatsAppIntegration() {
       {/* Main Content Tabs */}
       <Tabs defaultValue="conversations" className="w-full">
         <TabsList className="flex w-full max-w-lg">
-          <TabsTrigger value="conversations" className="relative flex-1 min-w-fit whitespace-nowrap">
+          <TabsTrigger value="conversations" className="relative flex-1 basis-auto shrink-0 whitespace-nowrap">
             Conversations
             {(() => {
               const unread = conversations.filter(c => c.unreadCount > 0).length;
@@ -1849,8 +1849,8 @@ export default function WhatsAppIntegration() {
               ) : null;
             })()}
           </TabsTrigger>
-          <TabsTrigger value="messages" className="flex-1 min-w-fit">Sent</TabsTrigger>
-          <TabsTrigger value="templates" className="flex-1 min-w-fit">Templates</TabsTrigger>
+          <TabsTrigger value="messages" className="flex-1 basis-auto shrink-0 whitespace-nowrap">Sent</TabsTrigger>
+          <TabsTrigger value="templates" className="flex-1 basis-auto shrink-0 whitespace-nowrap">Templates</TabsTrigger>
         </TabsList>
 
         {/* ── Messages tab ── */}

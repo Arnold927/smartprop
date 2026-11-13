@@ -1488,7 +1488,7 @@ function DocumentsPanel({
             {ext}
           </div>
           <div className="min-w-0">
-            <p className="text-sm font-semibold truncate">{doc.name}</p>
+            <p className="text-sm font-semibold break-words">{doc.name}</p>
             <p className="text-xs text-muted-foreground capitalize mt-0.5">
               {doc.type !== "tenant_upload" ? doc.type : "Your upload"}
               {doc.size ? ` · ${(doc.size / 1024).toFixed(0)} KB` : ""}
@@ -3005,7 +3005,7 @@ export default function TenantPortal({ tenantId, initialTenantData }: TenantPort
                       <span className="text-muted-foreground text-xs flex items-center gap-1.5">
                         <row.icon className="w-3 h-3" /> {row.label}
                       </span>
-                      <span className="font-medium text-xs text-right max-w-[55%] truncate">{row.value}</span>
+                      <span className="font-medium text-xs text-right max-w-[55%] break-words">{row.value}</span>
                     </div>
                   ))}
 

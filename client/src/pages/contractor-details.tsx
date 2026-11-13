@@ -1,3 +1,4 @@
+import { downloadCsvTextAsExcel } from '@/lib/excel';
 import { useState, useEffect } from "react";
 import { useParams, useLocation } from "wouter";
 import { useMutation, useQuery } from "@tanstack/react-query";
@@ -453,16 +454,11 @@ const { data: contractor, isLoading, error } = useQuery<ServiceContractor>({
  const csvContent = `Company Name,Contact Person,Email,Phone,Services,Rating,Status,Vetting Status,Hourly Rate,Daily Rate,Jobs Completed,Contract Start,Contract End
 "${contractorData.company}","${contractorData.contact}","${contractorData.email}","${contractorData.phone}","${contractorData.services}",${contractorData.rating},"${contractorData.status}","${contractorData.vettingStatus}","${contractorData.hourlyRate}","${contractorData.dailyRate}",${contractorData.jobsCompleted},"${contractorData.slaAdherence}","${contractorData.createdAt}","${contractorData.contractEnd}"`;
 
- const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
- const link = document.createElement("a");
- const url = URL.createObjectURL(blob);
- link.setAttribute("href", url);
- link.setAttribute("download", `contractor-${contractor.companyName?.replace(/\s+/g, '-') || 'export'}-${format(new Date(), 'yyyy-MM-dd')}.csv`);
- link.click();
+ downloadCsvTextAsExcel(`contractor-${contractor.companyName?.replace(/\s+/g, '-') || 'export'}-${format(new Date(), 'yyyy-MM-dd')}`, csvContent, 'Contractor');
 
  toast({
  title: "Export Successful",
- description: "Contractor data exported to CSV",
+ description: "Contractor data exported to Excel",
  className: "bg-card dark:bg-gray-900 border border-border dark:border-gray-800",
  });
  };

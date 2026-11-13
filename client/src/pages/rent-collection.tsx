@@ -1,3 +1,4 @@
+import { downloadCsvTextAsExcel } from "@/lib/excel";
 import { useState } from "react";
 import {
   DollarSign, CheckCircle, Clock, AlertTriangle,
@@ -107,7 +108,7 @@ export default function RentCollection() {
     },
   });
 
-  // Export handler — triggers CSV download directly from the server
+  // Export handler — downloads an Excel file built from the server's data
   const handleExport = async () => {
     setIsExporting(true);
     try {
@@ -116,15 +117,9 @@ export default function RentCollection() {
       if (search) params.set("search", search);
 
       const res = await apiRequest(`/api/rent-payments/export?${params.toString()}`);
-      const blob = await res.blob();
-      const url  = URL.createObjectURL(blob);
-      const a    = document.createElement("a");
-      a.href     = url;
-      a.download = `rent-payments-${new Date().toISOString().split("T")[0]}.csv`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
+      // Server returns CSV text; convert to Excel (CSV files don't open on phones).
+      const csvText = await res.text();
+      downloadCsvTextAsExcel(`rent-payments-${new Date().toISOString().split("T")[0]}`, csvText, "Rent payments");
       toast({ title: "Export downloaded ✓" });
     } catch {
       toast({ title: "Export failed", variant: "destructive" });

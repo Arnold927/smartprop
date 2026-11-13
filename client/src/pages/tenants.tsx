@@ -1,3 +1,4 @@
+import { downloadExcel } from "@/lib/excel";
 import { useState, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useLocation } from "wouter";
@@ -249,17 +250,16 @@ export default function Tenants() {
   const handleClearFilters = () => { setSearch(""); setStatusFilter("all"); setPropertyFilter("all"); resetPage(); };
 
   const handleExport = () => {
-    const csv = [
-      "Name,Email,Phone,Status,Monthly Rent,Unit,Property,Lease End",
-      ...filtered.map(t =>
-        `"${t.firstName} ${t.lastName}","${t.email}","${t.phone ?? ""}","${t.status}","${t.monthlyRent ?? ""}","${t.unit?.unitNumber ?? ""}","${t.property?.name ?? ""}","${t.leaseEndDate ?? ""}"`
-      ),
-    ].join("\n");
-    const a = Object.assign(document.createElement("a"), {
-      href: URL.createObjectURL(new Blob([csv], { type: "text/csv" })),
-      download: `tenants-${new Date().toISOString().split("T")[0]}.csv`,
-    });
-    a.click();
+    downloadExcel(
+      `tenants-${new Date().toISOString().split("T")[0]}`,
+      ["Name", "Email", "Phone", "Status", "Monthly Rent", "Unit", "Property", "Lease End"],
+      filtered.map(t => [
+        `${t.firstName} ${t.lastName}`, t.email, t.phone ?? "", t.status,
+        t.monthlyRent != null && t.monthlyRent !== "" ? Number(t.monthlyRent) : "",
+        t.unit?.unitNumber ?? "", t.property?.name ?? "", t.leaseEndDate ?? "",
+      ]),
+      "Tenants",
+    );
     toast({ title: "Exported", description: `${filtered.length} tenants exported` });
   };
 

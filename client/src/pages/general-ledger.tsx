@@ -43,6 +43,7 @@
  *     - Error state if fetch fails.
  */
 
+import { downloadExcel } from "@/lib/excel";
 import React, { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -76,19 +77,11 @@ const fmtDate = (d: string | Date | null | undefined) =>
 const today = () => new Date().toISOString().slice(0, 10);
 const firstOfYear = () => `${new Date().getFullYear()}-01-01`;
 
-/** Download rows as a UTF-8 CSV file. */
+/** Download rows as an Excel (.xlsx) file — CSV files don't open on phones. */
 function downloadCSV(filename: string, headers: string[], rows: (string | number)[][]) {
-  const escape = (v: string | number) => {
-    const s = String(v ?? "");
-    return s.includes(",") || s.includes('"') || s.includes("\n")
-      ? `"${s.replace(/"/g, '""')}"` : s;
-  };
-  const csv = [headers, ...rows].map(r => r.map(escape).join(",")).join("\r\n");
-  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-  const url  = URL.createObjectURL(blob);
-  const a    = document.createElement("a");
-  a.href = url; a.download = filename; a.click();
-  URL.revokeObjectURL(url);
+  const num = (v: string | number) =>
+    typeof v === "string" && /^-?(0|[1-9]\d{0,14})(\.\d+)?$/.test(v.trim()) ? Number(v) : v;
+  downloadExcel(filename, headers, rows.map(r => r.map(num)));
 }
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -312,7 +305,7 @@ function JournalBook() {
         <div className="flex gap-2">
           {entries.length > 0 && (
             <Button variant="outline" size="sm" onClick={handleExport}>
-              <Download className="w-3.5 h-3.5 mr-1.5" /> Export CSV
+              <Download className="w-3.5 h-3.5 mr-1.5" /> Export Excel
             </Button>
           )}
           <Button onClick={() => setOpen(true)}>
@@ -331,8 +324,75 @@ function JournalBook() {
         </div>
       )}
 
+      {/* Phone / small tablet: one card per entry so nothing is cut off */}
       {entries.length > 0 && (
-        <div className="rounded-lg border overflow-hidden">
+        <div className="md:hidden space-y-3">
+          {entries.map((e: any) => (
+            <div key={e.id} className="rounded-lg border bg-card overflow-hidden">
+              <button
+                type="button"
+                className="w-full text-left p-4 space-y-3"
+                onClick={() => setExpandedId(expandedId === e.id ? null : e.id)}
+                aria-expanded={expandedId === e.id}
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="font-mono text-xs text-muted-foreground break-all">{e.entryId}</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">{fmtDate(e.entryDate)}</p>
+                  </div>
+                  <Badge className="shrink-0" variant={e.status === "posted" ? "default" : e.status === "reversed" ? "secondary" : "outline"}>
+                    {e.status}
+                  </Badge>
+                </div>
+                <p className="text-sm font-medium text-foreground break-words">{e.description}</p>
+                <div className="grid grid-cols-2 gap-3 text-sm">
+                  <div>
+                    <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Debit</p>
+                    <p className="font-mono tabular-nums whitespace-nowrap">{KES(e.totalDebit)}</p>
+                  </div>
+                  <div>
+                    <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Credit</p>
+                    <p className="font-mono tabular-nums whitespace-nowrap">{KES(e.totalCredit)}</p>
+                  </div>
+                </div>
+                <p className="text-xs text-primary">{expandedId === e.id ? "Hide lines" : "Tap to view lines"}</p>
+              </button>
+              {expandedId === e.id && (
+                <div className="border-t bg-muted/20 p-4 space-y-3">
+                  {detailFetching && <p className="text-xs text-muted-foreground">Loading lines…</p>}
+                  {!detailFetching && entryDetail?.lines && (
+                    <>
+                      {e.reference && (
+                        <p className="text-xs text-muted-foreground">Reference: <span className="font-mono break-all">{e.reference}</span></p>
+                      )}
+                      {entryDetail.lines.map((l: any) => (
+                        <div key={l.id} className="flex items-start justify-between gap-3 text-xs border-t border-border/40 pt-2 first:border-0 first:pt-0">
+                          <div className="min-w-0">
+                            <p className="text-foreground font-medium break-words">{l.accountName ?? "—"}</p>
+                            <p className="font-mono text-muted-foreground">{l.accountCode ?? "—"}</p>
+                          </div>
+                          <p className="font-mono tabular-nums whitespace-nowrap text-right shrink-0">
+                            {Number(l.debitAmount) > 0 ? <>Dr {KES(l.debitAmount)}</> : <>Cr {KES(l.creditAmount)}</>}
+                          </p>
+                        </div>
+                      ))}
+                    </>
+                  )}
+                  {e.status === "posted" && (
+                    <Button size="sm" variant="outline" className="w-full"
+                      onClick={() => { setReverseId(e.id); setReverseDate(today()); }}>
+                      <RotateCcw className="w-3.5 h-3.5 mr-1.5" />Reverse entry
+                    </Button>
+                  )}
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {entries.length > 0 && (
+        <div className="hidden md:block rounded-lg border overflow-x-auto">
           <table className="w-full text-sm border-collapse">
             <thead>
               <tr className="bg-muted text-xs uppercase tracking-wide text-muted-foreground">
@@ -355,8 +415,8 @@ function JournalBook() {
                     <td className="p-3 font-mono text-xs text-muted-foreground">{e.entryId}</td>
                     <td className="p-3 text-xs whitespace-nowrap">{fmtDate(e.entryDate)}</td>
                     <td className="p-3 hidden md:table-cell max-w-xs truncate text-muted-foreground">{e.description}</td>
-                    <td className="p-3 text-right font-mono tabular-nums">{KES(e.totalDebit)}</td>
-                    <td className="p-3 text-right font-mono tabular-nums">{KES(e.totalCredit)}</td>
+                    <td className="p-3 text-right whitespace-nowrap font-mono tabular-nums">{KES(e.totalDebit)}</td>
+                    <td className="p-3 text-right whitespace-nowrap font-mono tabular-nums">{KES(e.totalCredit)}</td>
                     <td className="p-3 text-center">
                       <Badge variant={e.status === "posted" ? "default" : e.status === "reversed" ? "secondary" : "outline"}>
                         {e.status}
@@ -399,10 +459,10 @@ function JournalBook() {
                                     <td className="py-1.5 font-mono text-muted-foreground">{l.accountCode ?? "—"}</td>
                                     <td className="py-1.5 text-foreground">{l.accountName ?? "—"}</td>
                                     <td className="py-1.5 text-muted-foreground hidden sm:table-cell">{l.description || "—"}</td>
-                                    <td className="py-1.5 text-right font-mono tabular-nums">
+                                    <td className="py-1.5 text-right whitespace-nowrap font-mono tabular-nums">
                                       {Number(l.debitAmount) > 0 ? KES(l.debitAmount) : ""}
                                     </td>
-                                    <td className="py-1.5 text-right font-mono tabular-nums">
+                                    <td className="py-1.5 text-right whitespace-nowrap font-mono tabular-nums">
                                       {Number(l.creditAmount) > 0 ? KES(l.creditAmount) : ""}
                                     </td>
                                   </tr>
@@ -411,8 +471,8 @@ function JournalBook() {
                               <tfoot>
                                 <tr className="border-t border-border font-semibold">
                                   <td colSpan={3} className="pt-1.5 text-muted-foreground">Entry total</td>
-                                  <td className="pt-1.5 text-right font-mono tabular-nums">{KES(e.totalDebit)}</td>
-                                  <td className="pt-1.5 text-right font-mono tabular-nums">{KES(e.totalCredit)}</td>
+                                  <td className="pt-1.5 text-right whitespace-nowrap font-mono tabular-nums">{KES(e.totalDebit)}</td>
+                                  <td className="pt-1.5 text-right whitespace-nowrap font-mono tabular-nums">{KES(e.totalCredit)}</td>
                                 </tr>
                               </tfoot>
                             </table>
@@ -666,7 +726,7 @@ function TrialBalance() {
         </div>
         {data && (
           <Button variant="outline" size="sm" onClick={handleExport}>
-            <Download className="w-3.5 h-3.5 mr-1.5" /> Export CSV
+            <Download className="w-3.5 h-3.5 mr-1.5" /> Export Excel
           </Button>
         )}
       </div>
@@ -687,7 +747,56 @@ function TrialBalance() {
             }
           </div>
 
-          <div className="rounded-lg border overflow-hidden">
+          {/* Phone: grouped account cards, every figure fully visible */}
+          <div className="md:hidden space-y-4">
+            {["asset", "liability", "equity", "revenue", "expense"].map(type => (
+              byType[type]?.length > 0 && (
+                <div key={type} className="space-y-2">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{TYPE_LABELS[type]}</p>
+                  {byType[type].map((a: any) => {
+                    const bal = Number(a.balance);
+                    const isAbnormal = bal < 0;
+                    return (
+                      <div key={a.accountCode} className="rounded-lg border bg-card p-3 space-y-2">
+                        <div className="flex items-baseline justify-between gap-3">
+                          <p className="text-sm font-medium text-foreground break-words min-w-0">{a.accountName}</p>
+                          <span className="font-mono text-xs text-muted-foreground shrink-0">{a.accountCode}</span>
+                        </div>
+                        <div className="grid grid-cols-2 gap-x-3 gap-y-2 text-xs">
+                          <div>
+                            <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Debit</p>
+                            <p className="font-mono tabular-nums">{Number(a.totalDebit) > 0 ? KES(a.totalDebit) : "—"}</p>
+                          </div>
+                          <div>
+                            <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Credit</p>
+                            <p className="font-mono tabular-nums">{Number(a.totalCredit) > 0 ? KES(a.totalCredit) : "—"}</p>
+                          </div>
+                          <div className="col-span-2 flex items-baseline justify-between gap-3 border-t pt-2">
+                            <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Balance</p>
+                            <p className={`font-mono tabular-nums font-medium text-sm ${isAbnormal ? "text-red-600 dark:text-red-400" : ""}`}>
+                              {isAbnormal ? `(${KES(Math.abs(bal))})` : KES(bal)}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )
+            ))}
+            <div className="rounded-lg border-2 bg-muted p-3 grid grid-cols-2 gap-3 text-sm font-semibold">
+              <div>
+                <p className="text-[11px] uppercase tracking-wide text-muted-foreground font-medium">Total debits</p>
+                <p className="font-mono tabular-nums">{KES(data.grandDebit)}</p>
+              </div>
+              <div>
+                <p className="text-[11px] uppercase tracking-wide text-muted-foreground font-medium">Total credits</p>
+                <p className="font-mono tabular-nums">{KES(data.grandCredit)}</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="hidden md:block rounded-lg border overflow-x-auto">
             <table className="w-full text-sm border-collapse">
               <thead>
                 <tr className="bg-muted text-xs uppercase tracking-wide text-muted-foreground">
@@ -724,13 +833,13 @@ function TrialBalance() {
                             <td className="p-3 hidden sm:table-cell">
                               <Badge variant="outline" className="text-xs capitalize">{TYPE_LABELS[a.accountType] ?? a.accountType}</Badge>
                             </td>
-                            <td className="p-3 text-right font-mono tabular-nums">
+                            <td className="p-3 text-right whitespace-nowrap font-mono tabular-nums">
                               {Number(a.totalDebit) > 0 ? KES(a.totalDebit) : ""}
                             </td>
-                            <td className="p-3 text-right font-mono tabular-nums">
+                            <td className="p-3 text-right whitespace-nowrap font-mono tabular-nums">
                               {Number(a.totalCredit) > 0 ? KES(a.totalCredit) : ""}
                             </td>
-                            <td className={`p-3 text-right font-mono tabular-nums font-medium ${isAbnormal ? "text-red-600 dark:text-red-400" : ""}`}>
+                            <td className={`p-3 text-right whitespace-nowrap font-mono tabular-nums font-medium ${isAbnormal ? "text-red-600 dark:text-red-400" : ""}`}>
                               {isAbnormal ? (
                                 <span title={`Abnormal balance: this account normally has a ${a.normalBalance} balance`}>
                                   ({KES(Math.abs(bal))})
@@ -755,8 +864,8 @@ function TrialBalance() {
                 */}
                 <tr className="border-t-2 border-border bg-muted font-semibold text-sm">
                   <td colSpan={3} className="p-3">Grand Total</td>
-                  <td className="p-3 text-right font-mono tabular-nums">{KES(data.grandDebit)}</td>
-                  <td className="p-3 text-right font-mono tabular-nums">{KES(data.grandCredit)}</td>
+                  <td className="p-3 text-right whitespace-nowrap font-mono tabular-nums">{KES(data.grandDebit)}</td>
+                  <td className="p-3 text-right whitespace-nowrap font-mono tabular-nums">{KES(data.grandCredit)}</td>
                   {/* Balance column total intentionally blank per accounting standards */}
                   <td className="p-3 text-right text-xs text-muted-foreground italic">—</td>
                 </tr>
@@ -829,7 +938,7 @@ function IncomeStatement() {
             rows.push(["", `Net ${netPositive ? "Income" : "Loss"}`, "", Math.abs(netIncome).toFixed(2)]);
             downloadCSV(`income-statement-${from}-to-${to}.csv`, ["Code", "Account Name", "Type", "Amount (KES)"], rows);
           }}>
-            <Download className="w-3.5 h-3.5 mr-1.5" />Export CSV
+            <Download className="w-3.5 h-3.5 mr-1.5" />Export Excel
           </Button>
         )}
       </div>
@@ -955,7 +1064,7 @@ function BalanceSheet() {
             rows.push(["", "Total Liabilities + Equity", data.totalLiabEquity ?? totalLiabEquity.toFixed(2)]);
             downloadCSV(`balance-sheet-${asOf}.csv`, ["Code / Section", "Account Name", "Balance (KES)"], rows);
           }}>
-            <Download className="w-3.5 h-3.5 mr-1.5" />Export CSV
+            <Download className="w-3.5 h-3.5 mr-1.5" />Export Excel
           </Button>
         )}
       </div>

@@ -11,6 +11,7 @@
  *   7. RRT Notices           — Rent Restriction Tribunal notices (Cap 296)
  */
 
+import { downloadExcel } from "@/lib/excel";
 import { useState } from "react";
 import { useLocation, useSearch } from "wouter";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -339,7 +340,7 @@ function buildCgtHtml(propertyName: string, cgt: any, valuations: any[]): string
     </div>`;
 }
 
-// ─── eTIMS Submissions CSV export ─────────────────────────────────────────────
+// ─── eTIMS Submissions Excel export ─────────────────────────────────────────────
 function downloadEtimsCsv(submissions: any[]) {
   const headers = ["Invoice No","Customer","Amount (KES)","VAT (KES)","KRA Receipt No","Status","Submitted At"];
   const rows = submissions.map((s: any) => [
@@ -351,12 +352,7 @@ function downloadEtimsCsv(submissions: any[]) {
     s.status ?? "",
     s.submittedAt ? new Date(s.submittedAt).toLocaleString("en-KE") : "",
   ]);
-  const csv = [headers, ...rows].map(r => r.map(v => `"${String(v).replace(/"/g,'""')}"`).join(",")).join("\n");
-  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url; a.download = `etims-submissions-${new Date().toISOString().slice(0,10)}.csv`;
-  a.click(); URL.revokeObjectURL(url);
+  downloadExcel(`etims-submissions-${new Date().toISOString().slice(0,10)}`, headers, rows.map(r => r.map(v => (typeof v === "string" && /^-?\d+(\.\d+)?$/.test(v) && !/^0\d/.test(v) ? Number(v) : v))), "eTIMS");
 }
 
 
@@ -2150,7 +2146,7 @@ function EtimsTab() {
             <div className="flex gap-2">
               {submissions.length > 0 && (
                 <Button variant="outline" size="sm" onClick={() => downloadEtimsCsv(submissions as any[])}>
-                  <Download className="h-3.5 w-3.5 mr-1" />Export CSV
+                  <Download className="h-3.5 w-3.5 mr-1" />Export Excel
                 </Button>
               )}
               <Button variant="ghost" size="sm" onClick={() => refetchSubs()} className="h-7">

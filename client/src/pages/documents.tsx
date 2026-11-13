@@ -171,12 +171,12 @@ export default function Documents() {
  <div key={doc.id} className="flex items-center gap-3 px-4 py-3 hover:bg-muted/50 group transition-colors">
  <FileIcon mime={doc.mimeType} />
  <div className="flex-1 min-w-0">
- <p className="text-sm font-medium text-foreground truncate">{doc.name}</p>
+ <p className="text-sm font-medium text-foreground break-words sm:truncate">{doc.name}</p>
  <p className="text-xs text-muted-foreground">
  {fmtSize(doc.size)}{doc.size ? " · " : ""}{formatDistanceToNow(new Date(doc.createdAt), { addSuffix: true })}
  </p>
  </div>
- <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+ <div className="flex items-center gap-1 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
  {doc.url && (
  <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={() => window.open(doc.url, "_blank")} title="View">
  <Eye className="w-3.5 h-3.5 text-muted-foreground" />

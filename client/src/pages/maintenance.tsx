@@ -1,3 +1,4 @@
+import { downloadExcel } from "@/lib/excel";
 import { useState, useRef, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useLocation } from "wouter";
@@ -400,11 +401,12 @@ export default function Maintenance() {
  const paginated = filtered.slice((page - 1) * PER_PAGE, page * PER_PAGE);
 
  const handleExport = () => {
- const csv = ["ID,Title,Priority,Status,Property,Unit,Tenant,Created",
- ...filtered.map(r => `${r.id},"${r.title}","${r.priority}","${r.status}","${r.property?.name ?? ""}","${r.unit?.unitNumber ?? ""}","${r.tenant ? r.tenant.firstName + " " + r.tenant.lastName : ""}","${new Date(r.createdAt).toLocaleDateString()}"`)
- ].join("\n");
- const a = Object.assign(document.createElement("a"), { href: URL.createObjectURL(new Blob([csv], { type: "text/csv" })), download: `maintenance-${new Date().toISOString().split("T")[0]}.csv` });
- a.click();
+ downloadExcel(
+ `maintenance-${new Date().toISOString().split("T")[0]}`,
+ ["ID", "Title", "Priority", "Status", "Property", "Unit", "Tenant", "Created"],
+ filtered.map(r => [r.id, r.title, r.priority, r.status, r.property?.name ?? "", r.unit?.unitNumber ?? "", r.tenant ? r.tenant.firstName + " " + r.tenant.lastName : "", new Date(r.createdAt).toLocaleDateString()]),
+ "Maintenance",
+ );
  };
 
  const openApproval = (r: MaintenanceRequest) => {

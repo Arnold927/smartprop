@@ -18,6 +18,7 @@
  * not by a third party. Tenants initiate M-Pesa payments themselves
  * from the Tenant Portal → Payments tab.
  */
+import { downloadExcel } from '@/lib/excel';
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
@@ -199,24 +200,15 @@ export default function TenantRentPayments({
   // ── CSV export ────────────────────────────────────────────────────────────
 
   const handleExport = () => {
-    const header = 'Invoice,Amount,Currency,Due Date,Paid Date,Method,Status,Notes';
-    const rows = payments.map(p => [
-      `"${p.invoiceNumber ?? `PAY-${p.id}`}"`,
-      `"${p.amount}"`,
-      `"${p.currency}"`,
-      `"${p.dueDate}"`,
-      `"${p.paidDate ?? ''}"`,
-      `"${p.paymentMethod ?? ''}"`,
-      `"${p.status}"`,
-      `"${(p.notes ?? '').replace(/"/g, '""')}"`,
-    ].join(',')).join('\n');
-    const blob = new Blob([`${header}\n${rows}`], { type: 'text/csv' });
-    const url  = URL.createObjectURL(blob);
-    const a    = document.createElement('a');
-    a.href = url;
-    a.download = `payments-${tenantName.replace(/\s+/g, '-')}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
+    downloadExcel(
+      `payments-${tenantName.replace(/\s+/g, '-')}`,
+      ['Invoice', 'Amount', 'Currency', 'Due Date', 'Paid Date', 'Method', 'Status', 'Notes'],
+      payments.map(p => [
+        p.invoiceNumber ?? `PAY-${p.id}`, Number(p.amount), p.currency, p.dueDate,
+        p.paidDate ?? '', p.paymentMethod ?? '', p.status, p.notes ?? '',
+      ]),
+      'Payments',
+    );
     toast({ title: 'Exported', description: `${payments.length} payment records downloaded` });
   };
 

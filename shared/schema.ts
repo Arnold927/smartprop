@@ -3337,7 +3337,8 @@ export const journalEntryLines = pgTable("journal_entry_lines", {
   id: serial("id").primaryKey(),
   journalEntryId: integer("journal_entry_id").references(() => journalEntries.id),
   lineNumber: integer("line_number").notNull(),
-  accountId: integer("account_id").references(() => ledgerAccounts.id),
+  // Points at chart_of_accounts (the table every GL route reads and writes), not the legacy ledger_accounts.
+  accountId: integer("account_id").references((): any => chartOfAccounts.id),
   description: text("description"),
   debitAmount: decimal("debit_amount", { precision: 15, scale: 2 }).default('0.00'),
   creditAmount: decimal("credit_amount", { precision: 15, scale: 2 }).default('0.00'),

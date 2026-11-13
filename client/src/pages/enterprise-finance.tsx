@@ -1,3 +1,4 @@
+import { downloadCsvTextAsExcel } from "@/lib/excel";
 import React, { useState, useRef, useCallback } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -2670,18 +2671,12 @@ const FinancialReports = () => {
                   }
 
                   if (!csv) return;
-                  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-                  const url = URL.createObjectURL(blob);
-                  const a = document.createElement("a");
-                  a.href = url;
-                  a.download = filename;
-                  a.click();
-                  URL.revokeObjectURL(url);
+                  downloadCsvTextAsExcel(filename, csv, activeReport.replace(/_/g, " "));
                 }}
                 data-testid="button-download-report"
               >
                 <Download className="h-4 w-4 mr-2" />
-                Download CSV
+                Download Excel
               </Button>
             </div>
           </CardContent>

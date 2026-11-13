@@ -1,3 +1,4 @@
+import { downloadCsvTextAsExcel } from "@/lib/excel";
 import { useState, useMemo } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest, ensureArray } from "@/lib/queryClient";
@@ -318,16 +319,9 @@ export default function Reports() {
       }
       const r = await apiRequest(`/api/reports/export/${type}?${params.toString()}`);
       if (!r.ok) throw new Error(`Export failed: ${r.statusText}`);
-      const blob = await r.blob();
-      const url  = URL.createObjectURL(blob);
-      const a    = document.createElement("a");
-      a.href     = url;
-      // Filename includes the period so the user knows what it covers
-      a.download = `${type}-${periodLabel.replace(/\s+/g, "-").replace(/→/g, "to")}.csv`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      setTimeout(() => URL.revokeObjectURL(url), 1000);
+      // The server returns CSV text; convert it to Excel — CSV files don't open on phones.
+      const csvText = await r.text();
+      downloadCsvTextAsExcel(`${type}-${periodLabel.replace(/\s+/g, "-").replace(/→/g, "to")}`, csvText, type);
       toast({ title: "Downloaded", description: `${type} — ${periodLabel}` });
     } catch (err: any) {
       toast({
@@ -601,10 +595,10 @@ export default function Reports() {
           })}
         </div>
 
-        {/* CSV exports */}
+        {/* Excel exports */}
         <SectionCard
           title="Data exports"
-          subtitle={<>Download CSV filtered to <span className="font-medium text-foreground">{periodLabel}</span></>}
+          subtitle={<>Download Excel filtered to <span className="font-medium text-foreground">{periodLabel}</span></>}
         >
             <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
               {([
@@ -633,7 +627,7 @@ export default function Reports() {
                       className="h-8 w-8 p-0 flex-shrink-0"
                       onClick={() => handleExport(type)}
                       disabled={isExporting || !customRangeValid}
-                      title={`Download ${label} as CSV`}
+                      title={`Download ${label} as Excel`}
                     >
                       {isExporting ? (
                         <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />

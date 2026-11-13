@@ -682,7 +682,7 @@ router.post("/dedup-cleanup", authenticateJWT, requireOrg, async (req: any, res)
       return res.json({ message: "No duplicates found", deleted: 0 });
     }
 
-    await db.delete(rentPayments).where(sql`${rentPayments.id} = ANY(${toDelete})`);
+    await db.delete(rentPayments).where(inArray(rentPayments.id, toDelete));
     console.log(`[dedup-cleanup] Deleted ${toDelete.length} duplicate invoice(s) for org ${orgId}`);
     res.json({ message: `Cleaned up ${toDelete.length} duplicate invoice(s)`, deleted: toDelete.length });
   } catch (error) {

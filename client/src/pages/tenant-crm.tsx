@@ -714,7 +714,7 @@ export default function TenantCRM() {
                             <div className="font-medium">
                               {lease.firstName} {lease.lastName}
                             </div>
-                            <div className="text-sm text-muted-foreground truncate max-w-[180px]">{lease.email}</div>
+                            <div className="text-sm text-muted-foreground break-all sm:truncate sm:max-w-[180px]">{lease.email}</div>
                           </TableCell>
                           <TableCell>
                             <div className="font-medium">{lease.propertyName || "—"}</div>
@@ -914,7 +914,7 @@ export default function TenantCRM() {
                           <TableRow key={lease.tenantId} className="hover:bg-muted/40 transition-colors">
                             <TableCell className="pl-6">
                               <div className="font-medium">{lease.firstName} {lease.lastName}</div>
-                              <div className="text-sm text-muted-foreground truncate max-w-[200px]">{lease.email}</div>
+                              <div className="text-sm text-muted-foreground break-all sm:truncate sm:max-w-[200px]">{lease.email}</div>
                             </TableCell>
                             <TableCell>
                               {lease.unitNumber ? (

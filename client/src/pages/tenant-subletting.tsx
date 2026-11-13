@@ -2019,14 +2019,14 @@ export default function TenantSubletting() {
             <div className="md:col-span-2 min-w-0">
               <Card>
                 <CardHeader>
-                  <div className="flex items-center justify-between">
+                  <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                     <CardTitle className="flex items-center gap-2">
                       <Calendar className="h-4 w-4 text-rose-500" /> Availability Calendar
                     </CardTitle>
-                    <div className="flex items-center gap-3 text-xs text-muted-foreground">
-                      <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-full bg-emerald-500 inline-block" /> Check-in</span>
-                      <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-full bg-rose-300 inline-block" /> Booked</span>
-                      <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-full bg-slate-400 inline-block" /> Check-out</span>
+                    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
+                      <span className="flex items-center gap-1.5 whitespace-nowrap"><span className="w-3 h-3 shrink-0 rounded-full bg-emerald-500 inline-block" /> Check-in</span>
+                      <span className="flex items-center gap-1.5 whitespace-nowrap"><span className="w-3 h-3 shrink-0 rounded-full bg-rose-300 inline-block" /> Booked</span>
+                      <span className="flex items-center gap-1.5 whitespace-nowrap"><span className="w-3 h-3 shrink-0 rounded-full bg-slate-400 inline-block" /> Check-out</span>
                     </div>
                   </div>
                   <CardDescription>

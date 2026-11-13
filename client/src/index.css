@@ -953,3 +953,12 @@ button[role="combobox"] > span {
 :where(main .grid:is([class*="sm:grid-cols"], [class*="md:grid-cols"], [class*="lg:grid-cols"], [class*="xl:grid-cols"])) {
   grid-template-columns: minmax(0, 1fr);
 }
+
+/* Touch devices have no hover: controls revealed with `opacity-0 group-hover:opacity-100`
+   (row actions, menus, delete buttons on photos) would be invisible and unreachable on phones.
+   Always show them there. Decorative gradient overlays stay hover-only. */
+@media (hover: none) {
+  [class*="group-hover:opacity-100"]:not([class*="bg-gradient"]) {
+    opacity: 1 !important;
+  }
+}

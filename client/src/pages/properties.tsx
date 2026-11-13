@@ -1,3 +1,4 @@
+import { downloadExcel } from "@/lib/excel";
 import QueryError from "@/components/query-error";
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -150,15 +151,12 @@ export default function Properties() {
   const overallOcc = allUnits.length > 0 ? Math.round((occupiedUnits / allUnits.length) * 100) : 0;
 
   const handleExport = () => {
-    const csv = [
-      "Name,Address,Total Units,Created",
-      ...filtered.map(p => `"${p.name}","${p.address}",${p.totalUnits},"${new Date(p.createdAt).toLocaleDateString()}"`)
-    ].join("\n");
-    const blob = new Blob([csv], { type: "text/csv" });
-    const a = document.createElement("a");
-    a.href = URL.createObjectURL(blob);
-    a.download = `properties-${new Date().toISOString().split("T")[0]}.csv`;
-    a.click();
+    downloadExcel(
+      `properties-${new Date().toISOString().split("T")[0]}`,
+      ["Name", "Address", "Total Units", "Created"],
+      filtered.map(p => [p.name, p.address, p.totalUnits, new Date(p.createdAt).toLocaleDateString()]),
+      "Properties",
+    );
     toast({ title: "Exported", description: `${filtered.length} properties exported` });
   };
 
