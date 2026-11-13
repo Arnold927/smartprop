@@ -8,6 +8,8 @@
  * Flow: draft → in_progress (Save progress) → pending_signature (manager signs; record locks)
  *       → completed (tenant countersigns).
  */
+import { tenantOptions, unitOptions, propertyOptions, userOptions, byId } from "@/lib/pickerOptions";
+import { SearchableSelect } from "@/components/ui/searchable-select";
 import { useRef, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest, ensureArray, uploadWithAuth } from "@/lib/queryClient";
@@ -590,21 +592,25 @@ export default function Inspections() {
             </div>
             <div className="col-span-2">
               <Label className="text-xs">Property</Label>
-              <Select value={String(form.propertyId ?? "")} onValueChange={v => setForm((f: any) => ({ ...f, propertyId: parseInt(v), unitId: undefined }))}>
-                <SelectTrigger><SelectValue placeholder="Select property…" /></SelectTrigger>
-                <SelectContent>{properties.map((p: any) => <SelectItem key={p.id} value={String(p.id)}>{p.name}</SelectItem>)}</SelectContent>
-              </Select>
+              <SearchableSelect
+                value={String(form.propertyId ?? "")}
+                onValueChange={v => setForm((f: any) => ({ ...f, propertyId: parseInt(v), unitId: undefined }))}
+                placeholder="Select property…"
+                searchPlaceholder="Search properties…"
+                options={propertyOptions(properties)}
+              />
             </div>
             <div className="col-span-2">
               <Label className="text-xs">Unit{needsUnit ? " *" : " (optional)"}</Label>
-              <Select value={String(form.unitId ?? "")} onValueChange={v => setForm((f: any) => ({ ...f, unitId: parseInt(v) }))} disabled={!form.propertyId}>
-                <SelectTrigger><SelectValue placeholder={form.propertyId ? "Select unit…" : "Select a property first"} /></SelectTrigger>
-                <SelectContent>
-                  {units.filter((u: any) => u.propertyId === form.propertyId).map((u: any) => (
-                    <SelectItem key={u.id} value={String(u.id)}>{u.unitNumber}{u.isOccupied === false ? " · vacant" : ""}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <SearchableSelect
+                value={String(form.unitId ?? "")}
+                onValueChange={v => setForm((f: any) => ({ ...f, unitId: parseInt(v) }))}
+                disabled={!form.propertyId}
+                placeholder={form.propertyId ? "Select unit…" : "Select a property first"}
+                searchPlaceholder="Search unit number…"
+                emptyText="No units in this property"
+                options={unitOptions(units.filter((u: any) => u.propertyId === form.propertyId))}
+              />
             </div>
             <div className="col-span-2">
               <Label className="text-xs">Scheduled date</Label>

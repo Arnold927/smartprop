@@ -7,6 +7,7 @@
  *   2. Fill readings for multiple tenants and send in bulk via email
  */
 
+import { SearchableSelect } from "@/components/ui/searchable-select";
 import { useState, useMemo, Fragment } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -384,26 +385,18 @@ export default function UtilityBillSender() {
                 <CardContent className="space-y-4">
                   <div className="space-y-1.5">
                     <Label>Tenant</Label>
-                    <Select value={selectedTenantId} onValueChange={v => { setSelectedTenantId(v); setSingleResult(null); }}>
-                      <SelectTrigger>
-                        <SelectValue placeholder={loadingTenants ? "Loading tenants…" : "Choose a tenant…"} />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {tenantsByProperty.map(group => (
-                          <SelectGroup key={group.propertyName}>
-                            <SelectLabel>{group.propertyName}</SelectLabel>
-                            {group.tenants.map(t => (
-                              <SelectItem key={t.tenantId} value={String(t.tenantId)}>
-                                <div className="flex flex-col">
-                                  <span className="font-medium">{t.firstName} {t.lastName}</span>
-                                  <span className="text-xs text-muted-foreground">Unit {t.unitNumber} · {t.email}</span>
-                                </div>
-                              </SelectItem>
-                            ))}
-                          </SelectGroup>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    <SearchableSelect
+                      value={selectedTenantId}
+                      onValueChange={v => { setSelectedTenantId(v); setSingleResult(null); }}
+                      placeholder={loadingTenants ? "Loading tenants…" : "Choose a tenant…"}
+                      searchPlaceholder="Search by name, unit, property or email…"
+                      options={tenantsByProperty.flatMap(group => group.tenants.map(t => ({
+                        value: String(t.tenantId),
+                        label: `${t.firstName} ${t.lastName}`.trim(),
+                        description: [`Unit ${t.unitNumber}`, group.propertyName].filter(Boolean).join(" · "),
+                        keywords: t.email ?? "",
+                      })))}
+                    />
                   </div>
 
                   {selectedTenantId && (() => {

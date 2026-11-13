@@ -10,6 +10,7 @@
  * always has for admin/manager/landlord.
  */
 
+import { MpesaStatusAlert } from "@/components/MpesaStatusAlert";
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useLocation } from "wouter";
@@ -78,6 +79,7 @@ export default function PlatformOrganizationsPage() {
 
   return (
     <div className="max-w-5xl mx-auto px-4 py-6 md:py-8">
+      <MpesaStatusAlert />
       <div className="flex items-center gap-3 mb-6">
         <div className="rounded-xl bg-emerald-500/10 p-2.5">
           <Building2 className="h-5 w-5 text-emerald-600" />

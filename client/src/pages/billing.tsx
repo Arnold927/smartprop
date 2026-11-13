@@ -1,3 +1,5 @@
+import { tenantOptions, unitOptions, propertyOptions, userOptions, byId } from "@/lib/pickerOptions";
+import { SearchableSelect } from "@/components/ui/searchable-select";
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -390,7 +392,7 @@ export default function Billing() {
               <DialogContent>
                 <DialogHeader><DialogTitle>Add Recurring Charge</DialogTitle><DialogDescription>Automated billing for rent, service charges, or fees.</DialogDescription></DialogHeader>
                 <div className="space-y-3 pt-2">
-                  <div><Label>Property <span className="text-red-500">*</span></Label><Select value={chargeForm.propertyId} onValueChange={v=>setChargeForm(f=>({...f,propertyId:v}))}><SelectTrigger><SelectValue placeholder="Select"/></SelectTrigger><SelectContent>{(properties as any[]).map(p=><SelectItem key={p.id} value={String(p.id)}>{p.name}</SelectItem>)}</SelectContent></Select></div>
+                  <div><Label>Property <span className="text-red-500">*</span></Label><SearchableSelect value={chargeForm.propertyId} onValueChange={v=>setChargeForm(f=>({...f,propertyId:v}))} placeholder="Select" searchPlaceholder="Search properties…" options={propertyOptions(properties as any[])} /></div>
                   <div><Label>Name <span className="text-red-500">*</span></Label><Input placeholder="e.g. Monthly Service Charge" value={chargeForm.chargeName} onChange={e=>setChargeForm(f=>({...f,chargeName:e.target.value}))}/></div>
                   <div className="grid grid-cols-2 gap-3">
                     <div><Label>Type</Label><Select value={chargeForm.chargeType} onValueChange={v=>setChargeForm(f=>({...f,chargeType:v}))}><SelectTrigger><SelectValue/></SelectTrigger><SelectContent><SelectItem value="service_charge">Service charge</SelectItem><SelectItem value="utility">Utility</SelectItem><SelectItem value="maintenance">Maintenance</SelectItem><SelectItem value="insurance">Insurance</SelectItem><SelectItem value="other">Other</SelectItem></SelectContent></Select></div>
@@ -466,10 +468,10 @@ export default function Billing() {
                 <DialogHeader><DialogTitle>Create Invoice</DialogTitle><DialogDescription>Generate a manual invoice for a tenant.</DialogDescription></DialogHeader>
                 <div className="space-y-3 pt-2">
                   <div className="grid grid-cols-2 gap-3">
-                    <div><Label>Property <span className="text-red-500">*</span></Label><Select value={invoiceForm.propertyId} onValueChange={v=>setInvoiceForm(f=>({...f,propertyId:v}))}><SelectTrigger><SelectValue placeholder="Select"/></SelectTrigger><SelectContent>{(properties as any[]).map(p=><SelectItem key={p.id} value={String(p.id)}>{p.name}</SelectItem>)}</SelectContent></Select></div>
+                    <div><Label>Property <span className="text-red-500">*</span></Label><SearchableSelect value={invoiceForm.propertyId} onValueChange={v=>setInvoiceForm(f=>({...f,propertyId:v,tenantId:""}))} placeholder="Select" searchPlaceholder="Search properties…" options={propertyOptions(properties as any[])} /></div>
                     <div><Label>Type</Label><Select value={invoiceForm.type} onValueChange={v=>setInvoiceForm(f=>({...f,type:v}))}><SelectTrigger><SelectValue/></SelectTrigger><SelectContent><SelectItem value="rent">Rent</SelectItem><SelectItem value="utility">Utility</SelectItem><SelectItem value="service_charge">Service charge</SelectItem><SelectItem value="late_fee">Late fee</SelectItem><SelectItem value="other">Other</SelectItem></SelectContent></Select></div>
                   </div>
-                  <div><Label>Tenant <span className="text-red-500">*</span></Label><Select value={invoiceForm.tenantId} onValueChange={v=>setInvoiceForm(f=>({...f,tenantId:v}))}><SelectTrigger><SelectValue placeholder="Select tenant"/></SelectTrigger><SelectContent>{tenants.length===0?<SelectItem value="none" disabled>No tenants</SelectItem>:tenants.map((t:any)=><SelectItem key={t.id} value={String(t.id)}>{t.firstName||t.name||"Tenant"} {t.lastName??""}{t.unitNumber?` — Unit ${t.unitNumber}`:""}</SelectItem>)}</SelectContent></Select></div>
+                  <div><Label>Tenant <span className="text-red-500">*</span></Label><SearchableSelect value={invoiceForm.tenantId} onValueChange={v=>setInvoiceForm(f=>({...f,tenantId:v}))} placeholder="Select tenant" searchPlaceholder="Search by name, unit, property or email…" emptyText="No tenants" options={tenantOptions((tenants as any[]).filter((t:any)=>!invoiceForm.propertyId||!(t.property?.id)||String(t.property.id)===String(invoiceForm.propertyId)))} /></div>
                   <div className="grid grid-cols-2 gap-3">
                     <div><Label>Amount (KSh) <span className="text-red-500">*</span></Label><Input type="number" placeholder="0.00" value={invoiceForm.amount} onChange={e=>setInvoiceForm(f=>({...f,amount:e.target.value}))}/></div>
                     <div><Label>Due date <span className="text-red-500">*</span></Label><Input type="date" value={invoiceForm.dueDate} onChange={e=>setInvoiceForm(f=>({...f,dueDate:e.target.value}))}/></div>
@@ -547,7 +549,7 @@ export default function Billing() {
                     <DialogContent>
                       <DialogHeader><DialogTitle>Add Billing Cycle</DialogTitle></DialogHeader>
                       <div className="space-y-3 pt-2">
-                        <div><Label>Property <span className="text-red-500">*</span></Label><Select value={cycleForm.propertyId} onValueChange={v=>setCycleForm(f=>({...f,propertyId:v}))}><SelectTrigger><SelectValue placeholder="Select"/></SelectTrigger><SelectContent>{(properties as any[]).map(p=><SelectItem key={p.id} value={String(p.id)}>{p.name}</SelectItem>)}</SelectContent></Select></div>
+                        <div><Label>Property <span className="text-red-500">*</span></Label><SearchableSelect value={cycleForm.propertyId} onValueChange={v=>setCycleForm(f=>({...f,propertyId:v}))} placeholder="Select" searchPlaceholder="Search properties…" options={propertyOptions(properties as any[])} /></div>
                         <div><Label>Cycle name <span className="text-red-500">*</span></Label><Input placeholder="e.g. Monthly Rent" value={cycleForm.cycleName} onChange={e=>setCycleForm(f=>({...f,cycleName:e.target.value}))}/></div>
                         <div className="grid grid-cols-2 gap-3">
                           <div><Label>Type</Label><Select value={cycleForm.type} onValueChange={v=>setCycleForm(f=>({...f,type:v}))}><SelectTrigger><SelectValue/></SelectTrigger><SelectContent><SelectItem value="rent">Rent</SelectItem><SelectItem value="service_charge">Service charge</SelectItem><SelectItem value="utility">Utility</SelectItem><SelectItem value="other">Other</SelectItem></SelectContent></Select></div>

@@ -1,3 +1,4 @@
+import { SearchableSelect } from "@/components/ui/searchable-select";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { useEffect, useState } from "react";
@@ -411,48 +412,38 @@ export default function AddPropertyModal({ isOpen, onClose, onSuccess, property,
  <input type="hidden" name={field.name} value={user?.id ?? ""} onChange={field.onChange} />
  </div>
  ) : (
- <Select
- value={field.value ? `user:${field.value}` : (form.watch("externalLandlordId") ? `external:${form.watch("externalLandlordId")}` : "none")}
- onValueChange={(v) => {
- if (v === "none") {
- field.onChange("");
- form.setValue("externalLandlordId", null);
- } else if (v.startsWith("external:")) {
- field.onChange("");
- form.setValue("externalLandlordId", parseInt(v.slice("external:".length)));
- } else {
- field.onChange(v.slice("user:".length));
- form.setValue("externalLandlordId", null);
- }
- }}
- >
- <SelectTrigger className="bg-card text-foreground border-border">
- <SelectValue placeholder="Select the property owner (landlord)…" />
- </SelectTrigger>
- <SelectContent>
- <SelectItem value="none">— No owner assigned —</SelectItem>
- {landlordUsers.length > 0 && (
- <>
- <div className="px-2 py-1.5 text-xs font-medium text-muted-foreground">Landlord accounts</div>
- {landlordUsers.map((u: any) => (
- <SelectItem key={`user:${u.id}`} value={`user:${u.id}`}>
- {u.firstName} {u.lastName} · {u.email}
- </SelectItem>
- ))}
- </>
- )}
- {externalLandlordOptions.length > 0 && (
- <>
- <div className="px-2 py-1.5 text-xs font-medium text-muted-foreground">External landlords (no account)</div>
- {externalLandlordOptions.map((l: any) => (
- <SelectItem key={`external:${l.id}`} value={`external:${l.id}`}>
- {l.name}{l.phone ? ` · ${l.phone}` : ""}
- </SelectItem>
- ))}
- </>
- )}
- </SelectContent>
- </Select>
+ <SearchableSelect
+   className="bg-card text-foreground border-border"
+   value={field.value ? `user:${field.value}` : (form.watch("externalLandlordId") ? `external:${form.watch("externalLandlordId")}` : "none")}
+   onValueChange={(v) => {
+     if (v === "none") {
+       field.onChange("");
+       form.setValue("externalLandlordId", null);
+     } else if (v.startsWith("external:")) {
+       field.onChange("");
+       form.setValue("externalLandlordId", parseInt(v.slice("external:".length)));
+     } else {
+       field.onChange(v.slice("user:".length));
+       form.setValue("externalLandlordId", null);
+     }
+   }}
+   placeholder="Select the property owner (landlord)…"
+   searchPlaceholder="Search landlords by name, email or phone…"
+   options={[
+     { value: "none", label: "— No owner assigned —" },
+     ...landlordUsers.map((u: any) => ({
+       value: `user:${u.id}`,
+       label: `${u.firstName ?? ""} ${u.lastName ?? ""}`.trim() || u.email,
+       description: `Landlord account · ${u.email}`,
+       keywords: u.phone ?? "",
+     })),
+     ...externalLandlordOptions.map((l: any) => ({
+       value: `external:${l.id}`,
+       label: l.name,
+       description: ["External landlord (no account)", l.phone].filter(Boolean).join(" · "),
+     })),
+   ]}
+ />
  )}
  <p className="text-xs text-muted-foreground mt-0.5">
  The owner sees this property in their Landlord Portal.

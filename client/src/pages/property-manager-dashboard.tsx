@@ -10,6 +10,8 @@
  *  ✅ Mobile responsive (sm: breakpoints throughout)
  */
 
+import { tenantOptions, unitOptions, propertyOptions, userOptions, byId } from "@/lib/pickerOptions";
+import { SearchableSelect } from "@/components/ui/searchable-select";
 import { useState, useMemo, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/useAuth";
@@ -398,7 +400,7 @@ function MessagesPanel({ user }: { user: any }) {
       {composing && (
         <div className="rounded-xl border-2 border-border bg-muted p-4 space-y-3">
           <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">New Message</p>
-          <Select value={toUserId} onValueChange={setToUserId}><SelectTrigger className="text-sm bg-background h-9"><SelectValue placeholder="Send to…"/></SelectTrigger><SelectContent>{recipients.map((u:any)=>(<SelectItem key={u.id} value={u.id}>{[u.firstName,u.lastName].filter(Boolean).join(" ")||u.email} <span className="text-muted-foreground capitalize">· {u.role}</span></SelectItem>))}</SelectContent></Select>
+          <SearchableSelect className="text-sm bg-background h-9" value={toUserId} onValueChange={setToUserId} placeholder="Send to…" searchPlaceholder="Search by name, email or role…" options={recipients.map((u:any)=>({ value: u.id, label: [u.firstName,u.lastName].filter(Boolean).join(" ")||u.email, description: [u.role ? String(u.role).replace(/_/g," ") : null, u.email].filter(Boolean).join(" · ") || undefined }))} />
           <Input value={subject} onChange={e=>setSubject(e.target.value)} placeholder="Subject" className="text-sm bg-background h-9"/>
           <Textarea value={body} onChange={e=>setBody(e.target.value)} placeholder="Your message…" className="text-sm bg-background min-h-[80px] resize-none"/>
           <div className="flex gap-2">

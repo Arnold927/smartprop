@@ -5,6 +5,7 @@
  * No horizontal scroll. Stage columns collapse/expand on click.
  * All actions use proper dialogs, never window.prompt().
  */
+import { SearchableSelect } from "@/components/ui/searchable-select";
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest, ensureArray } from "@/lib/queryClient";
@@ -318,14 +319,19 @@ function ProspectDetail({ prospect: initial, onClose, onRefresh }: { prospect: a
           <div className="space-y-3 mt-2">
             <div>
               <Label className="text-xs">Unit *</Label>
-              <Select value={String(convertForm.unitId ?? "")} onValueChange={v => setConvertForm((f: any) => ({ ...f, unitId: parseInt(v) }))}>
-                <SelectTrigger className="mt-1"><SelectValue placeholder="Select vacant unit…" /></SelectTrigger>
-                <SelectContent>
-                  {(units as any[]).filter((u: any) => !u.isOccupied).map((u: any) => (
-                    <SelectItem key={u.id} value={String(u.id)}>Unit {u.unitNumber} — {fmtKES(u.monthlyRent)}/mo</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <SearchableSelect
+                className="mt-1"
+                value={String(convertForm.unitId ?? "")}
+                onValueChange={v => setConvertForm((f: any) => ({ ...f, unitId: parseInt(v) }))}
+                placeholder="Select vacant unit…"
+                searchPlaceholder="Search unit number…"
+                emptyText="No vacant units in this property"
+                options={(units as any[]).filter((u: any) => !u.isOccupied).map((u: any) => ({
+                  value: String(u.id),
+                  label: `Unit ${u.unitNumber}`,
+                  description: [u.unitType && u.unitType !== "apartment" ? String(u.unitType).replace(/_/g, " ") : null, u.bedrooms ? `${u.bedrooms} bed` : null, `${fmtKES(u.monthlyRent)}/mo`].filter(Boolean).join(" · "),
+                }))}
+              />
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div><Label className="text-xs">Monthly rent (KES)</Label><Input className="mt-1 h-9" type="number" value={convertForm.monthlyRent ?? prospect.offeredRent ?? ""} onChange={e => setConvertForm((f: any) => ({ ...f, monthlyRent: e.target.value }))} /></div>

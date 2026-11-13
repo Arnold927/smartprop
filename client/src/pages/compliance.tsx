@@ -11,6 +11,7 @@
  *   7. RRT Notices           — Rent Restriction Tribunal notices (Cap 296)
  */
 
+import { SearchableSelect } from "@/components/ui/searchable-select";
 import { downloadExcel } from "@/lib/excel";
 import { useState } from "react";
 import { useLocation, useSearch } from "wouter";
@@ -1114,14 +1115,13 @@ function DepositInterestTab() {
           <div className="flex gap-2 items-end flex-wrap">
             <div className="flex-1 min-w-48">
               <Label className="text-xs">Select lease</Label>
-              <Select value={selectedLeaseId} onValueChange={setSelectedLeaseId}>
-                <SelectTrigger><SelectValue placeholder="Choose a lease…" /></SelectTrigger>
-                <SelectContent>
-                  {leaseOptions.map((l: any) => (
-                    <SelectItem key={l.id} value={String(l.id)}>{l.label}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <SearchableSelect
+                value={selectedLeaseId}
+                onValueChange={setSelectedLeaseId}
+                placeholder="Choose a lease…"
+                searchPlaceholder="Search lease, tenant or unit…"
+                options={leaseOptions.map((l: any) => ({ value: String(l.id), label: l.label }))}
+              />
             </div>
             {selectedLeaseId && (
               <Button onClick={() => accrue.mutate(parseInt(selectedLeaseId))} disabled={accrue.isPending}>

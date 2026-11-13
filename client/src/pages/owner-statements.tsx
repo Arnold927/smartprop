@@ -8,6 +8,8 @@
  *                     and rent roll. Cannot create/edit agreements or
  *                     generate/approve statements (PM does that for them).
  */
+import { tenantOptions, unitOptions, propertyOptions, userOptions, byId } from "@/lib/pickerOptions";
+import { SearchableSelect } from "@/components/ui/searchable-select";
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest, ensureArray } from "@/lib/queryClient";
@@ -182,22 +184,24 @@ function AgreementsTab({ isReadOnly }: { isReadOnly: boolean }) {
                 <>
                   <div className="col-span-2">
                     <Label className="text-xs">Property <span className="text-red-500">*</span></Label>
-                    <Select value={String(form.propertyId ?? "")} onValueChange={v => setForm((f: any) => ({ ...f, propertyId: parseInt(v) }))}>
-                      <SelectTrigger><SelectValue placeholder="Select property…" /></SelectTrigger>
-                      <SelectContent>{properties.map((p: any) => <SelectItem key={p.id} value={String(p.id)}>{p.name}</SelectItem>)}</SelectContent>
-                    </Select>
+                    <SearchableSelect
+                      value={String(form.propertyId ?? "")}
+                      onValueChange={v => setForm((f: any) => ({ ...f, propertyId: parseInt(v) }))}
+                      placeholder="Select property…"
+                      searchPlaceholder="Search properties…"
+                      options={propertyOptions(properties)}
+                    />
                   </div>
                   <div className="col-span-2">
                     <Label className="text-xs">Property owner (landlord)</Label>
-                    <Select value={String(form.ownerUserId ?? "")} onValueChange={v => setForm((f: any) => ({ ...f, ownerUserId: v || null }))}>
-                      <SelectTrigger><SelectValue placeholder="Auto-resolved from property owner…" /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="">— Auto-resolve from property owner —</SelectItem>
-                        {landlordUsers.map((u: any) => (
-                          <SelectItem key={u.id} value={u.id}>{u.firstName} {u.lastName} ({u.email})</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    <SearchableSelect
+                      clearable
+                      value={String(form.ownerUserId ?? "")}
+                      onValueChange={v => setForm((f: any) => ({ ...f, ownerUserId: v || null }))}
+                      placeholder="Auto-resolved from property owner…"
+                      searchPlaceholder="Search landlords by name or email…"
+                      options={userOptions(landlordUsers)}
+                    />
                     <p className="text-xs text-muted-foreground mt-0.5">Leave blank to use the property's assigned owner automatically.</p>
                   </div>
                 </>

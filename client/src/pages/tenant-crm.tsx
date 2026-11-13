@@ -1,3 +1,5 @@
+import { tenantOptions, unitOptions, propertyOptions, userOptions, byId } from "@/lib/pickerOptions";
+import { SearchableSelect } from "@/components/ui/searchable-select";
 import React, { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
@@ -1292,28 +1294,15 @@ function LeaseForm({
         {/* Tenant */}
         <div className="space-y-2">
           <Label>Tenant *</Label>
-          <Select
+          <SearchableSelect
             value={form.tenantId}
             onValueChange={handleTenantChange}
             disabled={lockTenant}
-          >
-            <SelectTrigger>
-              <SelectValue placeholder="Select tenant" />
-            </SelectTrigger>
-            <SelectContent>
-              {tenants.length === 0 ? (
-                <SelectItem value="__none" disabled>
-                  No tenants available
-                </SelectItem>
-              ) : (
-                tenants.map((t) => (
-                  <SelectItem key={t.id} value={String(t.id)}>
-                    {t.firstName} {t.lastName}
-                  </SelectItem>
-                ))
-              )}
-            </SelectContent>
-          </Select>
+            placeholder="Select tenant"
+            searchPlaceholder="Search by name, unit, email or phone…"
+            emptyText="No tenants available"
+            options={tenantOptions(tenants as any[])}
+          />
         </div>
 
         {/* Lease Type */}
@@ -1337,53 +1326,32 @@ function LeaseForm({
         {/* Property */}
         <div className="space-y-2">
           <Label>Property</Label>
-          <Select
+          <SearchableSelect
             value={form.propertyId}
             onValueChange={(v) => {
               setForm((f) => ({ ...f, propertyId: v, unitId: "" }));
             }}
-          >
-            <SelectTrigger>
-              <SelectValue placeholder="Select property" />
-            </SelectTrigger>
-            <SelectContent>
-              {properties.length === 0 ? (
-                <SelectItem value="__none" disabled>
-                  No properties available
-                </SelectItem>
-              ) : (
-                properties.map((p) => (
-                  <SelectItem key={p.id} value={String(p.id)}>
-                    {p.name}
-                  </SelectItem>
-                ))
-              )}
-            </SelectContent>
-          </Select>
+            placeholder="Select property"
+            searchPlaceholder="Search properties…"
+            options={propertyOptions(properties as any[])}
+          />
         </div>
 
         {/* Unit */}
         <div className="space-y-2">
           <Label>Unit</Label>
-          <Select value={form.unitId} onValueChange={set("unitId")}>
-            <SelectTrigger>
-              <SelectValue placeholder="Select unit" />
-            </SelectTrigger>
-            <SelectContent>
-              {filteredUnits.length === 0 ? (
-                <SelectItem value="__none" disabled>
-                  {form.propertyId ? "No units in property" : "Select a property first"}
-                </SelectItem>
-              ) : (
-                filteredUnits.map((u) => (
-                  <SelectItem key={u.id} value={String(u.id)}>
-                    Unit {u.unitNumber} — {formatCurrency(u.monthlyRent as any, u.currency as any)}
-                    /mo
-                  </SelectItem>
-                ))
-              )}
-            </SelectContent>
-          </Select>
+          <SearchableSelect
+            value={form.unitId}
+            onValueChange={set("unitId")}
+            placeholder={form.propertyId ? "Select unit" : "Select a property first"}
+            searchPlaceholder="Search unit number…"
+            emptyText={form.propertyId ? "No units in property" : "Select a property first"}
+            options={filteredUnits.map((u) => ({
+              value: String(u.id),
+              label: `Unit ${u.unitNumber}`,
+              description: `${formatCurrency(u.monthlyRent as any, u.currency as any)}/mo`,
+            }))}
+          />
         </div>
       </div>
 

@@ -1,5 +1,6 @@
 "use client";
 
+import { SearchableSelect } from "@/components/ui/searchable-select";
 import { useEffect, useMemo } from "react";
 import { useForm, Controller, useWatch } from "react-hook-form";
 import { z } from "zod";
@@ -209,25 +210,19 @@ export default function AddTenantDialog({
                     control={form.control}
                     name="unitId"
                     render={({ field }) => (
-                      <Select
+                      <SearchableSelect
+                        className={inputCls}
                         value={field.value ? String(field.value) : ""}
                         onValueChange={v => field.onChange(Number(v))}
-                      >
-                        <SelectTrigger className={inputCls}>
-                          <SelectValue placeholder="Select unit" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {availableUnits.length === 0 ? (
-                            <SelectItem value="_none" disabled>No vacant units</SelectItem>
-                          ) : (
-                            availableUnits.map(u => (
-                              <SelectItem key={u.id} value={String(u.id)}>
-                                Unit {u.unitNumber} — Ksh {u.monthlyRent.toLocaleString()}
-                              </SelectItem>
-                            ))
-                          )}
-                        </SelectContent>
-                      </Select>
+                        placeholder="Select unit"
+                        searchPlaceholder="Search unit number or property…"
+                        emptyText="No vacant units"
+                        options={availableUnits.map((u: any) => ({
+                          value: String(u.id),
+                          label: `Unit ${u.unitNumber}`,
+                          description: [u.propertyName ?? u.property?.name, `Ksh ${Number(u.monthlyRent ?? 0).toLocaleString()}/mo`, u.isOccupied ? "occupied" : "vacant"].filter(Boolean).join(" · "),
+                        }))}
+                      />
                     )}
                   />
                 </Field>

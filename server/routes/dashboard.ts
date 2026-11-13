@@ -136,7 +136,7 @@ router.get("/metrics", authenticateJWT, requireOrg, async (req: any, res) => {
 /**
  * GET /api/dashboard/system-status
  *
- * Returns configuration health checks visible to org admins on the dashboard.
+ * Returns configuration health checks. Platform admin only.
  * Currently surfaces:
  *   - mpesa.configured     — whether all required M-PESA env vars are set
  *   - mpesa.pendingCount   — STK transactions stuck in "pending" > 10 minutes
@@ -144,57 +144,50 @@ router.get("/metrics", authenticateJWT, requireOrg, async (req: any, res) => {
  *
  * Used by the admin dashboard to show actionable alerts, not to expose secrets.
  */
-router.get("/system-status", authenticateJWT, requireOrg, async (req: any, res) => {
-  // Only admins and managers see system health alerts
-  const role = req.user?.role;
-  if (role !== "admin") {
+router.get("/system-status", authenticateJWT, async (req: any, res) => {
+  // M-Pesa credentials live in the server environment, so this is a platform-level
+  // concern: only the platform admin sees it (org admins and managers cannot fix it).
+  if (req.user?.role !== "platform_admin") {
     return res.status(403).json({ message: "Forbidden" });
   }
 
   try {
-    const orgId: number = req.user.organizationId;
     const mpesaConfigured = isMpesaConfigured();
 
     const tenMinutesAgo = new Date(Date.now() - 10 * 60 * 1000);
     const oneDayAgo     = new Date(Date.now() - 24 * 60 * 60 * 1000);
 
-    // Scope mpesa transaction counts to this org via tenants join
-    // (mpesaTransactions has no direct organizationId — it links via tenantId)
-    const orgTenantIds = (await db
-      .select({ id: tenants.id })
-      .from(tenants)
-      .where(eq(tenants.organizationId, orgId))
-    ).map(r => r.id);
+    // Platform-wide by default; narrowed to one organisation when ?organizationId= is given.
+    // (mpesaTransactions has no organizationId — it links via tenantId.)
+    const orgParam = parseInt(String(req.query.organizationId ?? ""), 10);
+    let tenantFilter: any = undefined;
+    if (orgParam > 0) {
+      const ids = (await db.select({ id: tenants.id }).from(tenants)
+        .where(eq(tenants.organizationId, orgParam))).map(r => r.id);
+      tenantFilter = ids.length > 0 ? inArray(mpesaTransactions.tenantId, ids) : sql`FALSE`;
+    }
 
     // Transactions still "pending" after 10 minutes — should have been swept
     const [pendingRow] = await db
       .select({ count: count() })
       .from(mpesaTransactions)
-      .where(
-        and(
-          eq(mpesaTransactions.status, "pending"),
-          lte(mpesaTransactions.createdAt, tenMinutesAgo),
-          orgTenantIds.length > 0
-            ? sql`${mpesaTransactions.tenantId} = ANY(ARRAY[${sql.join(orgTenantIds.map(id => sql`${id}`), sql`, `)}]::int[])`
-            : sql`FALSE`,
-        )
-      );
+      .where(and(
+        eq(mpesaTransactions.status, "pending"),
+        lte(mpesaTransactions.createdAt, tenMinutesAgo),
+        tenantFilter,
+      ));
 
     // Transactions that expired in the last 24 hours (reconciliation failures)
     const [expiredRow] = await db
       .select({ count: count() })
       .from(mpesaTransactions)
-      .where(
-        and(
-          eq(mpesaTransactions.status, "failed"),
-          gte(mpesaTransactions.createdAt, oneDayAgo),
-          eq(mpesaTransactions.resultDesc as any,
-            "Expired — no Safaricom callback received within 30 minutes"),
-          orgTenantIds.length > 0
-            ? sql`${mpesaTransactions.tenantId} = ANY(ARRAY[${sql.join(orgTenantIds.map(id => sql`${id}`), sql`, `)}]::int[])`
-            : sql`FALSE`,
-        )
-      );
+      .where(and(
+        eq(mpesaTransactions.status, "failed"),
+        gte(mpesaTransactions.createdAt, oneDayAgo),
+        eq(mpesaTransactions.resultDesc as any,
+          "Expired — no Safaricom callback received within 30 minutes"),
+        tenantFilter,
+      ));
 
     res.json({
       mpesa: {

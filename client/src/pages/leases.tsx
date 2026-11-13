@@ -13,6 +13,8 @@
  *   Deposit: record received / refund / partial / forfeited
  */
 
+import { tenantOptions, unitOptions, propertyOptions, userOptions, byId } from "@/lib/pickerOptions";
+import { SearchableSelect } from "@/components/ui/searchable-select";
 import { useState, useMemo } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -284,16 +286,14 @@ function CreateLeaseDialog({ open, onClose }: { open: boolean; onClose: () => vo
           {/* Tenant select */}
           <div className="space-y-1.5">
             <Label className="text-xs font-medium">Tenant</Label>
-            <Select value={form.tenantId} onValueChange={v => setForm(f => ({ ...f, tenantId: v }))}>
-              <SelectTrigger className="h-9"><SelectValue placeholder="Select tenant…" /></SelectTrigger>
-              <SelectContent>
-                {tenants.map((t: any) => (
-                  <SelectItem key={t.id} value={String(t.id)}>
-                    {t.firstName} {t.lastName} · {t.email}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <SearchableSelect
+              className="h-9"
+              value={form.tenantId}
+              onValueChange={v => setForm(f => ({ ...f, tenantId: v }))}
+              placeholder="Select tenant…"
+              searchPlaceholder="Search by name, unit, email or phone…"
+              options={tenantOptions(tenants)}
+            />
           </div>
 
           <div className="grid grid-cols-2 gap-3">

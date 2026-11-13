@@ -1,3 +1,4 @@
+import { SearchableSelect } from "@/components/ui/searchable-select";
 import { useState, useMemo, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { format, addDays, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay, isWithinInterval, parseISO, getDay } from "date-fns";
@@ -1220,28 +1221,21 @@ export default function TenantSubletting() {
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label>Unit *</Label>
-                  <Select
+                  <SearchableSelect
                     name="unitId"
-                    required
+                    className={!formUnitId ? "border-red-300" : ""}
                     value={formUnitId}
                     onValueChange={setFormUnitId}
-                  >
-                    <SelectTrigger className={!formUnitId ? "border-red-300" : ""}>
-                      <SelectValue placeholder={listingMode === "tenant" ? "Select occupied unit" : "Select unit"} />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {unitsByPropertyForMode.map(group => (
-                        <SelectGroup key={group.propertyName}>
-                          <SelectLabel>{group.propertyName}</SelectLabel>
-                          {group.units.map((unit: any) => (
-                            <SelectItem key={unit.id} value={unit.id.toString()}>
-                              Unit {unit.unitNumber}
-                            </SelectItem>
-                          ))}
-                        </SelectGroup>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                    placeholder={listingMode === "tenant" ? "Select occupied unit" : "Select unit"}
+                    searchPlaceholder="Search unit number, property or tenant…"
+                    options={unitsByPropertyForMode.flatMap((group: any) =>
+                      group.units.map((unit: any) => ({
+                        value: unit.id.toString(),
+                        label: `Unit ${unit.unitNumber}`,
+                        description: group.propertyName,
+                        keywords: String(tenantByUnitId.get(unit.id)?.firstName ?? "") + " " + String(tenantByUnitId.get(unit.id)?.lastName ?? ""),
+                      })))}
+                  />
                   {listingMode === "tenant" && (
                     <p className="text-xs text-muted-foreground">Only units with a current tenant are shown — subletting needs an existing lease.</p>
                   )}

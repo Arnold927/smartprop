@@ -1,3 +1,5 @@
+import { tenantOptions, unitOptions, propertyOptions, userOptions, byId } from "@/lib/pickerOptions";
+import { SearchableSelect } from "@/components/ui/searchable-select";
 import { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { format, startOfDay, endOfDay, startOfWeek, endOfWeek, startOfMonth, endOfMonth, startOfQuarter, endOfQuarter, startOfYear, endOfYear, subMonths, subQuarters, subYears, isWithinInterval, parseISO } from "date-fns";
@@ -641,16 +643,14 @@ export default function ExpenseManagement() {
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="propertyId">Property *</Label>
-                    <Select value={formPropertyId} onValueChange={setFormPropertyId} required>
-                      <SelectTrigger><SelectValue placeholder="Select property" /></SelectTrigger>
-                      <SelectContent>
-                        {properties.length === 0
-                          ? <SelectItem value="none" disabled>No properties available</SelectItem>
-                          : properties.map((p: any) => (
-                              <SelectItem key={p.id} value={p.id.toString()}>{p.name}</SelectItem>
-                            ))}
-                      </SelectContent>
-                    </Select>
+                    <SearchableSelect
+                      value={formPropertyId}
+                      onValueChange={setFormPropertyId}
+                      placeholder="Select property"
+                      searchPlaceholder="Search properties…"
+                      emptyText="No properties available"
+                      options={propertyOptions(properties)}
+                    />
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="category">Category *</Label>
@@ -1169,14 +1169,13 @@ export default function ExpenseManagement() {
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label>Property *</Label>
-                  <Select value={editPropertyId} onValueChange={setEditPropertyId} required>
-                    <SelectTrigger><SelectValue placeholder="Select property" /></SelectTrigger>
-                    <SelectContent>
-                      {properties.map((p: any) => (
-                        <SelectItem key={p.id} value={p.id.toString()}>{p.name}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <SearchableSelect
+                    value={editPropertyId}
+                    onValueChange={setEditPropertyId}
+                    placeholder="Select property"
+                    searchPlaceholder="Search properties…"
+                    options={propertyOptions(properties)}
+                  />
                 </div>
                 <div className="space-y-2">
                   <Label>Category *</Label>

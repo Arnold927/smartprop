@@ -1,3 +1,5 @@
+import { tenantOptions, unitOptions, propertyOptions, userOptions, byId } from "@/lib/pickerOptions";
+import { SearchableSelect } from "@/components/ui/searchable-select";
 import { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
@@ -617,7 +619,7 @@ export default function ParkingManagement() {
                         <Select name="assignType" defaultValue="permanent" required><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{assignTypeOptions.map(t=><SelectItem key={t} value={t}>{t[0].toUpperCase()+t.slice(1)}</SelectItem>)}</SelectContent></Select>
                       </div>
                       <div className="space-y-1.5"><Label>Tenant (optional)</Label>
-                        <Select name="tenantId"><SelectTrigger><SelectValue placeholder="Select tenant" /></SelectTrigger><SelectContent><SelectItem value="none">None</SelectItem>{tenants.map((t:any)=><SelectItem key={t.id} value={t.id.toString()}>{t.firstName} {t.lastName}</SelectItem>)}</SelectContent></Select>
+                        <SearchableSelect name="tenantId" defaultValue="none" placeholder="Select tenant" searchPlaceholder="Search by name, unit, email or phone…" options={[{ value: "none", label: "None" }, ...tenantOptions(tenants as any[])]} />
                       </div>
                     </div>
                     <div className="grid grid-cols-2 gap-4">

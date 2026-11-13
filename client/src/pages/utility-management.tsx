@@ -1,3 +1,5 @@
+import { tenantOptions, unitOptions, propertyOptions, userOptions, byId } from "@/lib/pickerOptions";
+import { SearchableSelect } from "@/components/ui/searchable-select";
 import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -326,25 +328,23 @@ function EditAccountDialog({
           </div>
           <div className="col-span-2 space-y-1">
             <Label>Property *</Label>
-            <Select value={String(form.propertyId || "")} onValueChange={v => set({ propertyId: parseInt(v) })}>
-              <SelectTrigger><SelectValue placeholder="Select property" /></SelectTrigger>
-              <SelectContent>
-                {propertiesList.map(p => (
-                  <SelectItem key={p.id} value={String(p.id)}>{p.name}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <SearchableSelect
+              value={String(form.propertyId || "")}
+              onValueChange={v => set({ propertyId: parseInt(v) })}
+              placeholder="Select property"
+              searchPlaceholder="Search properties…"
+              options={propertyOptions(propertiesList)}
+            />
           </div>
           <div className="col-span-2 space-y-1">
             <Label>Provider *</Label>
-            <Select value={String(form.providerId || "")} onValueChange={v => set({ providerId: parseInt(v) })}>
-              <SelectTrigger><SelectValue placeholder="Select provider" /></SelectTrigger>
-              <SelectContent>
-                {providers.map(p => (
-                  <SelectItem key={p.id} value={String(p.id)}>{p.name} ({p.type})</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <SearchableSelect
+              value={String(form.providerId || "")}
+              onValueChange={v => set({ providerId: parseInt(v) })}
+              placeholder="Select provider"
+              searchPlaceholder="Search providers…"
+              options={providers.map(p => ({ value: String(p.id), label: p.name, description: p.type }))}
+            />
           </div>
           <div className="space-y-1">
             <Label>Connection Date</Label>
@@ -447,27 +447,25 @@ function EditBillDialog({
                   No utility accounts yet — add one in the Accounts tab first (it links a provider to a property).
                 </p>
               ) : (
-                <Select
+                <SearchableSelect
                   value={form.accountId ? String(form.accountId) : ""}
                   onValueChange={v => {
                     const acct = accounts.find(a => a.id === parseInt(v));
                     const prov = acct ? providers.find(p => p.id === acct.providerId) : undefined;
                     set({ accountId: parseInt(v), ...(prov?.type ? { utilityType: prov.type } : {}) });
                   }}
-                >
-                  <SelectTrigger><SelectValue placeholder="Select the account this bill is for" /></SelectTrigger>
-                  <SelectContent>
-                    {accounts.map(a => {
-                      const prov = providers.find(p => p.id === a.providerId);
-                      const prop = properties.find(p => p.id === a.propertyId);
-                      return (
-                        <SelectItem key={a.id} value={String(a.id)}>
-                          {(prov?.name ?? "Provider")} · {a.accountNumber}{prop ? ` · ${prop.name}` : ""}
-                        </SelectItem>
-                      );
-                    })}
-                  </SelectContent>
-                </Select>
+                  placeholder="Select the account this bill is for"
+                  searchPlaceholder="Search account, provider or property…"
+                  options={accounts.map(a => {
+                    const prov = providers.find(p => p.id === a.providerId);
+                    const prop = properties.find(p => p.id === a.propertyId);
+                    return {
+                      value: String(a.id),
+                      label: `${prov?.name ?? "Provider"} · ${a.accountNumber}`,
+                      description: [prop?.name, a.meterNumber ? `Meter ${a.meterNumber}` : null, a.unitId ? `Unit #${a.unitId}` : null].filter(Boolean).join(" · ") || undefined,
+                    };
+                  })}
+                />
               )}
             </div>
           )}
@@ -575,8 +573,8 @@ function EditBillDialog({
 // ── Edit Meter Reading Dialog ─────────────────────────────────────────────────
 
 function EditReadingDialog({
-  reading, accounts, open, onClose,
-}: { reading: MeterReading | null; accounts: UtilityAccount[]; open: boolean; onClose: () => void }) {
+  reading, accounts, propertiesList, open, onClose,
+}: { reading: MeterReading | null; accounts: UtilityAccount[]; propertiesList?: { id: number; name: string }[]; open: boolean; onClose: () => void }) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const isNew = !reading;
@@ -629,14 +627,17 @@ function EditReadingDialog({
         <div className="space-y-4 py-2">
           <div className="space-y-1">
             <Label>Account *</Label>
-            <Select value={String(form.accountId || "")} onValueChange={v => set({ accountId: parseInt(v) })}>
-              <SelectTrigger><SelectValue placeholder="Select account" /></SelectTrigger>
-              <SelectContent>
-                {accounts.map((a: UtilityAccount) => (
-                  <SelectItem key={a.id} value={String(a.id)}>{a.accountNumber}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <SearchableSelect
+              value={String(form.accountId || "")}
+              onValueChange={v => set({ accountId: parseInt(v) })}
+              placeholder="Select account"
+              searchPlaceholder="Search account, meter or property…"
+              options={accounts.map((a: UtilityAccount) => ({
+                value: String(a.id),
+                label: a.accountNumber,
+                description: [a.meterNumber ? `Meter ${a.meterNumber}` : null, propertiesList?.find(p => p.id === a.propertyId)?.name, a.unitId ? `Unit #${a.unitId}` : null].filter(Boolean).join(" · ") || undefined,
+              }))}
+            />
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-1">
@@ -777,7 +778,7 @@ function AccountsTab({ providers, propertiesList, searchTerm }: { providers: Uti
 
 // ── Meter Readings Tab ────────────────────────────────────────────────────────
 
-function ReadingsTab({ searchTerm }: { searchTerm: string }) {
+function ReadingsTab({ searchTerm, propertiesList }: { searchTerm: string; propertiesList?: { id: number; name: string }[] }) {
   const [editReading, setEditReading] = useState<MeterReading | null | "new">(null);
   const queryClient = useQueryClient();
   const { toast } = useToast();
@@ -875,6 +876,7 @@ function ReadingsTab({ searchTerm }: { searchTerm: string }) {
       <EditReadingDialog
         reading={editReading === "new" ? null : editReading}
         accounts={accounts}
+        propertiesList={propertiesList}
         open={editReading !== null}
         onClose={() => setEditReading(null)}
       />
@@ -1460,7 +1462,7 @@ export default function UtilityManagement({ embedded = false }: { embedded?: boo
             {activeTab === "providers" && <PagedTable data={filteredProviders} columns={providerColumns} emptyMessage="No utility providers found" />}
             {activeTab === "accounts" && <AccountsTab providers={providers} propertiesList={propertiesList} searchTerm={searchTerm} />}
             {activeTab === "expenses" && <PagedTable data={filteredExpenses} columns={expenseColumns} emptyMessage="No utility expenses found" />}
-            {activeTab === "readings" && <ReadingsTab searchTerm={searchTerm} />}
+            {activeTab === "readings" && <ReadingsTab searchTerm={searchTerm} propertiesList={propertiesList} />}
           </CardContent>
         </Card>
       )}

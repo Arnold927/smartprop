@@ -1,3 +1,4 @@
+import { SearchableSelect } from "@/components/ui/searchable-select";
 import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -218,27 +219,16 @@ export default function ComprehensiveTenantModal({ isOpen, onClose, properties: 
                 {/* Property select — safe map over guaranteed array */}
                 <div className="space-y-2">
                   <Label htmlFor="propertyId" className="text-sm font-medium text-foreground">Property *</Label>
-                  <Select
+                  <SearchableSelect
+                    className="h-10 text-sm border-border"
                     onValueChange={(v) => form.setValue("propertyId", v)}
                     value={form.watch("propertyId")}
-                  >
-                    <SelectTrigger className="h-10 text-sm border-border">
-                      <SelectValue placeholder="Select property" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {propertiesLoading ? (
-                        <SelectItem value="__loading__" disabled>Loading…</SelectItem>
-                      ) : properties.length === 0 ? (
-                        <SelectItem value="__empty__" disabled>No properties found</SelectItem>
-                      ) : (
-                        properties.map((p: any) => (
-                          <SelectItem key={p.id} value={String(p.id)}>
-                            {p.name || `Property #${p.id}`}
-                          </SelectItem>
-                        ))
-                      )}
-                    </SelectContent>
-                  </Select>
+                    placeholder={propertiesLoading ? "Loading…" : "Select property"}
+                    searchPlaceholder="Search properties…"
+                    emptyText="No properties found"
+                    disabled={propertiesLoading}
+                    options={properties.map((p: any) => ({ value: String(p.id), label: p.name || `Property #${p.id}`, description: p.address || undefined }))}
+                  />
                   {form.formState.errors.propertyId && (
                     <p className="text-xs text-red-600">{form.formState.errors.propertyId.message}</p>
                   )}

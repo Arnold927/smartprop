@@ -6,7 +6,8 @@
  *
  * Renders nothing when:
  *   - Everything is healthy (mpesa configured, no stuck transactions)
- *   - The current user is not an admin or manager
+ *   - The current user is not the platform admin (the credentials are server
+ *     environment variables, so org admins and managers cannot act on it)
  *
  * The banner disappears automatically once M-Pesa is configured — no manual
  * dismissal needed.
@@ -15,6 +16,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useAuth } from "@/hooks/useAuth";
+import { getOrgIdFromSearch, withOrgParam } from "@/lib/platformOrgContext";
 import { AlertTriangle, XCircle } from "lucide-react";
 
 interface SystemStatus {
@@ -28,21 +30,23 @@ interface SystemStatus {
 export function MpesaStatusAlert() {
   const { user } = useAuth();
 
-  // Only admins and managers should see this alert
-  const isAdmin = user?.role === "admin";
+  // Platform admin only
+  const isAdmin = user?.role === "platform_admin";
+  const orgId = typeof window !== "undefined" ? getOrgIdFromSearch(window.location.search) : null;
+  const statusUrl = withOrgParam("/api/dashboard/system-status", orgId);
 
   const { data, isLoading } = useQuery<SystemStatus>({
-    queryKey: ["/api/dashboard/system-status"],
-    queryFn: async () => (await apiRequest("/api/dashboard/system-status")).json(),
+    queryKey: ["/api/dashboard/system-status", orgId],
+    queryFn: async () => (await apiRequest(statusUrl)).json(),
     // Poll every 5 minutes — picks up when M-Pesa is configured and auto-hides
     refetchInterval: 5 * 60 * 1000,
     // A 403 (non-admin) just returns nothing — don't retry
     retry: false,
-    // Don't even fetch if the user isn't admin/manager
+    // Don't even fetch for anyone but the platform admin
     enabled: isAdmin,
   });
 
-  // Hide for non-admin/manager roles entirely
+  // Hide for everyone but the platform admin
   if (!isAdmin) return null;
   if (isLoading || !data) return null;
 

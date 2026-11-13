@@ -1,3 +1,4 @@
+import { SearchableSelect } from "@/components/ui/searchable-select";
 import React from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -240,21 +241,16 @@ export default function EditMaintenanceModal({ isOpen, onClose, request }: EditM
  render={({ field }) => (
  <FormItem>
  <FormLabel>Assign to Contractor</FormLabel>
- <Select onValueChange={field.onChange} defaultValue={field.value}>
- <FormControl>
- <SelectTrigger>
- <SelectValue placeholder="Select contractor" />
- </SelectTrigger>
- </FormControl>
- <SelectContent>
- <SelectItem value="unassigned">Unassigned</SelectItem>
- {(contractors as Array<{id: number, name: string, specialty: string}>).map((contractor) => (
- <SelectItem key={contractor.id} value={contractor.name}>
- {contractor.name} - {contractor.specialty}
- </SelectItem>
- ))}
- </SelectContent>
- </Select>
+ <SearchableSelect
+   onValueChange={field.onChange}
+   value={field.value}
+   placeholder="Select contractor"
+   searchPlaceholder="Search contractors or specialty…"
+   options={[
+     { value: "unassigned", label: "Unassigned" },
+     ...(contractors as Array<{id: number, name: string, specialty: string}>).map((c) => ({ value: c.name, label: c.name, description: c.specialty })),
+   ]}
+ />
  <FormDescription>
  Assign this request to a contractor
  </FormDescription>

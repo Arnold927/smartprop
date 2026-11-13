@@ -22,6 +22,7 @@
  *   admin    → header says "All Messages", Broadcast shortcut shown
  */
 
+import { SearchableSelect } from "@/components/ui/searchable-select";
 import { useLocation } from "wouter";
 import { useState, useCallback } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -593,28 +594,19 @@ export default function Messages({ embedded = false }: { embedded?: boolean } = 
                   );
                 })()
               ) : (
-                <Select value={compose.toUserId || undefined} onValueChange={v => setCompose(c => ({ ...c, toUserId: v }))}>
-                  <SelectTrigger className="mt-1"><SelectValue placeholder="Select recipient" /></SelectTrigger>
-                  <SelectContent>
-                    {orgUsers.length === 0 ? (
-                      <div className="px-3 py-2 text-xs text-muted-foreground">No available recipients</div>
-                    ) : orgUsers.map(u => (
-                      <SelectItem key={u.id} value={u.id}>
-                        <span className="flex items-center gap-2">
-                          <Avatar className="w-5 h-5">
-                            <AvatarFallback className="text-[10px]">{initials(userName(u))}</AvatarFallback>
-                          </Avatar>
-                          <span>{userName(u)}</span>
-                          {u.role && (
-                            <span className="text-muted-foreground text-xs">
-                              · {u.role.replace(/_/g, " ")}
-                            </span>
-                          )}
-                        </span>
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <SearchableSelect
+                  className="mt-1"
+                  value={compose.toUserId || ""}
+                  onValueChange={v => setCompose(c => ({ ...c, toUserId: v }))}
+                  placeholder="Select recipient"
+                  searchPlaceholder="Search by name, email or role…"
+                  emptyText="No available recipients"
+                  options={orgUsers.map(u => ({
+                    value: u.id,
+                    label: userName(u),
+                    description: [u.role ? u.role.replace(/_/g, " ") : null, u.email].filter(Boolean).join(" · ") || undefined,
+                  }))}
+                />
               )}
             </div>
             <div>

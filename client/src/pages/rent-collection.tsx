@@ -1,3 +1,5 @@
+import { tenantOptions, unitOptions, propertyOptions, userOptions, byId } from "@/lib/pickerOptions";
+import { SearchableSelect } from "@/components/ui/searchable-select";
 import { downloadCsvTextAsExcel } from "@/lib/excel";
 import { useState } from "react";
 import {
@@ -288,18 +290,13 @@ export default function RentCollection() {
             {/* Tenant */}
             <div className="space-y-1">
               <Label>Tenant *</Label>
-              <Select value={form.tenantId} onValueChange={v => setForm(f => ({ ...f, tenantId: v }))}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select tenant…" />
-                </SelectTrigger>
-                <SelectContent>
-                  {tenants.map((t: any) => (
-                    <SelectItem key={t.id} value={String(t.id)}>
-                      {t.firstName} {t.lastName}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <SearchableSelect
+                value={form.tenantId}
+                onValueChange={v => setForm(f => ({ ...f, tenantId: v }))}
+                placeholder="Select tenant…"
+                searchPlaceholder="Search by name, unit, email or phone…"
+                options={tenantOptions(tenants)}
+              />
             </div>
 
             {/* Amount + Currency */}

@@ -1,3 +1,4 @@
+import { SearchableSelect } from "@/components/ui/searchable-select";
 import { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -279,42 +280,32 @@ export default function TenantOnboarding() {
                     </div>
                   </FormField>
                   <FormField label="Property Name *" id="propertyName" error={form.formState.errors.propertyName?.message}>
-                    <Select
+                    <SearchableSelect
+                      className="h-11"
                       onValueChange={(v) => {
                         form.setValue("propertyName", v, { shouldValidate: true });
                         form.setValue("unitNumber", ""); // reset unit when property changes
                       }}
                       value={form.watch("propertyName")}
-                    >
-                      <SelectTrigger className="h-11">
-                        <SelectValue placeholder="Select a property" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {propertyList.map((p) => (
-                          <SelectItem key={p.id} value={p.name}>
-                            {p.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                      placeholder="Select a property"
+                      searchPlaceholder="Search properties…"
+                      options={propertyList.map((p: any) => ({ value: p.name, label: p.name, description: p.address || undefined }))}
+                    />
                   </FormField>
                   <FormField label="Unit Number *" id="unitNumber" error={form.formState.errors.unitNumber?.message}>
-                    <Select
+                    <SearchableSelect
+                      className="h-11"
                       onValueChange={(v) => form.setValue("unitNumber", v, { shouldValidate: true })}
                       value={form.watch("unitNumber")}
                       disabled={!selectedProperty}
-                    >
-                      <SelectTrigger className="h-11">
-                        <SelectValue placeholder={!selectedProperty ? "Select a property first" : vacantUnits.length === 0 ? "No vacant units" : "Select a unit"} />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {vacantUnits.map((u) => (
-                          <SelectItem key={u.id} value={u.unitNumber}>
-                            {u.unitNumber}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                      placeholder={!selectedProperty ? "Select a property first" : vacantUnits.length === 0 ? "No vacant units" : "Select a unit"}
+                      searchPlaceholder="Search unit number…"
+                      options={vacantUnits.map((u: any) => ({
+                        value: u.unitNumber,
+                        label: `Unit ${u.unitNumber}`,
+                        description: [u.unitType && u.unitType !== "apartment" ? String(u.unitType).replace(/_/g, " ") : null, u.bedrooms ? `${u.bedrooms} bed` : null, u.monthlyRent ? `KES ${Number(u.monthlyRent).toLocaleString()}/mo` : null].filter(Boolean).join(" · ") || undefined,
+                      }))}
+                    />
                   </FormField>
                   <FormField label="Move-in Date *" id="moveInDate" error={form.formState.errors.moveInDate?.message} className="md:col-span-2">
                     <Input id="moveInDate" type="date" {...form.register("moveInDate")} className="h-11" />

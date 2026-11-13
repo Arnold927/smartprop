@@ -1,3 +1,5 @@
+import { tenantOptions, unitOptions, propertyOptions, userOptions, byId } from "@/lib/pickerOptions";
+import { SearchableSelect } from "@/components/ui/searchable-select";
 import React, { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
@@ -442,63 +444,37 @@ export default function VisitorManagement() {
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label>Host Tenant</Label>
-                    <Select value={formHostTenantId} onValueChange={handleTenantChange}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select host" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {tenants.length === 0 ? (
-                          <SelectItem value="__none" disabled>No tenants available</SelectItem>
-                        ) : (
-                          tenants.map((tenant: any) => (
-                            <SelectItem key={tenant.id} value={tenant.id.toString()}>
-                              {tenant.firstName} {tenant.lastName}
-                            </SelectItem>
-                          ))
-                        )}
-                      </SelectContent>
-                    </Select>
+                    <SearchableSelect
+                      value={formHostTenantId}
+                      onValueChange={handleTenantChange}
+                      placeholder="Select host"
+                      searchPlaceholder="Search by name, unit, email or phone…"
+                      emptyText="No tenants available"
+                      options={tenantOptions(tenants)}
+                    />
                   </div>
 
                 <div className="space-y-2">
                   <Label>Unit</Label>
-                  <Select value={formHostUnitId} onValueChange={setFormHostUnitId}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select unit" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {units.length === 0 ? (
-                        <SelectItem value="__none" disabled>No units available</SelectItem>
-                      ) : (
-                        units.map((unit: any) => (
-                          <SelectItem key={unit.id} value={unit.id.toString()}>
-                            Unit {unit.unitNumber}
-                          </SelectItem>
-                        ))
-                      )}
-                    </SelectContent>
-                  </Select>
+                  <SearchableSelect
+                    value={formHostUnitId}
+                    onValueChange={setFormHostUnitId}
+                    placeholder="Select unit"
+                    searchPlaceholder="Search unit number or property…"
+                    options={unitOptions(units, byId(properties))}
+                  />
                 </div>
               </div>
 
               <div className="space-y-2">
                 <Label>Property *</Label>
-                <Select value={formPropertyId} onValueChange={setFormPropertyId}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select property" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {properties.length === 0 ? (
-                      <SelectItem value="__none" disabled>No properties available</SelectItem>
-                    ) : (
-                      properties.map((property: any) => (
-                        <SelectItem key={property.id} value={property.id.toString()}>
-                          {property.name}
-                        </SelectItem>
-                      ))
-                    )}
-                  </SelectContent>
-                </Select>
+                <SearchableSelect
+                  value={formPropertyId}
+                  onValueChange={setFormPropertyId}
+                  placeholder="Select property"
+                  searchPlaceholder="Search properties…"
+                  options={propertyOptions(properties)}
+                />
               </div>
 
               <div className="space-y-2">

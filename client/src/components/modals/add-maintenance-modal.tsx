@@ -1,3 +1,5 @@
+import { tenantOptions, unitOptions, propertyOptions, userOptions, byId } from "@/lib/pickerOptions";
+import { SearchableSelect } from "@/components/ui/searchable-select";
 import { useState, useEffect } from "react"; // Add useEffect
 import { useTranslation } from "react-i18next";
 import { useMutation, useQueryClient, useQuery } from "@tanstack/react-query";
@@ -29,7 +31,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
-import { apiRequest } from "@/lib/queryClient";
+import { apiRequest, ensureArray } from "@/lib/queryClient";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { isUnauthorizedError } from "@/lib/authUtils";
@@ -131,7 +133,12 @@ export default function AddMaintenanceModal({
  const data = await res.json();
  return Array.isArray(data?.tenants) ? data.tenants : [];
  }
- : undefined,
+ : async () => {
+ // (An explicit `queryFn: undefined` replaced the app default, so this list was empty
+ // unless another page had already loaded it.)
+ const res = await apiRequest("/api/tenants");
+ return ensureArray(await res.json());
+ },
  enabled: !!authUser,
  });
 
@@ -316,45 +323,21 @@ export default function AddMaintenanceModal({
  render={({ field }) => (
  <FormItem>
  <FormLabel className="text-sm font-medium">Select Tenant *</FormLabel>
- <Select 
- value={selectedTenant} 
- onValueChange={(value) => {
- handleTenantChange(value);
- field.onChange(parseInt(value));
- }}
- disabled={isLoadingTenants}
- >
- <SelectTrigger className="h-10 w-full border-border dark:border-gray-700 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500" >
- <SelectValue placeholder={isLoadingTenants ? "Loading tenants..." : "Choose a tenant"} />
- </SelectTrigger>
- <SelectContent className="max-h-60">
- {tenants?.map((tenant: Tenant) => (
- <SelectItem 
- key={tenant.id} 
- value={tenant.id.toString()}
- disabled={!tenant.unitId}
- className="flex items-center justify-between"
- >
- <div className="flex flex-col">
- <span className="font-medium">
- {tenant.firstName} {tenant.lastName}
- </span>
- {tenant.unitId && tenant.unit ? (
- <span className="text-xs text-muted-foreground flex items-center gap-1">
- <Home className="h-3 w-3" />
- Unit {tenant.unit.unitNumber}
- {tenant.property?.name && (
- <span className="text-muted-foreground">• {tenant.property.name}</span>
- )}
- </span>
- ) : (
- <span className="text-xs text-amber-600">No unit assigned</span>
- )}
- </div>
- </SelectItem>
- ))}
- </SelectContent>
- </Select>
+ <SearchableSelect
+   value={selectedTenant}
+   onValueChange={(value) => {
+     handleTenantChange(value);
+     field.onChange(parseInt(value));
+   }}
+   disabled={isLoadingTenants}
+   placeholder={isLoadingTenants ? "Loading tenants..." : "Choose a tenant"}
+   searchPlaceholder="Search by name, unit, email or phone…"
+   emptyText="No tenant matches"
+   options={tenantOptions(tenants as any[]).map((o, i) => {
+     const tn: any = (tenants as any[])[i];
+     return tn.unitId ? o : { ...o, disabled: true, description: [o.description, "no unit assigned"].filter(Boolean).join(" · ") };
+   })}
+ />
  <FormMessage />
  </FormItem>
  )}

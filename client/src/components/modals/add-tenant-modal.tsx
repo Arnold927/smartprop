@@ -1,3 +1,5 @@
+import { tenantOptions, unitOptions, propertyOptions, userOptions, byId } from "@/lib/pickerOptions";
+import { SearchableSelect } from "@/components/ui/searchable-select";
 import { useState } from "react";
 import { useMutation, useQueryClient, useQuery } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
@@ -197,18 +199,13 @@ export default function AddTenantModal({ isOpen, onClose }: AddTenantModalProps)
 
  <FormItem>
  <FormLabel>Property *</FormLabel>
- <Select value={selectedProperty} onValueChange={setSelectedProperty}>
- <SelectTrigger>
- <SelectValue placeholder="Select Property" />
- </SelectTrigger>
- <SelectContent>
- {(properties as any[] || []).map((property: any) => (
- <SelectItem key={property.id} value={property.id.toString()}>
- {property.name}
- </SelectItem>
- ))}
- </SelectContent>
- </Select>
+ <SearchableSelect
+   value={selectedProperty}
+   onValueChange={setSelectedProperty}
+   placeholder="Select Property"
+   searchPlaceholder="Search properties…"
+   options={propertyOptions(properties as any[])}
+ />
  </FormItem>
 
  <FormField
@@ -217,22 +214,19 @@ export default function AddTenantModal({ isOpen, onClose }: AddTenantModalProps)
  render={({ field }) => (
  <FormItem>
  <FormLabel>Unit *</FormLabel>
- <Select
- value={field.value?.toString()}
- onValueChange={(value) => field.onChange(Number(value))}
- disabled={!selectedProperty}
- >
- <SelectTrigger>
- <SelectValue placeholder="Select Unit" />
- </SelectTrigger>
- <SelectContent>
- {(units as any[] || []).map((unit: any) => (
- <SelectItem key={unit.id} value={unit.id.toString()}>
- {unit.unitNumber}
- </SelectItem>
- ))}
- </SelectContent>
- </Select>
+ <SearchableSelect
+   value={field.value?.toString() ?? ""}
+   onValueChange={(value) => field.onChange(Number(value))}
+   disabled={!selectedProperty}
+   placeholder="Select Unit"
+   searchPlaceholder="Search unit number…"
+   emptyText="No units in this property"
+   options={(units as any[] || []).map((unit: any) => ({
+     value: unit.id.toString(),
+     label: `Unit ${unit.unitNumber}`,
+     description: [unit.isOccupied ? "occupied" : "vacant", unit.monthlyRent ? `KES ${Number(unit.monthlyRent).toLocaleString()}/mo` : null].filter(Boolean).join(" · "),
+   }))}
+ />
  <FormMessage />
  </FormItem>
  )}
