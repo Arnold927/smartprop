@@ -1,7 +1,7 @@
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Download, Printer } from "lucide-react";
-import { openPrintWindow, spHeader, spFooter, fmtDocDate, fmtDocKES, SMARTPROP_DOC_CSS } from "@/lib/document-theme";
+import { openPrintWindow, downloadDocPdf, spHeader, spFooter, fmtDocDate, fmtDocKES, SMARTPROP_DOC_CSS } from "@/lib/document-theme";
 
 interface InvoiceData {
   invoiceNumber: string;
@@ -111,7 +111,7 @@ export default function InvoiceTemplate({ invoiceData, onPreview, onDownload, on
   `;
 
   const handleDownload = () => {
-    openPrintWindow(buildBody(), `Invoice-${invoiceData.invoiceNumber}`);
+    void downloadDocPdf(buildBody(), `Invoice - ${invoiceData.invoiceNumber}`, `invoice-${invoiceData.invoiceNumber}`);
     onDownload?.();
   };
 

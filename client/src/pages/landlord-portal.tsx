@@ -11,6 +11,7 @@
  *   POST /api/landlord-portal/reports/:id/email
  */
 
+import { downloadDocPdf } from "@/lib/document-theme";
 import React, { useState, useMemo, useCallback, useReducer, useEffect, useRef, memo, Component } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useWsEvent } from "@/hooks/useWebSocket";
@@ -482,7 +483,7 @@ function PaginationRow({ page, totalPages, totalItems, pageSize, onPage }: {
         of <span className="font-medium text-muted-foreground dark:text-slate-200">{totalItems}</span>
       </span>
       <div className="flex items-center gap-1">
-        <Button variant="outline" size="sm" className="h-8 w-8 p-0" disabled={page <= 1} onClick={() => onPage(page - 1)}>
+        <Button variant="outline" size="sm" className="h-8 w-8 p-0" disabled={page <= 1} onClick={() => onPage(page - 1)} aria-label="Previous">
           <ChevronLeft className="h-4 w-4" />
         </Button>
         {pages.map((p, i) =>
@@ -491,7 +492,7 @@ function PaginationRow({ page, totalPages, totalItems, pageSize, onPage }: {
             : <Button key={p} variant={p === page ? "default" : "outline"} size="sm"
                 className="h-8 w-8 p-0 text-xs" onClick={() => onPage(p as number)}>{p}</Button>
         )}
-        <Button variant="outline" size="sm" className="h-8 w-8 p-0" disabled={page >= totalPages} onClick={() => onPage(page + 1)}>
+        <Button variant="outline" size="sm" className="h-8 w-8 p-0" disabled={page >= totalPages} onClick={() => onPage(page + 1)} aria-label="Next">
           <ChevronRight className="h-4 w-4" />
         </Button>
       </div>
@@ -1141,7 +1142,7 @@ function LandlordMessagesPanel({
                 <CardDescription>{threads.length} conversation{threads.length !== 1 ? "s" : ""}</CardDescription>
               </div>
               <div className="flex gap-2">
-                <Button variant="outline" size="sm" className="h-8 w-8 p-0" onClick={onRefresh} disabled={isLoading}>
+                <Button variant="outline" size="sm" className="h-8 w-8 p-0" onClick={onRefresh} disabled={isLoading} aria-label="Refresh">
                   <RefreshCw className={`w-3.5 h-3.5 ${isLoading ? "animate-spin" : ""}`} />
                 </Button>
                 <Button size="sm" className="h-8 gap-1.5 text-xs" onClick={() => setShowCompose(v => !v)}>
@@ -2085,24 +2086,13 @@ export default function LandlordPortal({ ownerId }: LandlordPortalProps) {
         const dlRes = await apiRequest(`/api/landlord-portal/reports/${report.id}/download`);
         if (!dlRes.ok) throw new Error("Download failed");
         const html = await dlRes.text();
-        // Write into the pre-opened window (opened synchronously on button click)
-        const target = (window as any).__reportWin as Window | null;
-        if (target && !target.closed) {
-          target.document.write(html);
-          target.document.close();
-          target.onload = () => { target.focus(); target.print(); };
-        }
-        toast({ title: "Financial Package Ready", description: "Your report has opened — save as PDF from the print dialog." });
+        await downloadDocPdf(html, `${String(report.reportType).charAt(0).toUpperCase()}${String(report.reportType).slice(1)} portfolio statement`, `smartprop-${report.reportType}-statement-${String(report.id).padStart(4, "0")}`);
+        toast({ title: "Financial Package Ready", description: "Your PDF has been downloaded." });
       } catch {
         toast({ title: "Report Generated", description: "Your financial report is ready in the Reports tab." });
-      } finally {
-        (window as any).__reportWin = null;
       }
     },
     onError: () => {
-      const w = (window as any).__reportWin as Window | null;
-      if (w && !w.closed) w.close();
-      (window as any).__reportWin = null;
       toast({ title: "Generation Failed", description: "Failed to generate the report. Please try again.", variant: "destructive" });
     },
   });
@@ -2132,12 +2122,7 @@ export default function LandlordPortal({ ownerId }: LandlordPortalProps) {
       const res = await apiRequest(`/api/landlord-portal/reports/${report.id}/download`);
       if (!res.ok) throw new Error(`Server returned ${res.status}`);
       const html = await res.text();
-      // Open in print window instead of downloading as .html file
-      const win = window.open("", "_blank");
-      if (!win) throw new Error("Please allow pop-ups to view this report.");
-      win.document.write(html);
-      win.document.close();
-      win.onload = () => { win.focus(); win.print(); };
+      await downloadDocPdf(html, `${String(report.reportType).charAt(0).toUpperCase()}${String(report.reportType).slice(1)} portfolio statement`, `smartprop-${report.reportType}-statement-${String(report.id).padStart(4, "0")}`);
       return report.id;
     },
     onError: () => {
@@ -2373,15 +2358,7 @@ export default function LandlordPortal({ ownerId }: LandlordPortalProps) {
 
               <Button
                 size="sm"
-                onClick={() => {
-                  // Open window NOW while we're inside the user gesture — browser won't block it
-                  const w = window.open("", "_blank");
-                  if (w) {
-                    w.document.write("<html><body style='font-family:sans-serif;padding:40px;color:#475569'>Generating your financial report…</body></html>");
-                    (window as any).__reportWin = w;
-                  }
-                  generateReport.mutate("monthly");
-                }}
+                onClick={() => { generateReport.mutate("monthly"); }}
                 disabled={generateReport.isPending}
                 className="bg-card text-foreground hover:bg-muted text-xs font-bold px-4 py-1.5 rounded-full h-auto border border-border"
               >
@@ -3251,11 +3228,6 @@ export default function LandlordPortal({ ownerId }: LandlordPortalProps) {
                   <div className="flex flex-wrap gap-4">
                     <Button
                       onClick={() => {
-                        const w = window.open("", "_blank");
-                        if (w) {
-                          w.document.write("<html><body style='font-family:sans-serif;padding:40px;color:#475569'>Generating your financial report…</body></html>");
-                          (window as any).__reportWin = w;
-                        }
                         generateReport.mutate("monthly");
                       }}
                       disabled={generateReport.isPending}
@@ -3273,15 +3245,11 @@ export default function LandlordPortal({ ownerId }: LandlordPortalProps) {
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end" className="w-56 bg-card border border-border shadow-xl z-50">
                         <DropdownMenuItem className="cursor-pointer text-muted-foreground dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 focus:bg-slate-100 dark:focus:bg-slate-800" onClick={() => {
-                          const w = window.open("", "_blank");
-                          if (w) { w.document.write("<html><body style='font-family:sans-serif;padding:40px;color:#475569'>Generating your financial report…</body></html>"); (window as any).__reportWin = w; }
                           generateReport.mutate("quarterly");
                         }}>
                           Quarterly Review
                         </DropdownMenuItem>
                         <DropdownMenuItem className="cursor-pointer text-muted-foreground dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 focus:bg-slate-100 dark:focus:bg-slate-800" onClick={() => {
-                          const w = window.open("", "_blank");
-                          if (w) { w.document.write("<html><body style='font-family:sans-serif;padding:40px;color:#475569'>Generating your financial report…</body></html>"); (window as any).__reportWin = w; }
                           generateReport.mutate("annual");
                         }}>
                           Annual Tax Package
@@ -3752,7 +3720,7 @@ export default function LandlordPortal({ ownerId }: LandlordPortalProps) {
                                     </>
                                   )}
                                   <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-muted-foreground hover:text-red-500"
-                                    onClick={() => { if (confirm("Delete this expense?")) deleteExpense.mutate(e.id); }}>
+                                    onClick={() => { if (confirm("Delete this expense?")) deleteExpense.mutate(e.id); }} aria-label="Delete">
                                     <Trash2 className="w-3.5 h-3.5" />
                                   </Button>
                                 </div>
@@ -3812,7 +3780,7 @@ export default function LandlordPortal({ ownerId }: LandlordPortalProps) {
                         <Paperclip className="w-4 h-4" /> Upload
                       </Button>
                     </div>
-                    <Button variant="outline" size="sm" className="h-9 w-9 p-0" onClick={() => refetchDocs()}>
+                    <Button variant="outline" size="sm" className="h-9 w-9 p-0" onClick={() => refetchDocs()} aria-label="Refresh">
                       <RefreshCw className="w-3.5 h-3.5" />
                     </Button>
                   </div>
@@ -3862,12 +3830,12 @@ export default function LandlordPortal({ ownerId }: LandlordPortalProps) {
                             </div>
                             <div className="flex gap-1 shrink-0">
                               <a href={`/api/documents/${doc.id}/download`} target="_blank" rel="noopener noreferrer">
-                                <Button variant="ghost" size="sm" className="h-7 w-7 p-0 hover:text-primary">
+                                <Button variant="ghost" size="sm" className="h-7 w-7 p-0 hover:text-primary" aria-label="Download">
                                   <Download className="w-3.5 h-3.5" />
                                 </Button>
                               </a>
                               <Button variant="ghost" size="sm" className="h-7 w-7 p-0 hover:text-red-500"
-                                onClick={() => { if (confirm("Delete this document?")) deleteDoc.mutate(doc.id); }}>
+                                onClick={() => { if (confirm("Delete this document?")) deleteDoc.mutate(doc.id); }} aria-label="Delete">
                                 <Trash2 className="w-3.5 h-3.5" />
                               </Button>
                             </div>
@@ -3892,7 +3860,7 @@ export default function LandlordPortal({ ownerId }: LandlordPortalProps) {
                     </CardTitle>
                     <CardDescription>High-cost or flagged maintenance requests that require your sign-off before work begins</CardDescription>
                   </div>
-                  <Button variant="outline" size="sm" className="h-9 w-9 p-0" onClick={() => refetchApprovals()}>
+                  <Button variant="outline" size="sm" className="h-9 w-9 p-0" onClick={() => refetchApprovals()} aria-label="Refresh">
                     <RefreshCw className="w-3.5 h-3.5" />
                   </Button>
                 </div>

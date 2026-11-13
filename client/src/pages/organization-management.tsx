@@ -308,12 +308,12 @@ function PaginationBar({
       </div>
       <div className="flex items-center gap-1">
         <Button variant="ghost" size="sm" className="h-7 w-7 p-0"
-          disabled={page <= 1} onClick={() => setPage(page - 1)}>
+          disabled={page <= 1} onClick={() => setPage(page - 1)} aria-label="Previous">
           <ChevronLeft className="h-4 w-4" />
         </Button>
         <span className="px-2 tabular-nums">Page {page} of {totalPages}</span>
         <Button variant="ghost" size="sm" className="h-7 w-7 p-0"
-          disabled={page >= totalPages} onClick={() => setPage(page + 1)}>
+          disabled={page >= totalPages} onClick={() => setPage(page + 1)} aria-label="Next">
           <ChevronRight className="h-4 w-4" />
         </Button>
       </div>
@@ -381,6 +381,19 @@ function NotificationsTab({ activeTab }: { activeTab: string }) {
       toast({ title: "Could not save preferences", description: errMsg(e), variant: "destructive" }),
   });
 
+  const digestNow = useMutation({
+    mutationFn: async () => {
+      const r = await apiRequest("/api/notifications/digest-now", { method: "POST", data: {} });
+      if (!r.ok) throw new Error((await r.json().catch(() => ({}))).message || "Could not send the summary");
+      return r.json();
+    },
+    onSuccess: (d: any) => {
+      qc.invalidateQueries({ queryKey: ["/api/notifications"] });
+      toast(d.delivered ? { title: "Summary sent to your bell", description: d.message } : { title: "Summary not delivered", description: "In-app notifications are switched off for you." });
+    },
+    onError: (e: any) => toast({ title: "Could not send the summary", description: errMsg(e), variant: "destructive" }),
+  });
+
   if (activeTab !== "notifications") return null;
 
   if (isLoading) {
@@ -405,8 +418,9 @@ function NotificationsTab({ activeTab }: { activeTab: string }) {
         <Bell className="h-4 w-4 text-blue-500 mt-0.5 shrink-0" />
         <p className="text-xs text-blue-700 dark:text-blue-300 leading-relaxed">
           These are <strong>your own</strong> alert preferences for this account — not an organisation-wide policy, and they
-          don't change what tenants or other staff receive. WhatsApp/email opt-outs are live; the in-app toggles below are
-          saved but not yet wired up to anything that reads them.
+          don't change what tenants or other staff receive. Every switch on this page is live: in-app switches decide
+          which notifications appear in your bell, WhatsApp/email opt-outs apply to messages sent to you, and the summary digest is
+          delivered at 07:00 EAT.
         </p>
       </div>
 
@@ -418,15 +432,15 @@ function NotificationsTab({ activeTab }: { activeTab: string }) {
           <CardTitle className="flex items-center gap-2 text-base">
             <Bell className="h-4 w-4" /> In-App Notifications
           </CardTitle>
-          <CardDescription>Not yet wired to delivery — saved for when this ships</CardDescription>
+          <CardDescription>Choose which alerts appear in your notification bell</CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
           {[
             { key: "maintenanceUpdates",   label: "Maintenance Updates",   desc: "Maintenance status changes" },
             { key: "paymentReminders",     label: "Payment Confirmations", desc: "Rent payments confirmed" },
-            { key: "inAppNotifications",   label: "New Messages",          desc: "New tenant or contractor messages" },
+            { key: "inAppNotifications",   label: "All in-app notifications", desc: "Master switch — turn off to stop every in-app notification, including messages" },
             { key: "securityAlerts",       label: "Security Alerts",       desc: "Visitor check-ins, gate events, security incidents" },
-            { key: "featureAnnouncements", label: "System Announcements",  desc: "Updates about SmartProp features" },
+            { key: "featureAnnouncements", label: "System Announcements",  desc: "Updates about SmartProp features (applies to announcements as they are published)" },
           ].map(({ key, label, desc }) => (
             <div key={key} className="flex items-center justify-between gap-4">
               <div>
@@ -453,9 +467,9 @@ function NotificationsTab({ activeTab }: { activeTab: string }) {
         </CardHeader>
         <CardContent className="space-y-3">
           {[
-            { key: "whatsappNotifications", label: "WhatsApp Alerts",  desc: "Your primary channel for the alerts above, once they're wired up" },
-            { key: "weeklyDigest",          label: "Weekly Email Digest", desc: "Planned, not yet built — this just saves your preference for later" },
-            { key: "marketingEmails",       label: "Marketing Emails",    desc: "Not yet wired to delivery — saved for when this ships" },
+            { key: "whatsappNotifications", label: "WhatsApp Alerts",  desc: "Receive WhatsApp messages from SmartProp" },
+            { key: "weeklyDigest",          label: "Portfolio summary digest", desc: "An in-app summary at 07:00 EAT: overdue rent, open maintenance, leases ending soon (admins and managers)" },
+            { key: "marketingEmails",       label: "Product news emails", desc: "Occasional product updates by email" },
           ].map(({ key, label, desc }) => (
             <div key={key} className="flex items-center justify-between gap-4">
               <div>
@@ -472,10 +486,10 @@ function NotificationsTab({ activeTab }: { activeTab: string }) {
 
           {/* Delivery frequency */}
           <div className="pt-2 space-y-1.5">
-            <p className="text-sm font-medium">Non-urgent delivery frequency</p>
-            <p className="text-xs text-muted-foreground mb-1.5">How often to batch non-urgent WhatsApp/email notifications</p>
+            <p className="text-sm font-medium">Summary digest cadence</p>
+            <p className="text-xs text-muted-foreground mb-1.5">"Daily" sends the summary every morning; anything else sends it on Mondays</p>
             <Select
-              value={p.frequency}
+              value={p.frequency === "daily" ? "daily" : "weekly"}
               onValueChange={v => saveMut.mutate({ frequency: v as NotifPrefs["frequency"] })}
               disabled={saveMut.isPending}
             >
@@ -483,11 +497,13 @@ function NotificationsTab({ activeTab }: { activeTab: string }) {
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="immediate">Immediately</SelectItem>
-                <SelectItem value="daily">Daily digest</SelectItem>
-                <SelectItem value="weekly">Weekly digest</SelectItem>
+                <SelectItem value="weekly">Weekly (Mondays)</SelectItem>
+                <SelectItem value="daily">Every day</SelectItem>
               </SelectContent>
             </Select>
+            <Button type="button" variant="outline" size="sm" className="mt-2" onClick={() => digestNow.mutate()} disabled={digestNow.isPending}>
+              Send me the summary now
+            </Button>
           </div>
         </CardContent>
       </Card>

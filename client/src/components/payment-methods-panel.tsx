@@ -348,7 +348,7 @@ function BankTransferDetails({ config, hasPaybill }: { config: PaymentConfig; ha
               <p className="text-[10px] text-muted-foreground">{row.label}</p>
               <p className="text-sm font-semibold font-mono">{row.value}</p>
             </div>
-            <Button size="sm" variant="ghost" className="h-6 w-6 p-0" onClick={() => copy(row.value!, row.label)}>
+            <Button size="sm" variant="ghost" className="h-6 w-6 p-0" onClick={() => copy(row.value!, row.label)} aria-label="Copy">
               <Copy className="w-3 h-3" />
             </Button>
           </div>

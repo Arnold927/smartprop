@@ -984,3 +984,45 @@ button[role="combobox"] > span {
 html:not(.dark):not(.gray) .text-destructive {
   color: hsl(0 72% 44%);
 }
+
+/* ── Legible status text (red/green/amber/blue) in dark and gray themes ──────
+   Pages use concrete Tailwind -500/-600/-700 text colours for statuses
+   ("overdue" in red, "paid" in green, …). Those are tuned for white cards and
+   read poorly on the dark surface (red-600 ≈ 3:1). Their tinted backgrounds are
+   already translucent in these themes (see the bg-*-50/100 rules above), so
+   lighter text keeps ≥ 4.5:1. Light theme is untouched except red-500, which is
+   only 3.8:1 on white and is nudged to red-600's contrast. */
+.dark .text-red-500,    .gray .text-red-500,
+.dark .text-red-600,    .gray .text-red-600,
+.dark .text-red-700,    .gray .text-red-700,
+.dark .text-rose-600,   .gray .text-rose-600,
+.dark .text-rose-700,   .gray .text-rose-700 { color: hsl(0 90% 75%); }
+.dark .text-green-600,  .gray .text-green-600,
+.dark .text-green-700,  .gray .text-green-700,
+.dark .text-emerald-600,.gray .text-emerald-600,
+.dark .text-emerald-700,.gray .text-emerald-700,
+.dark .text-teal-600,   .gray .text-teal-600,
+.dark .text-teal-700,   .gray .text-teal-700 { color: hsl(152 65% 62%); }
+.dark .text-amber-600,  .gray .text-amber-600,
+.dark .text-amber-700,  .gray .text-amber-700,
+.dark .text-orange-600, .gray .text-orange-600,
+.dark .text-orange-700, .gray .text-orange-700,
+.dark .text-yellow-600, .gray .text-yellow-600,
+.dark .text-yellow-700, .gray .text-yellow-700 { color: hsl(38 95% 64%); }
+.dark .text-blue-600,   .gray .text-blue-600,
+.dark .text-blue-700,   .gray .text-blue-700,
+.dark .text-sky-600,    .gray .text-sky-600,
+.dark .text-sky-700,    .gray .text-sky-700,
+.dark .text-indigo-600, .gray .text-indigo-600,
+.dark .text-indigo-700, .gray .text-indigo-700 { color: hsl(213 94% 72%); }
+.dark .text-violet-600, .gray .text-violet-600,
+.dark .text-violet-700, .gray .text-violet-700,
+.dark .text-purple-600, .gray .text-purple-600,
+.dark .text-purple-700, .gray .text-purple-700 { color: hsl(268 90% 78%); }
+html:not(.dark):not(.gray) .text-red-500 { color: hsl(0 72% 47%); }
+
+/* Keyboard focus: a visible ring on every interactive control, in every theme. */
+:where(a, button, [role="button"], [role="tab"], [role="menuitem"], [role="option"], [role="combobox"], input, select, textarea, summary):focus-visible {
+  outline: 2px solid hsl(var(--ring, 160 84% 39%));
+  outline-offset: 2px;
+}

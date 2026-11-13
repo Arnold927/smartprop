@@ -1,4 +1,6 @@
 import { useState } from "react";
+import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { ActivityTimeline } from "@/components/activity-timeline";
 import { useRoute, useLocation, useSearch } from "wouter";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -107,7 +109,7 @@ function Pagination({
     <div className="flex items-center justify-between mt-5">
       <p className="text-sm text-muted-foreground">Showing {start}–{end} of {filtered}</p>
       <div className="flex items-center gap-1">
-        <Button variant="outline" size="sm" className="h-8 w-8 p-0" disabled={page === 1} onClick={() => onPage(page - 1)}>
+        <Button variant="outline" size="sm" className="h-8 w-8 p-0" disabled={page === 1} onClick={() => onPage(page - 1)} aria-label="Previous">
           <ChevronLeft className="w-4 h-4" />
         </Button>
         {Array.from({ length: totalPages }, (_, i) => i + 1)
@@ -121,7 +123,7 @@ function Pagination({
             ? <span key={`e${i}`} className="px-1 text-muted-foreground text-sm">…</span>
             : <Button key={n} variant={n === page ? "default" : "outline"} size="sm" className="h-8 w-8 p-0 text-sm" onClick={() => onPage(n as number)}>{n}</Button>
           )}
-        <Button variant="outline" size="sm" className="h-8 w-8 p-0" disabled={page === totalPages} onClick={() => onPage(page + 1)}>
+        <Button variant="outline" size="sm" className="h-8 w-8 p-0" disabled={page === totalPages} onClick={() => onPage(page + 1)} aria-label="Next">
           <ChevronRight className="w-4 h-4" />
         </Button>
       </div>
@@ -192,6 +194,7 @@ export default function PropertyDetailsPage() {
   const [, navigate] = useLocation();
 
   const [isAddUnitOpen,   setIsAddUnitOpen]   = useState(false);
+  const [activityUnit,    setActivityUnit]    = useState<Unit | null>(null);
   const [isAddTenantOpen, setIsAddTenantOpen] = useState(false);
   const [selectedTenant,  setSelectedTenant]  = useState<Tenant | null>(null);
   const [isViewTenantOpen, setIsViewTenantOpen] = useState(false);
@@ -401,10 +404,7 @@ export default function PropertyDetailsPage() {
                           unit={unit}
                           propertyName={property.name}
                           tenant={tenants.find((t: Tenant) => t.unitId === unit.id) ?? null}
-                          onClick={() => {
-                            const tenant = tenants.find((t: Tenant) => t.unitId === unit.id);
-                            if (tenant) { setSelectedTenant(tenant); setIsViewTenantOpen(true); }
-                          }}
+                          onClick={() => setActivityUnit(unit)}
                           onToggleVacancy={(unitId, isOccupied) =>
                             updateUnitStatusMutation.mutate({ unitId, isOccupied })
                           }
@@ -887,6 +887,31 @@ export default function PropertyDetailsPage() {
         units={units}
         onSubmit={handleTenantSubmit}
       />}
+
+      <Sheet open={!!activityUnit} onOpenChange={o => { if (!o) setActivityUnit(null); }}>
+        <SheetContent className="w-full sm:max-w-md overflow-y-auto">
+          {activityUnit && (() => {
+            const occupant = tenants.find((t: Tenant) => t.unitId === activityUnit.id);
+            return (
+              <>
+                <SheetHeader>
+                  <SheetTitle>Unit {activityUnit.unitNumber}</SheetTitle>
+                  <SheetDescription>{property.name} · {occupant ? `Occupied by ${occupant.firstName} ${occupant.lastName}` : "Vacant"}</SheetDescription>
+                </SheetHeader>
+                {occupant && (
+                  <Button variant="outline" size="sm" className="mt-4" onClick={() => { setSelectedTenant(occupant); setActivityUnit(null); setIsViewTenantOpen(true); }}>
+                    View tenant details
+                  </Button>
+                )}
+                <div className="mt-5">
+                  <h4 className="text-sm font-semibold mb-3">Unit history</h4>
+                  <ActivityTimeline kind="unit" id={activityUnit.id} limit={100} compact />
+                </div>
+              </>
+            );
+          })()}
+        </SheetContent>
+      </Sheet>
 
       <ViewTenantDialog
         tenant={selectedTenant}

@@ -263,7 +263,7 @@ function MessageDetail({ message, onClose, onReply, canReply }: {
               <Reply className="w-3.5 h-3.5" />Reply
             </Button>
           )}
-          <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={onClose}>
+          <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={onClose} aria-label="Close">
             <X className="w-4 h-4" />
           </Button>
         </div>

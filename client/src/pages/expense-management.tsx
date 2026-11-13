@@ -18,6 +18,9 @@ import { useToast } from "@/hooks/use-toast";
 import { apiRequest, ensureArray } from "@/lib/queryClient";
 import { useAuth } from "@/hooks/useAuth";
 import { formatCurrency } from "@shared/currency";
+import { ExportMenu } from "@/components/export-menu";
+import { downloadExcel } from "@/lib/excel";
+import { exportTablePdf, todayStamp, money } from "@/lib/pdf";
 import { PageShell, PageHeader, SectionCard, SPBadge, EmptyState, PrimaryButton, SecondaryButton, FilterBar, SPTable, SPAvatar, StatTile, StatsGrid, KESAmount, ActionMenu, ConfirmDialog } from "@/components/ui/sp-ui";
 
 // ── Reusable pagination hook ─────────────────────────────────────────────────
@@ -91,7 +94,7 @@ function PaginationControls({
             className="h-8 w-8"
             onClick={() => onPageChange(page - 1)}
             disabled={page <= 1}
-          >
+           aria-label="Previous">
             <ChevronLeft className="h-4 w-4" />
           </Button>
           <Button
@@ -100,7 +103,7 @@ function PaginationControls({
             className="h-8 w-8"
             onClick={() => onPageChange(page + 1)}
             disabled={page >= totalPages}
-          >
+           aria-label="Next">
             <ChevronRight className="h-4 w-4" />
           </Button>
         </div>
@@ -620,13 +623,40 @@ export default function ExpenseManagement() {
     );
   }
 
+  const propNameOf = (id: number) => (properties as any[]).find((p: any) => p.id === id)?.name ?? "";
+  const exportExpExcel = () => downloadExcel(
+    `expenses-${todayStamp()}`,
+    ["Expense #", "Date", "Property", "Vendor", "Category", "Description", "Amount", "Status"],
+    filteredExpenses.map((e: PropertyExpense) => [e.expenseNumber, e.expenseDate?.slice(0, 10), propNameOf(e.propertyId), e.vendorName, e.category, e.description, Number(e.amount), e.status]),
+    "Expenses");
+  const exportExpPdf = async () => {
+    const byStatus = (st: string) => filteredExpenses.filter((e: PropertyExpense) => e.status === st).reduce((s: number, e: PropertyExpense) => s + (Number(e.amount) || 0), 0);
+    await exportTablePdf({
+      title: "Expense report",
+      caption: "Property expenses and contractor payments",
+      docLabel: "EXPENSES",
+      filters: hasExpensesFilter ? ["Filters applied on the Expenses tab"] : [],
+      kpis: [
+        { label: "Total", value: money(totalExpenses), tone: "blue" },
+        { label: "Paid", value: money(byStatus("paid")), tone: "green" },
+        { label: "Pending", value: money(byStatus("pending")), tone: "amber" },
+        { label: "Overdue items", value: overdueExpenses, tone: "red" },
+      ],
+      columns: [{ header: "Expense #" }, { header: "Date" }, { header: "Property" }, { header: "Vendor" }, { header: "Category" }, { header: "Description" }, { header: "Status" }, { header: "Amount (KES)", align: "right" }],
+      rows: filteredExpenses.map((e: PropertyExpense) => [e.expenseNumber, new Date(e.expenseDate).toLocaleDateString("en-KE"), propNameOf(e.propertyId), e.vendorName, e.category, e.description, e.status, Number(e.amount || 0).toLocaleString("en-KE")]),
+      totals: ["", "", "", "", "", "", "Total", totalExpenses.toLocaleString("en-KE")],
+      filename: `expense-report-${todayStamp()}`,
+    });
+  };
+
   return (
     <PageShell>
       <PageHeader
         title="Expense Management & Contractors"
         subtitle="Track property expenses, manage contractor services, and process payments"
         icon={<Receipt className="w-5 h-5" />}
-        actions={
+        actions={<>
+          <ExportMenu disabled={filteredExpenses.length === 0} onPdf={exportExpPdf} onExcel={exportExpExcel} />
           <Dialog open={isAddExpenseOpen} onOpenChange={(open) => { setIsAddExpenseOpen(open); if (!open) resetForm(); }}>
             <DialogTrigger asChild>
               <Button className="bg-emerald-600 hover:bg-emerald-700">
@@ -723,7 +753,7 @@ export default function ExpenseManagement() {
               </form>
             </DialogContent>
           </Dialog>
-        }
+        </>}
       />
 
       {/* Metrics */}

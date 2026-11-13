@@ -37,7 +37,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   TrendingUp, AlertTriangle, Download, Scale, FileText, Info,
 } from "lucide-react";
-import { openPrintWindow } from "@/lib/document-theme";
+import { downloadDocPdf } from "@/lib/document-theme";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -72,7 +72,7 @@ function minDateStr(days: number): string {
 // openInPrintWindow now delegates to the shared openPrintWindow from document-theme.
 // The server returns a full HTML body string (inner content only, no <html>/<head> wrapper).
 function openInPrintWindow(bodyHtml: string, title = "SmartProp Notice") {
-  openPrintWindow(bodyHtml, title);
+  void downloadDocPdf(bodyHtml, title);
 }
 
 // ── Sub-component: Rent Increase tab ─────────────────────────────────────────

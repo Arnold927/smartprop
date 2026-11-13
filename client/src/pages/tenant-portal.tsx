@@ -56,7 +56,7 @@ import { TenantOnboardingFlow, hasCompletedOnboarding, markOnboardingDone } from
 import { TenantHelpTip } from "@/components/tenant-help-tip";
 import { LanguageToggle } from "@/components/LanguageToggle";
 import { PageShell, PageHeader, SectionCard, SPBadge, EmptyState, PrimaryButton, SecondaryButton, FilterBar, SPTable, SPAvatar, StatTile, StatsGrid, KESAmount, ActionMenu, ConfirmDialog } from "@/components/ui/sp-ui";
-import { openPrintWindow, spHeader, spFooter, fmtDocDate, fmtDocKES } from "@/lib/document-theme";
+import { downloadDocPdf, spHeader, spFooter, fmtDocDate, fmtDocKES } from "@/lib/document-theme";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -1133,7 +1133,7 @@ function downloadReceipt(p: any, tenant: any, unitNumber: string | null, propert
     </div>
     ${spFooter()}
   `;
-  openPrintWindow(body, `Rent Receipt – ${receiptNo}`);
+  void downloadDocPdf(body, `Rent Receipt - ${receiptNo}`, `rent-receipt-${receiptNo}`);
 }
 
 // ─── Payment history table with search + pagination + receipt download ─────────

@@ -31,6 +31,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Progress } from "@/components/ui/progress";
 import { Textarea } from "@/components/ui/textarea";
 import { useRoleGuard, ROLES } from "@/hooks/useRoleGuard";
+import { createPdf } from "@/lib/pdf";
+import { downloadDocPdf } from "@/lib/document-theme";
 
 import {
   Building, DollarSign, FileText, TrendingUp, Shield, AlertCircle,
@@ -58,287 +60,103 @@ function StatusBadge({ status }: { status: string }) {
   return <Badge variant="outline" className={color}>{status}</Badge>;
 }
 
-// ─── Shared print/download helper ─────────────────────────────────────────────
-// Opens a new tab with the provided HTML and triggers the browser print dialog.
-// The user can then "Save as PDF" from their browser's print dialog.
-function printDoc(html: string, title: string) {
-  const w = window.open("", "_blank");
-  if (!w) return;
-  w.document.write(`<!DOCTYPE html><html lang="en"><head>
-    <meta charset="UTF-8"><title>${title}</title>
-    <style>
-      @media print { .no-print { display:none!important; } body { -webkit-print-color-adjust:exact; print-color-adjust:exact; } }
-    </style>
-  </head><body>${html}
-    <div class="no-print" style="position:fixed;bottom:24px;right:24px;display:flex;gap:8px;z-index:9999;">
-      <button onclick="window.print()" style="background:#059669;color:#fff;border:none;padding:10px 20px;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,0.2)">
-        ⬇ Save as PDF
-      </button>
-      <button onclick="window.close()" style="background:#334155;color:#fff;border:none;padding:10px 16px;border-radius:8px;font-size:14px;cursor:pointer">
-        ✕
-      </button>
-    </div>
-  </body></html>`);
-  w.document.close();
+// ─── Branded PDF documents ─────────────────────────────────────────────────────
+// Each document is built directly as a PDF (SmartProp header/footer, themed
+// tables) and downloaded — no print dialog and no pop-up window involved.
+const longDate = (d: any) => d ? new Date(d).toLocaleDateString("en-KE", { day: "2-digit", month: "long", year: "numeric" }) : "-";
+const shortDate = (d: any) => d ? new Date(d).toLocaleDateString("en-KE", { day: "2-digit", month: "short", year: "numeric" }) : "-";
+const kesRound = (n: any) => `KES ${Math.round(Number(n ?? 0)).toLocaleString("en-KE")}`;
+const kes2 = (n: any) => `KES ${Number(n ?? 0).toLocaleString("en-KE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
+async function downloadKraReturnPdf(r: any, MONTHS: string[]) {
+  const period = `${MONTHS[(r.returnMonth ?? 1) - 1]} ${r.returnYear}`;
+  const wht = Number(r.whtRate ?? 10);
+  const pdf = await createPdf({ title: `KRA rental income return - ${period}`, docLabel: "KRA RENTAL INCOME RETURN", docNumber: period });
+  pdf.twoColumn(
+    { title: "Return details", rows: [["Period", period], ["Filing status", String(r.status ?? "")], ...(r.filedAt ? [["Filed on", longDate(r.filedAt)] as [string, string]] : []), ...(r.acknowledgementRef ? [["KRA ack. ref", r.acknowledgementRef] as [string, string]] : [])] },
+    { title: "WHT rate applied", rows: [["Rate", `${wht.toFixed(0)}%`], ["Landlord", wht === 30 ? "Non-resident" : "Resident"], ["Authority", "Income Tax Act Cap 470 s.35"]] },
+  );
+  pdf.section("Tax computation");
+  const rows: (string | number)[][] = [["Gross rental income", kesRound(r.grossRent)]];
+  if (Number(r.allowableDeductions) > 0) rows.push(["Less: allowable deductions (ITA s.15)", `-${kesRound(r.allowableDeductions)}`]);
+  rows.push(["Net taxable income", kesRound(r.netIncome)]);
+  rows.push([`WHT withheld at source (${wht.toFixed(1)}%)`, `-${kesRound(r.whtAmount)}`]);
+  rows.push(["Net rental income received", kesRound(Number(r.grossRent) - Number(r.whtAmount))]);
+  if (r.vatApplicable) rows.push(["VAT collected (16%)", kesRound(r.vatAmount)]);
+  pdf.table({ head: ["Item", "Amount"], body: rows, align: ["left", "right"] });
+  pdf.panel("Note", ["WHT is withheld at source by the tenant before remitting rent (ITA Cap 470 s.35). It is a tax credit against your rental income tax liability, not a deduction from taxable income."]);
+  if (r.deductionNotes) pdf.panel("Deduction notes", [String(r.deductionNotes)]);
+  pdf.paragraph("Reference: Income Tax Act Cap 470 (Kenya) - for filing via the KRA iTax portal.", { size: 8 });
+  pdf.save(`kra-return-${String(r.returnYear)}-${String(r.returnMonth ?? 1).padStart(2, "0")}`);
 }
 
-// ─── KRA Return HTML builder ───────────────────────────────────────────────────
-function buildKraReturnHtml(r: any, MONTHS: string[]): string {
-  const fmtN = (n: any) => `KES ${Math.round(Number(n ?? 0)).toLocaleString("en-KE")}`;
-  const periodLabel = `${MONTHS[(r.returnMonth ?? 1) - 1]} ${r.returnYear}`;
-  const rows = [
-    { label: "Gross Rental Income", value: fmtN(r.grossRent), bold: false },
-    ...(Number(r.allowableDeductions) > 0
-      ? [{ label: "Less: Allowable Deductions (ITA s.15)", value: `–${fmtN(r.allowableDeductions)}`, bold: false, color: "#059669" }]
-      : []),
-    { label: "Net Taxable Income", value: fmtN(r.netIncome), bold: true },
-    { label: `WHT Withheld at Source (${Number(r.whtRate ?? 10).toFixed(1)}%)`, value: `–${fmtN(r.whtAmount)}`, bold: false, color: "#d97706" },
-    { label: "Net Rental Income Received", value: fmtN(Number(r.grossRent) - Number(r.whtAmount)), bold: false, color: "#64748b" },
-    ...(r.vatApplicable ? [{ label: "VAT Collected (16%)", value: fmtN(r.vatAmount), bold: false }] : []),
-  ];
-  return `
-    <div style="font-family:Arial,sans-serif;max-width:680px;margin:0 auto;padding:40px 44px;color:#111;">
-      <div style="display:flex;justify-content:space-between;align-items:flex-start;border-bottom:3px solid #059669;padding-bottom:20px;margin-bottom:28px;">
-        <div>
-          <div style="font-size:22px;font-weight:800;color:#059669;letter-spacing:-0.5px;">Smart<span style="color:#0f172a;">Prop</span></div>
-          <div style="font-size:11px;color:#64748b;margin-top:4px;">Property Management Platform</div>
-        </div>
-        <div style="text-align:right;">
-          <div style="font-size:11px;font-weight:600;letter-spacing:2px;color:#64748b;text-transform:uppercase;">KRA Rental Income Return</div>
-          <div style="font-size:20px;font-weight:700;margin-top:2px;">${periodLabel}</div>
-          <div style="margin-top:6px;display:inline-block;background:${r.status === "filed" ? "#f0fdf4" : "#fefce8"};border:2px solid ${r.status === "filed" ? "#059669" : "#ca8a04"};border-radius:6px;padding:2px 12px;font-size:11px;font-weight:700;color:${r.status === "filed" ? "#065f46" : "#92400e"};text-transform:uppercase;letter-spacing:1px;">
-            ${r.status}
-          </div>
-        </div>
-      </div>
-
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:24px;margin-bottom:28px;">
-        <div style="background:#f0fdf4;border-radius:8px;padding:14px 18px;">
-          <div style="font-size:10px;font-weight:700;letter-spacing:1.5px;color:#059669;text-transform:uppercase;margin-bottom:10px;">Return Details</div>
-          <div style="font-size:13px;margin-bottom:5px;"><span style="color:#64748b;">Period:</span> <strong>${periodLabel}</strong></div>
-          <div style="font-size:13px;margin-bottom:5px;"><span style="color:#64748b;">Filing status:</span> <strong style="text-transform:capitalize">${r.status}</strong></div>
-          ${r.filedAt ? `<div style="font-size:13px;margin-bottom:5px;"><span style="color:#64748b;">Filed on:</span> <strong>${new Date(r.filedAt).toLocaleDateString("en-KE",{day:"2-digit",month:"long",year:"numeric"})}</strong></div>` : ""}
-          ${r.acknowledgementRef ? `<div style="font-size:13px;"><span style="color:#64748b;">KRA Ack. Ref:</span> <strong style="font-family:monospace">${r.acknowledgementRef}</strong></div>` : ""}
-        </div>
-        <div style="background:#f8fafc;border-radius:8px;padding:14px 18px;">
-          <div style="font-size:10px;font-weight:700;letter-spacing:1.5px;color:#64748b;text-transform:uppercase;margin-bottom:10px;">WHT Rate Applied</div>
-          <div style="font-size:28px;font-weight:800;color:#0f172a;">${Number(r.whtRate ?? 10).toFixed(0)}%</div>
-          <div style="font-size:12px;color:#64748b;margin-top:4px;">${Number(r.whtRate ?? 10) === 30 ? "Non-resident landlord" : "Resident landlord"}</div>
-          <div style="font-size:11px;color:#64748b;margin-top:2px;">Income Tax Act Cap 470 s.35</div>
-        </div>
-      </div>
-
-      <div style="margin-bottom:24px;">
-        <div style="font-size:10px;font-weight:700;letter-spacing:1.5px;color:#64748b;text-transform:uppercase;margin-bottom:10px;border-bottom:1px solid #e2e8f0;padding-bottom:6px;">Tax Computation</div>
-        <table style="width:100%;border-collapse:collapse;font-size:13px;">
-          <tbody>
-            ${rows.map(row => `
-              <tr style="border-bottom:1px solid #f1f5f9;">
-                <td style="padding:8px 0;color:${(row as any).color || "#334155"}">${row.label}</td>
-                <td style="padding:8px 0;text-align:right;font-family:monospace;font-weight:${row.bold ? "700" : "400"};color:${(row as any).color || (row.bold ? "#0f172a" : "#334155")}">${row.value}</td>
-              </tr>`).join("")}
-          </tbody>
-        </table>
-        <div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:6px;padding:10px 14px;margin-top:12px;font-size:11px;color:#1d4ed8;">
-          <strong>Note:</strong> WHT is withheld at source by the tenant before remitting rent (ITA Cap 470 s.35).
-          It is a tax credit applied against your rental income tax liability, not a deduction from taxable income.
-        </div>
-      </div>
-
-      ${r.deductionNotes ? `
-      <div style="margin-bottom:24px;">
-        <div style="font-size:10px;font-weight:700;letter-spacing:1.5px;color:#64748b;text-transform:uppercase;margin-bottom:8px;">Deduction Notes</div>
-        <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px;padding:12px 14px;font-size:12px;color:#475569;font-style:italic;">${r.deductionNotes}</div>
-      </div>` : ""}
-
-      <div style="margin-top:36px;padding-top:16px;border-top:1px solid #e2e8f0;font-size:11px;color:#94a3b8;text-align:center;line-height:1.7;">
-        Generated by SmartProp Property Management &nbsp;|&nbsp; ${periodLabel} Rental Income Return<br>
-        <span style="font-style:italic;">Reference: Income Tax Act Cap 470 (Kenya) — For filing via KRA iTax portal</span>
-      </div>
-    </div>`;
-}
-
-// ─── Stamp Duty PDF builder ────────────────────────────────────────────────────
-function buildStampDutyHtml(l: any): string {
+async function downloadStampDutyPdf(l: any) {
   const totalRent = Number(l.monthlyRent) * Number(l.leaseDurationMonths);
   const duty = l.stampDutyAmount ?? l.computedStampDuty;
-  return `
-    <div style="font-family:Arial,sans-serif;max-width:680px;margin:0 auto;padding:40px 44px;color:#111;">
-      <div style="display:flex;justify-content:space-between;align-items:flex-start;border-bottom:3px solid #059669;padding-bottom:20px;margin-bottom:28px;">
-        <div>
-          <div style="font-size:22px;font-weight:800;color:#059669;">Smart<span style="color:#0f172a;">Prop</span></div>
-          <div style="font-size:11px;color:#64748b;margin-top:4px;">Property Management Platform</div>
-        </div>
-        <div style="text-align:right;">
-          <div style="font-size:11px;font-weight:600;letter-spacing:2px;color:#64748b;text-transform:uppercase;">Stamp Duty Record</div>
-          <div style="font-size:18px;font-weight:700;margin-top:2px;">${l.leaseNumber}</div>
-          <div style="margin-top:6px;display:inline-block;background:${l.stampDutyPaid ? "#f0fdf4" : "#fefce8"};border:2px solid ${l.stampDutyPaid ? "#059669" : "#ca8a04"};border-radius:6px;padding:2px 12px;font-size:11px;font-weight:700;color:${l.stampDutyPaid ? "#065f46" : "#92400e"};text-transform:uppercase;letter-spacing:1px;">
-            ${l.stampDutyPaid ? "PAID" : "PENDING"}
-          </div>
-        </div>
-      </div>
-      <div style="background:#f0fdf4;border-radius:8px;padding:16px 20px;margin-bottom:24px;">
-        <div style="font-size:10px;font-weight:700;letter-spacing:1.5px;color:#059669;text-transform:uppercase;margin-bottom:10px;">Lease Details</div>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:13px;">
-          <div><span style="color:#64748b;">Lease Number:</span> <strong>${l.leaseNumber}</strong></div>
-          <div><span style="color:#64748b;">Type:</span> <strong>${l.isCommercial ? "Commercial" : "Residential"}</strong></div>
-          <div><span style="color:#64748b;">Duration:</span> <strong>${l.leaseDurationMonths} months</strong></div>
-          <div><span style="color:#64748b;">Monthly Rent:</span> <strong>KES ${Number(l.monthlyRent).toLocaleString("en-KE")}</strong></div>
-          <div><span style="color:#64748b;">Start Date:</span> <strong>${l.startDate ? new Date(l.startDate).toLocaleDateString("en-KE",{day:"2-digit",month:"long",year:"numeric"}) : "—"}</strong></div>
-          <div><span style="color:#64748b;">End Date:</span> <strong>${l.endDate ? new Date(l.endDate).toLocaleDateString("en-KE",{day:"2-digit",month:"long",year:"numeric"}) : "—"}</strong></div>
-        </div>
-      </div>
-      <div style="margin-bottom:24px;">
-        <div style="font-size:10px;font-weight:700;letter-spacing:1.5px;color:#64748b;text-transform:uppercase;margin-bottom:10px;border-bottom:1px solid #e2e8f0;padding-bottom:6px;">Stamp Duty Computation — Stamp Duty Act Cap 480</div>
-        <table style="width:100%;border-collapse:collapse;font-size:13px;">
-          <tbody>
-            <tr style="border-bottom:1px solid #f1f5f9;"><td style="padding:8px 0;color:#64748b;">Monthly Rent</td><td style="padding:8px 0;text-align:right;font-family:monospace;">KES ${Number(l.monthlyRent).toLocaleString("en-KE")}</td></tr>
-            <tr style="border-bottom:1px solid #f1f5f9;"><td style="padding:8px 0;color:#64748b;">Lease Duration</td><td style="padding:8px 0;text-align:right;">${l.leaseDurationMonths} months</td></tr>
-            <tr style="border-bottom:1px solid #f1f5f9;"><td style="padding:8px 0;color:#64748b;">Total Rent Payable</td><td style="padding:8px 0;text-align:right;font-family:monospace;">KES ${totalRent.toLocaleString("en-KE")}</td></tr>
-            <tr style="border-bottom:1px solid #f1f5f9;"><td style="padding:8px 0;color:#64748b;">Rate (Cap 480)</td><td style="padding:8px 0;text-align:right;">1%</td></tr>
-            <tr style="background:#f0fdf4;"><td style="padding:10px 0;font-weight:700;">Stamp Duty Due</td><td style="padding:10px 0;text-align:right;font-family:monospace;font-weight:700;font-size:16px;color:#059669;">KES ${Number(duty).toLocaleString("en-KE")}</td></tr>
-          </tbody>
-        </table>
-      </div>
-      ${l.stampDutyPaid ? `
-      <div style="background:#f0fdf4;border:2px solid #059669;border-radius:8px;padding:16px 20px;margin-bottom:24px;">
-        <div style="font-size:10px;font-weight:700;letter-spacing:1.5px;color:#059669;text-transform:uppercase;margin-bottom:10px;">Payment Record</div>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:13px;">
-          ${l.stampDutyPaidDate ? `<div><span style="color:#64748b;">Date Paid:</span> <strong>${new Date(l.stampDutyPaidDate).toLocaleDateString("en-KE",{day:"2-digit",month:"long",year:"numeric"})}</strong></div>` : ""}
-          ${l.stampDutyKraRef ? `<div><span style="color:#64748b;">KRA Reference:</span> <strong style="font-family:monospace">${l.stampDutyKraRef}</strong></div>` : ""}
-        </div>
-      </div>` : `
-      <div style="background:#fefce8;border:2px solid #ca8a04;border-radius:8px;padding:14px 18px;margin-bottom:24px;font-size:12px;color:#92400e;">
-        <strong>Payment pending.</strong> Pay via KRA iTax portal → Stamp Duty → Assessment Form.
-        Upload the receipt in SmartProp to mark this lease as compliant.
-      </div>`}
-      <div style="margin-top:32px;padding-top:14px;border-top:1px solid #e2e8f0;font-size:11px;color:#94a3b8;text-align:center;">
-        Generated by SmartProp &nbsp;|&nbsp; Stamp Duty Act Cap 480, Laws of Kenya
-      </div>
-    </div>`;
+  const pdf = await createPdf({ title: `Stamp duty record - ${l.leaseNumber}`, docLabel: "STAMP DUTY RECORD", docNumber: l.leaseNumber });
+  pdf.keyValues([
+    ["Lease number", l.leaseNumber], ["Type", l.isCommercial ? "Commercial" : "Residential"],
+    ["Duration", `${l.leaseDurationMonths} months`], ["Monthly rent", kesRound(l.monthlyRent)],
+    ["Start date", longDate(l.startDate)], ["End date", longDate(l.endDate)],
+  ], { columns: 2, title: "Lease details" });
+  pdf.section("Stamp duty computation - Stamp Duty Act Cap 480");
+  pdf.table({
+    head: ["Item", "Value"],
+    body: [["Monthly rent", kesRound(l.monthlyRent)], ["Lease duration", `${l.leaseDurationMonths} months`], ["Total rent payable", kesRound(totalRent)], ["Rate (Cap 480)", "1%"]],
+    align: ["left", "right"],
+  });
+  pdf.amountBox("Stamp duty due", kesRound(duty), { stamp: l.stampDutyPaid ? "PAID" : "PENDING", tone: l.stampDutyPaid ? "green" : "amber" });
+  if (l.stampDutyPaid) {
+    pdf.keyValues([...(l.stampDutyPaidDate ? [["Date paid", longDate(l.stampDutyPaidDate)] as [string, string]] : []), ...(l.stampDutyKraRef ? [["KRA reference", l.stampDutyKraRef] as [string, string]] : [])], { columns: 2, title: "Payment record" });
+  } else {
+    pdf.panel("Payment pending", ["Pay via KRA iTax portal > Stamp Duty > Assessment Form. Upload the receipt in SmartProp to mark this lease as compliant."]);
+  }
+  pdf.save(`stamp-duty-${l.leaseNumber}`);
 }
 
-// ─── Deposit Interest PDF builder ─────────────────────────────────────────────
-function buildDepositInterestHtml(leaseId: string, data: any, cbkRate: any): string {
-  const accruals = Array.isArray(data?.accruals) ? data.accruals : [];
-  const fmt2 = (n: any) => `KES ${Number(n ?? 0).toLocaleString("en-KE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-  return `
-    <div style="font-family:Arial,sans-serif;max-width:720px;margin:0 auto;padding:40px 44px;color:#111;">
-      <div style="display:flex;justify-content:space-between;align-items:flex-start;border-bottom:3px solid #059669;padding-bottom:20px;margin-bottom:28px;">
-        <div>
-          <div style="font-size:22px;font-weight:800;color:#059669;">Smart<span style="color:#0f172a;">Prop</span></div>
-          <div style="font-size:11px;color:#64748b;margin-top:4px;">Property Management Platform</div>
-        </div>
-        <div style="text-align:right;">
-          <div style="font-size:11px;font-weight:600;letter-spacing:2px;color:#64748b;text-transform:uppercase;">Deposit Interest Statement</div>
-          <div style="font-size:16px;font-weight:700;margin-top:2px;">Lease #${leaseId}</div>
-          <div style="font-size:11px;color:#64748b;margin-top:3px;">Generated ${new Date().toLocaleDateString("en-KE",{day:"2-digit",month:"long",year:"numeric"})}</div>
-        </div>
-      </div>
-      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;margin-bottom:28px;">
-        ${[
-          { label: "Total Accrued", value: fmt2(data?.totalAccrued), color: "#0f172a" },
-          { label: "Total Settled", value: fmt2(data?.totalSettled), color: "#059669" },
-          { label: "Outstanding", value: fmt2(data?.totalOutstanding), color: data?.totalOutstanding > 0 ? "#d97706" : "#059669" },
-        ].map(s => `
-          <div style="background:#f8fafc;border-radius:8px;padding:14px 16px;text-align:center;">
-            <div style="font-size:10px;font-weight:700;letter-spacing:1.5px;color:#64748b;text-transform:uppercase;margin-bottom:6px;">${s.label}</div>
-            <div style="font-size:20px;font-weight:800;color:${s.color};">${s.value}</div>
-          </div>`).join("")}
-      </div>
-      <div style="margin-bottom:8px;font-size:11px;color:#64748b;font-style:italic;">
-        CBK rate: ${cbkRate ? `${cbkRate.rate}% (effective ${new Date(cbkRate.effectiveDate).toLocaleDateString("en-KE",{day:"2-digit",month:"short",year:"numeric"})})` : "see accrual records"} —
-        Formula: Interest = Deposit × Rate × Days / 365 (Landlord &amp; Tenant Act Cap 301)
-      </div>
-      <table style="width:100%;border-collapse:collapse;font-size:12px;">
-        <thead>
-          <tr style="background:#f0fdf4;font-size:10px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:#059669;">
-            <th style="padding:8px 10px;text-align:left;border-bottom:2px solid #d1fae5;">Period</th>
-            <th style="padding:8px 10px;text-align:right;border-bottom:2px solid #d1fae5;">Deposit</th>
-            <th style="padding:8px 10px;text-align:right;border-bottom:2px solid #d1fae5;">Rate</th>
-            <th style="padding:8px 10px;text-align:right;border-bottom:2px solid #d1fae5;">Days</th>
-            <th style="padding:8px 10px;text-align:right;border-bottom:2px solid #d1fae5;">Interest</th>
-            <th style="padding:8px 10px;text-align:right;border-bottom:2px solid #d1fae5;">Cumulative</th>
-            <th style="padding:8px 10px;text-align:center;border-bottom:2px solid #d1fae5;">Status</th>
-          </tr>
-        </thead>
-        <tbody>
-          ${accruals.map((a: any, i: number) => `
-            <tr style="border-bottom:1px solid #f1f5f9;background:${a.isSettled ? "#f0fdf4" : (i % 2 === 0 ? "#fff" : "#f8fafc")};">
-              <td style="padding:7px 10px;color:#334155;">${a.periodStart} – ${a.periodEnd}</td>
-              <td style="padding:7px 10px;text-align:right;font-family:monospace;">KES ${Number(a.depositBalance).toLocaleString("en-KE")}</td>
-              <td style="padding:7px 10px;text-align:right;">${a.cbkRate}%</td>
-              <td style="padding:7px 10px;text-align:right;">${a.daysInPeriod}</td>
-              <td style="padding:7px 10px;text-align:right;font-family:monospace;font-weight:600;">${fmt2(a.interestAmount)}</td>
-              <td style="padding:7px 10px;text-align:right;font-family:monospace;color:#64748b;">${fmt2(a.cumulativeInterest)}</td>
-              <td style="padding:7px 10px;text-align:center;font-size:11px;color:${a.isSettled ? "#059669" : "#d97706"};font-weight:600;">${a.isSettled ? "Settled" : "Pending"}</td>
-            </tr>`).join("")}
-        </tbody>
-      </table>
-      <div style="margin-top:32px;padding-top:14px;border-top:1px solid #e2e8f0;font-size:11px;color:#94a3b8;text-align:center;">
-        Generated by SmartProp &nbsp;|&nbsp; Landlord &amp; Tenant (Shops, Hotels &amp; Catering Establishments) Act Cap 301 &nbsp;|&nbsp; Central Bank of Kenya Base Rate
-      </div>
-    </div>`;
+async function downloadDepositInterestPdf(leaseId: string, data: any, cbkRate: any) {
+  const accruals: any[] = Array.isArray(data?.accruals) ? data.accruals : [];
+  const pdf = await createPdf({ title: `Deposit interest statement - Lease ${leaseId}`, docLabel: "DEPOSIT INTEREST STATEMENT", docNumber: `Lease #${leaseId}` });
+  pdf.kpis([
+    { label: "Total accrued", value: kes2(data?.totalAccrued) },
+    { label: "Total settled", value: kes2(data?.totalSettled), tone: "green" },
+    { label: "Outstanding", value: kes2(data?.totalOutstanding), tone: Number(data?.totalOutstanding) > 0 ? "amber" : "green" },
+  ]);
+  pdf.caption(`CBK rate: ${cbkRate ? `${cbkRate.rate}% (effective ${shortDate(cbkRate.effectiveDate)})` : "see accrual records"} - Interest = Deposit x Rate x Days / 365 (Landlord & Tenant Act Cap 301)`);
+  pdf.table({
+    head: ["Period", "Deposit (KES)", "Rate", "Days", "Interest (KES)", "Cumulative (KES)", "Status"],
+    body: accruals.map(a => [`${a.periodStart} - ${a.periodEnd}`, Number(a.depositBalance).toLocaleString("en-KE"), `${a.cbkRate}%`, a.daysInPeriod, Number(a.interestAmount ?? 0).toLocaleString("en-KE", { minimumFractionDigits: 2 }), Number(a.cumulativeInterest ?? 0).toLocaleString("en-KE", { minimumFractionDigits: 2 }), a.isSettled ? "Settled" : "Pending"]),
+    align: ["left", "right", "right", "right", "right", "right", "left"],
+  });
+  pdf.save(`deposit-interest-lease-${leaseId}`);
 }
 
-// ─── CGT / Valuation PDF builder ──────────────────────────────────────────────
-function buildCgtHtml(propertyName: string, cgt: any, valuations: any[]): string {
-  const fmt2 = (n: any) => `KES ${Math.round(Number(n ?? 0)).toLocaleString("en-KE")}`;
-  return `
-    <div style="font-family:Arial,sans-serif;max-width:680px;margin:0 auto;padding:40px 44px;color:#111;">
-      <div style="display:flex;justify-content:space-between;align-items:flex-start;border-bottom:3px solid #059669;padding-bottom:20px;margin-bottom:28px;">
-        <div>
-          <div style="font-size:22px;font-weight:800;color:#059669;">Smart<span style="color:#0f172a;">Prop</span></div>
-          <div style="font-size:11px;color:#64748b;margin-top:4px;">Property Management Platform</div>
-        </div>
-        <div style="text-align:right;">
-          <div style="font-size:11px;font-weight:600;letter-spacing:2px;color:#64748b;text-transform:uppercase;">Capital Gains Tax Record</div>
-          <div style="font-size:17px;font-weight:700;margin-top:2px;">${propertyName}</div>
-          <div style="font-size:11px;color:#64748b;margin-top:3px;">Finance Act 2023 — CGT 15%</div>
-        </div>
-      </div>
-      ${cgt && cgt.cgt !== null ? `
-      <div style="margin-bottom:24px;">
-        <div style="font-size:10px;font-weight:700;letter-spacing:1.5px;color:#64748b;text-transform:uppercase;margin-bottom:10px;border-bottom:1px solid #e2e8f0;padding-bottom:6px;">CGT Computation</div>
-        <table style="width:100%;border-collapse:collapse;font-size:13px;">
-          <tbody>
-            <tr style="border-bottom:1px solid #f1f5f9;"><td style="padding:8px 0;color:#64748b;">Acquisition Date</td><td style="padding:8px 0;text-align:right;">${cgt.acquisitionDate ? new Date(cgt.acquisitionDate).toLocaleDateString("en-KE",{day:"2-digit",month:"long",year:"numeric"}) : "—"}</td></tr>
-            <tr style="border-bottom:1px solid #f1f5f9;"><td style="padding:8px 0;color:#64748b;">Cost Base (purchase + improvements)</td><td style="padding:8px 0;text-align:right;font-family:monospace;">${fmt2(cgt.costBase)}</td></tr>
-            <tr style="border-bottom:1px solid #f1f5f9;"><td style="padding:8px 0;color:#64748b;">Disposal Date</td><td style="padding:8px 0;text-align:right;">${cgt.disposalDate ? new Date(cgt.disposalDate).toLocaleDateString("en-KE",{day:"2-digit",month:"long",year:"numeric"}) : "—"}</td></tr>
-            <tr style="border-bottom:1px solid #f1f5f9;"><td style="padding:8px 0;color:#64748b;">Disposal Value</td><td style="padding:8px 0;text-align:right;font-family:monospace;">${fmt2(cgt.disposalValue)}</td></tr>
-            <tr style="border-bottom:1px solid #f1f5f9;"><td style="padding:8px 0;color:#64748b;">Net Capital Gain</td><td style="padding:8px 0;text-align:right;font-family:monospace;color:${cgt.gain > 0 ? "#d97706" : "#059669"};font-weight:600;">${fmt2(cgt.gain)}</td></tr>
-            <tr style="border-bottom:1px solid #f1f5f9;"><td style="padding:8px 0;color:#64748b;">CGT Rate (Finance Act 2023)</td><td style="padding:8px 0;text-align:right;">${cgt.cgtRate ?? 15}%</td></tr>
-            <tr style="background:${cgt.cgtLiability > 0 ? "#fff1f2" : "#f0fdf4"};"><td style="padding:10px 0;font-weight:700;color:${cgt.cgtLiability > 0 ? "#dc2626" : "#059669"};">CGT Liability</td><td style="padding:10px 0;text-align:right;font-family:monospace;font-weight:700;font-size:16px;color:${cgt.cgtLiability > 0 ? "#dc2626" : "#059669"};">${fmt2(cgt.cgtLiability)}</td></tr>
-          </tbody>
-        </table>
-        ${cgt.cgtLiability > 0 ? `<div style="background:#fef2f2;border:1px solid #fecaca;border-radius:6px;padding:10px 14px;margin-top:12px;font-size:12px;color:#dc2626;">
-          ⚠ KRA CGT return must be filed and tax paid within <strong>30 days</strong> of disposal via KRA iTax.
-        </div>` : ""}
-      </div>` : `<div style="background:#f0fdf4;border-radius:8px;padding:16px;margin-bottom:24px;font-size:13px;color:#334155;">${cgt?.note ?? cgt?.message ?? "CGT not yet applicable — record a disposal valuation to compute liability."}</div>`}
-      <div style="margin-bottom:8px;">
-        <div style="font-size:10px;font-weight:700;letter-spacing:1.5px;color:#64748b;text-transform:uppercase;margin-bottom:10px;border-bottom:1px solid #e2e8f0;padding-bottom:6px;">Valuation History</div>
-        <table style="width:100%;border-collapse:collapse;font-size:12px;">
-          <thead><tr style="background:#f0fdf4;font-size:10px;font-weight:700;color:#059669;text-transform:uppercase;">
-            <th style="padding:8px 10px;text-align:left;border-bottom:2px solid #d1fae5;">Date</th>
-            <th style="padding:8px 10px;text-align:left;border-bottom:2px solid #d1fae5;">Type</th>
-            <th style="padding:8px 10px;text-align:right;border-bottom:2px solid #d1fae5;">Market Value</th>
-            <th style="padding:8px 10px;text-align:left;border-bottom:2px solid #d1fae5;">Valuer</th>
-          </tr></thead>
-          <tbody>
-            ${valuations.map((v: any, i: number) => `
-              <tr style="border-bottom:1px solid #f1f5f9;background:${i%2===0?"#fff":"#f8fafc"};">
-                <td style="padding:7px 10px;">${v.valuationDate ? new Date(v.valuationDate).toLocaleDateString("en-KE",{day:"2-digit",month:"short",year:"numeric"}) : "—"}</td>
-                <td style="padding:7px 10px;text-transform:capitalize;">${(v.valuationType||"").replace(/_/g," ")}</td>
-                <td style="padding:7px 10px;text-align:right;font-family:monospace;font-weight:600;">${fmt2(v.marketValue)}</td>
-                <td style="padding:7px 10px;font-size:11px;color:#64748b;">${v.valuerName ?? "—"}${v.valuerFirm ? ` · ${v.valuerFirm}` : ""}</td>
-              </tr>`).join("")}
-          </tbody>
-        </table>
-      </div>
-      <div style="margin-top:32px;padding-top:14px;border-top:1px solid #e2e8f0;font-size:11px;color:#94a3b8;text-align:center;">
-        Generated by SmartProp &nbsp;|&nbsp; Finance Act 2023 — Capital Gains Tax 15% &nbsp;|&nbsp; File via KRA iTax
-      </div>
-    </div>`;
+async function downloadCgtPdf(propertyName: string, cgt: any, valuations: any[]) {
+  const pdf = await createPdf({ title: `Capital gains tax record - ${propertyName}`, docLabel: "CAPITAL GAINS TAX RECORD", docNumber: propertyName, subtitle: "Finance Act 2023 - CGT 15%" });
+  pdf.section("CGT computation");
+  if (cgt && cgt.cgt !== null) {
+    pdf.table({
+      head: ["Item", "Value"],
+      body: [
+        ["Acquisition date", longDate(cgt.acquisitionDate)], ["Cost base (purchase + improvements)", kesRound(cgt.costBase)],
+        ["Disposal date", longDate(cgt.disposalDate)], ["Disposal value", kesRound(cgt.disposalValue)],
+        ["Net capital gain", kesRound(cgt.gain)], ["CGT rate (Finance Act 2023)", `${cgt.cgtRate ?? 15}%`],
+      ],
+      align: ["left", "right"],
+    });
+    pdf.amountBox("CGT liability", kesRound(cgt.cgtLiability), { tone: Number(cgt.cgtLiability) > 0 ? "red" : "green" });
+    if (Number(cgt.cgtLiability) > 0) pdf.panel("Filing deadline", ["The KRA CGT return must be filed and the tax paid within 30 days of disposal via KRA iTax."]);
+  } else {
+    pdf.paragraph(cgt?.note ?? cgt?.message ?? "CGT not yet applicable - record a disposal valuation to compute liability.");
+  }
+  pdf.section("Valuation history");
+  if (valuations.length === 0) pdf.paragraph("No valuations recorded.");
+  else pdf.table({
+    head: ["Date", "Type", "Market value (KES)", "Valuer"],
+    body: valuations.map(v => [shortDate(v.valuationDate), String(v.valuationType || "").replace(/_/g, " "), Math.round(Number(v.marketValue ?? 0)).toLocaleString("en-KE"), `${v.valuerName ?? "-"}${v.valuerFirm ? ` - ${v.valuerFirm}` : ""}`]),
+    align: ["left", "left", "right", "left"],
+  });
+  pdf.save(`cgt-record-${propertyName.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`);
 }
 
 // ─── eTIMS Submissions Excel export ─────────────────────────────────────────────
@@ -435,7 +253,7 @@ function StampDutyLeaseCard({ l, editing, setEditing, form, setForm, update }: a
             ) : (
               <div className="flex justify-between items-center border-t pt-3">
                 <Button variant="outline" size="sm" onClick={() =>
-                  printDoc(buildStampDutyHtml(l), `Stamp Duty — ${l.leaseNumber}`)
+                  downloadStampDutyPdf(l)
                 }>
                   <Download className="h-3.5 w-3.5 mr-1.5" />Download PDF
                 </Button>
@@ -649,7 +467,7 @@ function KraReturnCard({ r, MONTHS, filingRefs, setFilingRefs, markFiled }: any)
             )}
             <div className="flex justify-end pt-2">
               <Button variant="outline" size="sm" onClick={() =>
-                printDoc(buildKraReturnHtml(r, MONTHS), `KRA Return — ${MONTHS[(r.returnMonth ?? 1) - 1]} ${r.returnYear}`)
+                downloadKraReturnPdf(r, MONTHS)
               }>
                 <Download className="h-3.5 w-3.5 mr-1.5" />Download PDF
               </Button>
@@ -1131,7 +949,7 @@ function DepositInterestTab() {
             )}
             {selectedLeaseId && data && (
               <Button variant="outline" onClick={() =>
-                printDoc(buildDepositInterestHtml(selectedLeaseId, data, currentRate), `Deposit Interest — Lease ${selectedLeaseId}`)
+                downloadDepositInterestPdf(selectedLeaseId, data, currentRate)
               }>
                 <Download className="h-4 w-4 mr-1" />Download Statement
               </Button>
@@ -1409,7 +1227,7 @@ function ValuationsTab() {
         {propId && (cgt || valuations.length > 0) && (
           <Button variant="outline" className="gap-1.5" onClick={() => {
             const propName = properties.find((p: any) => String(p.id) === propId)?.name ?? `Property ${propId}`;
-            printDoc(buildCgtHtml(propName, cgt, valuations), `CGT Record — ${propName}`);
+            downloadCgtPdf(propName, cgt, valuations);
           }}>
             <Download className="h-4 w-4" />Download PDF
           </Button>
@@ -2479,9 +2297,9 @@ function RrtNoticesTab() {
                 <Button
                   size="sm"
                   className="bg-emerald-600 hover:bg-emerald-700 text-white"
-                  onClick={() => printDoc(generatedHtml, generatedTitle)}
+                  onClick={() => downloadDocPdf(generatedHtml, generatedTitle)}
                 >
-                  <Download className="h-3.5 w-3.5 mr-1.5" />Download / Print PDF
+                  <Download className="h-3.5 w-3.5 mr-1.5" />Download PDF
                 </Button>
                 <Button variant="outline" size="sm" onClick={() => setGeneratedHtml(null)}>
                   Dismiss

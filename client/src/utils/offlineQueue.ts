@@ -174,6 +174,10 @@ class OfflineQueue {
       try {
         const headers = { ...item.headers };
         delete (headers as any)['content-length'];
+        // The token saved with the request may have expired while the phone was
+        // offline (access tokens are short-lived). Replay with the current one.
+        const currentToken = localStorage.getItem('access_token');
+        if (currentToken) (headers as any)['Authorization'] = `Bearer ${currentToken}`;
 
         const res = await fetch(item.url, {
           method:  item.method,
@@ -185,6 +189,9 @@ class OfflineQueue {
         if (res.ok || (res.status >= 200 && res.status < 300)) {
           if (item.id != null) await idbDelete(item.id);
           synced++;
+        } else if (res.status === 401) {
+          // Signed out / token not refreshed yet — keep the request for the next attempt.
+          break;
         } else if (res.status >= 400 && res.status < 500) {
           if (item.id != null) await idbDelete(item.id);
           failed++;

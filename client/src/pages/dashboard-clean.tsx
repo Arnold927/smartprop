@@ -8,6 +8,7 @@ import { useState, useMemo, useEffect } from "react";
 import { MpesaStatusAlert } from "@/components/MpesaStatusAlert";
 import { FirstRunOverlay, needsFirstRun, markFirstRunDone } from "@/components/first-run-overlay";
 import { useQuery } from "@tanstack/react-query";
+import { GettingStarted } from "@/components/getting-started";
 import { useLocation } from "wouter";
 import { apiRequest, ensureArray } from "@/lib/queryClient";
 import { useDashboardSummary } from "@/hooks/useDashboardSummary";
@@ -417,23 +418,16 @@ export default function DashboardClean() {
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8 space-y-8">
 
-        {/* Setup banner */}
-        {m.totalProperties === 0 && (
-          <div className="rounded-2xl border border-emerald-200 dark:border-emerald-900 bg-emerald-500/5 px-6 py-5 flex flex-col sm:flex-row sm:items-center gap-4">
-            <div className="flex items-center gap-4 flex-1">
-              <div className="w-10 h-10 rounded-xl bg-emerald-600 flex items-center justify-center flex-shrink-0 shadow-sm">
-                <Building2 className="w-5 h-5 text-white" />
-              </div>
-              <div>
-                <p className="font-semibold text-foreground text-sm">Finish setting up your account</p>
-                <p className="text-xs text-muted-foreground mt-0.5">Add a property, import tenants, and send your first rent reminder — takes about 5 minutes.</p>
-              </div>
-            </div>
-            <button onClick={() => navigate("/quick-setup")} className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-medium transition-colors flex-shrink-0 shadow-sm">
-              Continue setup <ArrowUpRight className="w-4 h-4" />
-            </button>
-          </div>
-        )}
+        {/* Getting started — disappears once everything is set up, or when dismissed */}
+        <GettingStarted
+          userId={user?.id ?? "unknown"}
+          steps={[
+            { key: "property", title: "Add your first property", hint: "A building, estate or plot you manage.", done: m.totalProperties > 0, href: "/properties", cta: "Add property" },
+            { key: "units", title: "Add its units", hint: "Houses, flats or shops available to let.", done: m.totalUnits > 0, href: "/properties", cta: "Add units" },
+            { key: "tenants", title: "Add or import tenants", hint: "Put tenants in their units so rent can be tracked.", done: m.totalTenants > 0, href: "/tenants", cta: "Add tenants" },
+            { key: "payment", title: "Record your first payment", hint: "Rent paid in cash, bank or M-Pesa.", done: m.recentPayments.length > 0 || m.revenueThisMonth > 0, href: "/rent-collection", cta: "Record payment" },
+          ]}
+        />
 
         <MpesaStatusAlert />
 

@@ -403,7 +403,7 @@
 // size="sm"
 // className="h-8 w-8 p-0 hover:bg-muted"
 // onClick={() => handleViewTenant(tenant)}
-// >
+//  aria-label="View">
 // <Eye className="h-4 w-4" />
 // </Button>
 // <DropdownMenu>
@@ -412,7 +412,7 @@
 // variant="ghost" 
 // size="sm" 
 // className="h-8 w-8 p-0 hover:bg-muted border border-border"
-// >
+// aria-label="More actions">
 // <MoreVertical className="h-4 w-4" />
 // </Button>
 // </DropdownMenuTrigger>

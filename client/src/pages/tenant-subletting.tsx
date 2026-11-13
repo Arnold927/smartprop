@@ -1334,7 +1334,7 @@ export default function TenantSubletting() {
                             type="button"
                             className="absolute top-1 right-1 bg-black/60 rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
                             onClick={() => removePhotoMutation.mutate({ listingId: editingListing.id, url })}
-                          >
+                           aria-label="Delete">
                             <Trash2 className="h-3 w-3 text-white" />
                           </button>
                         </div>
@@ -1543,8 +1543,7 @@ export default function TenantSubletting() {
                                   variant="ghost"
                                   size="sm"
                                   className="h-8 w-8 p-0"
-                                  disabled={updateListingStatusMutation.isPending || deleteListingMutation.isPending}
-                                >
+                                  disabled={updateListingStatusMutation.isPending || deleteListingMutation.isPending} aria-label="More actions">
                                   <MoreVertical className="h-4 w-4" />
                                 </Button>
                               </DropdownMenuTrigger>

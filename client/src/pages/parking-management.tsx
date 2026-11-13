@@ -409,7 +409,7 @@ export default function ParkingManagement() {
                             {/* Actions dropdown */}
                             <DropdownMenu>
                               <DropdownMenuTrigger asChild>
-                                <Button variant="ghost" size="sm" className="h-7 w-7 p-0"><MoreVertical className="w-4 h-4" /></Button>
+                                <Button variant="ghost" size="sm" className="h-7 w-7 p-0" aria-label="More actions"><MoreVertical className="w-4 h-4" /></Button>
                               </DropdownMenuTrigger>
                               <DropdownMenuContent align="end" className="w-36">
                                 <DropdownMenuItem onClick={()=>setEditingSpace(space)}><Pencil className="w-4 h-4 mr-2" />Edit</DropdownMenuItem>
@@ -565,7 +565,7 @@ export default function ParkingManagement() {
                           <td className="px-4 py-3" onClick={e=>e.stopPropagation()}>
                             <DropdownMenu>
                               <DropdownMenuTrigger asChild>
-                                <Button variant="ghost" size="sm" className="h-7 w-7 p-0 opacity-0 group-hover:opacity-100"><MoreVertical className="w-4 h-4" /></Button>
+                                <Button variant="ghost" size="sm" className="h-7 w-7 p-0 opacity-0 group-hover:opacity-100" aria-label="More actions"><MoreVertical className="w-4 h-4" /></Button>
                               </DropdownMenuTrigger>
                               <DropdownMenuContent align="end" className="w-40">
                                 <DropdownMenuItem onClick={()=>setEditingVehicle(v)}><Pencil className="w-4 h-4 mr-2" />Edit</DropdownMenuItem>
@@ -706,7 +706,7 @@ export default function ParkingManagement() {
                             <td className="px-4 py-3" onClick={e=>e.stopPropagation()}>
                               <DropdownMenu>
                                 <DropdownMenuTrigger asChild>
-                                  <Button variant="ghost" size="sm" className="h-7 w-7 p-0 opacity-0 group-hover:opacity-100"><MoreVertical className="w-4 h-4" /></Button>
+                                  <Button variant="ghost" size="sm" className="h-7 w-7 p-0 opacity-0 group-hover:opacity-100" aria-label="More actions"><MoreVertical className="w-4 h-4" /></Button>
                                 </DropdownMenuTrigger>
                                 <DropdownMenuContent align="end" className="w-40">
                                   <DropdownMenuItem onClick={()=>setEditingAssignment(a)}><Pencil className="w-4 h-4 mr-2" />Edit</DropdownMenuItem>

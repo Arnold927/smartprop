@@ -1,4 +1,7 @@
 import { downloadExcel } from "@/lib/excel";
+import { createPdf, money, todayStamp } from "@/lib/pdf";
+import { ActivityTimeline } from "@/components/activity-timeline";
+import { ContactActions, toWhatsAppNumber } from "@/components/contact-actions";
 import { useState, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useParams, Link, useLocation } from "wouter";
@@ -12,7 +15,7 @@ import {
   Home, User, Wrench, AlertCircle, CheckCircle, XCircle, Clock,
   Edit, Download, MoreVertical, Printer, History, Receipt,
   Lock, Upload, ExternalLink, Bed, Bath, Square, Building2,
-  ChevronRight, Shield, Search, X, ChevronLeft,
+  ChevronRight, Shield, Search, X, ChevronLeft, MessageCircle,
 } from "lucide-react";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem,
@@ -307,6 +310,39 @@ export default function TenantDetails() {
     }
   };
 
+  const handleStatementPdf = async () => {
+    if (!tenant) return;
+    const cur = tenant.currency || "KES";
+    const sorted = [...rentPayments].sort((a, b) => (a.dueDate < b.dueDate ? 1 : -1));
+    const paid = sorted.filter(p => p.status === "paid").reduce((s, p) => s + Number(p.amount || 0), 0);
+    const outstanding = sorted.filter(p => p.status !== "paid").reduce((s, p) => s + Number(p.amount || 0), 0);
+    const overdueAmt = sorted.filter(p => p.status === "overdue" || (p.status === "pending" && p.dueDate < today)).reduce((s, p) => s + Number(p.amount || 0), 0);
+    const pdf = await createPdf({
+      title: `Tenant statement - ${tenant.firstName} ${tenant.lastName}`,
+      docLabel: "TENANT STATEMENT",
+      docNumber: `#${tenant.id.toString().padStart(4, "0")}`,
+    });
+    pdf.twoColumn(
+      { title: "Tenant", rows: [["Name", `${tenant.firstName} ${tenant.lastName}`], ["Phone", tenant.phone || "-"], ["Email", tenant.email || "-"], ["Status", tenant.status]] },
+      { title: "Tenancy", rows: [["Property", tenant.property?.name || tenantUnit?.property?.name || "-"], ["Unit", unitDisplay || "-"], ["Monthly rent", money(tenant.monthlyRent, cur)], ["Lease", `${fmtDate(tenant.leaseStartDate)} - ${fmtDate(tenant.leaseEndDate)}`]] },
+    );
+    pdf.kpis([
+      { label: "Total paid", value: money(paid, cur), tone: "green" },
+      { label: "Outstanding", value: money(outstanding, cur), tone: outstanding > 0 ? "amber" : "plain" },
+      { label: "Overdue", value: money(overdueAmt, cur), tone: overdueAmt > 0 ? "red" : "plain" },
+      { label: "Security deposit", value: money(tenant.securityDeposit, cur), tone: "blue" },
+    ]);
+    pdf.section("Payment history");
+    if (sorted.length === 0) pdf.paragraph("No rent charges have been recorded for this tenant yet.");
+    else pdf.table({
+      head: ["Due date", "Paid on", "Method", "Status", `Amount (${cur})`],
+      body: sorted.map(p => [fmtDate(p.dueDate), p.paidDate ? fmtDate(p.paidDate) : "-", (p.paymentMethod || "-").replace(/_/g, " "), p.status === "pending" && p.dueDate < today ? "overdue" : p.status, Number(p.amount || 0).toLocaleString("en-KE")]),
+      foot: [["", "", "", "Total paid", paid.toLocaleString("en-KE")]],
+      align: ["left", "left", "left", "left", "right"],
+    });
+    pdf.save(`statement-${tenant.firstName}-${tenant.lastName}-${todayStamp()}`.toLowerCase());
+  };
+
   const handleExport = () => {
     if (!tenant) return;
     const rows = [
@@ -451,6 +487,13 @@ export default function TenantDetails() {
                   <Button variant="outline" size="sm" className="h-8 hidden sm:flex" onClick={handleCallTenant}>
                     <Phone className="h-3.5 w-3.5 mr-1.5" />Call
                   </Button>
+                  {toWhatsAppNumber(tenant.phone) && (
+                    <Button variant="outline" size="sm" className="h-8 hidden sm:flex" asChild>
+                      <a href={`https://wa.me/${toWhatsAppNumber(tenant.phone)}?text=${encodeURIComponent(`Hello ${tenant.firstName}, `)}`} target="_blank" rel="noopener noreferrer">
+                        <MessageCircle className="h-3.5 w-3.5 mr-1.5" />WhatsApp
+                      </a>
+                    </Button>
+                  )}
                   {isManager && (
                     <Button size="sm" className="h-8 bg-emerald-600 hover:bg-emerald-700 text-white" onClick={() => setIsEditTenantDialogOpen(true)}>
                       <Edit className="h-3.5 w-3.5 mr-1.5" />Edit
@@ -458,7 +501,7 @@ export default function TenantDetails() {
                   )}
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
-                      <Button variant="outline" size="sm" className="h-8 px-2">
+                      <Button variant="outline" size="sm" className="h-8 px-2" aria-label="More actions">
                         <MoreVertical className="h-4 w-4" />
                       </Button>
                     </DropdownMenuTrigger>
@@ -466,7 +509,9 @@ export default function TenantDetails() {
                       <DropdownMenuItem className="sm:hidden" onClick={handleSendEmail}><Mail className="mr-2 h-4 w-4" />Email</DropdownMenuItem>
                       <DropdownMenuItem className="sm:hidden" onClick={handleCallTenant}><Phone className="mr-2 h-4 w-4" />Call</DropdownMenuItem>
                       <DropdownMenuItem onClick={() => window.print()}><Printer className="mr-2 h-4 w-4" />Print</DropdownMenuItem>
+                      <DropdownMenuItem onClick={handleStatementPdf}><FileText className="mr-2 h-4 w-4" />Statement (PDF)</DropdownMenuItem>
                       <DropdownMenuItem onClick={handleExport}><Download className="mr-2 h-4 w-4" />Export Excel</DropdownMenuItem>
+                      {toWhatsAppNumber(tenant.phone) && <DropdownMenuItem className="sm:hidden" asChild><a href={`https://wa.me/${toWhatsAppNumber(tenant.phone)}`} target="_blank" rel="noopener noreferrer"><MessageCircle className="mr-2 h-4 w-4" />WhatsApp</a></DropdownMenuItem>}
                       {isManager && <>
                         <DropdownMenuSeparator />
                         <DropdownMenuItem className="text-red-600"><Lock className="mr-2 h-4 w-4" />Deactivate</DropdownMenuItem>
@@ -509,6 +554,7 @@ export default function TenantDetails() {
               { value: "payments",     label: "Payments" },
               { value: "maintenance",  label: "Maintenance" },
               { value: "documents",    label: "Documents" },
+              { value: "activity",     label: "Activity" },
             ].map(t => (
               <TabsTrigger key={t.value} value={t.value} className="rounded-lg px-4 text-sm">
                 {t.label}
@@ -661,6 +707,15 @@ export default function TenantDetails() {
             )}
           </TabsContent>
 
+          {/* ── Activity timeline ── */}
+          <TabsContent value="activity" className="m-0">
+            <Card className="rounded-2xl shadow-none border-border dark:border-gray-800">
+              <CardContent className="p-5">
+                <ActivityTimeline kind="tenant" id={tenant.id} limit={200} filterable />
+              </CardContent>
+            </Card>
+          </TabsContent>
+
           {/* ── Payments tab ── */}
           <TabsContent value="payments" className="m-0">
             <div className="space-y-5">
@@ -803,13 +858,13 @@ export default function TenantDetails() {
                                 {(maintSafePage - 1) * maintPageSize + 1}–{Math.min(maintSafePage * maintPageSize, filteredMaint.length)} of {filteredMaint.length}
                               </p>
                               <div className="flex items-center gap-1">
-                                <Button variant="outline" size="sm" className="h-7 w-7 p-0" disabled={maintSafePage === 1} onClick={() => setMaintPage(p => p - 1)}>
+                                <Button variant="outline" size="sm" className="h-7 w-7 p-0" disabled={maintSafePage === 1} onClick={() => setMaintPage(p => p - 1)} aria-label="Previous">
                                   <ChevronLeft className="h-3.5 w-3.5" />
                                 </Button>
                                 {Array.from({ length: maintTotalPages }, (_, i) => i + 1).map(n => (
                                   <Button key={n} variant={n === maintSafePage ? "default" : "outline"} size="sm" className="h-7 w-7 p-0 text-xs" onClick={() => setMaintPage(n)}>{n}</Button>
                                 ))}
-                                <Button variant="outline" size="sm" className="h-7 w-7 p-0" disabled={maintSafePage === maintTotalPages} onClick={() => setMaintPage(p => p + 1)}>
+                                <Button variant="outline" size="sm" className="h-7 w-7 p-0" disabled={maintSafePage === maintTotalPages} onClick={() => setMaintPage(p => p + 1)} aria-label="Next">
                                   <ChevronRight className="h-3.5 w-3.5" />
                                 </Button>
                               </div>
@@ -901,7 +956,7 @@ export default function TenantDetails() {
                                   <p className="text-sm font-medium text-foreground truncate">{doc.name}</p>
                                   <p className="text-xs text-muted-foreground">{Math.round(doc.size / 1024)} KB · {fmtDate(doc.createdAt)}</p>
                                 </div>
-                                <Button variant="ghost" size="sm" className="h-7 w-7 p-0 flex-shrink-0" onClick={() => handleDownloadDocument(doc)}>
+                                <Button variant="ghost" size="sm" className="h-7 w-7 p-0 flex-shrink-0" onClick={() => handleDownloadDocument(doc)} aria-label="Download">
                                   <Download className="h-3.5 w-3.5" />
                                 </Button>
                               </div>
@@ -915,13 +970,13 @@ export default function TenantDetails() {
                                 {(docSafePage - 1) * docPageSize + 1}–{Math.min(docSafePage * docPageSize, filteredDocs.length)} of {filteredDocs.length}
                               </p>
                               <div className="flex items-center gap-1">
-                                <Button variant="outline" size="sm" className="h-7 w-7 p-0" disabled={docSafePage === 1} onClick={() => setDocPage(p => p - 1)}>
+                                <Button variant="outline" size="sm" className="h-7 w-7 p-0" disabled={docSafePage === 1} onClick={() => setDocPage(p => p - 1)} aria-label="Previous">
                                   <ChevronLeft className="h-3.5 w-3.5" />
                                 </Button>
                                 {Array.from({ length: docTotalPages }, (_, i) => i + 1).map(n => (
                                   <Button key={n} variant={n === docSafePage ? "default" : "outline"} size="sm" className="h-7 w-7 p-0 text-xs" onClick={() => setDocPage(n)}>{n}</Button>
                                 ))}
-                                <Button variant="outline" size="sm" className="h-7 w-7 p-0" disabled={docSafePage === docTotalPages} onClick={() => setDocPage(p => p + 1)}>
+                                <Button variant="outline" size="sm" className="h-7 w-7 p-0" disabled={docSafePage === docTotalPages} onClick={() => setDocPage(p => p + 1)} aria-label="Next">
                                   <ChevronRight className="h-3.5 w-3.5" />
                                 </Button>
                               </div>

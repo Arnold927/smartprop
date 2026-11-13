@@ -246,7 +246,7 @@ export function FeatureAnnouncementCenter({ userRole = 'manager', position = 'mo
  }}
  className="shrink-0 p-1 h-auto"
  data-testid={`sidebar-dismiss-${announcement.id}`}
- >
+  aria-label="Close">
  <X className="w-3 h-3" />
  </Button>
  </div>

@@ -326,10 +326,10 @@ export default function MaintenanceApprovals() {
                     <span className="text-xs text-muted-foreground">
                       {(pendingPage - 1) * pendingPageSize + 1}–{Math.min(pendingPage * pendingPageSize, pending.length)} of {pending.length}
                     </span>
-                    <Button variant="outline" size="sm" className="h-7 w-7 p-0" disabled={pendingPage === 1} onClick={() => setPendingPage(p => p - 1)}>
+                    <Button variant="outline" size="sm" className="h-7 w-7 p-0" disabled={pendingPage === 1} onClick={() => setPendingPage(p => p - 1)} aria-label="Previous">
                       <ChevronLeft className="w-3.5 h-3.5" />
                     </Button>
-                    <Button variant="outline" size="sm" className="h-7 w-7 p-0" disabled={pendingPage === pendingTotalPages} onClick={() => setPendingPage(p => p + 1)}>
+                    <Button variant="outline" size="sm" className="h-7 w-7 p-0" disabled={pendingPage === pendingTotalPages} onClick={() => setPendingPage(p => p + 1)} aria-label="Next">
                       <ChevronRight className="w-3.5 h-3.5" />
                     </Button>
                   </div>
@@ -400,10 +400,10 @@ export default function MaintenanceApprovals() {
                   <span className="text-xs text-muted-foreground">
                     {(processedPage - 1) * processedPageSize + 1}–{Math.min(processedPage * processedPageSize, processed.length)} of {processed.length}
                   </span>
-                  <Button variant="outline" size="sm" className="h-7 w-7 p-0" disabled={processedPage === 1} onClick={() => setProcessedPage(p => p - 1)}>
+                  <Button variant="outline" size="sm" className="h-7 w-7 p-0" disabled={processedPage === 1} onClick={() => setProcessedPage(p => p - 1)} aria-label="Previous">
                     <ChevronLeft className="w-3.5 h-3.5" />
                   </Button>
-                  <Button variant="outline" size="sm" className="h-7 w-7 p-0" disabled={processedPage === processedTotalPages} onClick={() => setProcessedPage(p => p + 1)}>
+                  <Button variant="outline" size="sm" className="h-7 w-7 p-0" disabled={processedPage === processedTotalPages} onClick={() => setProcessedPage(p => p + 1)} aria-label="Next">
                     <ChevronRight className="w-3.5 h-3.5" />
                   </Button>
                 </div>

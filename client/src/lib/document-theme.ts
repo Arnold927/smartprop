@@ -161,6 +161,20 @@ export function openPrintWindow(bodyHtml: string, title: string, extraCss = ""):
   win.onload = () => { win.focus(); win.print(); };
 }
 
+/**
+ * Downloads the same themed document as a real PDF file (no print dialog, no pop-up).
+ * Falls back to the print window if PDF generation is unavailable for any reason.
+ */
+export async function downloadDocPdf(bodyHtml: string, title: string, filename?: string): Promise<void> {
+  try {
+    const { htmlToPdfDownload } = await import("./pdf-html");
+    await htmlToPdfDownload(bodyHtml, title, filename);
+  } catch (err) {
+    console.error("[pdf] falling back to print window:", err);
+    openPrintWindow(bodyHtml, title);
+  }
+}
+
 /** Helper: format a date string as "02 January 2025" */
 export function fmtDocDate(iso: string | null | undefined): string {
   if (!iso) return "—";

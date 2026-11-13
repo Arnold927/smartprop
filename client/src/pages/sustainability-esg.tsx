@@ -1338,11 +1338,11 @@ const SustainabilityESG = () => {
                     <span>{filteredMetrics.length} records · page {metricPage} of {metricTotalPages}</span>
                     <div className="flex items-center gap-1">
                       <Button size="sm" variant="outline" className="h-7 w-7 p-0"
-                        disabled={metricPage <= 1} onClick={() => setMetricPage(p => p - 1)}>
+                        disabled={metricPage <= 1} onClick={() => setMetricPage(p => p - 1)} aria-label="Previous">
                         <ChevronLeft className="w-3.5 h-3.5" />
                       </Button>
                       <Button size="sm" variant="outline" className="h-7 w-7 p-0"
-                        disabled={metricPage >= metricTotalPages} onClick={() => setMetricPage(p => p + 1)}>
+                        disabled={metricPage >= metricTotalPages} onClick={() => setMetricPage(p => p + 1)} aria-label="Next">
                         <ChevronRight className="w-3.5 h-3.5" />
                       </Button>
                     </div>
@@ -1514,11 +1514,11 @@ const SustainabilityESG = () => {
                 {reportTotalPages > 1 && (
                   <div className="flex items-center gap-1">
                     <Button size="sm" variant="outline" className="h-7 w-7 p-0"
-                      disabled={reportPage <= 1} onClick={() => setReportPage(p => p - 1)}>
+                      disabled={reportPage <= 1} onClick={() => setReportPage(p => p - 1)} aria-label="Previous">
                       <ChevronLeft className="w-3.5 h-3.5" />
                     </Button>
                     <Button size="sm" variant="outline" className="h-7 w-7 p-0"
-                      disabled={reportPage >= reportTotalPages} onClick={() => setReportPage(p => p + 1)}>
+                      disabled={reportPage >= reportTotalPages} onClick={() => setReportPage(p => p + 1)} aria-label="Next">
                       <ChevronRight className="w-3.5 h-3.5" />
                     </Button>
                   </div>
@@ -1681,11 +1681,11 @@ const SustainabilityESG = () => {
                 {matTotalPages > 1 && (
                   <div className="flex items-center gap-1">
                     <Button size="sm" variant="outline" className="h-7 w-7 p-0"
-                      disabled={matPage <= 1} onClick={() => setMatPage(p => p - 1)}>
+                      disabled={matPage <= 1} onClick={() => setMatPage(p => p - 1)} aria-label="Previous">
                       <ChevronLeft className="w-3.5 h-3.5" />
                     </Button>
                     <Button size="sm" variant="outline" className="h-7 w-7 p-0"
-                      disabled={matPage >= matTotalPages} onClick={() => setMatPage(p => p + 1)}>
+                      disabled={matPage >= matTotalPages} onClick={() => setMatPage(p => p + 1)} aria-label="Next">
                       <ChevronRight className="w-3.5 h-3.5" />
                     </Button>
                   </div>

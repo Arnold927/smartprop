@@ -1,4 +1,10 @@
 import { downloadExcel } from "@/lib/excel";
+import { ExportMenu } from "@/components/export-menu";
+import { BulkBar } from "@/components/bulk-bar";
+import { useRowSelection } from "@/hooks/useRowSelection";
+import { SavedViewsMenu, ActiveFilters, type FilterChip } from "@/components/saved-views";
+import { Checkbox } from "@/components/ui/checkbox";
+import { exportTablePdf, todayStamp } from "@/lib/pdf";
 import { useState, useRef, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useLocation } from "wouter";
@@ -400,14 +406,62 @@ export default function Maintenance() {
  const totalPages = Math.ceil(filtered.length / PER_PAGE);
  const paginated = filtered.slice((page - 1) * PER_PAGE, page * PER_PAGE);
 
- const handleExport = () => {
+ const selection = useRowSelection(filtered, (r: MaintenanceRequest) => r.id);
+ const filterState = { search, priorityFilter, statusFilter };
+ const applyFilters = (f: Partial<typeof filterState>) => {
+ setSearch(f.search ?? ""); setPriorityFilter(f.priorityFilter ?? "all"); setStatusFilter(f.statusFilter ?? "all"); setPage(1);
+ };
+ const prettyStatus = (v: string) => v.replace(/_/g, " ").replace(/^./, c => c.toUpperCase());
+ const filterChips: FilterChip[] = [
+ ...(search ? [{ key: "search", label: `Search: ${search}`, onClear: () => setSearch("") }] : []),
+ ...(priorityFilter !== "all" ? [{ key: "priority", label: `Priority: ${prettyStatus(priorityFilter)}`, onClear: () => setPriorityFilter("all") }] : []),
+ ...(statusFilter !== "all" ? [{ key: "status", label: `Status: ${prettyStatus(statusFilter)}`, onClear: () => setStatusFilter("all") }] : []),
+ ];
+ const clearAllFilters = () => { setSearch(""); setPriorityFilter("all"); setStatusFilter("all"); setPage(1); };
+ const exportExcel = (list: MaintenanceRequest[]) => {
  downloadExcel(
- `maintenance-${new Date().toISOString().split("T")[0]}`,
+ `maintenance-${todayStamp()}`,
  ["ID", "Title", "Priority", "Status", "Property", "Unit", "Tenant", "Created"],
- filtered.map(r => [r.id, r.title, r.priority, r.status, r.property?.name ?? "", r.unit?.unitNumber ?? "", r.tenant ? r.tenant.firstName + " " + r.tenant.lastName : "", new Date(r.createdAt).toLocaleDateString()]),
+ list.map(r => [r.id, r.title, r.priority, r.status, r.property?.name ?? "", r.unit?.unitNumber ?? "", r.tenant ? r.tenant.firstName + " " + r.tenant.lastName : "", new Date(r.createdAt).toLocaleDateString()]),
  "Maintenance",
  );
  };
+ const exportPdf = async (list: MaintenanceRequest[]) => {
+ await exportTablePdf({
+ title: "Maintenance requests",
+ caption: "Repair and service requests across your properties",
+ docLabel: "MAINTENANCE",
+ filters: filterChips.map(c => c.label),
+ kpis: [
+ { label: "Requests", value: String(list.length) },
+ { label: "Open", value: String(list.filter(r => ["pending", "assigned", "pending_approval"].includes(r.status)).length) },
+ { label: "In progress", value: String(list.filter(r => r.status === "in_progress").length) },
+ { label: "Urgent", value: String(list.filter(r => r.priority === "urgent" && r.status !== "completed").length), tone: "red" },
+ ],
+ columns: [
+ { header: "Ref", width: 12 }, { header: "Request" }, { header: "Property" }, { header: "Unit", width: 14 },
+ { header: "Tenant" }, { header: "Priority", width: 18 }, { header: "Status", width: 24 }, { header: "Logged", width: 22 },
+ ],
+ rows: list.map(r => [`#${r.id}`, r.title, r.property?.name ?? "-", r.unit?.unitNumber ?? "-",
+ r.tenant ? `${r.tenant.firstName} ${r.tenant.lastName}` : "-", prettyStatus(r.priority), prettyStatus(r.status), new Date(r.createdAt).toLocaleDateString("en-KE")]),
+ filename: `maintenance-requests-${todayStamp()}`,
+ });
+ };
+ // Bulk workflow moves. Requests awaiting approval are skipped on purpose —
+ // approval has its own dialog (approve/reject with a reason).
+ const bulkMove = useMutation({
+ mutationFn: async ({ ids, status }: { ids: number[]; status: string }) => {
+ const res = await Promise.allSettled(ids.map(id => apiRequest(`/api/maintenance-requests/${id}`, { method: "PUT", data: { status } })));
+ return { ok: res.filter(r => r.status === "fulfilled").length, failed: res.filter(r => r.status === "rejected").length };
+ },
+ onSuccess: ({ ok, failed }, v) => {
+ queryClient.invalidateQueries({ queryKey: ["/api/maintenance-requests"] });
+ toast({ title: `${ok} request${ok === 1 ? "" : "s"} updated`, description: failed ? `${failed} could not be updated` : undefined, variant: failed ? "destructive" : undefined });
+ selection.clear();
+ },
+ onError: () => toast({ title: "Bulk update failed", variant: "destructive" }),
+ });
+ const movable = (from: string[]) => selection.selectedItems.filter(r => from.includes(r.status));
 
  const openApproval = (r: MaintenanceRequest) => {
    setSelected(r);
@@ -432,7 +486,7 @@ export default function Maintenance() {
  <p className="text-sm text-muted-foreground mt-0.5">{requests.length} total · {stats.open} open{stats.pendingApproval > 0 ? ` · ${stats.pendingApproval} awaiting approval` : ""}</p>
  </div>
  <div className="flex items-center gap-2">
- {!isMobile && <Button variant="outline" size="sm" onClick={handleExport}><Download className="w-4 h-4 mr-1.5" />Export</Button>}
+ <ExportMenu disabled={filtered.length === 0} onPdf={() => exportPdf(filtered)} onExcel={() => exportExcel(filtered)} />
  {canCreate && (
  <Button size="sm" className="bg-emerald-600 hover:bg-emerald-700 text-white" onClick={() => setIsAddOpen(true)}>
    <Plus className="w-4 h-4 mr-1.5" />
@@ -499,12 +553,7 @@ export default function Maintenance() {
  </SelectContent>
  </Select>
  )}
- {(search || priorityFilter !== "all" || statusFilter !== "all") && (
- <Button variant="ghost" size="sm" className="h-9 text-muted-foreground"
- onClick={() => { setSearch(""); setPriorityFilter("all"); setStatusFilter("all"); setPage(1); }}>
- <X className="w-3.5 h-3.5 mr-1" />Clear
- </Button>
- )}
+ <SavedViewsMenu<typeof filterState> pageKey="maintenance" current={filterState} onApply={applyFilters} isEmpty={filterChips.length === 0} />
  <Select value={String(pageSize)} onValueChange={v => { setPageSize(Number(v)); setPage(1); }}>
    <SelectTrigger className="w-24 h-9 border-border dark:border-gray-700 text-sm"><SelectValue /></SelectTrigger>
    <SelectContent>
@@ -516,6 +565,13 @@ export default function Maintenance() {
  </Select>
  <span className="text-sm text-muted-foreground ml-auto">{filtered.length} results</span>
  </div>
+ <ActiveFilters chips={filterChips} onClearAll={clearAllFilters} />
+ {canAct && filtered.length > 0 && (
+ <label className="flex items-center gap-2 text-xs text-muted-foreground cursor-pointer w-fit">
+ <Checkbox checked={selection.allSelected ? true : selection.someSelected ? "indeterminate" : false} onCheckedChange={() => selection.toggleAll()} aria-label="Select all requests" />
+ Select all {filtered.length} {filterChips.length ? "matching " : ""}requests
+ </label>
+ )}
 
  {/* MOBILE: card list */}
  {isMobile ? (
@@ -561,6 +617,7 @@ export default function Maintenance() {
  <div className="overflow-x-auto">
  <table className="w-full text-sm">
  <thead className="sticky top-0 z-10"><tr className="bg-muted border-b border-border" >
+ {canAct && <th className="px-4 py-3 w-10"><span className="sr-only">Select</span></th>}
  <th className="text-left px-4 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wide">Request</th>
  <th className="text-left px-4 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wide hidden md:table-cell">Location</th>
  <th className="text-left px-4 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wide hidden lg:table-cell">Tenant</th>
@@ -573,6 +630,11 @@ export default function Maintenance() {
  <tbody className="divide-y divide-gray-50">
  {paginated.map(r => (
  <tr key={r.id} className="hover:bg-muted dark:bg-gray-950 transition-colors group cursor-pointer" onClick={() => { setSelected(r); setIsViewOpen(true); }}>
+ {canAct && (
+ <td className="px-4 py-3 w-10" onClick={e => e.stopPropagation()}>
+ <Checkbox checked={selection.isSelected(r.id)} onCheckedChange={() => selection.toggle(r.id)} aria-label={`Select request ${r.id}`} />
+ </td>
+ )}
  <td className="px-4 py-3">
  <div className="flex items-center gap-2.5">
  <span className="shrink-0"><PriorityDot p={r.priority} /></span>
@@ -606,7 +668,7 @@ export default function Maintenance() {
  <td className="px-4 py-3" onClick={e => e.stopPropagation()}>
  <DropdownMenu>
  <DropdownMenuTrigger asChild>
- <Button variant="ghost" size="sm" className="h-7 w-7 p-0 opacity-0 group-hover:opacity-100">
+ <Button variant="ghost" size="sm" className="h-7 w-7 p-0 opacity-0 group-hover:opacity-100" aria-label="More actions">
  <MoreVertical className="w-3.5 h-3.5" />
  </Button>
  </DropdownMenuTrigger>
@@ -660,6 +722,22 @@ export default function Maintenance() {
  </Card>
  )}
  </div>
+
+ <BulkBar count={selection.count} noun="request" onClear={selection.clear}>
+ {canAct && movable(["pending", "assigned"]).length > 0 && (
+ <Button size="sm" variant="outline" disabled={bulkMove.isPending}
+ onClick={() => bulkMove.mutate({ ids: movable(["pending", "assigned"]).map(r => r.id), status: "in_progress" })}>
+ <Wrench className="w-3.5 h-3.5 mr-1.5" />Start work ({movable(["pending", "assigned"]).length})
+ </Button>
+ )}
+ {canAct && movable(["pending", "assigned", "in_progress"]).length > 0 && (
+ <Button size="sm" disabled={bulkMove.isPending}
+ onClick={() => bulkMove.mutate({ ids: movable(["pending", "assigned", "in_progress"]).map(r => r.id), status: "completed" })}>
+ <CheckCircle className="w-3.5 h-3.5 mr-1.5" />Mark complete ({movable(["pending", "assigned", "in_progress"]).length})
+ </Button>
+ )}
+ <ExportMenu label="Export selected" onPdf={() => exportPdf(selection.selectedItems)} onExcel={() => exportExcel(selection.selectedItems)} />
+ </BulkBar>
 
  {canCreate && <AddMaintenanceModal isOpen={isAddOpen} onClose={() => setIsAddOpen(false)}
  onSuccess={() => { queryClient.invalidateQueries({ queryKey: ["/api/maintenance-requests"] }); setIsAddOpen(false); }} />}

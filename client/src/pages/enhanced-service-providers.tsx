@@ -1402,8 +1402,7 @@ export default function EnhancedServiceProviders() {
                                       <Button
                                         variant="ghost"
                                         size="sm"
-                                        className="h-6 w-6 p-0 hover:bg-muted"
-                                      >
+                                        className="h-6 w-6 p-0 hover:bg-muted" aria-label="More actions">
                                         <MoreVertical className="h-3.5 w-3.5 text-muted-foreground" />
                                       </Button>
                                     </DropdownMenuTrigger>

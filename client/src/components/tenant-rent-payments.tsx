@@ -438,7 +438,7 @@ export default function TenantRentPayments({
 
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                            <Button variant="ghost" size="sm" className="h-8 w-8 p-0" aria-label="More actions">
                               <MoreVertical className="h-4 w-4" />
                             </Button>
                           </DropdownMenuTrigger>
@@ -503,7 +503,7 @@ export default function TenantRentPayments({
                     {(safePage - 1) * pageSize + 1}–{Math.min(safePage * pageSize, filtered.length)} of {filtered.length}
                   </p>
                   <div className="flex items-center gap-1">
-                    <Button variant="outline" size="sm" className="h-7 w-7 p-0" disabled={safePage === 1} onClick={() => setPage(p => p - 1)}>
+                    <Button variant="outline" size="sm" className="h-7 w-7 p-0" disabled={safePage === 1} onClick={() => setPage(p => p - 1)} aria-label="Previous">
                       <ChevronLeft className="h-3.5 w-3.5" />
                     </Button>
                     {Array.from({ length: totalPages }, (_, i) => i + 1)
@@ -517,7 +517,7 @@ export default function TenantRentPayments({
                         ? <span key={`e${i}`} className="px-1 text-muted-foreground text-xs">…</span>
                         : <Button key={n} variant={n === safePage ? 'default' : 'outline'} size="sm" className="h-7 w-7 p-0 text-xs" onClick={() => setPage(n as number)}>{n}</Button>
                       )}
-                    <Button variant="outline" size="sm" className="h-7 w-7 p-0" disabled={safePage === totalPages} onClick={() => setPage(p => p + 1)}>
+                    <Button variant="outline" size="sm" className="h-7 w-7 p-0" disabled={safePage === totalPages} onClick={() => setPage(p => p + 1)} aria-label="Next">
                       <ChevronRight className="h-3.5 w-3.5" />
                     </Button>
                   </div>

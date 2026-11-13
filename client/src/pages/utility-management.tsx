@@ -1,6 +1,7 @@
 import { tenantOptions, unitOptions, propertyOptions, userOptions, byId } from "@/lib/pickerOptions";
 import { SearchableSelect } from "@/components/ui/searchable-select";
 import { useState, useEffect } from "react";
+import { offlineQueue } from "@/utils/offlineQueue";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -605,12 +606,24 @@ function EditReadingDialog({
     mutationFn: async (data: any) => {
       const url = isNew ? "/api/utility-meter-readings" : `/api/utility-meter-readings/${reading!.id}`;
       const method = isNew ? "POST" : "PUT";
+      // Readings are often taken in basements and plant rooms with no signal. Offline,
+      // a NEW reading is saved on the device and sent automatically once the phone is
+      // back online (the offline banner shows how many are waiting).
+      if (isNew && typeof navigator !== "undefined" && navigator.onLine === false) {
+        const token = localStorage.getItem("access_token");
+        await offlineQueue.enqueue({
+          url, method, body: data, label: "Meter reading",
+          headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+        });
+        return { offline: true };
+      }
       const r = await apiRequest(url, { method, data });
       return r.json();
     },
-    onSuccess: () => {
+    onSuccess: (res: any) => {
       queryClient.invalidateQueries({ queryKey: ["/api/utility-meter-readings"] });
-      toast({ title: isNew ? "Reading recorded" : "Reading updated" });
+      if (res?.offline) toast({ title: "Saved on this device", description: "You're offline. The reading will be sent automatically when you're back online." });
+      else toast({ title: isNew ? "Reading recorded" : "Reading updated" });
       onClose();
     },
     onError: () => toast({ title: "Error", description: "Failed to save reading.", variant: "destructive" }),

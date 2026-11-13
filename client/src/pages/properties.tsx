@@ -1,4 +1,6 @@
 import { downloadExcel } from "@/lib/excel";
+import { ExportMenu } from "@/components/export-menu";
+import { exportTablePdf, todayStamp } from "@/lib/pdf";
 import QueryError from "@/components/query-error";
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -152,12 +154,33 @@ export default function Properties() {
 
   const handleExport = () => {
     downloadExcel(
-      `properties-${new Date().toISOString().split("T")[0]}`,
-      ["Name", "Address", "Total Units", "Created"],
-      filtered.map(p => [p.name, p.address, p.totalUnits, new Date(p.createdAt).toLocaleDateString()]),
+      `properties-${todayStamp()}`,
+      ["Name", "Address", "Total Units", "Occupied", "Occupancy %", "Created"],
+      filtered.map(p => { const st = getUnitStats(p.id); return [p.name, p.address, st.total || p.totalUnits, st.occupied, st.pct, new Date(p.createdAt).toLocaleDateString()]; }),
       "Properties",
     );
     toast({ title: "Exported", description: `${filtered.length} properties exported` });
+  };
+  const handleExportPdf = async () => {
+    const stats = filtered.map(p => getUnitStats(p.id));
+    const units = stats.reduce((s, x, i) => s + (x.total || filtered[i].totalUnits), 0);
+    const occ = stats.reduce((s, x) => s + x.occupied, 0);
+    await exportTablePdf({
+      title: "Property portfolio",
+      caption: "Properties with unit count and occupancy",
+      docLabel: "PORTFOLIO",
+      filters: searchTerm ? [`Search: ${searchTerm}`] : [],
+      kpis: [
+        { label: "Properties", value: filtered.length },
+        { label: "Units", value: units, tone: "blue" },
+        { label: "Occupied", value: occ, tone: "green" },
+        { label: "Occupancy", value: `${units ? Math.round((occ / units) * 100) : 0}%`, tone: "amber" },
+      ],
+      columns: [{ header: "Property" }, { header: "Address" }, { header: "Units", align: "right" }, { header: "Occupied", align: "right" }, { header: "Occupancy", align: "right" }, { header: "Added" }],
+      rows: filtered.map((p, i) => [p.name, p.address, stats[i].total || p.totalUnits, stats[i].occupied, `${stats[i].pct}%`, new Date(p.createdAt).toLocaleDateString("en-KE")]),
+      orientation: "portrait",
+      filename: `property-portfolio-${todayStamp()}`,
+    });
   };
 
   if (isLoading) {
@@ -199,9 +222,7 @@ export default function Properties() {
             </p>
           </div>
           <div className="flex items-center gap-2.5 flex-wrap">
-            <Button variant="outline" size="sm" onClick={handleExport} className="h-9">
-              <Download className="w-4 h-4 mr-1.5" /> Export
-            </Button>
+            <ExportMenu disabled={filtered.length === 0} onPdf={handleExportPdf} onExcel={handleExport} />
             <Button size="sm" className="h-9 bg-emerald-600 hover:bg-emerald-700 text-white px-4"
               onClick={() => { setEditingProperty(null); setIsAddModalOpen(true); }}>
               <Plus className="w-4 h-4 mr-1.5" /> Add property
@@ -347,7 +368,7 @@ export default function Properties() {
                         </div>
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="sm" className="h-7 w-7 p-0 flex-shrink-0 text-muted-foreground">
+                            <Button variant="ghost" size="sm" className="h-7 w-7 p-0 flex-shrink-0 text-muted-foreground" aria-label="More actions">
                               <MoreVertical className="w-4 h-4" />
                             </Button>
                           </DropdownMenuTrigger>
@@ -417,7 +438,7 @@ export default function Properties() {
                     className="h-8 w-8 p-0"
                     disabled={safePage === 1}
                     onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-                  >
+                   aria-label="Previous">
                     <ChevronLeft className="w-4 h-4" />
                   </Button>
 
@@ -449,7 +470,7 @@ export default function Properties() {
                     className="h-8 w-8 p-0"
                     disabled={safePage === totalPages}
                     onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-                  >
+                   aria-label="Next">
                     <ChevronRight className="w-4 h-4" />
                   </Button>
                 </div>

@@ -219,11 +219,11 @@ function PaginationBar({ total, page, pageSize, onPageChange, onPageSizeChange }
       <div className="flex items-center gap-3 text-sm text-muted-foreground">
         <span>{total === 0 ? "0 results" : `${start}–${end} of ${total}`}</span>
         <div className="flex items-center gap-1">
-          <Button variant="outline" size="icon" className="h-8 w-8" disabled={page <= 1} onClick={() => onPageChange(page - 1)}>
+          <Button variant="outline" size="icon" className="h-8 w-8" disabled={page <= 1} onClick={() => onPageChange(page - 1)} aria-label="Previous">
             <ChevronLeft className="h-4 w-4" />
           </Button>
           <span className="min-w-[60px] text-center font-medium text-foreground">{page} / {totalPages}</span>
-          <Button variant="outline" size="icon" className="h-8 w-8" disabled={page >= totalPages} onClick={() => onPageChange(page + 1)}>
+          <Button variant="outline" size="icon" className="h-8 w-8" disabled={page >= totalPages} onClick={() => onPageChange(page + 1)} aria-label="Next">
             <ChevronRight className="h-4 w-4" />
           </Button>
         </div>
@@ -1962,7 +1962,7 @@ export default function WhatsAppIntegration({ embedded = false }: { embedded?: b
                           <TableCell className="text-right">
                             <DropdownMenu>
                               <DropdownMenuTrigger asChild>
-                                <Button variant="ghost" size="icon" className="h-7 w-7">
+                                <Button variant="ghost" size="icon" className="h-7 w-7" aria-label="More actions">
                                   <MoreHorizontal className="h-4 w-4" />
                                 </Button>
                               </DropdownMenuTrigger>
@@ -2023,7 +2023,7 @@ export default function WhatsAppIntegration({ embedded = false }: { embedded?: b
               <CardHeader className="pb-2 shrink-0">
                 <div className="flex items-center justify-between">
                   <CardTitle className="text-base">Conversations</CardTitle>
-                  <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => refetchConversations()}>
+                  <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => refetchConversations()} aria-label="Refresh">
                     <RefreshCw className="h-3.5 w-3.5" />
                   </Button>
                 </div>

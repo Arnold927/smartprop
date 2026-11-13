@@ -1,6 +1,8 @@
 import { tenantOptions, unitOptions, propertyOptions, userOptions, byId } from "@/lib/pickerOptions";
 import { SearchableSelect } from "@/components/ui/searchable-select";
-import { downloadCsvTextAsExcel } from "@/lib/excel";
+import { downloadCsvTextAsExcel, parseCsv } from "@/lib/excel";
+import { ExportMenu } from "@/components/export-menu";
+import { exportTablePdf, todayStamp } from "@/lib/pdf";
 import { useState } from "react";
 import {
   DollarSign, CheckCircle, Clock, AlertTriangle,
@@ -111,7 +113,7 @@ export default function RentCollection() {
   });
 
   // Export handler — downloads an Excel file built from the server's data
-  const handleExport = async () => {
+  const handleExport = async (kind: "excel" | "pdf" = "excel") => {
     setIsExporting(true);
     try {
       const params = new URLSearchParams();
@@ -121,7 +123,25 @@ export default function RentCollection() {
       const res = await apiRequest(`/api/rent-payments/export?${params.toString()}`);
       // Server returns CSV text; convert to Excel (CSV files don't open on phones).
       const csvText = await res.text();
-      downloadCsvTextAsExcel(`rent-payments-${new Date().toISOString().split("T")[0]}`, csvText, "Rent payments");
+      if (kind === "pdf") {
+        const parsed = parseCsv(csvText);
+        const head = parsed[0] ?? [];
+        const body = parsed.slice(1);
+        const amtIdx = head.findIndex(h => /amount/i.test(h));
+        const total = amtIdx >= 0 ? body.reduce((s, r) => s + (Number(String(r[amtIdx]).replace(/[^0-9.-]/g, "")) || 0), 0) : null;
+        await exportTablePdf({
+          title: "Rent payments",
+          caption: "Rent payments recorded across your properties",
+          docLabel: "PAYMENTS",
+          filters: [statusFilter !== "all" ? `Status: ${statusFilter}` : "", search ? `Search: ${search}` : ""].filter(Boolean),
+          columns: head.map((h, i) => ({ header: h, align: i === amtIdx ? "right" as const : "left" as const })),
+          rows: body.map(r => r.map((c, i) => i === amtIdx ? Number(String(c).replace(/[^0-9.-]/g, "")).toLocaleString("en-KE") : c)),
+          totals: total !== null ? head.map((_, i) => i === 0 ? "Total" : i === amtIdx ? total.toLocaleString("en-KE") : "") : undefined,
+          filename: `rent-payments-${todayStamp()}`,
+        });
+      } else {
+        downloadCsvTextAsExcel(`rent-payments-${todayStamp()}`, csvText, "Rent payments");
+      }
       toast({ title: "Export downloaded ✓" });
     } catch {
       toast({ title: "Export failed", variant: "destructive" });
@@ -152,16 +172,7 @@ export default function RentCollection() {
         icon={<DollarSign className="w-5 h-5" />}
         actions={
           <>
-            <Button
-              variant="outline"
-              size="sm"
-              className="hidden md:flex"
-              onClick={handleExport}
-              disabled={isExporting}
-            >
-              <Download className="h-4 w-4 mr-2" />
-              {isExporting ? "Exporting…" : "Export"}
-            </Button>
+            <ExportMenu disabled={isExporting} onPdf={() => handleExport("pdf")} onExcel={() => handleExport("excel")} />
             <PrimaryButton icon={<Plus className="h-4 w-4" />} onClick={() => setShowAddModal(true)}>
               Record Payment
             </PrimaryButton>

@@ -29,7 +29,7 @@ import { PageShell, PageHeader, SectionCard, SPBadge, EmptyState, PrimaryButton,
 
 import {
   Building, DollarSign, FileText, CheckCircle2, Loader2,
-  Plus, RefreshCw, Banknote, AlertCircle, Pencil, Info,
+  Plus, RefreshCw, Banknote, AlertCircle, Pencil, Info, Download,
 } from "lucide-react";
 
 const fmtKES = (n: any) => `KES ${Math.round(Number(n ?? 0)).toLocaleString("en-KE")}`;
@@ -260,6 +260,40 @@ function AgreementsTab({ isReadOnly }: { isReadOnly: boolean }) {
 
 // ─── Statement Detail Dialog ──────────────────────────────────────────────────
 
+// Branded owner statement (PDF) — built from the full statement record.
+async function downloadStatementPdf(s: any) {
+  const { createPdf, money } = await import("@/lib/pdf");
+  const period = `${MONTHS[(s.periodMonth ?? 1) - 1]} ${s.periodYear}`;
+  const deductions = s.totalDeductions ?? (Number(s.maintenanceCosts ?? 0) + Number(s.utilityCosts ?? 0) + Number(s.insuranceCosts ?? 0) + Number(s.otherDeductions ?? 0));
+  const pdf = await createPdf({
+    title: `Owner statement - ${s.propertyName ?? `Property ${s.propertyId}`} - ${period}`,
+    docLabel: "OWNER STATEMENT", docNumber: s.statementNumber ?? period, subtitle: `${s.propertyName ?? `Property #${s.propertyId}`} - ${period}`,
+  });
+  pdf.kpis([
+    { label: "Gross rent", value: money(s.grossRent), tone: "blue" },
+    { label: "PM fee", value: money(s.pmFee), tone: "amber" },
+    { label: "Deductions", value: money(deductions), tone: "red" },
+    { label: "Net payable", value: money(s.netPayable), tone: "green" },
+  ]);
+  const lineItems: any[] = s.lineItems ?? [];
+  if (lineItems.length) {
+    pdf.section("Breakdown");
+    pdf.table({ head: ["Description", "Amount (KES)"], body: lineItems.map(i => [i.description, Number(i.amount ?? 0).toLocaleString("en-KE")]), align: ["left", "right"] });
+  }
+  const pays: any[] = s.paymentDetails ?? [];
+  if (pays.length) {
+    pdf.section(`Rent collected (${pays.length} tenant${pays.length === 1 ? "" : "s"})`);
+    pdf.table({ head: ["Tenant", "Unit", "Method", "Date", "Amount (KES)"], body: pays.map(p => [p.tenantName, p.unitNumber, p.method, p.date ? new Date(p.date).toLocaleDateString("en-KE") : "-", Number(p.amount ?? 0).toLocaleString("en-KE")]), align: ["left", "left", "left", "left", "right"] });
+  }
+  const exps: any[] = s.expenseDetails ?? [];
+  if (exps.length) {
+    pdf.section("Deductible expenses");
+    pdf.table({ head: ["Description", "Category", "Vendor", "Date", "Amount (KES)"], body: exps.map(e => [e.description, e.category, e.vendor ?? "-", e.date ? new Date(e.date).toLocaleDateString("en-KE") : "-", Number(e.amount ?? 0).toLocaleString("en-KE")]), align: ["left", "left", "left", "left", "right"] });
+  }
+  if (s.disbursedAt) pdf.paragraph(`Disbursed ${new Date(s.disbursedAt).toLocaleDateString("en-KE")}${s.disbursementRef ? ` - Ref: ${s.disbursementRef}` : ""}`, { bold: true });
+  pdf.save(`owner-statement-${String(s.statementNumber ?? `${s.propertyId}-${s.periodYear}-${s.periodMonth}`).toLowerCase()}`);
+}
+
 function StatementDetailDialog({ statementId, onClose }: { statementId: number | null; onClose: () => void }) {
   const { data: s, isLoading } = useQuery({
     queryKey: ["/api/owner-statements", statementId],
@@ -278,6 +312,7 @@ function StatementDetailDialog({ statementId, onClose }: { statementId: number |
           <DialogTitle>
             {s ? `${s.propertyName ?? `Property #${s.propertyId}`} — ${MONTHS[(s.periodMonth ?? 1) - 1]} ${s.periodYear}` : "Statement Detail"}
           </DialogTitle>
+          {s && <Button size="sm" variant="outline" className="w-fit" onClick={() => downloadStatementPdf(s)}><Download className="h-4 w-4 mr-1.5" />Download PDF</Button>}
         </DialogHeader>
         {isLoading && <div className="flex justify-center py-10"><Loader2 className="h-5 w-5 animate-spin" /></div>}
         {s && !isLoading && (
@@ -533,6 +568,9 @@ function StatementsTab({ isReadOnly, onGoToAgreements }: { isReadOnly: boolean; 
                 <div className="flex gap-2 flex-wrap">
                   <Button size="sm" variant="ghost" onClick={() => setDetailId(s.id)}>
                     <FileText className="h-4 w-4 mr-1" /> View
+                  </Button>
+                  <Button size="sm" variant="ghost" onClick={async () => { const r = await apiRequest(`/api/owner-statements/${s.id}`); downloadStatementPdf(await r.json()); }} aria-label="Download PDF" title="Download PDF">
+                    <Download className="h-4 w-4" />
                   </Button>
                   {/* Manager-only actions */}
                   {!isReadOnly && s.status === "draft" && (

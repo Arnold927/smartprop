@@ -42,10 +42,13 @@ export interface ButtonProps
 const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
  ({ className, variant, size, asChild = false, ...props }, ref) => {
  const Comp = asChild ? Slot : "button"
+ // Icon-only buttons have no visible text; fall back to the tooltip text as the accessible name.
+ const a11y = size === "icon" && !props["aria-label"] && typeof props.title === "string" ? { "aria-label": props.title } : {}
  return (
  <Comp
  className={cn(buttonVariants({ variant, size, className }))}
  ref={ref}
+ {...a11y}
  {...props}
  />
  )

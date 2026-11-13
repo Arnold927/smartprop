@@ -793,12 +793,12 @@ export default function UserManagement() {
                   </span>
                   <div className="flex items-center gap-1">
                     <Button variant="ghost" size="sm" className="h-8 w-8 p-0" disabled={safePage <= 1}
-                      onClick={() => setPage(p => Math.max(1, p - 1))}>
+                      onClick={() => setPage(p => Math.max(1, p - 1))} aria-label="Previous">
                       <ChevronLeft className="w-4 h-4" />
                     </Button>
                     <span className="text-xs text-muted-foreground px-2">Page {safePage} of {totalPages}</span>
                     <Button variant="ghost" size="sm" className="h-8 w-8 p-0" disabled={safePage >= totalPages}
-                      onClick={() => setPage(p => Math.min(totalPages, p + 1))}>
+                      onClick={() => setPage(p => Math.min(totalPages, p + 1))} aria-label="Next">
                       <ChevronRight className="w-4 h-4" />
                     </Button>
                   </div>

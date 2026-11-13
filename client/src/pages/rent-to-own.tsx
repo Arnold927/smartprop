@@ -56,7 +56,7 @@ import {
 import { CurrencyDisplay } from "@/components/ui/currency-display";
 import { cn } from "@/lib/utils";
 import { PageShell, PageHeader, SectionCard, SPBadge, EmptyState, PrimaryButton, SecondaryButton, FilterBar, SPTable, SPAvatar, StatTile, StatsGrid, KESAmount, ActionMenu, ConfirmDialog } from "@/components/ui/sp-ui";
-import { openPrintWindow, spHeader, spFooter, fmtDocDate, fmtDocKES } from "@/lib/document-theme";
+import { downloadDocPdf, spHeader, spFooter, fmtDocDate, fmtDocKES } from "@/lib/document-theme";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -465,7 +465,7 @@ function CertificateModal({ cert, agreements, properties, tenants, units, onClos
       </div>
       ${spFooter("This certificate is computer-generated and verifiable via smartprop.co.ke")}
     `;
-    openPrintWindow(body, `Certificate-${cert.certificateNumber}`);
+    void downloadDocPdf(body, `Certificate - ${cert.certificateNumber}`, `certificate-${cert.certificateNumber}`);
   };
 
   return (
@@ -713,7 +713,7 @@ function PaymentReceiptModal({ payment, agreement, onClose }: {
       </div>` : ""}
       ${spFooter()}
     `;
-    openPrintWindow(body, `Receipt-${payment.paymentNumber}`);
+    void downloadDocPdf(body, `Receipt - ${payment.paymentNumber}`, `receipt-${payment.paymentNumber}`);
   };
 
   const fmt = (v: string | number | undefined) => {
@@ -1546,7 +1546,7 @@ export default function RentToOwn() {
                             <td className="px-4 py-3" onClick={e => e.stopPropagation()}>
                               <DropdownMenu>
                                 <DropdownMenuTrigger asChild>
-                                  <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                                  <Button variant="ghost" size="sm" className="h-8 w-8 p-0" aria-label="More actions">
                                     <MoreVertical className="h-4 w-4" />
                                   </Button>
                                 </DropdownMenuTrigger>
@@ -1846,7 +1846,7 @@ export default function RentToOwn() {
                           <td className="px-4 py-3">
                             <DropdownMenu>
                               <DropdownMenuTrigger asChild>
-                                <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                                <Button variant="ghost" size="sm" className="h-8 w-8 p-0" aria-label="More actions">
                                   <MoreVertical className="h-4 w-4" />
                                 </Button>
                               </DropdownMenuTrigger>
@@ -2090,7 +2090,7 @@ export default function RentToOwn() {
                         <StatusBadge status={cert.status} />
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                            <Button variant="ghost" size="sm" className="h-8 w-8 p-0" aria-label="More actions">
                               <MoreVertical className="h-4 w-4" />
                             </Button>
                           </DropdownMenuTrigger>

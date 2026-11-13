@@ -241,7 +241,7 @@ export default function GatePinManager() {
               </CardDescription>
             </div>
             <div className="flex items-center gap-2">
-              <Button variant="ghost" size="icon" onClick={() => refetch()}>
+              <Button variant="ghost" size="icon" onClick={() => refetch()} aria-label="Refresh">
                 <RefreshCw className="w-4 h-4" />
               </Button>
               <Button

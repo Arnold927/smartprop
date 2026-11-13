@@ -258,7 +258,7 @@ export const WorkOrderCostModal: React.FC<Props> = ({ workOrderId, isOpen, setIs
                           size="icon"
                           onClick={() => handleRemoveMaterial(m.id)}
                           className="h-10 w-10 text-muted-foreground hover:text-red-500 hover:bg-red-50"
-                        >
+                         aria-label="Delete">
                           <Trash2 className="w-4 h-4" />
                         </Button>
                       </div>
@@ -333,7 +333,7 @@ export const WorkOrderCostModal: React.FC<Props> = ({ workOrderId, isOpen, setIs
                           size="icon"
                           onClick={() => handleRemoveCharge(c.id)}
                           className="h-10 w-10 text-muted-foreground hover:text-red-500 hover:bg-red-50"
-                        >
+                         aria-label="Delete">
                           <Trash2 className="w-4 h-4" />
                         </Button>
                       </div>

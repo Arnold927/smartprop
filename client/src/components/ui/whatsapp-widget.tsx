@@ -51,7 +51,7 @@ export default function WhatsAppWidget({
  onClick={() => setIsOpen(true)}
  className="h-14 w-14 rounded-full bg-green-500 hover:bg-green-600 shadow-lg animate-bounce"
  size="icon"
- >
+  aria-label="Message">
  <MessageCircle className="h-6 w-6 text-white" />
  </Button>
  )}

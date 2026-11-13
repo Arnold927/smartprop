@@ -1,3 +1,5 @@
+import { SearchableSelect } from "@/components/ui/searchable-select";
+import { offlineQueue } from "@/utils/offlineQueue";
 import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -203,14 +205,27 @@ export default function Utilities() {
  },
  });
 
+ // Meter readings are often taken in basements and plant rooms with no signal, so
+ // when the phone is offline the reading is saved on the device and sent
+ // automatically as soon as the connection returns (see the offline banner).
  const createReadingMutation = useMutation({
- mutationFn: (data: z.infer<typeof meterReadingSchema>) =>
- apiRequest("/api/utility-meter-readings", { method: "POST", data: data }),
- onSuccess: () => {
+ mutationFn: async (data: z.infer<typeof meterReadingSchema>) => {
+ if (typeof navigator !== "undefined" && navigator.onLine === false) {
+ await offlineQueue.enqueue({
+ url: "/api/utility-meter-readings", method: "POST",
+ headers: { "Content-Type": "application/json", ...(localStorage.getItem("access_token") ? { Authorization: `Bearer ${localStorage.getItem("access_token")}` } : {}) },
+ body: data, label: "Meter reading",
+ });
+ return { offline: true } as const;
+ }
+ return apiRequest("/api/utility-meter-readings", { method: "POST", data: data });
+ },
+ onSuccess: (res: any) => {
  queryClient.invalidateQueries({ queryKey: ["/api/utility-meter-readings"] });
  setIsReadingModalOpen(false);
  readingForm.reset();
- toast({ title: "Success", description: "Meter reading recorded successfully" });
+ if (res?.offline) toast({ title: "Saved on this device", description: "You're offline. The reading will be sent automatically when you're back online." });
+ else toast({ title: "Success", description: "Meter reading recorded successfully" });
  },
  });
 
@@ -749,20 +764,19 @@ export default function Utilities() {
  render={({ field }) => (
  <FormItem>
  <FormLabel>Account</FormLabel>
- <Select onValueChange={(value) => field.onChange(parseInt(value))} defaultValue={field.value?.toString()}>
- <FormControl>
- <SelectTrigger data-testid="select-bill-account">
- <SelectValue placeholder="Select account" />
- </SelectTrigger>
- </FormControl>
- <SelectContent>
- {(Array.isArray(accounts) ? accounts : []).map((account: any) => (
- <SelectItem key={account.id} value={account.id.toString()}>
- {account.accountNumber}
- </SelectItem>
- ))}
- </SelectContent>
- </Select>
+ <SearchableSelect
+ value={field.value ? String(field.value) : ""}
+ onValueChange={(value) => field.onChange(value ? parseInt(value) : undefined)}
+ placeholder="Select account"
+ searchPlaceholder="Search account number or provider…"
+ emptyText="No utility accounts"
+ options={(Array.isArray(accounts) ? accounts : []).map((account: any) => ({
+ value: String(account.id),
+ label: String(account.accountNumber ?? `Account ${account.id}`),
+ description: [account.meterNumber ? `Meter ${account.meterNumber}` : null, account.providerName].filter(Boolean).join(" · ") || undefined,
+ keywords: String(account.providerName ?? ""),
+ }))}
+ />
  <FormMessage />
  </FormItem>
  )}
@@ -893,20 +907,19 @@ export default function Utilities() {
  render={({ field }) => (
  <FormItem>
  <FormLabel>Account</FormLabel>
- <Select onValueChange={(value) => field.onChange(parseInt(value))} defaultValue={field.value?.toString()}>
- <FormControl>
- <SelectTrigger data-testid="select-reading-account">
- <SelectValue placeholder="Select account" />
- </SelectTrigger>
- </FormControl>
- <SelectContent>
- {(Array.isArray(accounts) ? accounts : []).map((account: any) => (
- <SelectItem key={account.id} value={account.id.toString()}>
- {account.accountNumber}
- </SelectItem>
- ))}
- </SelectContent>
- </Select>
+ <SearchableSelect
+ value={field.value ? String(field.value) : ""}
+ onValueChange={(value) => field.onChange(value ? parseInt(value) : undefined)}
+ placeholder="Select account"
+ searchPlaceholder="Search account number or provider…"
+ emptyText="No utility accounts"
+ options={(Array.isArray(accounts) ? accounts : []).map((account: any) => ({
+ value: String(account.id),
+ label: String(account.accountNumber ?? `Account ${account.id}`),
+ description: [account.meterNumber ? `Meter ${account.meterNumber}` : null, account.providerName].filter(Boolean).join(" · ") || undefined,
+ keywords: String(account.providerName ?? ""),
+ }))}
+ />
  <FormMessage />
  </FormItem>
  )}

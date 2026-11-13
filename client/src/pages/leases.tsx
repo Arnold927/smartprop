@@ -41,6 +41,9 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sh
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Separator } from "@/components/ui/separator";
+import { ExportMenu } from "@/components/export-menu";
+import { downloadExcel } from "@/lib/excel";
+import { exportTablePdf, todayStamp, money } from "@/lib/pdf";
 import { PageShell, PageHeader, SectionCard, SPBadge, EmptyState, PrimaryButton, SecondaryButton, FilterBar, SPTable, SPAvatar, StatTile, StatsGrid, KESAmount, ActionMenu, ConfirmDialog } from "@/components/ui/sp-ui";
 import { useRoleGuard, ROLES } from "@/hooks/useRoleGuard";
 
@@ -1036,6 +1039,30 @@ export default function LeasesPage() {
   const draftsView   = applySearchAndPage(drafts,      draftsTab.search,   draftsTab.page,   draftsTab.pageSize);
   const allView      = applySearchAndPage(allFiltered, allTab.search,      allTab.page,      allTab.pageSize);
 
+  const exportLeaseExcel = () => downloadExcel(
+    `leases-${todayStamp()}`,
+    ["Lease #", "Tenant", "Property", "Unit", "Start", "End", "Monthly rent", "Deposit", "Status"],
+    leases.map(l => [l.leaseNumber, l.tenantName, l.propertyName, l.unitNumber, l.startDate?.slice(0, 10), l.endDate?.slice(0, 10), Number(l.monthlyRent), Number(l.securityDeposit || 0), l.status]),
+    "Leases");
+  const exportLeasePdf = async () => {
+    const list = [...leases].sort((a, b) => daysLeft(a.endDate) - daysLeft(b.endDate));
+    await exportTablePdf({
+      title: "Lease schedule",
+      caption: "All leases with rent, deposit and expiry",
+      docLabel: "LEASES",
+      kpis: [
+        { label: "Leases", value: leases.length },
+        { label: "Active", value: active.length, tone: "green" },
+        { label: "Monthly rent roll", value: money(totalActiveRent, currency), tone: "blue" },
+        { label: "Expiring in 90 days", value: expiring.length, tone: "amber" },
+      ],
+      columns: [{ header: "Lease #" }, { header: "Tenant" }, { header: "Property / Unit" }, { header: "Start" }, { header: "End" }, { header: "Status" }, { header: "Rent (KES)", align: "right" }, { header: "Deposit (KES)", align: "right" }],
+      rows: list.map(l => [l.leaseNumber, l.tenantName, `${l.propertyName} / ${l.unitNumber}`, new Date(l.startDate).toLocaleDateString("en-KE"), new Date(l.endDate).toLocaleDateString("en-KE"), l.status.replace(/_/g, " "), Number(l.monthlyRent).toLocaleString("en-KE"), Number(l.securityDeposit || 0).toLocaleString("en-KE")]),
+      totals: ["", "", "", "", "", "Active rent roll", totalActiveRent.toLocaleString("en-KE"), ""],
+      filename: `lease-schedule-${todayStamp()}`,
+    });
+  };
+
   return (
     <PageShell>
       <PageHeader
@@ -1044,11 +1071,14 @@ export default function LeasesPage() {
           ? "Your properties' lease agreements, renewals, escalations and deposits"
           : "Manage lease agreements, renewals, escalations and deposits"}
         icon={<FileText className="w-5 h-5" />}
-        actions={canManageLeases && (
-          <PrimaryButton icon={<Plus className="w-4 h-4" />} onClick={() => setShowCreate(true)}>
-            New Lease
-          </PrimaryButton>
-        )}
+        actions={<>
+          <ExportMenu disabled={leases.length === 0} onPdf={exportLeasePdf} onExcel={exportLeaseExcel} />
+          {canManageLeases && (
+            <PrimaryButton icon={<Plus className="w-4 h-4" />} onClick={() => setShowCreate(true)}>
+              New Lease
+            </PrimaryButton>
+          )}
+        </>}
       />
 
       {/* Stats */}

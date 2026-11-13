@@ -232,7 +232,7 @@ function MaintenancePanel({ user, staffProfile }: { user: any; staffProfile: any
             <SelectItem value="all">All</SelectItem>
           </SelectContent>
         </Select>
-        <Button size="sm" variant="outline" onClick={() => refetch()} className="ml-auto h-9 w-9 p-0">
+        <Button size="sm" variant="outline" onClick={() => refetch()} className="ml-auto h-9 w-9 p-0" aria-label="Refresh">
           <RefreshCw className="h-3.5 w-3.5" />
         </Button>
       </div>
@@ -384,7 +384,7 @@ function SecurityPanel() {
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
           <Input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search visitors..." className="pl-9 text-sm h-9 bg-background border-input text-foreground" />
         </div>
-        <Button size="sm" variant="outline" onClick={() => refetch()} className="h-9 w-9 p-0"><RefreshCw className="h-3.5 w-3.5" /></Button>
+        <Button size="sm" variant="outline" onClick={() => refetch()} className="h-9 w-9 p-0" aria-label="Refresh"><RefreshCw className="h-3.5 w-3.5" /></Button>
       </div>
 
       {loadingVisitors ? (
@@ -1198,7 +1198,6 @@ function NotificationPrefsPanel() {
     { key: "maintenanceUpdates",   label: "Work order updates",     icon: Wrench,         desc: "When your jobs are updated or reassigned" },
     { key: "securityAlerts",       label: "Security alerts",        icon: Shield,         desc: "Visitor alerts and access events" },
     { key: "featureAnnouncements", label: "System announcements",   icon: Megaphone,      desc: "Updates from property management" },
-    { key: "weeklyDigest",         label: "Weekly summary",         icon: FileText,       desc: "A weekly digest of your activity" },
   ];
 
   return (
@@ -1222,22 +1221,6 @@ function NotificationPrefsPanel() {
         </div>
       ))}
 
-      <div className="pt-2 border-t">
-        <p className="text-xs text-muted-foreground mb-1.5">Delivery frequency</p>
-        <Select
-          value={prefs?.frequency ?? "immediate"}
-          onValueChange={val => saveMutation.mutate({ frequency: val })}
-        >
-          <SelectTrigger className="h-8 text-xs bg-background border-input text-foreground">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="immediate">Immediately</SelectItem>
-            <SelectItem value="daily">Daily digest</SelectItem>
-            <SelectItem value="weekly">Weekly only</SelectItem>
-          </SelectContent>
-        </Select>
-      </div>
     </div>
   );
 }

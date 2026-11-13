@@ -51,25 +51,43 @@ export async function refreshAccessToken(): Promise<string | null> {
   return refreshPromise;
 }
 
-// /api/tenants is paginated (20 per page by default). Most pages read it as "the
-// list of all tenants" (dropdowns, KPIs, arrears, leases…), so a plain GET of it
-// would silently stop at the first 20. For that exact URL we walk every page
-// (100 at a time) and hand back one merged response. Requests that pass their
-// own page/limit/search params (e.g. the Property Manager dashboard) are untouched.
-const ALL_PAGES_URL = /^\/api\/tenants(\?organizationId=\d+)?$/;
+// /api/tenants and /api/units are paginated (20 per page by default). Most pages
+// read them as "the list of all tenants / units" (dropdowns, KPIs, arrears,
+// leases, unit labels…), so a plain GET would silently stop at the first 20.
+// For those exact URLs (optionally with ?organizationId= / ?propertyId=) we walk
+// every page and hand back one merged response. Requests that pass their own
+// page/limit/search params (e.g. the Property Manager dashboard) are untouched.
+const ALL_PAGES_URL = /^\/api\/(tenants|units)(\?(organizationId|propertyId)=\d+)?$/;
+
+// Very large organisations can have more rows than the hard stop above. Rather than
+// silently showing a partial list, say so once per session and point at global
+// search, which queries the whole organisation on the server.
+const truncationWarned = new Set<string>();
+function warnListTruncated(kind: string, shown: number) {
+  if (truncationWarned.has(kind)) return;
+  truncationWarned.add(kind);
+  import("@/hooks/use-toast").then(({ toast }) => toast({
+    title: `Showing the first ${shown.toLocaleString("en-KE")} ${kind}`,
+    description: `This organisation has more ${kind} than lists and pickers can load at once. Use the search bar (Ctrl/Cmd + K) to find any ${kind === "tenants" ? "tenant" : "unit"}.`,
+  })).catch(() => {});
+}
 
 async function apiRequestAllPages(url: string): Promise<Response> {
   const sep = url.includes("?") ? "&" : "?";
+  // tenants take `limit` (max 100); units use the generic `page_size`
+  const size = url.startsWith("/api/units") ? "page_size=500" : "limit=100";
   const json = (body: unknown) => new Response(JSON.stringify(body), { status: 200, headers: { "Content-Type": "application/json" } });
-  const body = await (await apiRequest(`${url}${sep}limit=100&page=1`)).json();
+  const body = await (await apiRequest(`${url}${sep}${size}&page=1`)).json();
   if (!body || !Array.isArray(body.results) || !body.next) return json(body);
   const results: unknown[] = [...body.results];
-  for (let page = 2; page <= 50; page++) {   // hard stop at 5,000 tenants
-    const b = await (await apiRequest(`${url}${sep}limit=100&page=${page}`)).json();
-    if (!Array.isArray(b?.results) || b.results.length === 0) break;
+  let more = true;
+  for (let page = 2; page <= 50; page++) {   // hard stop at 50 pages (5,000 tenants / 25,000 units)
+    const b = await (await apiRequest(`${url}${sep}${size}&page=${page}`)).json();
+    if (!Array.isArray(b?.results) || b.results.length === 0) { more = false; break; }
     results.push(...b.results);
-    if (!b.next) break;
+    if (!b.next) { more = false; break; }
   }
+  if (more) warnListTruncated(url.startsWith("/api/units") ? "units" : "tenants", results.length);
   return json({ ...body, results, next: null, previous: null });
 }
 

@@ -11,7 +11,7 @@
  */
 
 import { useState } from "react";
-import { openPrintWindow, spHeader, spFooter, fmtDocDate, SMARTPROP_DOC_CSS } from "@/lib/document-theme";
+import { downloadDocPdf, spHeader, spFooter, fmtDocDate, SMARTPROP_DOC_CSS } from "@/lib/document-theme";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -205,7 +205,7 @@ function buildLeaseHtml(d: LeaseData): string {
 // ── Download helper ───────────────────────────────────────────────────────────
 // Now uses the shared openPrintWindow from document-theme for consistency.
 function downloadAsPdf(body: string, title: string) {
-  openPrintWindow(body, title);
+  void downloadDocPdf(body, title);
 }
 
 // ── Main Component ────────────────────────────────────────────────────────────

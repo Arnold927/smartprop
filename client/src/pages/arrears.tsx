@@ -15,6 +15,16 @@ import {
 import { format, differenceInDays } from "date-fns";
 import type { Arrears, PaymentReminder, RiskAssessment, TenantBehaviorLog, ArrearsAction, Tenant } from "@shared/schema";
 import { PageShell, PageHeader, SectionCard, SPBadge, EmptyState, PrimaryButton, SecondaryButton, FilterBar, SPTable, SPAvatar, StatTile, StatsGrid, KESAmount, ActionMenu, ConfirmDialog } from "@/components/ui/sp-ui";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { ExportMenu } from "@/components/export-menu";
+import { BulkBar } from "@/components/bulk-bar";
+import { SavedViewsMenu, ActiveFilters, type FilterChip } from "@/components/saved-views";
+import { useRowSelection } from "@/hooks/useRowSelection";
+import { exportTablePdf, money, todayStamp } from "@/lib/pdf";
+import { downloadExcel } from "@/lib/excel";
+import { SearchableSelect } from "@/components/ui/searchable-select";
+import { propertyOptions } from "@/lib/pickerOptions";
 
 // ── Role helpers ───────────────────────────────────────────────────────────────
 type Role = "admin" | "manager" | "staff" | "landlord" | "tenant" | string;
@@ -138,6 +148,10 @@ export default function ArrearsPage() {
 
   // Search state
   const [arrearsSearch,  setArrearsSearch]  = useState("");
+  // Filters on the Active Arrears tab (saved/restored through "Views")
+  const [priorityFilter, setPriorityFilter] = useState<string>("all");
+  const [propertyFilter, setPropertyFilter] = useState<string>("");
+  const [minDaysFilter,  setMinDaysFilter]  = useState<string>("all");
   const [remindersSearch,setRemindersSearch] = useState("");
   const [riskSearch,     setRiskSearch]     = useState("");
   const [behaviorSearch, setBehaviorSearch] = useState("");
@@ -367,8 +381,30 @@ export default function ArrearsPage() {
     return { totalOutstanding, criticalCount, overdueCount, avgDaysOverdue, highRiskTenants };
   }, [arrearsList, riskAssessments]);
 
+  // ── Filters (priority / property / days overdue) ──────────────────────────
+  const arrearsScoped = useMemo(() => arrearsList.filter(a => {
+    if (priorityFilter !== "all" && a.priority !== priorityFilter) return false;
+    if (propertyFilter && String(a.propertyId) !== propertyFilter) return false;
+    if (minDaysFilter !== "all" && calcDaysOverdue(a.nextDueDate, a.daysOverdue) < Number(minDaysFilter)) return false;
+    return true;
+  }), [arrearsList, priorityFilter, propertyFilter, minDaysFilter]);
+
+  const arrearsFilters = { search: arrearsSearch, priority: priorityFilter, propertyId: propertyFilter, minDays: minDaysFilter };
+  type ArrearsFilters = typeof arrearsFilters;
+  const applyArrearsFilters = (f: ArrearsFilters) => {
+    setArrearsSearch(f.search ?? ""); setPriorityFilter(f.priority ?? "all");
+    setPropertyFilter(f.propertyId ?? ""); setMinDaysFilter(f.minDays ?? "all");
+  };
+  const clearArrearsFilters = () => applyArrearsFilters({ search: "", priority: "all", propertyId: "", minDays: "all" });
+  const arrearsChips: FilterChip[] = [
+    arrearsSearch && { key: "q", label: `"${arrearsSearch}"`, onClear: () => setArrearsSearch("") },
+    priorityFilter !== "all" && { key: "pr", label: `Priority: ${priorityFilter}`, onClear: () => setPriorityFilter("all") },
+    propertyFilter && { key: "pp", label: propertyById[Number(propertyFilter)]?.name ?? "Property", onClear: () => setPropertyFilter("") },
+    minDaysFilter !== "all" && { key: "md", label: `${minDaysFilter}+ days overdue`, onClear: () => setMinDaysFilter("all") },
+  ].filter(Boolean) as FilterChip[];
+
   // ── Paginated lists ───────────────────────────────────────────────────────
-  const arrearsPag = usePagination(arrearsList, arrearsSearch,
+  const arrearsPag = usePagination(arrearsScoped, arrearsSearch,
     (a, q) => getTenantName(a.tenantId).toLowerCase().includes(q)
            || getPropertyName(a.propertyId).toLowerCase().includes(q)
            || getUnitLabel(a.unitId).toLowerCase().includes(q)
@@ -398,6 +434,99 @@ export default function ArrearsPage() {
            || String(a.outcome ?? "").toLowerCase().includes(q)
            || String(a.description ?? "").toLowerCase().includes(q),
     actionsPageSize);
+
+  // ── Selection, bulk reminders and export ──────────────────────────────────
+  const selection = useRowSelection(arrearsPag.filtered, (a: Arrears) => a.id);
+  const [bulkBusy, setBulkBusy] = useState(false);
+
+  const buildReminderMessage = (arrear: Arrears) => {
+    const tenantName  = getTenantName(arrear.tenantId);
+    const amount      = safeAmount(arrear.outstandingAmount).toLocaleString("en-KE");
+    const currency    = arrear.currency ?? "KES";
+    const daysOverdue = calcDaysOverdue(arrear.nextDueDate, arrear.daysOverdue);
+    return [
+      `Dear ${tenantName},`, ``,
+      `This is a payment reminder from your property manager.`, ``,
+      `Outstanding amount: ${currency} ${amount}`,
+      `Days overdue: ${daysOverdue}`,
+      ...(arrear.nextDueDate ? [`Next due date: ${safeFormatDate(arrear.nextDueDate)}`] : []),
+      ``,
+      `Please make payment as soon as possible to avoid further action.`,
+      `If you have already paid, please share your payment reference.`,
+    ].join("\n");
+  };
+
+  const sendBulkReminders = async () => {
+    const rows = selection.selectedItems;
+    if (!rows.length) return;
+    setBulkBusy(true);
+    let ok = 0, failed = 0;
+    // 5 at a time so a big selection does not hammer the server
+    for (let i = 0; i < rows.length; i += 5) {
+      const results = await Promise.allSettled(rows.slice(i, i + 5).map(a =>
+        apiRequest("/api/payment-reminders", {
+          method: "POST",
+          data: { tenantId: a.tenantId, arrearsId: a.id, reminderType: "overdue", channel: "email",
+                  message: buildReminderMessage(a), scheduledFor: new Date().toISOString(), recipientInfo: { tenantId: a.tenantId } },
+        }).then(r => { if (!r.ok) throw new Error("failed"); })
+      ));
+      results.forEach(r => (r.status === "fulfilled" ? ok++ : failed++));
+    }
+    setBulkBusy(false);
+    queryClient.invalidateQueries({ queryKey: ["/api/payment-reminders"] });
+    toast({
+      title: failed ? `${ok} reminder${ok === 1 ? "" : "s"} sent, ${failed} failed` : `${ok} reminder${ok === 1 ? "" : "s"} sent`,
+      variant: failed && !ok ? "destructive" : undefined,
+    });
+    if (!failed) selection.clear();
+  };
+
+  const exportRows = (list: Arrears[]) => list.map(a => ({
+    tenant:   getTenantName(a.tenantId),
+    property: getPropertyName(a.propertyId),
+    unit:     getUnitLabel(a.unitId).replace(/^Unit /, ""),
+    priority: a.priority,
+    days:     calcDaysOverdue(a.nextDueDate, a.daysOverdue),
+    amount:   safeAmount(a.outstandingAmount),
+    currency: a.currency ?? "KES",
+    nextDue:  safeFormatDate(a.nextDueDate),
+    lastPaid: safeFormatDate(a.lastPaymentDate),
+    status:   a.status,
+  }));
+
+  const exportArrearsPdf = async (list: Arrears[]) => {
+    const rows = exportRows(list);
+    const total = rows.reduce((s, r) => s + r.amount, 0);
+    await exportTablePdf({
+      title: "Arrears report",
+      docLabel: "Arrears",
+      caption: caps.isLandlord ? "Overdue balances across your properties" : "Outstanding balances by tenant, sorted as shown on screen",
+      filters: arrearsChips.map(c => c.label),
+      kpis: [
+        { label: "Total outstanding", value: money(total), tone: "red" },
+        { label: "Accounts in arrears", value: rows.length },
+        { label: "Critical", value: rows.filter(r => r.priority === "critical").length, tone: "amber" },
+        { label: "Avg days overdue", value: rows.length ? `${Math.round(rows.reduce((s, r) => s + r.days, 0) / rows.length)} days` : "-", tone: "blue" },
+      ],
+      columns: [
+        { header: "Tenant", width: 22 }, { header: "Property", width: 20 }, { header: "Unit", width: 8 },
+        { header: "Priority", width: 10 }, { header: "Days", align: "right", width: 8 },
+        { header: "Outstanding", align: "right", width: 15 }, { header: "Next due", width: 13 }, { header: "Last paid", width: 13 },
+      ],
+      rows: rows.map(r => [r.tenant, r.property, r.unit, r.priority, r.days, money(r.amount, r.currency), r.nextDue, r.lastPaid]),
+      totals: ["Total", "", "", "", "", money(total), "", ""],
+      tint: Object.fromEntries(rows.map((r, i) => [i, r.priority === "critical" ? "red" : r.priority === "high" ? "amber" : "plain"])) as any,
+      filename: `arrears-${todayStamp()}`,
+    });
+  };
+
+  const exportArrearsExcel = (list: Arrears[]) => {
+    const rows = exportRows(list);
+    downloadExcel(`arrears-${todayStamp()}`,
+      ["Tenant", "Property", "Unit", "Priority", "Days overdue", "Outstanding", "Currency", "Next due", "Last payment", "Status"],
+      rows.map(r => [r.tenant, r.property, r.unit, r.priority, r.days, r.amount, r.currency, r.nextDue, r.lastPaid, r.status]),
+      "Arrears");
+  };
 
   // ── Access gate ───────────────────────────────────────────────────────────
   if (!caps.canView) {
@@ -466,12 +595,68 @@ export default function ArrearsPage() {
             title="Active Arrears"
             subtitle="Overdue payments sorted by urgency — days overdue recalculated in real time"
           >
-            <div className="mb-4">
+            <div className="mb-4 space-y-3">
               <FilterBar
                 search={arrearsSearch}
                 onSearch={(v) => { setArrearsSearch(v); arrearsPag.setPage(1); }}
                 placeholder="Search tenant, property, priority…"
+                filters={
+                  <>
+                    <Select value={priorityFilter} onValueChange={(v) => { setPriorityFilter(v); arrearsPag.setPage(1); }}>
+                      <SelectTrigger className="h-9 w-[8.5rem] text-sm"><SelectValue placeholder="Priority" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All priorities</SelectItem>
+                        <SelectItem value="critical">Critical</SelectItem>
+                        <SelectItem value="high">High</SelectItem>
+                        <SelectItem value="medium">Medium</SelectItem>
+                        <SelectItem value="low">Low</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <Select value={minDaysFilter} onValueChange={(v) => { setMinDaysFilter(v); arrearsPag.setPage(1); }}>
+                      <SelectTrigger className="h-9 w-[9.5rem] text-sm"><SelectValue placeholder="Days overdue" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">Any age</SelectItem>
+                        <SelectItem value="7">7+ days</SelectItem>
+                        <SelectItem value="30">30+ days</SelectItem>
+                        <SelectItem value="60">60+ days</SelectItem>
+                        <SelectItem value="90">90+ days</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <div className="w-[12rem]">
+                      <SearchableSelect
+                        value={propertyFilter}
+                        onValueChange={(v) => { setPropertyFilter(v); arrearsPag.setPage(1); }}
+                        options={propertyOptions(allProperties)}
+                        placeholder="All properties"
+                        searchPlaceholder="Search property…"
+                        clearable
+                        className="h-9"
+                      />
+                    </div>
+                  </>
+                }
+                actions={
+                  <>
+                    <SavedViewsMenu<ArrearsFilters> pageKey="arrears" current={arrearsFilters} onApply={applyArrearsFilters} isEmpty={arrearsChips.length === 0} />
+                    <ExportMenu
+                      disabled={arrearsPag.filtered.length === 0}
+                      onPdf={() => exportArrearsPdf(arrearsPag.filtered)}
+                      onExcel={() => exportArrearsExcel(arrearsPag.filtered)}
+                    />
+                  </>
+                }
               />
+              <ActiveFilters chips={arrearsChips} onClearAll={clearArrearsFilters} />
+              {caps.canSendReminder && arrearsPag.filtered.length > 0 && (
+                <label className="flex items-center gap-2 text-xs text-muted-foreground cursor-pointer w-fit">
+                  <Checkbox
+                    checked={selection.allSelected ? true : selection.someSelected ? "indeterminate" : false}
+                    onCheckedChange={() => selection.toggleAll()}
+                    aria-label="Select all arrears"
+                  />
+                  Select all {arrearsPag.filtered.length} shown
+                </label>
+              )}
             </div>
             {arrearsLoading ? (
               <div className="py-10 text-center text-muted-foreground text-sm">Loading arrears…</div>
@@ -486,6 +671,13 @@ export default function ArrearsPage() {
                       {/* Top row */}
                       <div className="flex items-start justify-between gap-3 flex-wrap">
                         <div className="flex items-center gap-2 flex-wrap">
+                          {caps.canSendReminder && (
+                            <Checkbox
+                              checked={selection.isSelected(arrear.id)}
+                              onCheckedChange={() => selection.toggle(arrear.id)}
+                              aria-label={`Select ${getTenantName(arrear.tenantId)}`}
+                            />
+                          )}
                           <Badge className={`${PRIORITY_CLASS[arrear.priority] ?? "bg-muted text-foreground"} capitalize`}>
                             {arrear.priority}
                           </Badge>
@@ -775,6 +967,16 @@ export default function ArrearsPage() {
           </TabsContent>
         )}
       </Tabs>
+      {caps.canSendReminder && (
+        <BulkBar count={selection.count} noun="account" onClear={selection.clear}>
+          <Button size="sm" onClick={sendBulkReminders} disabled={bulkBusy}>
+            <Send className="w-3.5 h-3.5 mr-1.5" />{bulkBusy ? "Sending…" : "Send reminders"}
+          </Button>
+          <ExportMenu label="Export selected"
+            onPdf={() => exportArrearsPdf(selection.selectedItems)}
+            onExcel={() => exportArrearsExcel(selection.selectedItems)} />
+        </BulkBar>
+      )}
     </PageShell>
   );
 }

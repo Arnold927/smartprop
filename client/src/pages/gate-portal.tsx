@@ -368,7 +368,7 @@ function HardwarePanel({ session }: { session: GuardSession }) {
           </div>
           <div className="rounded-lg bg-background border border-border p-3 flex items-center gap-2">
             <code className="text-xs text-blue-300 flex-1 break-all leading-relaxed">{webhookUrl}</code>
-            <button onClick={copyWebhook} className="shrink-0 p-1.5 rounded-md hover:bg-muted text-muted-foreground hover:text-foreground transition-colors">
+            <button onClick={copyWebhook} className="shrink-0 p-1.5 rounded-md hover:bg-muted text-muted-foreground hover:text-foreground transition-colors" aria-label="Copy">
               <Copy className="w-3.5 h-3.5" />
             </button>
           </div>

@@ -1037,8 +1037,7 @@ const { data: contractor, isLoading, error } = useQuery<ServiceContractor>({
  <Button
  variant="ghost"
  size="sm"
- className="h-7 w-7 p-0 text-muted-foreground hover:text-muted-foreground"
- >
+ className="h-7 w-7 p-0 text-muted-foreground hover:text-muted-foreground" aria-label="More actions">
  <MoreVertical className="w-3.5 h-3.5" />
  </Button>
  </DropdownMenuTrigger>
@@ -1085,8 +1084,7 @@ const { data: contractor, isLoading, error } = useQuery<ServiceContractor>({
  variant="outline"
  size="sm"
  className="h-8 w-8 p-0"
- disabled={true}
- >
+ disabled={true} aria-label="Back">
  <ArrowLeft className="h-3.5 w-3.5" />
  </Button>
  <Button

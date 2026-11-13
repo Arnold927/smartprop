@@ -194,7 +194,7 @@ export default function Sidebar({ isOpen, onClose, isCollapsed: isCollapsedProp 
           )}
 
           {isMobile && !isCollapsed && (
-            <Button variant="ghost" size="sm" onClick={onClose} className="h-7 w-7 p-0 text-muted-foreground">
+            <Button variant="ghost" size="sm" onClick={onClose} className="h-7 w-7 p-0 text-muted-foreground" aria-label="Close">
               <X className="w-4 h-4" />
             </Button>
           )}
@@ -247,7 +247,7 @@ export default function Sidebar({ isOpen, onClose, isCollapsed: isCollapsedProp 
                   size="sm"
                   onClick={onToggleCollapse}
                   className="h-9 w-9 p-0 rounded-lg hover:bg-muted"
-                >
+                 aria-label="Expand sidebar">
                   <PanelLeftOpen className="w-4 h-4 text-muted-foreground" />
                 </Button>
               </TooltipTrigger>

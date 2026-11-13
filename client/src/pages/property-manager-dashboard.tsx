@@ -168,7 +168,7 @@ function MaintenancePanel() {
             <SelectItem value="all">All</SelectItem>
           </SelectContent>
         </Select>
-        <Button size="sm" variant="outline" onClick={() => refetch()} className="h-9 w-9 p-0"><RefreshCw className="h-3.5 w-3.5" /></Button>
+        <Button size="sm" variant="outline" onClick={() => refetch()} className="h-9 w-9 p-0" aria-label="Refresh"><RefreshCw className="h-3.5 w-3.5" /></Button>
       </div>
 
       {isLoading ? (
@@ -688,7 +688,7 @@ export default function PropertyManagerDashboard() {
               <div className="flex gap-1">
                 {unread>0&&<button onClick={markAllRead} className="p-1.5 rounded-lg hover:bg-muted" title="Mark all read"><CheckCheck className="h-4 w-4 text-muted-foreground"/></button>}
                 {notifications.length>0&&<button onClick={clearAll} className="p-1.5 rounded-lg hover:bg-muted" title="Clear all"><Trash2 className="h-4 w-4 text-muted-foreground"/></button>}
-                <button onClick={()=>setNotifOpen(false)} className="p-1.5 rounded-lg hover:bg-muted ml-1"><X className="h-4 w-4 text-muted-foreground"/></button>
+                <button onClick={()=>setNotifOpen(false)} className="p-1.5 rounded-lg hover:bg-muted ml-1" aria-label="Close"><X className="h-4 w-4 text-muted-foreground"/></button>
               </div>
             </div>
             <div className="flex-1 overflow-y-auto px-3 py-3 space-y-2">

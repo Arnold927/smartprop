@@ -70,114 +70,32 @@ const CONSTRUCTION_STAGES = [
 ];
 
 
-// ── Invoice PDF download (print-to-PDF via browser) ─────────────────────────
-function downloadInvoice(inv: any, contract: any) {
-  const notes = (() => { try { return JSON.parse(inv.notes ?? "{}"); } catch { return {}; } })();
-  const html = `<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8"/>
-  <title>Invoice ${inv.invoiceNumber}</title>
-  <style>
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-    body { font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; font-size: 13px; color: #1a1a1a; padding: 48px; background: #fff; }
-    .header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 40px; }
-    .brand { font-size: 22px; font-weight: 800; color: #059669; letter-spacing: -0.5px; }
-    .brand span { color: #1a1a1a; }
-    .invoice-title { text-align: right; }
-    .invoice-title h1 { font-size: 28px; font-weight: 800; color: #059669; letter-spacing: -0.5px; }
-    .invoice-title p { font-size: 12px; color: #6b7280; margin-top: 2px; }
-    .divider { border: none; border-top: 2px solid #d1fae5; margin: 24px 0; }
-    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 32px; margin-bottom: 32px; }
-    .section-label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.8px; color: #6b7280; margin-bottom: 8px; }
-    .field { margin-bottom: 6px; }
-    .field-label { font-size: 11px; color: #6b7280; }
-    .field-value { font-size: 13px; font-weight: 600; color: #111827; }
-    table { width: 100%; border-collapse: collapse; margin-bottom: 24px; }
-    th { background: #f0fdf4; padding: 10px 14px; text-align: left; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.6px; color: #059669; border-bottom: 2px solid #d1fae5; }
-    td { padding: 12px 14px; border-bottom: 1px solid #f3f4f6; font-size: 13px; }
-    tr:last-child td { border-bottom: none; }
-    .amount-row td { font-weight: 700; font-size: 15px; background: #f0fdf4; color: #059669; }
-    .status-badge { display: inline-block; padding: 3px 10px; border-radius: 999px; font-size: 11px; font-weight: 700; text-transform: capitalize;
-      background: ${inv.status === "paid" ? "#d1fae5" : inv.status === "overdue" ? "#fee2e2" : "#fef3c7"};
-      color: ${inv.status === "paid" ? "#065f46" : inv.status === "overdue" ? "#991b1b" : "#92400e"}; }
-    .footer { margin-top: 40px; padding-top: 16px; border-top: 1px solid #e5e7eb; font-size: 11px; color: #9ca3af; text-align: center; }
-    @media print {
-      body { padding: 24px; }
-      @page { margin: 16mm; size: A4; }
-    }
-  </style>
-</head>
-<body>
-  <div class="header">
-    <div class="brand">Smart<span>Prop</span></div>
-    <div class="invoice-title">
-      <h1>INVOICE</h1>
-      <p class="font-mono">${inv.invoiceNumber}</p>
-    </div>
-  </div>
-  <hr class="divider"/>
-  <div class="grid-2">
-    <div>
-      <p class="section-label">Bill To</p>
-      <div class="field"><p class="field-value">${contract?.clientName ?? "—"}</p></div>
-      <div class="field"><p class="field-label">Email</p><p class="field-value">${contract?.clientEmail ?? "—"}</p></div>
-      <div class="field"><p class="field-label">Country</p><p class="field-value">${contract?.clientCountry ?? "—"}</p></div>
-    </div>
-    <div>
-      <p class="section-label">Invoice Details</p>
-      <div class="field"><p class="field-label">Contract</p><p class="field-value">DSP-${String(contract?.id ?? "").padStart(4,"0")}</p></div>
-      <div class="field"><p class="field-label">Due Date</p><p class="field-value">${inv.dueDate ? new Date(inv.dueDate).toLocaleDateString("en-KE",{day:"2-digit",month:"short",year:"numeric"}) : "—"}</p></div>
-      <div class="field"><p class="field-label">Status</p><span class="status-badge">${inv.status}</span></div>
-      <div class="field"><p class="field-label">Payment Method</p><p class="field-value">${contract?.internationalProvider ?? "—"}</p></div>
-    </div>
-  </div>
-  <table>
-    <thead>
-      <tr>
-        <th style="width:55%">Description</th>
-        <th>Period</th>
-        <th style="text-align:right">Amount</th>
-      </tr>
-    </thead>
-    <tbody>
-      <tr>
-        <td>${inv.description ?? `${notes.periodLabel ?? "Monthly"} Installment`}</td>
-        <td>${notes.periodLabel ?? "Monthly"}</td>
-        <td style="text-align:right;font-family:monospace">${inv.currency ?? "KES"} ${Number(inv.totalAmount ?? 0).toLocaleString("en-KE",{minimumFractionDigits:2})}</td>
-      </tr>
-      <tr class="amount-row">
-        <td colspan="2">Total Due</td>
-        <td style="text-align:right;font-family:monospace">${inv.currency ?? "KES"} ${Number(inv.totalAmount ?? 0).toLocaleString("en-KE",{minimumFractionDigits:2})}</td>
-      </tr>
-    </tbody>
-  </table>
-  ${(() => {
-    // Use live contract balance, not the stale snapshot in notes.
-    // For pending invoices: show what the balance will be after payment.
-    // For paid/other invoices: show the current remaining balance.
-    const currentRemaining = Number(contract?.remainingBalance ?? 0);
-    const invoiceAmount    = Number(inv.totalAmount ?? 0);
-    const balanceAfter     = inv.status === "pending"
-      ? Math.max(0, currentRemaining - invoiceAmount)
-      : currentRemaining;
-    const label = inv.status === "pending"
-      ? "Balance after this payment"
-      : "Current remaining balance";
-    return `<p style="font-size:12px;color:#6b7280;margin-bottom:24px">${label}: <strong style="color:#111827">KES ${balanceAfter.toLocaleString("en-KE",{minimumFractionDigits:2})}</strong></p>`;
-  })()}
-  <div class="footer">
-    <p>SmartProp · Diaspora Rent-to-Own Programme · Generated ${new Date().toLocaleDateString("en-KE",{day:"2-digit",month:"long",year:"numeric"})}</p>
-    <p style="margin-top:4px">This is a computer-generated invoice and does not require a signature.</p>
-  </div>
-</body>
-</html>`;
-
-  const win = window.open("", "_blank", "width=900,height=700");
-  if (!win) return;
-  win.document.write(html);
-  win.document.close();
-  win.onload = () => { win.focus(); win.print(); };
+// ── Invoice PDF download (branded PDF, generated in the browser) ────────────
+async function downloadInvoice(inv: any, contract: any) {
+  const notes = (() => { try { return typeof inv.notes === "string" ? JSON.parse(inv.notes) : (inv.notes ?? {}); } catch { return {}; } })();
+  const cur = inv.currency ?? "KES";
+  const total = Number(inv.totalAmount ?? 0);
+  const dd = (d: any) => d ? new Date(d).toLocaleDateString("en-KE", { day: "2-digit", month: "short", year: "numeric" }) : "-";
+  const currentRemaining = Number(contract?.remainingBalance ?? 0);
+  const balanceAfter = inv.status === "pending" ? Math.max(0, currentRemaining - total) : currentRemaining;
+  const { createPdf, money } = await import("@/lib/pdf");
+  const pdf = await createPdf({
+    title: `Invoice ${inv.invoiceNumber}`, docLabel: "INVOICE", docNumber: inv.invoiceNumber,
+    subtitle: "Diaspora Rent-to-Own Programme",
+  });
+  pdf.twoColumn(
+    { title: "Bill to", rows: [["Name", contract?.clientName ?? "-"], ["Email", contract?.clientEmail ?? "-"], ["Country", contract?.clientCountry ?? "-"]] },
+    { title: "Invoice details", rows: [["Contract", `DSP-${String(contract?.id ?? "").padStart(4, "0")}`], ["Due date", dd(inv.dueDate)], ["Status", String(inv.status ?? "")], ["Payment method", contract?.internationalProvider ?? "-"]] },
+  );
+  pdf.section("Charges");
+  pdf.table({
+    head: ["Description", "Period", `Amount (${cur})`],
+    body: [[inv.description ?? `${notes.periodLabel ?? "Monthly"} Installment`, notes.periodLabel ?? "Monthly", total.toLocaleString("en-KE", { minimumFractionDigits: 2 })]],
+    align: ["left", "left", "right"],
+  });
+  pdf.amountBox(inv.status === "paid" ? "Amount paid" : "Total due", money(total, cur), { stamp: inv.status === "paid" ? "PAID" : undefined, tone: inv.status === "paid" ? "green" : inv.status === "overdue" ? "red" : "amber" });
+  pdf.paragraph(`${inv.status === "pending" ? "Balance after this payment" : "Current remaining balance"}: ${money(balanceAfter, "KES")}`, { bold: true });
+  pdf.save(`invoice-${inv.invoiceNumber}`);
 }
 
 // ── page ─────────────────────────────────────────────────────────────────────

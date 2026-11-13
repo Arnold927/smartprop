@@ -502,8 +502,7 @@ function HardwarePanel({ propertyId: externalPropertyId }: HardwarePanelProps) {
             <code className="text-xs text-blue-300 flex-1 break-all leading-relaxed">{webhookUrl}</code>
             <button
               onClick={copyWebhook}
-              className="shrink-0 p-1.5 rounded-md hover:bg-slate-800 text-slate-400 hover:text-white transition-colors"
-            >
+              className="shrink-0 p-1.5 rounded-md hover:bg-slate-800 text-slate-400 hover:text-white transition-colors" aria-label="Copy">
               <Copy className="w-3.5 h-3.5" />
             </button>
           </div>

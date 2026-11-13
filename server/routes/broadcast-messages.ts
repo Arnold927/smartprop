@@ -132,6 +132,20 @@ async function resolveRecipients(
       if (roleFilter.length > 0) {
         rows = rows.filter(u => roleFilter.includes(u.role ?? ""));
       }
+      // Hand-picked tenants (e.g. rows ticked on the Tenants page). Ids are
+      // re-checked against the organisation so a crafted request cannot reach
+      // another organisation's tenants.
+      const tenantIds: number[] = Array.isArray(audienceFilter?.tenantIds)
+        ? audienceFilter!.tenantIds.map(Number).filter((n: number) => Number.isInteger(n))
+        : [];
+      if (tenantIds.length > 0) {
+        const picked = await db
+          .select({ userId: tenants.userId })
+          .from(tenants)
+          .where(and(eq(tenants.organizationId, orgId), inArray(tenants.id, tenantIds)));
+        const userIds = new Set(picked.map(t => t.userId).filter(Boolean));
+        rows = rows.filter(u => userIds.has(u.id));
+      }
       return rows;
     }
 

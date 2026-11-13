@@ -6,6 +6,7 @@ import { apiRequest } from "@/lib/queryClient";
 import { useAuth } from "@/hooks/useAuth";
 import { withOrgParam } from "@/lib/platformOrgContext";
 import { getNavForRole, isRouteAllowed } from "@/lib/roleNav";
+import { useRecentItems, type QuickItem } from "@/hooks/useRecentItems";
 import {
   CommandDialog,
   CommandEmpty,
@@ -17,7 +18,7 @@ import {
 } from "@/components/ui/command";
 import {
   Building2, User, Users, Wrench, Loader2, Receipt, DoorOpen, HardHat, Wallet,
-  Zap, FileText, UserCog, CornerDownLeft, Compass, AlertCircle,
+  Zap, FileText, UserCog, CornerDownLeft, Compass, AlertCircle, Star,
 } from "lucide-react";
 
 interface CommandPaletteProps {
@@ -62,6 +63,22 @@ function useDebounced<T>(value: T, ms: number): T {
   return v;
 }
 
+function PinButton({ pinned, onToggle }: { pinned: boolean; onToggle: () => void }) {
+  return (
+    <button
+      type="button"
+      aria-label={pinned ? "Unpin" : "Pin to search"}
+      title={pinned ? "Unpin" : "Pin to search"}
+      aria-pressed={pinned}
+      onMouseDown={e => e.preventDefault()}
+      onClick={e => { e.stopPropagation(); e.preventDefault(); onToggle(); }}
+      className="ml-2 shrink-0 rounded p-1 text-muted-foreground/60 hover:text-amber-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring"
+    >
+      <Star className={pinned ? "h-4 w-4 fill-amber-400 text-amber-500" : "h-4 w-4"} />
+    </button>
+  );
+}
+
 export function CommandPalette({ open, onOpenChange, enableShortcut = true }: CommandPaletteProps) {
   const [query, setQuery] = React.useState("");
   const [, setLocation] = useLocation();
@@ -70,6 +87,7 @@ export function CommandPalette({ open, onOpenChange, enableShortcut = true }: Co
   const role = user?.role;
   const isPlatformAdmin = role === "platform_admin";
 
+  const quick = useRecentItems(user?.id);
   const trimmed = query.trim();
   const debounced = useDebounced(trimmed, 250);
   const canSearch = debounced.length >= 2;
@@ -163,6 +181,32 @@ export function CommandPalette({ open, onOpenChange, enableShortcut = true }: Co
     setLocation(href);
   }, [onOpenChange, setLocation]);
 
+  const toQuick = (group: string, h: Hit): Omit<QuickItem, "at"> => ({
+    key: `${group}-${h.id}`, group, title: h.title, subtitle: h.subtitle, href: h.href,
+  });
+  const openRecord = (group: string, h: Hit) => { quick.addRecent(toQuick(group, h)); go(h.href); };
+  const iconFor = (group: string) => GROUPS.find(g => g.key === group)?.icon ?? Compass;
+  // Pins survive a role/route change, so only show the ones this user can still open.
+  const allowed = (it: QuickItem) => isPlatformAdmin || isRouteAllowed(role, it.href.split("?")[0]);
+  const pinnedShown = quick.pinned.filter(allowed);
+  const recentShown = quick.recent.filter(it => allowed(it) && !quick.isPinned(it.key));
+  const showQuick = trimmed.length === 0 && (pinnedShown.length > 0 || recentShown.length > 0);
+
+  const QuickRow = ({ it, value }: { it: QuickItem; value: string }) => {
+    const Icon = iconFor(it.group);
+    const pinned = quick.isPinned(it.key);
+    return (
+      <CommandItem value={value} onSelect={() => { quick.addRecent({ key: it.key, group: it.group, title: it.title, subtitle: it.subtitle, href: it.href }); go(it.href); }}>
+        <Icon className="mr-2 h-4 w-4 shrink-0 text-muted-foreground" />
+        <div className="min-w-0 flex-1">
+          <div className="truncate text-sm">{it.title}</div>
+          {it.subtitle && <div className="truncate text-xs text-muted-foreground">{it.subtitle}</div>}
+        </div>
+        <PinButton pinned={pinned} onToggle={() => quick.togglePin({ key: it.key, group: it.group, title: it.title, subtitle: it.subtitle, href: it.href })} />
+      </CommandItem>
+    );
+  };
+
   // Only offer records the user is actually allowed to open.
   const visibleGroups = React.useMemo(() => {
     if (!canSearch || !data) return [];
@@ -195,6 +239,22 @@ export function CommandPalette({ open, onOpenChange, enableShortcut = true }: Co
         className="!bg-transparent !shadow-none !ring-0 focus-visible:!outline-none"
       />
       <CommandList className="max-h-[min(60vh,420px)]">
+        {/* Pinned + recently opened (empty search box only) */}
+        {showQuick && pinnedShown.length > 0 && (
+          <CommandGroup heading="Pinned">
+            {pinnedShown.map(it => <QuickRow key={`pin-${it.key}`} it={it} value={`pin-${it.key}`} />)}
+          </CommandGroup>
+        )}
+        {showQuick && recentShown.length > 0 && (
+          <>
+            {pinnedShown.length > 0 && <CommandSeparator />}
+            <CommandGroup heading="Recent">
+              {recentShown.map(it => <QuickRow key={`rec-${it.key}`} it={it} value={`rec-${it.key}`} />)}
+            </CommandGroup>
+          </>
+        )}
+        {showQuick && pageMatches.length > 0 && <CommandSeparator />}
+
         {/* Pages / quick navigation */}
         {pageMatches.length > 0 && (
           <CommandGroup heading={trimmed ? "Pages" : "Go to"}>
@@ -215,7 +275,7 @@ export function CommandPalette({ open, onOpenChange, enableShortcut = true }: Co
             {(i > 0 || pageMatches.length > 0) && <CommandSeparator />}
             <CommandGroup heading={g.label}>
               {g.hits.map(h => (
-                <CommandItem key={`${g.key}-${h.id}`} value={`${g.key}-${h.id}`} onSelect={() => go(h.href)}>
+                <CommandItem key={`${g.key}-${h.id}`} value={`${g.key}-${h.id}`} onSelect={() => openRecord(g.key, h)}>
                   <g.icon className="mr-2 h-4 w-4 shrink-0 text-muted-foreground" />
                   <div className="min-w-0 flex-1">
                     <div className="truncate text-sm">{h.title}</div>
@@ -226,6 +286,7 @@ export function CommandPalette({ open, onOpenChange, enableShortcut = true }: Co
                       {h.badge}
                     </span>
                   )}
+                  <PinButton pinned={quick.isPinned(`${g.key}-${h.id}`)} onToggle={() => quick.togglePin(toQuick(g.key, h))} />
                 </CommandItem>
               ))}
             </CommandGroup>

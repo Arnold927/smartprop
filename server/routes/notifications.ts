@@ -49,15 +49,83 @@ export interface StaffNotification {
 
 const store = new Map<string, StaffNotification[]>();
 
-export function pushNotification(userId: string, notif: Omit<StaffNotification, "id" | "read">) {
+// ─── Preference-aware delivery ────────────────────────────────────────────────
+// A user's own switches decide which in-app notifications they actually get:
+//   inAppNotifications  – master switch (off = no in-app notifications at all)
+//   maintenanceUpdates  – work_order / assignment
+//   paymentReminders    – payment
+//   securityAlerts      – visitor
+// Messages and system notices are governed by the master switch only. The
+// preferences row is cached for a minute so a burst of notifications is one query.
+
+type PrefRow = {
+  inAppNotifications: boolean | null; maintenanceUpdates: boolean | null;
+  paymentReminders: boolean | null; securityAlerts: boolean | null;
+};
+const prefCache = new Map<string, { at: number; row: PrefRow | null }>();
+const PREF_TTL_MS = 60_000;
+
+export function clearPrefCache(userId: string) { prefCache.delete(userId); }
+
+async function loadPrefs(userId: string): Promise<PrefRow | null> {
+  const hit = prefCache.get(userId);
+  if (hit && Date.now() - hit.at < PREF_TTL_MS) return hit.row;
+  let row: PrefRow | null = null;
+  try {
+    const [r] = await db
+      .select({
+        inAppNotifications: userNotificationPreferences.inAppNotifications,
+        maintenanceUpdates: userNotificationPreferences.maintenanceUpdates,
+        paymentReminders:   userNotificationPreferences.paymentReminders,
+        securityAlerts:     userNotificationPreferences.securityAlerts,
+      })
+      .from(userNotificationPreferences)
+      .where(eq(userNotificationPreferences.userId, userId))
+      .limit(1);
+    row = r ?? null;
+  } catch { row = null; /* if prefs can't be read, deliver rather than drop */ }
+  prefCache.set(userId, { at: Date.now(), row });
+  return row;
+}
+
+/** Whether a notification of this type should be delivered given a user's switches (no row = everything on). */
+export function allowsType(prefs: PrefRow | null, type: StaffNotification["type"]): boolean {
+  if (!prefs) return true;
+  if (prefs.inAppNotifications === false) return false;
+  if ((type === "work_order" || type === "assignment") && prefs.maintenanceUpdates === false) return false;
+  if (type === "payment" && prefs.paymentReminders === false) return false;
+  if (type === "visitor" && prefs.securityAlerts === false) return false;
+  return true;
+}
+
+function insertNotification(userId: string, newNotif: StaffNotification) {
   const list = store.get(userId) ?? [];
+  store.set(userId, [newNotif, ...list].slice(0, 100)); // cap at 100
+}
+
+/**
+ * Queue an in-app notification. Returns the notification immediately; delivery
+ * is skipped (asynchronously) if the user has switched that category off.
+ */
+export function pushNotification(userId: string, notif: Omit<StaffNotification, "id" | "read">) {
   const newNotif: StaffNotification = {
     ...notif,
     id: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
     read: false,
   };
-  store.set(userId, [newNotif, ...list].slice(0, 100)); // cap at 100
+  loadPrefs(userId)
+    .then(prefs => { if (allowsType(prefs, notif.type)) insertNotification(userId, newNotif); })
+    .catch(() => insertNotification(userId, newNotif));
   return newNotif;
+}
+
+/** Same as pushNotification but awaitable, and returns whether it was delivered (used by the digest). */
+export async function pushNotificationChecked(userId: string, notif: Omit<StaffNotification, "id" | "read">): Promise<boolean> {
+  const prefs = await loadPrefs(userId);
+  if (!allowsType(prefs, notif.type)) return false;
+  if (!store.has(userId)) store.set(userId, []);
+  insertNotification(userId, { ...notif, id: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, read: false });
+  return true;
 }
 
 // ─── Seed helpers — build notifications from real domain data ─────────────────
@@ -164,7 +232,8 @@ router.get("/", async (req: any, res) => {
     // If no in-process notifications yet for this user, seed from domain data
     if (!store.has(userId)) {
       const seeded = await seedForUser(userId, orgId);
-      store.set(userId, seeded);
+      const prefs = await loadPrefs(userId);
+      store.set(userId, seeded.filter(n => allowsType(prefs, n.type)));
     }
 
     const notifs = store.get(userId) ?? [];
@@ -273,6 +342,25 @@ router.delete("/", async (req: any, res) => {
   res.json({ ok: true });
 });
 
+// ─── POST /api/notifications/digest-now ──────────────────────────────────────
+// Sends the portfolio summary to the caller right now (admins and managers),
+// so they can see exactly what the scheduled digest contains.
+
+router.post("/digest-now", async (req: any, res) => {
+  try {
+    const role = req.user.role;
+    if (!["admin", "manager"].includes(role)) return res.status(403).json({ message: "Only admins and managers receive the portfolio summary" });
+    const userId = String(req.user.userId || req.user.id);
+    const { orgDigestFigures, digestMessage } = await import("../services/digestScheduler");
+    const { title, message } = digestMessage(await orgDigestFigures(req.user.organizationId));
+    const delivered = await pushNotificationChecked(userId, { type: "system", title, message, ts: new Date().toISOString(), link: "/dashboard" });
+    res.json({ ok: true, delivered, title, message });
+  } catch (err: any) {
+    console.error("POST /api/notifications/digest-now error:", err);
+    res.status(500).json({ message: err.message });
+  }
+});
+
 // ─── GET /api/notifications/preferences ──────────────────────────────────────
 
 router.get("/preferences", async (req: any, res) => {
@@ -332,6 +420,7 @@ router.patch("/preferences", async (req: any, res) => {
   try {
     const userId = String(req.user.userId || req.user.id);
     const data = prefsSchema.parse(req.body);
+    clearPrefCache(userId);
 
     const [existing] = await db
       .select()
@@ -349,7 +438,7 @@ router.patch("/preferences", async (req: any, res) => {
     } else {
       const [created] = await db
         .insert(userNotificationPreferences)
-        .values({ userId, ...data } as any)
+        .values({ weeklyDigest: false, ...data, userId } as any)
         .returning();
       return res.json(created);
     }

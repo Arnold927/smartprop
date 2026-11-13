@@ -1,6 +1,13 @@
 import { tenantOptions, unitOptions, propertyOptions, userOptions, byId } from "@/lib/pickerOptions";
 import { SearchableSelect } from "@/components/ui/searchable-select";
 import { useState } from "react";
+import { EmptyState } from "@/components/ui/sp-ui";
+import { ExportMenu } from "@/components/export-menu";
+import { BulkBar } from "@/components/bulk-bar";
+import { useRowSelection } from "@/hooks/useRowSelection";
+import { Checkbox } from "@/components/ui/checkbox";
+import { downloadExcel } from "@/lib/excel";
+import { exportTablePdf, createPdf, todayStamp, money } from "@/lib/pdf";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -16,7 +23,7 @@ import {
   Plus, Search, Droplets, DollarSign, Clock, Repeat,
   AlertCircle, CheckCircle, Loader2, PlayCircle, Settings, Send,
   ToggleLeft, ToggleRight, Edit2, XCircle, Trash2,
-  ChevronLeft, ChevronRight,
+  ChevronLeft, ChevronRight, Download,
 } from "lucide-react";
 import StatusBadge from "@/components/ui/status-badge";
 import { format } from "date-fns";
@@ -242,6 +249,62 @@ export default function Billing() {
 
   const paged = (items: any[], p: number, s: number) => items.slice((p-1)*s, p*s);
 
+  // ── Invoice export, PDF and bulk actions ─────────────────────────────────────
+  const invSelection = useRowSelection(filteredInvoices as Invoice[], (i: Invoice) => i.id);
+  const tenantName = (id: number) => { const t: any = (tenants as any[]).find((x: any) => x.id === id); return t ? `${t.firstName ?? ""} ${t.lastName ?? ""}`.trim() : ""; };
+  const propName = (id: number) => (properties as any[]).find((x: any) => x.id === id)?.name ?? "";
+  const invStatusLabel = (st: string) => st.replace(/_/g, " ").replace(/^./, c => c.toUpperCase());
+  const exportInvExcel = (list: Invoice[]) => downloadExcel(
+    `invoices-${todayStamp()}`,
+    ["Invoice #", "Tenant", "Property", "Description", "Amount", "Currency", "Due", "Paid", "Status"],
+    list.map(i => [i.invoiceNumber, tenantName(i.tenantId), propName(i.propertyId), i.description || "Invoice", Number(i.amount), i.currency || "KES", fmtDate(i.dueDate), fmtDate(i.paidDate), i.status]),
+    "Invoices");
+  const exportInvPdf = async (list: Invoice[]) => {
+    const sum = (f: (i: Invoice) => boolean) => list.filter(f).reduce((a, i) => a + Number(i.amount || 0), 0);
+    await exportTablePdf({
+      title: "Invoice register",
+      caption: "Invoices issued to tenants",
+      docLabel: "INVOICES",
+      filters: [search ? `Search: ${search}` : "", propFilter ? `Property: ${propName(propFilter as number)}` : "", statusFilter !== "all" ? `Status: ${invStatusLabel(statusFilter)}` : ""].filter(Boolean),
+      kpis: [
+        { label: "Invoiced", value: money(sum(() => true)), tone: "blue" },
+        { label: "Paid", value: money(sum(i => i.status === "paid")), tone: "green" },
+        { label: "Outstanding", value: money(sum(i => i.status === "pending" || i.status === "overdue")), tone: "amber" },
+        { label: "Overdue", value: money(sum(i => i.status === "overdue")), tone: "red" },
+      ],
+      columns: [{ header: "Invoice #" }, { header: "Tenant" }, { header: "Property" }, { header: "Description" }, { header: "Due" }, { header: "Status" }, { header: "Amount (KES)", align: "right" }],
+      rows: list.map(i => [i.invoiceNumber, tenantName(i.tenantId), propName(i.propertyId), i.description || "Invoice", fmtDate(i.dueDate), invStatusLabel(i.status), Number(i.amount || 0).toLocaleString("en-KE")]),
+      totals: ["", "", "", "", "", "Total", sum(() => true).toLocaleString("en-KE")],
+      filename: `invoice-register-${todayStamp()}`,
+    });
+  };
+  const downloadInvoicePdf = async (i: Invoice) => {
+    const pdf = await createPdf({ title: `Invoice ${i.invoiceNumber}`, docLabel: "INVOICE", docNumber: i.invoiceNumber, issuedDate: i.dueDate });
+    pdf.twoColumn(
+      { title: "Bill to", rows: [["Tenant", tenantName(i.tenantId) || "-"], ["Property", propName(i.propertyId) || "-"]] },
+      { title: "Invoice details", rows: [["Invoice #", i.invoiceNumber], ["Due date", fmtDate(i.dueDate)], ["Status", invStatusLabel(i.status)], ...(i.paidDate ? [["Paid on", fmtDate(i.paidDate)] as [string, string]] : [])] },
+    );
+    pdf.section("Charges");
+    pdf.table({ head: ["Description", "Amount"], body: [[i.description || "Invoice", Number(i.amount || 0).toLocaleString("en-KE", { minimumFractionDigits: 2 })]], align: ["left", "right"] });
+    pdf.amountBox(i.status === "paid" ? "Amount paid" : "Amount due", money(i.amount, i.currency || "KES"), { stamp: i.status === "paid" ? "PAID" : undefined, tone: i.status === "paid" ? "green" : i.status === "overdue" ? "red" : "amber" });
+    if (i.notes) pdf.panel("Notes", [i.notes]);
+    pdf.save(`invoice-${i.invoiceNumber}`);
+  };
+  const bulkInvMut = useMutation({
+    mutationFn: async ({ ids, data }: { ids: number[]; data: any }) => {
+      const res = await Promise.allSettled(ids.map(id => apiRequest(`/api/invoices/${id}`, { method: "PATCH", data }).then(r => { if (!r.ok) throw new Error(); })));
+      return { ok: res.filter(r => r.status === "fulfilled").length, failed: res.filter(r => r.status === "rejected").length };
+    },
+    onSuccess: ({ ok, failed }) => {
+      qc.invalidateQueries({ queryKey: ["/api/invoices"] });
+      toast({ title: `${ok} invoice${ok === 1 ? "" : "s"} updated`, description: failed ? `${failed} could not be updated` : undefined, variant: failed ? "destructive" : undefined });
+      invSelection.clear();
+    },
+    onError: () => toast({ title: "Bulk update failed", variant: "destructive" }),
+  });
+  const selPending = invSelection.selectedItems.filter(i => i.status === "pending" || i.status === "overdue");
+  const selVoidable = invSelection.selectedItems.filter(i => i.status !== "paid" && i.status !== "cancelled");
+
   // ── KPIs ─────────────────────────────────────────────────────────────────────
 
   const kpis = {
@@ -421,7 +484,9 @@ export default function Billing() {
           <Card className="rounded-xl border border-slate-100 shadow-sm overflow-hidden">
             <CardContent className="p-0">
               {ldCharges ? <div className="flex justify-center p-10"><Loader2 className="w-6 h-6 animate-spin text-muted-foreground"/></div>
-                : filteredCharges.length === 0 ? <p className="text-center py-12 text-sm text-muted-foreground">No recurring charges found</p>
+                : filteredCharges.length === 0 ? (charges.length === 0
+                  ? <EmptyState icon={<Repeat />} title="No recurring charges yet" description="Add rent, service charge or garbage collection once and SmartProp bills it every cycle." action={{ label: "Add recurring charge", onClick: () => openDlg("charge") }} size="lg" />
+                  : <EmptyState icon={<Search />} title="No charges match" description="Try clearing the search or filters." size="md" />)
                 : <div className="overflow-x-auto">
                   <table className="w-full text-sm">
                     <thead><tr className="bg-muted border-b border-border text-xs text-muted-foreground uppercase">
@@ -462,6 +527,7 @@ export default function Billing() {
         <TabsContent value="invoices" className="space-y-3">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <h2 className="text-base font-semibold">Invoices</h2>
+            <ExportMenu disabled={filteredInvoices.length === 0} onPdf={() => exportInvPdf(filteredInvoices as Invoice[])} onExcel={() => exportInvExcel(filteredInvoices as Invoice[])} />
             <Dialog open={dlg.invoice} onOpenChange={o=>o?openDlg("invoice"):closeDlg("invoice")}>
               <DialogTrigger asChild><Button size="sm" className="gap-1 text-xs h-8"><Plus className="w-3.5 h-3.5"/>Create invoice</Button></DialogTrigger>
               <DialogContent>
@@ -494,15 +560,18 @@ export default function Billing() {
           <Card className="rounded-xl border border-slate-100 shadow-sm overflow-hidden">
             <CardContent className="p-0">
               {ldInvs ? <div className="flex justify-center p-10"><Loader2 className="w-6 h-6 animate-spin text-muted-foreground"/></div>
-                : filteredInvoices.length === 0 ? <p className="text-center py-12 text-sm text-muted-foreground">No invoices found</p>
+                : filteredInvoices.length === 0 ? (invoices.length === 0
+                  ? <EmptyState icon={<DollarSign />} title="No invoices yet" description="Invoices are created automatically from recurring charges, or you can raise one by hand." action={{ label: "Create invoice", onClick: () => openDlg("invoice") }} size="lg" />
+                  : <EmptyState icon={<Search />} title="No invoices match" description="Try clearing the search or filters." size="md" />)
                 : <div className="overflow-x-auto">
                   <table className="w-full text-sm">
                     <thead><tr className="bg-muted border-b border-border text-xs text-muted-foreground uppercase">
-                      <th className="text-left px-4 py-3">Invoice #</th><th className="text-left px-4 py-3">Description</th><th className="text-left px-4 py-3">Amount</th><th className="text-left px-4 py-3">Due</th><th className="text-left px-4 py-3">Paid</th><th className="text-left px-4 py-3">Status</th><th className="px-4 py-3 w-8"/>
+                      <th className="px-4 py-3 w-8"><Checkbox checked={invSelection.allSelected ? true : invSelection.someSelected ? "indeterminate" : false} onCheckedChange={() => invSelection.toggleAll()} aria-label="Select all invoices" /></th><th className="text-left px-4 py-3">Invoice #</th><th className="text-left px-4 py-3">Description</th><th className="text-left px-4 py-3">Amount</th><th className="text-left px-4 py-3">Due</th><th className="text-left px-4 py-3">Paid</th><th className="text-left px-4 py-3">Status</th><th className="px-4 py-3 w-8"/>
                     </tr></thead>
                     <tbody className="divide-y divide-border/50">
                       {paged(filteredInvoices, iPage, iSize).map((i: Invoice) => (
                         <tr key={i.id} className="hover:bg-muted/40 transition-colors">
+                          <td className="px-4 py-2.5 w-8"><Checkbox checked={invSelection.isSelected(i.id)} onCheckedChange={() => invSelection.toggle(i.id)} aria-label={`Select invoice ${i.invoiceNumber}`} /></td>
                           <td className="px-4 py-2.5 font-mono text-xs whitespace-nowrap">{i.invoiceNumber}</td>
                           <td className="px-4 py-2.5 max-w-[150px] break-words text-xs">{i.description||"Invoice"}</td>
                           <td className="px-4 py-2.5 whitespace-nowrap">{fmtMoney(i.amount)}</td>
@@ -511,6 +580,7 @@ export default function Billing() {
                           <td className="px-4 py-2.5"><StatusBadge status={i.status}/></td>
                           <td className="px-4 py-2.5">
                             <ActionMenu items={[
+                              {label:"Download PDF",  icon:<Download className="w-4 h-4"/>,    onClick:()=>downloadInvoicePdf(i)},
                               {label:"Edit",         icon:<Edit2 className="w-4 h-4"/>,       onClick:()=>setEditInv(i)},
                               ...(i.status==="pending"?[
                                 {label:"Mark as paid",   icon:<CheckCircle className="w-4 h-4"/>, onClick:()=>markInvPaidMut.mutate(i.id)},
@@ -528,6 +598,19 @@ export default function Billing() {
               <div className="px-4 pb-3"><Pager total={filteredInvoices.length} page={iPage} size={iSize} onPage={setIPage}/></div>
             </CardContent>
           </Card>
+          <BulkBar count={invSelection.count} noun="invoice" onClear={invSelection.clear}>
+            {selPending.length > 0 && (
+              <Button size="sm" disabled={bulkInvMut.isPending} onClick={() => bulkInvMut.mutate({ ids: selPending.map(i => i.id), data: { status: "paid", paidDate: new Date().toISOString() } })}>
+                <CheckCircle className="w-3.5 h-3.5 mr-1.5" />Mark paid ({selPending.length})
+              </Button>
+            )}
+            {selVoidable.length > 0 && (
+              <Button size="sm" variant="outline" disabled={bulkInvMut.isPending} onClick={() => bulkInvMut.mutate({ ids: selVoidable.map(i => i.id), data: { status: "cancelled" } })}>
+                <XCircle className="w-3.5 h-3.5 mr-1.5" />Void ({selVoidable.length})
+              </Button>
+            )}
+            <ExportMenu label="Export selected" onPdf={() => exportInvPdf(invSelection.selectedItems)} onExcel={() => exportInvExcel(invSelection.selectedItems)} />
+          </BulkBar>
         </TabsContent>
 
         {/* ══════════════════════ SETUP ══════════════════════ */}
@@ -586,8 +669,8 @@ export default function Billing() {
                         </div>
                         <div className="flex items-center gap-2">
                           <Badge variant={c.isActive?"default":"secondary"} className="text-xs">{c.isActive?"Active":"Off"}</Badge>
-                          <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={()=>setEditCycle(c)}><Edit2 className="w-3.5 h-3.5"/></Button>
-                          <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-red-500 hover:bg-red-50" onClick={()=>setDelCycle(c.id)}><Trash2 className="w-3.5 h-3.5"/></Button>
+                          <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={()=>setEditCycle(c)} aria-label="Edit"><Edit2 className="w-3.5 h-3.5"/></Button>
+                          <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-red-500 hover:bg-red-50" onClick={()=>setDelCycle(c.id)} aria-label="Delete"><Trash2 className="w-3.5 h-3.5"/></Button>
                         </div>
                       </div>
                     ))

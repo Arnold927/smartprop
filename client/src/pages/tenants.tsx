@@ -1,4 +1,15 @@
 import { downloadExcel } from "@/lib/excel";
+import { exportTablePdf, money, todayStamp } from "@/lib/pdf";
+import { ExportMenu } from "@/components/export-menu";
+import { BulkBar } from "@/components/bulk-bar";
+import { BulkMessageDialog } from "@/components/bulk-message-dialog";
+import { SavedViewsMenu, ActiveFilters, type FilterChip } from "@/components/saved-views";
+import { useRowSelection } from "@/hooks/useRowSelection";
+import { Checkbox } from "@/components/ui/checkbox";
+import { ContactActions, toWhatsAppNumber } from "@/components/contact-actions";
+import { TenantQuickView } from "@/components/tenant-quick-view";
+import { SearchableSelect } from "@/components/ui/searchable-select";
+import { propertyOptions } from "@/lib/pickerOptions";
 import { useState, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useLocation } from "wouter";
@@ -9,9 +20,9 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import { useAuth } from "@/hooks/useAuth";
 import {
   Plus, Search, Users, Mail, Phone, Building, Calendar,
-  Eye, Trash2, Download,
+  Eye, Trash2,
   CheckCircle, Clock, XCircle, X, UserPlus, ChevronRight,
-  Shield,
+  Shield, MessageCircle, Send,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -67,44 +78,57 @@ function toArray<T>(data: unknown): T[] {
 function SwipeTenantCard({
   t,
   onView,
+  onOpen,
   onEmail,
   onCall,
+  onWhatsApp,
   onDelete,
+  selected,
+  onToggleSelect,
 }: {
   t: Tenant;
   onView: () => void;
+  onOpen: () => void;
   onEmail: () => void;
   onCall: () => void;
+  onWhatsApp?: () => void;
   onDelete: () => void;
+  selected?: boolean;
+  onToggleSelect?: () => void;
 }) {
   const [swipeX, setSwipeX] = useState(0);
   const [swiped, setSwiped] = useState(false);
   const startX = useRef(0);
   const THRESHOLD = 60;
+  const PANEL_W = 240;
 
   const days = daysUntil(t.leaseEndDate);
 
   const onTouchStart = (e: React.TouchEvent) => { startX.current = e.touches[0].clientX; };
   const onTouchMove = (e: React.TouchEvent) => {
     const dx = startX.current - e.touches[0].clientX;
-    if (dx > 0) setSwipeX(Math.min(dx, 180));
+    if (dx > 0) setSwipeX(Math.min(dx, PANEL_W));
   };
   const onTouchEnd = () => {
-    if (swipeX >= THRESHOLD) { setSwiped(true); setSwipeX(180); }
+    if (swipeX >= THRESHOLD) { setSwiped(true); setSwipeX(PANEL_W); }
     else { setSwiped(false); setSwipeX(0); }
   };
   const closeSwipe = () => { setSwiped(false); setSwipeX(0); };
 
   return (
     <div className="relative overflow-hidden">
-      <div className="absolute right-0 top-0 bottom-0 flex items-stretch" style={{ width: 180 }}>
+      <div className="absolute right-0 top-0 bottom-0 flex items-stretch" style={{ width: PANEL_W }}>
+        <button className="flex-1 bg-emerald-600 text-white flex flex-col items-center justify-center gap-1 text-xs font-medium disabled:opacity-40"
+          disabled={!t.phone} onClick={() => { closeSwipe(); onCall(); }}>
+          <Phone className="w-4 h-4" />Call
+        </button>
+        <button className="flex-1 bg-green-600 text-white flex flex-col items-center justify-center gap-1 text-xs font-medium disabled:opacity-40"
+          disabled={!onWhatsApp} onClick={() => { closeSwipe(); onWhatsApp?.(); }}>
+          <MessageCircle className="w-4 h-4" />WhatsApp
+        </button>
         <button className="flex-1 bg-blue-500 text-white flex flex-col items-center justify-center gap-1 text-xs font-medium"
           onClick={() => { closeSwipe(); onView(); }}>
-          <Eye className="w-4 h-4" />View
-        </button>
-        <button className="flex-1 bg-amber-500 text-white flex flex-col items-center justify-center gap-1 text-xs font-medium"
-          onClick={() => { closeSwipe(); onEmail(); }}>
-          <Mail className="w-4 h-4" />Email
+          <Eye className="w-4 h-4" />Profile
         </button>
         <button className="flex-1 bg-red-500 text-white flex flex-col items-center justify-center gap-1 text-xs font-medium"
           onClick={() => { closeSwipe(); onDelete(); }}>
@@ -118,9 +142,14 @@ function SwipeTenantCard({
         onTouchStart={onTouchStart}
         onTouchMove={onTouchMove}
         onTouchEnd={onTouchEnd}
-        onClick={swipeX > 10 ? closeSwipe : undefined}
+        onClick={swipeX > 10 ? closeSwipe : onOpen}
       >
         <div className="flex items-center gap-3">
+          {onToggleSelect && (
+            <div onClick={e => e.stopPropagation()} onTouchStart={e => e.stopPropagation()}>
+              <Checkbox checked={!!selected} onCheckedChange={onToggleSelect} aria-label={`Select ${t.firstName} ${t.lastName}`} />
+            </div>
+          )}
           <SPAvatar name={`${t.firstName} ${t.lastName}`} size="sm" />
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 flex-wrap">
@@ -161,6 +190,8 @@ export default function Tenants() {
   const [statusFilter, setStatusFilter] = useState("all");
   const [propertyFilter, setPropertyFilter] = useState("all");
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [quickViewId, setQuickViewId] = useState<number | null>(null);
+  const [messageOpen, setMessageOpen] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
   const { toast } = useToast();
@@ -249,18 +280,59 @@ export default function Tenants() {
   const handlePropertyChange = (val: string) => { setPropertyFilter(val); resetPage(); };
   const handleClearFilters = () => { setSearch(""); setStatusFilter("all"); setPropertyFilter("all"); resetPage(); };
 
-  const handleExport = () => {
+  // ── Selection, saved views, exports ───────────────────────────────────────
+  const selection = useRowSelection(filtered, (t: Tenant) => t.id);
+  const canMessage = ["admin", "manager", "platform_admin"].includes(String(user?.role ?? ""));
+
+  const filterState = { search, status: statusFilter, property: propertyFilter };
+  const applyFilters = (f: typeof filterState) => {
+    setSearch(f.search ?? ""); setStatusFilter(f.status ?? "all"); setPropertyFilter(f.property ?? "all"); resetPage();
+  };
+  const filterChips: FilterChip[] = [
+    search && { key: "q", label: `"${search}"`, onClear: () => handleSearchChange("") },
+    statusFilter !== "all" && { key: "st", label: `Status: ${statusFilter}`, onClear: () => handleStatusChange("all") },
+    propertyFilter !== "all" && { key: "pp", label: properties.find(p => String(p.id) === propertyFilter)?.name ?? "Property", onClear: () => handlePropertyChange("all") },
+  ].filter(Boolean) as FilterChip[];
+
+  const exportExcel = (list: Tenant[]) => {
     downloadExcel(
-      `tenants-${new Date().toISOString().split("T")[0]}`,
+      `tenants-${todayStamp()}`,
       ["Name", "Email", "Phone", "Status", "Monthly Rent", "Unit", "Property", "Lease End"],
-      filtered.map(t => [
+      list.map(t => [
         `${t.firstName} ${t.lastName}`, t.email, t.phone ?? "", t.status,
         t.monthlyRent != null && t.monthlyRent !== "" ? Number(t.monthlyRent) : "",
         t.unit?.unitNumber ?? "", t.property?.name ?? "", t.leaseEndDate ?? "",
       ]),
       "Tenants",
     );
-    toast({ title: "Exported", description: `${filtered.length} tenants exported` });
+  };
+
+  const exportPdf = async (list: Tenant[]) => {
+    const rent = list.reduce((s, t) => s + (Number(t.monthlyRent) || 0), 0);
+    await exportTablePdf({
+      title: "Tenant register",
+      docLabel: "Tenants",
+      caption: "Tenants with unit, contact details and lease dates",
+      filters: filterChips.map(c => c.label),
+      kpis: [
+        { label: "Tenants", value: list.length, tone: "green" },
+        { label: "Active", value: list.filter(t => t.status === "active").length },
+        { label: "Monthly rent roll", value: money(rent), tone: "blue" },
+        { label: "Leases ending in 30 days", value: list.filter(t => { const d = daysUntil(t.leaseEndDate); return d !== null && d > 0 && d <= 30; }).length, tone: "amber" },
+      ],
+      columns: [
+        { header: "Tenant", width: 20 }, { header: "Unit", width: 7 }, { header: "Property", width: 17 },
+        { header: "Phone", width: 14 }, { header: "Email", width: 24 }, { header: "Status", width: 9 },
+        { header: "Rent (KES)", align: "right", width: 11 }, { header: "Lease ends", width: 13 },
+      ],
+      rows: list.map(t => [
+        `${t.firstName} ${t.lastName}`, t.unit?.unitNumber ?? "-", t.property?.name ?? "-", t.phone ?? "-", t.email, t.status,
+        t.monthlyRent ? Math.round(Number(t.monthlyRent)).toLocaleString("en-KE") : "-",
+        t.leaseEndDate ? new Date(t.leaseEndDate).toLocaleDateString("en-KE", { day: "2-digit", month: "short", year: "numeric" }) : "-",
+      ]),
+      totals: ["Total", "", "", "", "", "", Math.round(rent).toLocaleString("en-KE"), ""],
+      filename: `tenant-register-${todayStamp()}`,
+    });
   };
 
   // ── Loading state — safe to return here because ALL hooks are above ─────────
@@ -293,11 +365,11 @@ export default function Tenants() {
         icon={<Users className="w-5 h-5" />}
         actions={
           <>
-            {!isMobile && (
-              <SecondaryButton icon={<Download className="w-4 h-4" />} onClick={handleExport}>
-                Export
-              </SecondaryButton>
-            )}
+            <ExportMenu
+              disabled={filtered.length === 0}
+              onPdf={() => exportPdf(filtered)}
+              onExcel={() => exportExcel(filtered)}
+            />
             {/* Landlords can add tenants to their own properties directly —
                 many self-manage without a separate PM. /api/tenant-onboarding
                 now allows the landlord role (see requireRole.ts). */}
@@ -346,37 +418,37 @@ export default function Tenants() {
               </SelectContent>
             </Select>
 
-            {!isMobile && (
-              <Select value={propertyFilter} onValueChange={handlePropertyChange}>
-                <SelectTrigger className="w-44 h-9 border-border text-sm">
-                  <SelectValue placeholder="All properties" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All properties</SelectItem>
-                  {properties.map(p => (
-                    <SelectItem key={p.id} value={String(p.id)}>
-                      {p.name || `Property #${p.id}`}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            )}
+            <div className="w-full sm:w-52">
+              <SearchableSelect
+                value={propertyFilter === "all" ? "" : propertyFilter}
+                onValueChange={(v) => handlePropertyChange(v || "all")}
+                options={propertyOptions(properties)}
+                placeholder="All properties"
+                searchPlaceholder="Search property…"
+                clearable
+                className="h-9 text-sm"
+              />
+            </div>
           </>
         }
         actions={
           <>
-            {(search || statusFilter !== "all" || propertyFilter !== "all") && (
-              <Button
-                variant="ghost" size="sm" className="h-9 text-muted-foreground"
-                onClick={() => handleClearFilters()}
-              >
-                <X className="w-3.5 h-3.5 mr-1" /> Clear
-              </Button>
-            )}
+            <SavedViewsMenu<typeof filterState> pageKey="tenants" current={filterState} onApply={applyFilters} isEmpty={filterChips.length === 0} />
             <span className="text-sm text-muted-foreground whitespace-nowrap">{filtered.length} results</span>
           </>
         }
       />
+      <ActiveFilters chips={filterChips} onClearAll={handleClearFilters} />
+      {filtered.length > 0 && (
+        <label className="flex items-center gap-2 text-xs text-muted-foreground cursor-pointer w-fit">
+          <Checkbox
+            checked={selection.allSelected ? true : selection.someSelected ? "indeterminate" : false}
+            onCheckedChange={() => selection.toggleAll()}
+            aria-label="Select all tenants"
+          />
+          Select all {filtered.length} {filterChips.length ? "matching" : ""} tenants
+        </label>
+      )}
 
         {/* MOBILE: card list */}
         {isMobile ? (
@@ -392,15 +464,19 @@ export default function Tenants() {
             ) : (
               <>
                 <div className="px-4 py-2 bg-muted border-b border-border">
-                  <p className="text-xs text-muted-foreground">Swipe left for quick actions</p>
+                  <p className="text-xs text-muted-foreground">Tap a tenant for a summary · swipe left to call, WhatsApp or open the profile</p>
                 </div>
                 {paginated.map(t => (
                   <SwipeTenantCard
                     key={t.id}
                     t={t}
                     onView={() => navigate(withOrgParam(`/tenants/${t.id}`, orgIdParam))}
+                    onOpen={() => setQuickViewId(t.id)}
                     onEmail={() => window.open(`mailto:${t.email}`, "_blank")}
                     onCall={() => t.phone && window.open(`tel:${t.phone}`, "_self")}
+                    onWhatsApp={toWhatsAppNumber(t.phone) ? () => window.open(`https://wa.me/${toWhatsAppNumber(t.phone)}?text=${encodeURIComponent(`Hello ${t.firstName}, `)}`, "_blank") : undefined}
+                    selected={selection.isSelected(t.id)}
+                    onToggleSelect={() => selection.toggle(t.id)}
                     onDelete={() => {
                       if (confirm(`Remove ${t.firstName} ${t.lastName}?`)) {
                         deleteMutation.mutate(t.id);
@@ -440,11 +516,18 @@ export default function Tenants() {
                   data={paginated}
                   columns={[
                     {
+                      header: "",
+                      width: "40px",
+                      cell: (t) => (
+                        <Checkbox checked={selection.isSelected(t.id)} onCheckedChange={() => selection.toggle(t.id)} aria-label={`Select ${t.firstName} ${t.lastName}`} />
+                      ),
+                    },
+                    {
                       header: "Tenant",
                       cell: (t) => (
                         <div
                           className="flex items-center gap-3 cursor-pointer"
-                          onClick={() => navigate(withOrgParam(`/tenants/${t.id}`, orgIdParam))}
+                          onClick={() => setQuickViewId(t.id)}
                         >
                           <SPAvatar name={`${t.firstName} ${t.lastName}`} size="sm" />
                           <div className="min-w-0">
@@ -514,9 +597,11 @@ export default function Tenants() {
                       header: "",
                       align: "right",
                       cell: (t) => (
+                        <div className="flex items-center justify-end gap-1.5">
+                        <ContactActions phone={t.phone} email={undefined} name={`${t.firstName} ${t.lastName}`} />
                         <ActionMenu
                           items={[
-                            { label: "View", icon: <Eye className="w-4 h-4" />, onClick: () => navigate(withOrgParam(`/tenants/${t.id}`, orgIdParam)) },
+                            { label: "View profile", icon: <Eye className="w-4 h-4" />, onClick: () => navigate(withOrgParam(`/tenants/${t.id}`, orgIdParam)) },
                             { label: "Email", icon: <Mail className="w-4 h-4" />, onClick: () => window.open(`mailto:${t.email}`, "_blank") },
                             ...(t.phone ? [{ label: "Call", icon: <Phone className="w-4 h-4" />, onClick: () => window.open(`tel:${t.phone}`, "_self") }] : []),
                             {
@@ -529,6 +614,7 @@ export default function Tenants() {
                             },
                           ]}
                         />
+                        </div>
                       ),
                     },
                   ]}
@@ -585,6 +671,29 @@ export default function Tenants() {
               </>
             )
         )}
+
+      <BulkBar count={selection.count} noun="tenant" onClear={selection.clear}>
+        {canMessage && (
+          <Button size="sm" onClick={() => setMessageOpen(true)}><Send className="w-3.5 h-3.5 mr-1.5" />Message</Button>
+        )}
+        <ExportMenu label="Export selected"
+          onPdf={() => exportPdf(selection.selectedItems)}
+          onExcel={() => exportExcel(selection.selectedItems)} />
+      </BulkBar>
+
+      <BulkMessageDialog
+        open={messageOpen}
+        onOpenChange={setMessageOpen}
+        tenantIds={selection.selectedItems.map(t => t.id)}
+        onSent={selection.clear}
+      />
+
+      <TenantQuickView
+        tenantId={quickViewId}
+        open={quickViewId !== null}
+        onOpenChange={(o) => { if (!o) setQuickViewId(null); }}
+        profileHref={(id) => withOrgParam(`/tenants/${id}`, orgIdParam)}
+      />
 
       <ComprehensiveTenantModal
         isOpen={isAddModalOpen}

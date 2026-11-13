@@ -43,6 +43,7 @@
  *     - Error state if fetch fails.
  */
 
+import { SearchableSelect } from "@/components/ui/searchable-select";
 import { downloadExcel } from "@/lib/excel";
 import React, { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -540,14 +541,14 @@ function JournalBook() {
                       <X className="w-4 h-4" />
                     </button>
                   </div>
-                  <Select value={line.accountId} onValueChange={v => updateLine(i, "accountId", v)}>
-                    <SelectTrigger className="text-sm"><SelectValue placeholder="Select account…" /></SelectTrigger>
-                    <SelectContent>
-                      {(accounts as Account[]).map(a => (
-                        <SelectItem key={a.id} value={String(a.id)}>{a.accountCode} — {a.accountName}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <SearchableSelect
+                    value={line.accountId ? String(line.accountId) : ""}
+                    onValueChange={v => updateLine(i, "accountId", v)}
+                    placeholder="Select account…"
+                    searchPlaceholder="Search by code or name…"
+                    emptyText="No matching account"
+                    options={(accounts as Account[]).map(a => ({ value: String(a.id), label: `${a.accountCode} — ${a.accountName}`, keywords: String((a as any).accountType ?? "") }))}
+                  />
                   <Input placeholder="Memo" value={line.description} onChange={e => updateLine(i, "description", e.target.value)} />
                   <div className="grid grid-cols-2 gap-2">
                     <div>

@@ -315,7 +315,7 @@ export default function MobileBottomNav() {
             {/* Header */}
             <div className="flex items-center justify-between px-5 py-3">
               <span className="text-sm font-semibold text-foreground">{t("common.all")}</span>
-              <button onClick={() => setSheetOpen(false)} className="p-1.5 rounded-full hover:bg-muted">
+              <button onClick={() => setSheetOpen(false)} className="p-1.5 rounded-full hover:bg-muted" aria-label="Close">
                 <X className="w-4 h-4 text-muted-foreground" />
               </button>
             </div>

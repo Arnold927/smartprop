@@ -1,4 +1,6 @@
 import { downloadExcel } from "@/lib/excel";
+import { ExportMenu } from "@/components/export-menu";
+import { exportTablePdf, todayStamp, money } from "@/lib/pdf";
 import { useState } from "react";
 import { useLocation } from "wouter";
 import { useQuery } from "@tanstack/react-query";
@@ -191,9 +193,29 @@ export default function Finances() {
  });
  const chartMax = Math.max(...(Array.isArray(chartData) ? chartData : []).map(d => Math.max(d.income, d.expense)), 1);
 
+ const handleExportPdf = async () => {
+ const inc = filteredTxns.filter(t => t.type === "income").reduce((s, t) => s + Number(t.amount), 0);
+ const exp = filteredTxns.filter(t => t.type !== "income").reduce((s, t) => s + Number(t.amount), 0);
+ await exportTablePdf({
+ title: "Transactions statement",
+ caption: `${dateFilter === "today" ? "Today" : dateFilter === "week" ? "Last 7 days" : dateFilter === "month" ? "This month" : "All time"} - income and expenses`,
+ docLabel: "FINANCES",
+ filters: [search ? `Search: ${search}` : "", methodFilter !== "all" ? `Method: ${methodFilter}` : ""].filter(Boolean),
+ kpis: [
+ { label: "Income", value: money(inc), tone: "green" },
+ { label: "Expenses", value: money(exp), tone: "red" },
+ { label: "Net", value: money(inc - exp), tone: inc - exp >= 0 ? "blue" : "red" },
+ { label: "Transactions", value: filteredTxns.length },
+ ],
+ columns: [{ header: "Date", width: 14 }, { header: "Description", width: 34 }, { header: "Type", width: 12 }, { header: "Method", width: 12 }, { header: "Status", width: 12 }, { header: "Amount (KES)", align: "right", width: 16 }],
+ rows: filteredTxns.map(t => [t.date ? new Date(t.date).toLocaleDateString("en-KE") : "", t.description, t.type, t.method, t.status, (t.type === "income" ? "" : "-") + Number(t.amount).toLocaleString("en-KE")]),
+ totals: ["", "Net", "", "", "", (inc - exp).toLocaleString("en-KE")],
+ filename: `transactions-${todayStamp()}`,
+ });
+ };
  const handleExport = () => {
  downloadExcel(
- `transactions-${new Date().toISOString().split("T")[0]}`,
+ `transactions-${todayStamp()}`,
  ["Date", "Description", "Type", "Amount", "Method", "Status", "Reference"],
  filteredTxns.map(t => [t.date ? new Date(t.date).toLocaleDateString() : "", t.description, t.type, Number(t.amount), t.method, t.status, t.reference ?? ""]),
  "Transactions",
@@ -210,7 +232,7 @@ export default function Finances() {
    actions={
      <>
        <SecondaryButton icon={<Plus className="w-4 h-4" />} onClick={() => navigate("/expense-management")}>Manage Expenses</SecondaryButton>
-       <SecondaryButton icon={<Download className="w-4 h-4" />} onClick={handleExport}>Export</SecondaryButton>
+       <ExportMenu disabled={filteredTxns.length === 0} onPdf={handleExportPdf} onExcel={handleExport} />
      </>
    }
  />
@@ -392,7 +414,7 @@ export default function Finances() {
  />
  {filteredTxns.length > 50 && (
  <div className="px-4 py-3 text-xs text-muted-foreground border-t border-border dark:border-gray-800 text-center">
- Showing 50 of {filteredTxns.length} transactions · Export to Excel to see all
+ Showing 50 of {filteredTxns.length} transactions · Export to PDF or Excel to see all
  </div>
  )}
  </>

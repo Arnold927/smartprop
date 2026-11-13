@@ -19,6 +19,7 @@ import { startRentScheduler } from "./services/rentScheduler";
 import { startMpesaSweep }   from "./services/mpesaSweep";
 import { startLeaseScheduler } from "./services/leaseScheduler";
 import { startReportScheduler } from "./services/reportScheduler";
+import { startDigestScheduler } from "./services/digestScheduler";
 import { runRegulatoryCertsMigration } from "./services/regulatory-certs-migration";
 import { createServer } from "http";
 import { log, serveStatic } from "./vite";
@@ -233,6 +234,9 @@ app.use("/uploads", express.static(path.join(__dirname, "../uploads")));
 
     // ── Monthly owner statement email scheduler ────────────────────────────────
     startReportScheduler();
+
+    // ── In-app summary digest for admins/managers (07:00 EAT) ──────────────────
+    startDigestScheduler();
 
     // Graceful shutdown
     process.on("SIGTERM", () => {
