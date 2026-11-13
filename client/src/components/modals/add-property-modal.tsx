@@ -167,7 +167,9 @@ export default function AddPropertyModal({ isOpen, onClose, onSuccess, property,
      const d = await res.json();
      return Array.isArray(d) ? d : (d?.results ?? d?.data ?? []);
    },
-   enabled: user?.role !== "landlord",
+   // Only admins and managers may list users / external landlords; other roles
+   // would just get a 403.
+   enabled: user?.role === "admin" || user?.role === "manager",
  });
 
  // Fetch external landlords too — landlords with no user account, an
@@ -180,7 +182,7 @@ export default function AddPropertyModal({ isOpen, onClose, onSuccess, property,
      if (!res.ok) return [];
      return res.json();
    },
-   enabled: user?.role !== "landlord",
+   enabled: user?.role === "admin" || user?.role === "manager" || user?.role === "platform_admin",
  });
 
  const addPropertyMutation = useMutation({

@@ -30,6 +30,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { apiRequest } from "@/lib/queryClient";
+import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { isUnauthorizedError } from "@/lib/authUtils";
 import { AlertCircle, CheckCircle2, AlertTriangle, Info, Home, User } from "lucide-react";
@@ -118,8 +119,20 @@ export default function AddMaintenanceModal({
  const [selectedTenant, setSelectedTenant] = useState<string>("");
  const [selectedPriority, setSelectedPriority] = useState<string>("medium");
 
+ // Caretakers may not read the org-wide tenant list; they get the tenants of
+ // their own property from a dedicated lookup instead.
+ const { user: authUser } = useAuth();
+ const isCaretaker = authUser?.role === "caretaker";
  const { data: tenants = [], isLoading: isLoadingTenants } = useQuery<Tenant[]>({
- queryKey: ["/api/tenants"],
+ queryKey: isCaretaker ? ["/api/caretakers/me/lookups", "tenants"] : ["/api/tenants"],
+ queryFn: isCaretaker
+ ? async () => {
+ const res = await apiRequest("/api/caretakers/me/lookups");
+ const data = await res.json();
+ return Array.isArray(data?.tenants) ? data.tenants : [];
+ }
+ : undefined,
+ enabled: !!authUser,
  });
 
  const form = useForm<AddMaintenanceForm>({

@@ -51,16 +51,16 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
         };
       }
 
-      const [propsRes, tenantsRes, maintRes] = await Promise.all([
-        apiRequest("/api/properties"),
-        apiRequest("/api/tenants"),
-        apiRequest("/api/maintenance-requests"),
-      ]);
-
+      // Each list is optional: a role that may not read one of them (e.g. a
+      // caretaker and /api/tenants) simply gets no results for it instead of
+      // the whole search failing.
+      const safeList = async (url: string) => {
+        try { return await (await apiRequest(url)).json(); } catch { return []; }
+      };
       const [props, tenants, maint] = await Promise.all([
-        propsRes.json(),
-        tenantsRes.json(),
-        maintRes.json(),
+        safeList("/api/properties"),
+        safeList("/api/tenants"),
+        safeList("/api/maintenance-requests"),
       ]);
 
       const properties = Array.isArray(props) ? props : (props?.results ?? []);

@@ -108,7 +108,6 @@ router.get("/me", async (req: any, res) => {
       return res.status(404).json({
         message: "No staff profile linked to your account.",
         hint: "Ask your property manager to create or link your staff profile. Make sure the email on your staff record matches your login email.",
-        debug: { userId, email, firstName, lastName, totalStaff: all.length },
       });
     }
 

@@ -837,6 +837,12 @@ function AdminPanel() {
       <div>
         <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">Staff Directory</p>
         <div className="space-y-2">
+          {staff.length === 0 && (
+            <div className="bg-card border border-dashed border-border rounded-xl p-5 text-center">
+              <p className="text-sm font-medium text-foreground">No staff members added yet</p>
+              <p className="text-xs text-muted-foreground mt-1">Your property manager can add staff from the Staff section.</p>
+            </div>
+          )}
           {staff.slice(0, 8).map((s: any) => (
             <div key={s.id} className="bg-card border border-border rounded-xl p-3 shadow-sm flex items-center gap-3">
               <div className="h-8 w-8 rounded-full bg-muted flex items-center justify-center shrink-0">

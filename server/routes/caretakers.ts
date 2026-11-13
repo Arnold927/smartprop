@@ -27,7 +27,7 @@
 
 import { Router } from "express";
 import { db } from "../db";
-import { caretakers, users, properties } from "@shared/schema";
+import { caretakers, users, properties, units, tenants } from "@shared/schema";
 import { eq, and, isNull, inArray } from "drizzle-orm";
 import { authenticateJWT } from "../middleware/auth";
 import { requireOrg } from "../middleware/requireOrg";
@@ -154,6 +154,64 @@ router.get("/me", ...auth, async (req: any, res: any) => {
   } catch (err) {
     console.error("GET /api/caretakers/me error:", err);
     res.status(500).json({ message: "Failed to fetch your caretaker record" });
+  }
+});
+
+// ── GET /api/caretakers/me/lookups ─────────────────────────────────────────────
+// A caretaker cannot read /api/properties, /api/units or /api/tenants (those are
+// for managers and above), but their forms need to pick a unit and a tenant:
+// "New maintenance request" and "Create visitor access". This returns exactly
+// that for the caretaker's own assigned property — the property, its units, and
+// the names of its active tenants. No phone, email, rent or ID details.
+router.get("/me/lookups", ...auth, async (req: any, res: any) => {
+  try {
+    if (req.user.role !== "caretaker") {
+      return res.status(403).json({ message: "This endpoint is for caretakers." });
+    }
+    const orgId: number = req.user.organizationId;
+    const empty = { properties: [], units: [], tenants: [] };
+
+    const caretaker = await storage.getCaretakerByUserId(String(req.user.id));
+    if (!caretaker?.propertyId) return res.json(empty);
+
+    const [prop] = await db
+      .select({ id: properties.id, name: properties.name })
+      .from(properties)
+      .where(and(eq(properties.id, caretaker.propertyId), eq(properties.organizationId, orgId)))
+      .limit(1);
+    if (!prop) return res.json(empty);
+
+    const unitRows = await db
+      .select({ id: units.id, unitNumber: units.unitNumber, propertyId: units.propertyId })
+      .from(units)
+      .where(and(eq(units.propertyId, prop.id), eq(units.organizationId, orgId)));
+
+    const unitIds = unitRows.map((u) => u.id);
+    const tenantRows = unitIds.length === 0 ? [] : await db
+      .select({ id: tenants.id, firstName: tenants.firstName, lastName: tenants.lastName, unitId: tenants.unitId })
+      .from(tenants)
+      .where(and(
+        eq(tenants.organizationId, orgId),
+        inArray(tenants.unitId, unitIds),
+        eq(tenants.status, "active"),
+      ));
+
+    const unitById = new Map(unitRows.map((u) => [u.id, u]));
+    res.json({
+      properties: [prop],
+      units: unitRows,
+      // Shaped like the manager-facing tenant list so the same forms can render it.
+      tenants: tenantRows.map((t) => ({
+        ...t,
+        email: "",
+        status: "active",
+        unit: t.unitId ? unitById.get(t.unitId) ?? null : null,
+        property: prop,
+      })),
+    });
+  } catch (err) {
+    console.error("GET /api/caretakers/me/lookups error:", err);
+    res.status(500).json({ message: "Failed to load your property's units and tenants" });
   }
 });
 

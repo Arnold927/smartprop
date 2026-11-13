@@ -227,6 +227,38 @@ maintenanceListRouter.post('/', authenticateJWT, requireOrg, async (req: any, re
     req.body.unitId   = own.unitId;
   }
 
+  // A caretaker works one property. They can read only that property's
+  // requests, so they may only raise requests for units (and tenants) there too —
+  // the body's unitId/tenantId must not be trusted.
+  if (req.user?.role === 'caretaker') {
+    const userId = String(req.user.id ?? req.user.userId ?? '');
+    const caretaker = await storage.getCaretakerByUserId(userId);
+    if (!caretaker?.propertyId) {
+      return res.status(403).json({ message: 'You are not assigned to a property yet. Ask your manager.' });
+    }
+    const unitId = Number(req.body?.unitId);
+    const [unit] = Number.isInteger(unitId)
+      ? await db
+          .select({ id: units.id })
+          .from(units)
+          .where(and(eq(units.id, unitId), eq(units.propertyId, caretaker.propertyId), eq(units.organizationId, req.user.organizationId)))
+          .limit(1)
+      : [];
+    if (!unit) {
+      return res.status(403).json({ message: 'You can only raise maintenance requests for units at your own property.' });
+    }
+    if (req.body?.tenantId != null) {
+      const [t] = await db
+        .select({ id: tenants.id })
+        .from(tenants)
+        .where(and(eq(tenants.id, Number(req.body.tenantId)), eq(tenants.unitId, unit.id), eq(tenants.organizationId, req.user.organizationId)))
+        .limit(1);
+      if (!t) {
+        return res.status(403).json({ message: 'That tenant does not live in the selected unit.' });
+      }
+    }
+  }
+
   // Delegate to the CRUD router by calling next() — this runs the actual insert.
   // We intercept the response to send the WhatsApp after the DB write.
   // Technique: wrap res.json to capture the created object.

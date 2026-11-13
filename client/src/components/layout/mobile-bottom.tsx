@@ -224,14 +224,19 @@ export default function MobileBottomNav() {
   const [location] = useLocation();
   const [sheetOpen, setSheetOpen] = useState(false);
 
-  // Badge data — only fetch on mobile, only items relevant to any role
+  // Badge data — only fetch on compact screens, and only for roles the server
+  // lets read these lists (contractors and guards would just get a 403).
+  const badgeRole = user?.role ?? "";
+  const canSeeMaintBadge = ["admin", "manager", "staff", "caretaker", "landlord", "tenant"].includes(badgeRole);
+  const canSeeMsgBadge   = ["admin", "manager", "staff", "caretaker", "landlord", "tenant"].includes(badgeRole);
+
   const { data: maintRaw } = useQuery<any>({
     queryKey: ["/api/maintenance-requests"],
     queryFn: async () => {
       try { return ensureArray(await (await apiRequest("/api/maintenance-requests")).json()); }
       catch { return []; }
     },
-    enabled: isMobile,
+    enabled: isMobile && canSeeMaintBadge,
     staleTime: 60_000,
   });
 
@@ -241,7 +246,7 @@ export default function MobileBottomNav() {
       try { return ensureArray(await (await apiRequest("/api/messages")).json()); }
       catch { return []; }
     },
-    enabled: isMobile,
+    enabled: isMobile && canSeeMsgBadge,
     staleTime: 60_000,
   });
 

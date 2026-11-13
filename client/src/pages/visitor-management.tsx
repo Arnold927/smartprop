@@ -137,6 +137,19 @@ export default function VisitorManagement() {
     retry: false,
   });
 
+  // Caretakers cannot read the org-wide lists (403); they get their own
+  // property's units and tenants from one scoped lookup instead.
+  const isCaretaker = user?.role === "caretaker";
+  const { data: caretakerLookups, isLoading: lookupsLoading } = useQuery<any>({
+    queryKey: ["/api/caretakers/me/lookups"],
+    queryFn: async () => {
+      try { return await (await apiRequest("/api/caretakers/me/lookups")).json(); }
+      catch { return { properties: [], units: [], tenants: [] }; }
+    },
+    enabled: isCaretaker,
+    retry: false,
+  });
+
   const { data: tenantsRaw = [], isLoading: tenantsLoading } = useQuery({
     queryKey: ["/api/tenants"],
     queryFn: async () => {
@@ -146,6 +159,7 @@ export default function VisitorManagement() {
         return ensureArray(d);
       } catch (error) { return []; }
     },
+    enabled: !isCaretaker && !!user,
     retry: false,
   });
 
@@ -158,6 +172,7 @@ export default function VisitorManagement() {
         return ensureArray(d);
       } catch (error) { return []; }
     },
+    enabled: !isCaretaker && !!user,
     retry: false,
   });
 
@@ -170,13 +185,14 @@ export default function VisitorManagement() {
         return ensureArray(d);
       } catch (error) { return []; }
     },
+    enabled: !isCaretaker && !!user,
     retry: false,
   });
 
   const visitorAccess = ensureArray(visitorAccessRaw);
-  const tenants = ensureArray(tenantsRaw);
-  const units = ensureArray(unitsRaw);
-  const properties = ensureArray(propertiesRaw);
+  const tenants = ensureArray(isCaretaker ? caretakerLookups?.tenants : tenantsRaw);
+  const units = ensureArray(isCaretaker ? caretakerLookups?.units : unitsRaw);
+  const properties = ensureArray(isCaretaker ? caretakerLookups?.properties : propertiesRaw);
 
   // Mutations
   const createVisitorAccessMutation = useMutation({
@@ -366,7 +382,7 @@ export default function VisitorManagement() {
     setCurrentPage(1);
   };
 
-  if (visitorsLoading || tenantsLoading || unitsLoading || propertiesLoading) {
+  if (visitorsLoading || lookupsLoading || tenantsLoading || unitsLoading || propertiesLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
