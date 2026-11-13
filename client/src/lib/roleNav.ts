@@ -448,7 +448,8 @@ export const ROLE_ALLOWED_ROUTES: Record<string, string[]> = {
   admin: ["*"],
 
   manager: [
-    "/", "/properties", "/parking-management", "/visitor-management", "/inspections", "/caretakers",
+    "/", "/dashboard", "/property-manager-dashboard", "/finance-dashboard", "/maintenance-dashboard",
+    "/properties", "/parking-management", "/visitor-management", "/inspections", "/caretakers",
     "/tenants", "/leases", "/prospects", "/tenant-onboarding", "/tenant-subletting", "/diaspora-rent-to-own", "/diaspora-rent-to-own/:id",
     "/finances", "/rent-collection", "/arrears", "/expense-management",
     "/utility-management", "/utility-bill-sender", "/owner-statements", "/general-ledger",

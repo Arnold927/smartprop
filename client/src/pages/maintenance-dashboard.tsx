@@ -88,7 +88,7 @@ export default function MaintenanceDashboard() {
   // Real computed metrics
   const pendingCount  = reqArr.filter((r: any) => r.status === "pending").length;
   const inProgCount   = reqArr.filter((r: any) => r.status === "in_progress").length;
-  const completedToday = reqArr.filter((r: any) => r.status === "completed" && new Date(r.updatedAt ?? r.createdAt ?? 0).toDateString() === todayStr).length;
+  const completedToday = reqArr.filter((r: any) => r.status === "completed" && (r.completedAt || r.updatedAt) && new Date(r.completedAt ?? r.updatedAt).toDateString() === todayStr).length;
   const emergencyCount = reqArr.filter((r: any) => ["urgent","critical"].includes(r.priority ?? "") && !["completed","cancelled"].includes(r.status)).length;
   const scheduledCount = reqArr.filter((r: any) => r.status === "assigned").length;
   const openCount = reqArr.filter((r: any) => !["completed","cancelled"].includes(r.status)).length;
@@ -162,7 +162,7 @@ export default function MaintenanceDashboard() {
             <Tile label="Open Requests"  value={String(openCount)}      sub={`${pendingCount} pending · ${inProgCount} in progress`}       icon={Wrench}       accent="bg-orange-500" alert={emergencyCount > 0} />
             <Tile label="Response Time"  value={avgResponseTime !== null ? `${avgResponseTime}h` : "—"} sub="Avg. time to first action"   icon={Clock}        accent="bg-blue-500" />
             <Tile label="Completed Today" value={String(completedToday)} sub={`${completionRate}% overall completion rate`}                  icon={CheckCircle2} accent="bg-emerald-500" />
-            <Tile label="Active Workers"  value={String(inProgCount)}   sub={`${scheduledCount} scheduled · ${emergencyCount} emergency`}  icon={HardHat}      accent="bg-violet-500" />
+            <Tile label="In Progress"  value={String(inProgCount)}   sub={`${scheduledCount} assigned · ${emergencyCount} urgent`}  icon={HardHat}      accent="bg-violet-500" />
           </div>
 
           {/* Chart + request list */}

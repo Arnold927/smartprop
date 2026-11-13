@@ -6,7 +6,7 @@
 
 import { useAuth } from "@/hooks/useAuth";
 import { useQuery } from "@tanstack/react-query";
-import { apiRequest, ensureArray } from "@/lib/queryClient";
+import { apiRequest, ensureArray, fetchAllPages } from "@/lib/queryClient";
 import { format } from "date-fns";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
@@ -72,8 +72,8 @@ export default function FinanceDashboard() {
   const now_month = `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, "0")}`;
 
   const { data: rentPayments, isLoading } = useQuery({
-    queryKey: ["/api/rent-payments"],
-    queryFn: async () => ensureArray(await (await apiRequest("/api/rent-payments")).json()),
+    queryKey: ["/api/rent-payments", "all"],
+    queryFn: () => fetchAllPages("/api/rent-payments", "page_size"),
     retry: false,
   });
   const { data: liveStats = {} } = useQuery({
@@ -91,12 +91,25 @@ export default function FinanceDashboard() {
   const paysArr = Array.isArray(rentPayments) ? rentPayments : [];
   const expArr  = Array.isArray(expensesRaw)  ? expensesRaw  : [];
 
-  const totalRevenue     = Number(ls.collected ?? 0);
-  const pendingAmount    = Number(ls.pending   ?? 0);
-  const overdueAmount    = Number(ls.overdue   ?? 0);
+  // Money figures come from the full payment list (every page), not the first 20 rows.
+  // Revenue MTD = cash actually received this month; Outstanding = everything still
+  // unpaid, including rent that fell due in earlier months.
+  const mStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+  const isPaid = (p: any) => p.status === "paid" || p.status === "completed";
+  const paidThisMonth = paysArr.filter((p: any) => isPaid(p) && new Date(p.paidDate ?? p.dueDate ?? p.createdAt ?? 0) >= mStart);
+  const unpaid        = paysArr.filter((p: any) => !isPaid(p) && p.status !== "cancelled");
+  const sumAmt = (rows: any[]) => rows.reduce((s: number, p: any) => s + Number(p.amount ?? 0), 0);
+
+  const totalRevenue     = sumAmt(paidThisMonth);
+  const collectedCount   = paidThisMonth.length;
+  const overdueRows      = unpaid.filter((p: any) => p.status === "overdue");
+  const pendingRows      = unpaid.filter((p: any) => p.status !== "overdue");
+  const pendingAmount    = sumAmt(pendingRows);
+  const overdueAmount    = sumAmt(overdueRows);
+  const pendingCount     = pendingRows.length;
+  const overdueCount     = overdueRows.length;
+  // Collection rate stays "this month's rent collected ÷ this month's rent due" (server-side).
   const collectionRate   = Number(ls.collectionRate ?? 0);
-  const pendingCount     = Number(ls.pendingCount   ?? 0);
-  const overdueCount     = Number(ls.overdueCount   ?? 0);
 
   const monthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
   const expensesThisMonth = expArr.filter((e: any) => {
@@ -111,7 +124,7 @@ export default function FinanceDashboard() {
   const monthlyMap: Record<string, { collected: number; pending: number; overdue: number }> = {};
   paysArr.forEach((p: any) => {
     const d = p.dueDate ? new Date(p.dueDate) : new Date();
-    const key = d.toLocaleString("default", { month: "short", year: "2-digit" });
+    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`; // sortable
     if (!monthlyMap[key]) monthlyMap[key] = { collected: 0, pending: 0, overdue: 0 };
     const amt = Number(p.amount ?? 0);
     if (p.status === "paid" || p.status === "completed") monthlyMap[key].collected += amt;
@@ -119,9 +132,9 @@ export default function FinanceDashboard() {
     else if (p.status === "overdue") monthlyMap[key].overdue += amt;
   });
   const monthlyData = Object.entries(monthlyMap)
-    .sort(([a], [b]) => new Date("1 " + a).getTime() - new Date("1 " + b).getTime())
+    .sort(([a], [b]) => a.localeCompare(b))
     .slice(-6)
-    .map(([month, v]) => ({ month, ...v }));
+    .map(([key, v]) => ({ month: new Date(`${key}-01T00:00:00`).toLocaleString("default", { month: "short", year: "2-digit" }), ...v }));
 
   const donutData = [
     { name: "Collected", value: totalRevenue,  fill: "#10b981" },
@@ -175,9 +188,9 @@ export default function FinanceDashboard() {
 
           {/* 4 KPI tiles */}
           <div className="grid grid-cols-2 xl:grid-cols-4 gap-5">
-            <Tile label="Revenue MTD"       value={fmtKES(totalRevenue)}  sub={`${ls.collectedCount ?? 0} payments collected`} icon={DollarSign}  accent="bg-emerald-500" />
-            <Tile label="Collection Rate"   value={`${collectionRate}%`}  sub="Value-based, current month"                    icon={Target}       accent="bg-blue-500"    />
-            <Tile label="Outstanding"       value={fmtKES(pendingAmount + overdueAmount)} sub={`${pendingCount + overdueCount} invoices pending/overdue`} icon={CreditCard} accent="bg-amber-500" positive={false} />
+            <Tile label="Revenue MTD"       value={fmtKES(totalRevenue)}  sub={`${collectedCount} payments received this month`} icon={DollarSign}  accent="bg-emerald-500" />
+            <Tile label="Collection Rate"   value={`${collectionRate}%`}  sub="This month's rent collected ÷ due"                    icon={Target}       accent="bg-blue-500"    />
+            <Tile label="Outstanding"       value={fmtKES(pendingAmount + overdueAmount)} sub={`${pendingCount + overdueCount} unpaid (${overdueCount} overdue)`} icon={CreditCard} accent="bg-amber-500" positive={false} />
             <Tile label="Net Income MTD"    value={fmtKES(netIncome)}     sub={expensesThisMonth > 0 ? `${profitMargin}% margin` : "No expenses recorded"} icon={TrendingUp} accent={netIncome >= 0 ? "bg-violet-500" : "bg-red-500"} />
           </div>
 
@@ -209,7 +222,7 @@ export default function FinanceDashboard() {
             </Section>
 
             {/* Donut */}
-            <Section title="Payment Status — MTD">
+            <Section title="Collected This Month vs Outstanding">
               {donutData.length === 0 ? (
                 <div className="flex flex-col items-center py-10 space-y-2">
                   <CheckCircle className="w-8 h-8 text-muted-foreground opacity-30" />

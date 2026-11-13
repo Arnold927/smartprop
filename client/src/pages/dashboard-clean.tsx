@@ -9,7 +9,7 @@ import { MpesaStatusAlert } from "@/components/MpesaStatusAlert";
 import { FirstRunOverlay, needsFirstRun, markFirstRunDone } from "@/components/first-run-overlay";
 import { useQuery } from "@tanstack/react-query";
 import { useLocation } from "wouter";
-import { apiRequest, ensureArray } from "@/lib/queryClient";
+import { apiRequest, ensureArray, fetchAllPages } from "@/lib/queryClient";
 import { useAuth } from "@/hooks/useAuth";
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
@@ -322,8 +322,8 @@ export default function DashboardClean() {
   const fetchArr = (url: string) => apiRequest(url).then(r => r.json()).then(d => ensureArray(d));
 
   const { data: properties = [], isLoading: propLoad } = useQuery({ queryKey: ["/api/properties"], queryFn: () => fetchArr("/api/properties") });
-  const { data: tenants    = [], isLoading: tenLoad  } = useQuery({ queryKey: ["/api/tenants"],    queryFn: () => fetchArr("/api/tenants") });
-  const { data: payments   = [], isLoading: pmtLoad  } = useQuery({ queryKey: ["/api/rent-payments"],     queryFn: () => fetchArr("/api/rent-payments") });
+  const { data: tenants    = [], isLoading: tenLoad  } = useQuery({ queryKey: ["/api/tenants", "all"],    queryFn: () => fetchAllPages("/api/tenants", "limit") });
+  const { data: payments   = [], isLoading: pmtLoad  } = useQuery({ queryKey: ["/api/rent-payments", "all"],     queryFn: () => fetchAllPages("/api/rent-payments", "page_size") });
   const { data: maintenance = [], isLoading: maintLoad } = useQuery({ queryKey: ["/api/maintenance"],      queryFn: () => fetchArr("/api/maintenance-requests") });
   const { data: expenses   = [] } = useQuery({ queryKey: ["/api/property-expenses"], queryFn: () => fetchArr("/api/property-expenses") });
 
@@ -351,7 +351,7 @@ export default function DashboardClean() {
     const revenueThisMonth = paidThisMonth.reduce((s, p: any) => s + Number(p.amount ?? 0), 0);
     const overdueAmount    = overduePayments.reduce((s, p: any) => s + Number(p.amount ?? 0), 0);
     const pendingAmount    = pendingPayments.reduce((s, p: any) => s + Number(p.amount ?? 0), 0);
-    const monthExpenses    = expenses.filter((e: any) => new Date(e.date ?? e.createdAt ?? 0) >= monthStart).reduce((s, e: any) => s + Number(e.amount ?? 0), 0);
+    const monthExpenses    = expenses.filter((e: any) => new Date(e.expenseDate ?? e.date ?? e.createdAt ?? 0) >= monthStart).reduce((s, e: any) => s + Number(e.amount ?? 0), 0);
     const netIncome        = revenueThisMonth - monthExpenses;
 
     const openMaint   = maintenance.filter((m: any) => !["completed","cancelled"].includes(m.status));
@@ -361,7 +361,7 @@ export default function DashboardClean() {
       const d   = new Date(now.getFullYear(), now.getMonth() - (5 - i), 1);
       const end = new Date(d.getFullYear(), d.getMonth() + 1, 0, 23, 59, 59);
       const income  = payments.filter((p: any) => (p.status === "paid" || p.status === "completed") && new Date(p.paidDate ?? p.dueDate ?? p.createdAt ?? 0) >= d && new Date(p.paidDate ?? p.dueDate ?? p.createdAt ?? 0) <= end).reduce((s, p: any) => s + Number(p.amount ?? 0), 0);
-      const expense = expenses.filter((e: any) => { const ed = new Date(e.date ?? e.createdAt ?? 0); return ed >= d && ed <= end; }).reduce((s, e: any) => s + Number(e.amount ?? 0), 0);
+      const expense = expenses.filter((e: any) => { const ed = new Date(e.expenseDate ?? e.date ?? e.createdAt ?? 0); return ed >= d && ed <= end; }).reduce((s, e: any) => s + Number(e.amount ?? 0), 0);
       return { month: d.toLocaleString("default", { month: "short" }), income, expense };
     });
 

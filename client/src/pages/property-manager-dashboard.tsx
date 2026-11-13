@@ -14,7 +14,7 @@ import { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/useAuth";
 import { useWsEvent } from "@/hooks/useWebSocket";
-import { apiRequest, ensureArray } from "@/lib/queryClient";
+import { apiRequest, ensureArray, fetchAllPages } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { format, formatDistanceToNow, isToday } from "date-fns";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -251,8 +251,8 @@ function TenantsPanel() {
   const queryClient = useQueryClient();
 
   const { data: tenantsRaw, isLoading } = useQuery({
-    queryKey: ["/api/tenants"],
-    queryFn: async () => { const r = await apiRequest("/api/tenants"); return ensureArray(await r.json()); },
+    queryKey: ["/api/tenants", "all"],
+    queryFn: () => fetchAllPages("/api/tenants", "limit"),
     retry: false,
   });
 
@@ -566,8 +566,8 @@ export default function PropertyManagerDashboard() {
 
   const { data: propertiesRaw, isLoading } = useQuery({ queryKey: ["/api/properties"], queryFn: async () => { const r = await apiRequest("/api/properties"); return ensureArray(await r.json()); }, retry: false });
   const { data: maintenanceRaw } = useQuery({ queryKey: ["/api/maintenance-requests"], queryFn: async () => { const r = await apiRequest("/api/maintenance-requests"); return ensureArray(await r.json()); }, retry: false });
-  const { data: tenantsRaw } = useQuery({ queryKey: ["/api/tenants"], queryFn: async () => { const r = await apiRequest("/api/tenants"); return ensureArray(await r.json()); }, retry: false });
-  const { data: paymentsRaw } = useQuery({ queryKey: ["/api/rent-payments"], queryFn: async () => { const r = await apiRequest("/api/rent-payments"); return ensureArray(await r.json()); }, retry: false });
+  const { data: tenantsRaw } = useQuery({ queryKey: ["/api/tenants", "all"], queryFn: () => fetchAllPages("/api/tenants", "limit"), retry: false });
+  const { data: paymentsRaw } = useQuery({ queryKey: ["/api/rent-payments", "all"], queryFn: () => fetchAllPages("/api/rent-payments", "page_size"), retry: false });
 
   const properties  = useMemo(() => ensureArray(propertiesRaw),  [propertiesRaw]);
   const maintenance = useMemo(() => ensureArray(maintenanceRaw), [maintenanceRaw]);

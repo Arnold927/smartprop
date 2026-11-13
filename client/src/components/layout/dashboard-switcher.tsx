@@ -24,15 +24,24 @@ import {
 
 // All available dashboard views with the roles that can access each one.
 // Only roles listed in `allowedRoles` will see that option in the switcher.
+//
+// Hidden on purpose: "Senior Manager" (/senior-manager-dashboard). It repeats the
+// Overview's occupancy/revenue figures, its portfolio-value and ROI tiles are empty
+// until properties carry valuations, and its "compliance score" is only a rescaled
+// overdue-rent count. The page still exists at its URL; it is just not offered here.
+//
+// Staff and caretakers are not listed either: their home is their own portal, and the
+// Maintenance/Overview dashboards are closed to them, so a switcher would only bounce
+// them back to that portal.
 const ALL_DASHBOARD_OPTIONS = [
   {
-    value:        'senior_manager',
-    label:        'Senior Manager',
-    description:  'Executive overview, approvals and portfolio KPIs',
-    icon:         Shield,
-    color:        'bg-purple-500',
-    path:         '/senior-manager-dashboard',
-    allowedRoles: ['admin'],
+    value:        'default',
+    label:        'Overview',
+    description:  'Properties, tenants, rent and maintenance at a glance',
+    icon:         LayoutDashboard,
+    color:        'bg-indigo-500',
+    path:         '/',
+    allowedRoles: ['admin', 'manager'],
   },
   {
     value:        'property_manager',
@@ -59,7 +68,7 @@ const ALL_DASHBOARD_OPTIONS = [
     icon:         Wrench,
     color:        'bg-orange-500',
     path:         '/maintenance-dashboard',
-    allowedRoles: ['admin', 'manager', 'staff', 'caretaker'],
+    allowedRoles: ['admin', 'manager'],
   },
   {
     value:        'landlord',
@@ -70,18 +79,9 @@ const ALL_DASHBOARD_OPTIONS = [
     path:         '/landlord-portal',
     allowedRoles: ['landlord'],
   },
-  {
-    value:        'default',
-    label:        'Dashboard',
-    description:  'General overview',
-    icon:         LayoutDashboard,
-    color:        'bg-indigo-500',
-    path:         '/dashboard',
-    allowedRoles: ['admin', 'manager', 'staff', 'caretaker', 'contractor'],
-  },
 ];
 
-export default function DashboardSwitcher() {
+export default function DashboardSwitcher({ compact = false }: { compact?: boolean } = {}) {
   const [location, navigate] = useLocation();
   const { user } = useAuth();
   const role = user?.role ?? '';
@@ -91,7 +91,9 @@ export default function DashboardSwitcher() {
 
   // Determine current dashboard based on current path
   const getCurrentDashboardValue = () => {
-    const currentOption = dashboardOptions.find(d => d.path === location);
+    // "/" and "/dashboard" are the same Overview page
+    const path = location === '/dashboard' ? '/' : location;
+    const currentOption = dashboardOptions.find(d => d.path === path);
     return currentOption?.value ?? (dashboardOptions[0]?.value ?? 'default');
   };
 
@@ -120,15 +122,16 @@ export default function DashboardSwitcher() {
  return (
  <DropdownMenu>
  <DropdownMenuTrigger asChild>
- <Button 
- variant="outline" 
- className="flex items-center gap-2 bg-card hover:bg-muted border border-border text-foreground"
+ <Button
+ variant="outline"
+ aria-label="Switch dashboard view"
+ className={`flex items-center gap-2 bg-muted hover:bg-muted/70 border border-foreground/25 hover:border-foreground/40 text-foreground shadow-sm ${compact ? "h-9 px-2.5" : ""}`}
  >
- <div className={`w-2 h-2 rounded-full ${currentDashboard?.color ?? "bg-emerald-600"}`}></div>
- <Icon className="h-4 w-4" />
- <span className="hidden md:inline-block">{currentDashboard?.label ?? "Dashboard"}</span>
- <span className="md:hidden">Dashboard</span>
- <ChevronDown className="h-4 w-4 ml-1" />
+ <div className={`w-2 h-2 rounded-full shrink-0 ${currentDashboard?.color ?? "bg-emerald-600"}`}></div>
+ <Icon className="h-4 w-4 shrink-0" />
+ {!compact && <span className="hidden md:inline-block">{currentDashboard?.label ?? "Dashboard"}</span>}
+ {!compact && <span className="md:hidden">Dashboard</span>}
+ <ChevronDown className="h-4 w-4 ml-0.5 shrink-0" />
  </Button>
  </DropdownMenuTrigger>
  <DropdownMenuContent align="end" className="w-80">
