@@ -54,37 +54,18 @@ const getConfigs = (t: (key: string) => string): Record<string, RoleConfig> => {
         { label: t("nav.messages"),     href: "/messages",    icon: MessageSquare, badgeKey: "messages" },
         { label: t("common.all"),         href: null,           icon: MoreHorizontal },
       ],
+      // One entry per area — the pages inside an area (Rent collection, Leases,
+      // Arrears, Contractors, Users…) are reached from the tab strip at the top
+      // of each area's page, so they are not repeated here.
       groups: [
-        {
-          label: t("nav.group_finance"),
-          items: [
-            { label: t("nav.finances"),       href: "/finances",          icon: DollarSign },
-            { label: t("nav.rent_collection"),href: "/rent-collection",   icon: CreditCard },
-            { label: t("nav.utilities"),      href: "/utilities",         icon: Receipt },
-            { label: t("nav.leases"),         href: "/leases",            icon: FileText },
-          ],
-        },
-        {
-          label: t("nav.group_operations"),
-          items: [
-            { label: t("nav.tenants"),     href: "/tenants",     icon: Users },
-            { label: t("nav.contractors"), href: "/contractors", icon: Truck },
-            // "Security" hidden here too, matching the desktop sidebar fix —
-            // its visitor-access, vehicle-log, and gate-pass views all
-            // duplicate data already owned by Visitors and Parking (same
-            // visitors / registered_vehicles tables under the hood). Page
-            // and route are untouched, still reachable at /security directly.
-            // { label: t("nav.security"),    href: "/security",    icon: ShieldCheck },
-            { label: t("nav.arrears"),     href: "/arrears",     icon: ClipboardList },
-          ],
-        },
         {
           label: t("nav.group_admin_reports"),
           items: [
-            { label: t("nav.documents"),     href: "/documents",             icon: FileText },
-            { label: t("nav.reports"),       href: "/reports",               icon: BarChart2 },
-            { label: t("nav.organization"),  href: "/organization-management",icon: Settings },
-            { label: t("nav.user_mgmt"),     href: "/user-management",       icon: UserCog },
+            { label: t("nav.tenants"),   href: "/tenants",                icon: Users },
+            { label: t("nav.finances"),  href: "/finances",               icon: DollarSign },
+            { label: t("nav.reports"),   href: "/reports",                icon: BarChart2 },
+            { label: t("nav.documents"), href: "/documents",              icon: FileText },
+            { label: t("nav.settings"),  href: "/organization-management", icon: Settings },
           ],
         },
       ],
@@ -101,19 +82,11 @@ const getConfigs = (t: (key: string) => string): Record<string, RoleConfig> => {
       ],
       groups: [
         {
-          label: t("nav.group_finance"),
-          items: [
-            { label: t("nav.finances"),       href: "/finances",         icon: DollarSign },
-            { label: t("nav.rent_collection"),href: "/rent-collection",  icon: CreditCard },
-            { label: t("nav.leases"),         href: "/leases",           icon: FileText },
-          ],
-        },
-        {
           label: t("nav.group_operations"),
           items: [
-            { label: t("nav.maintenance"),  href: "/maintenance",           icon: Wrench },
-            { label: t("nav.documents"),    href: "/documents",             icon: FileText },
-            { label: t("nav.expenses"),     href: "/expense-management",    icon: Receipt },
+            { label: t("nav.finances"),    href: "/finances",    icon: DollarSign },
+            { label: t("nav.maintenance"), href: "/maintenance", icon: Wrench },
+            { label: t("nav.documents"),   href: "/documents",   icon: FileText },
           ],
         },
       ],

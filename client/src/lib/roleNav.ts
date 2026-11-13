@@ -30,7 +30,7 @@ const getCoreManagerItems = (t: (k: string) => string) => [
   {
     name: t("nav.properties"), href: "/properties", icon: Home,
     children: [
-      { name: t("nav.all_properties"),  href: "/properties" },
+      { name: t("nav.properties"),      href: "/properties" },
       { name: t("nav.parking"),         href: "/parking-management" },
       { name: t("nav.visitors"),        href: "/visitor-management" },
       // "Security" hidden from nav — its visitor-access, vehicle-log, and
@@ -67,16 +67,16 @@ const getCoreManagerItems = (t: (k: string) => string) => [
       { name: t("nav.rent_collection"),  href: "/rent-collection" },
       { name: t("nav.arrears_risk"),     href: "/arrears" },
       { name: t("nav.expenses"),         href: "/expense-management" },
-      { name: t("nav.utilities"),        href: "/utility-management" },
+      { name: "Utility accounts",        href: "/utility-management" },
+      { name: "Billing & invoices",      href: "/billing" },
       { name: t("nav.owner_statements"), href: "/owner-statements" },
       { name: t("nav.general_ledger"),   href: "/general-ledger" },
-      { name: t("nav.billing"),         href: "/billing" },
     ],
   },
   {
     name: t("nav.maintenance"), href: "/maintenance", icon: Wrench, badge: "!",
     children: [
-      { name: t("nav.all_requests"), href: "/maintenance" },
+      { name: t("nav.maintenance"),  href: "/maintenance" },
       { name: t("nav.contractors"),  href: "/contractors" },
     ],
   },
@@ -122,7 +122,7 @@ const getAdminNav = (t: (k: string) => string): NavGroup[] => {
   // is admin-only — added here rather than in the shared getCoreManagerItems
   // list, which getManagerNav also pulls from.
   const settingsItem = coreItems.find(item => item.href === "/organization-management");
-  settingsItem?.children?.push({ name: t("nav.billing"), href: "/subscription" });
+  settingsItem?.children?.push({ name: "Subscription", href: "/subscription" });
 
   return [{
     label: "",
@@ -164,13 +164,26 @@ const getLandlordNav = (t: (k: string) => string): NavGroup[] => [
   {
     label: t("nav.group_portfolio"),
     items: [
-      { name: t("nav.dashboard"),        href: "/landlord-portal",   icon: LayoutDashboard },
-      { name: t("nav.my_properties"),    href: "/properties",        icon: Home },
-      { name: t("nav.my_tenants"),       href: "/tenants",           icon: Users },
-      { name: t("nav.owner_statements"), href: "/owner-statements",  icon: FileText },
-      { name: t("nav.leases"),           href: "/leases",            icon: BookOpen },
-      { name: t("nav.short_term_rentals"), href: "/tenant-subletting", icon: CalendarDays },
-      { name: t("nav.diaspora_contract"),href: "/diaspora-portal",   icon: Globe, badge: "RTO" },
+      { name: t("nav.dashboard"), href: "/landlord-portal", icon: LayoutDashboard },
+      {
+        name: t("nav.my_properties"), href: "/properties", icon: Home,
+        children: [
+          { name: t("nav.my_properties"), href: "/properties" },
+          { name: t("nav.inspections"),   href: "/inspections" },
+          { name: t("nav.caretakers"),    href: "/caretakers" },
+          { name: t("nav.visitors"),      href: "/visitor-management" },
+          { name: t("nav.guard_pins"),    href: "/security?tab=gate-pins" },
+        ],
+      },
+      {
+        name: t("nav.my_tenants"), href: "/tenants", icon: Users,
+        children: [
+          { name: t("nav.my_tenants"),          href: "/tenants" },
+          { name: t("nav.leases"),              href: "/leases" },
+          { name: t("nav.short_term_rentals"),  href: "/tenant-subletting" },
+          { name: t("nav.diaspora_contract"),   href: "/diaspora-portal" },
+        ],
+      },
     ],
   },
   {
@@ -179,9 +192,14 @@ const getLandlordNav = (t: (k: string) => string): NavGroup[] => [
       {
         name: t("nav.finances"), href: "/finances", icon: DollarSign,
         children: [
-          { name: t("nav.rent_collection"), href: "/rent-collection" },
-          { name: t("nav.expenses"),        href: "/expense-management" },
-          { name: t("nav.payment_setup"),   href: "/payment-setup" },
+          { name: t("nav.overview"),         href: "/finances" },
+          { name: t("nav.owner_statements"), href: "/owner-statements" },
+          { name: t("nav.rent_collection"),  href: "/rent-collection" },
+          { name: t("nav.expenses"),         href: "/expense-management" },
+          // Landlords only need Bill Sender from Utility Management — it takes
+          // readings and creates the bill record inline (see earlier trim).
+          { name: t("nav.send_utility_bills"), href: "/utility-bill-sender" },
+          { name: t("nav.payment_setup"),    href: "/payment-setup" },
           { name: t("nav.external_landlords"), href: "/external-landlords" },
         ],
       },
@@ -190,50 +208,13 @@ const getLandlordNav = (t: (k: string) => string): NavGroup[] => [
   {
     label: t("nav.group_operations"),
     items: [
-      {
-        name: t("nav.maintenance"), href: "/maintenance", icon: Wrench,
-        children: [
-          { name: t("nav.all_requests"), href: "/maintenance" },
-        ],
-      },
-      { name: t("nav.inspections"), href: "/inspections", icon: ClipboardCheck },
-      { name: t("nav.caretakers"),  href: "/caretakers",  icon: Shield },
-      { name: t("nav.guard_pins"),  href: "/security?tab=gate-pins", icon: UserCog },
-      { name: t("nav.visitors"),    href: "/visitor-management", icon: Users },
-      // Trimmed to Bill Sender only — Utility Management's other tabs
-      // (Providers/Accounts/Readings/Bills/Expenses/Analytics) are redundant
-      // or irrelevant for a landlord: Bill Sender already takes readings and
-      // creates the bill record inline, Providers/Accounts are one-time setup
-      // tasks, and Expenses duplicates the dedicated Expense Management page.
-      { name: t("nav.send_utility_bills"), href: "/utility-bill-sender", icon: Receipt },
+      // Single-page entries — no submenu needed.
+      { name: t("nav.maintenance"), href: "/maintenance", icon: Wrench },
       { name: t("nav.documents"),   href: "/documents",   icon: FolderOpen },
     ],
   },
   // Compliance group — hidden from the sidebar per product request
-  // (commented out, not deleted, so it can be restored later). Still fully
-  // functional at /compliance?tab=rrt for anyone who navigates there directly.
-  // {
-  //   label: t("nav.group_compliance"),
-  //   items: [
-  //     {
-  //       // Landlords only ever see "Rent Notices" here — the KRA/eTIMS/stamp-duty/
-  //       // valuations/deposit-interest/service-charges items are commented out for
-  //       // this role only (see the matching restriction in pages/compliance.tsx).
-  //       // Admin/manager's nav block above this one is untouched and keeps the
-  //       // full list.
-  //       name: t("nav.compliance"), href: "/compliance?tab=rrt", icon: Shield,
-  //       // children: [
-  //       //   { name: t("nav.kra_returns"),      href: "/compliance?tab=kra" },
-  //       //   { name: t("nav.etims"),            href: "/compliance?tab=etims" },
-  //       //   { name: t("nav.stamp_duty"),       href: "/compliance?tab=stamp-duty" },
-  //       //   { name: t("nav.valuations_cgt"),   href: "/compliance?tab=valuations" },
-  //       //   { name: t("nav.deposit_interest"), href: "/compliance?tab=deposit-interest" },
-  //       //   { name: t("nav.service_charges"),  href: "/compliance?tab=service-charges" },
-  //       //   { name: t("nav.rrt_notices"),      href: "/compliance?tab=rrt" },
-  //       // ],
-  //     },
-  //   ],
-  // },
+  // (still reachable at /compliance?tab=rrt).
   {
     label: t("nav.group_comms"),
     items: [
@@ -251,8 +232,20 @@ const getStaffNav = (t: (k: string) => string): NavGroup[] => [
     label: t("nav.group_work"),
     items: [
       { name: t("nav.dashboard"),   href: "/staff-portal", icon: LayoutDashboard },
-      { name: t("nav.properties"),  href: "/properties",   icon: Home },
-      { name: t("nav.tenants"),     href: "/tenants",      icon: Users },
+      {
+        name: t("nav.properties"), href: "/properties", icon: Home,
+        children: [
+          { name: t("nav.properties"),  href: "/properties" },
+          { name: t("nav.inspections"), href: "/inspections" },
+        ],
+      },
+      {
+        name: t("nav.tenants"), href: "/tenants", icon: Users,
+        children: [
+          { name: t("nav.tenants"),          href: "/tenants" },
+          { name: t("nav.letting_pipeline"), href: "/prospects" },
+        ],
+      },
     ],
   },
   {
@@ -261,14 +254,11 @@ const getStaffNav = (t: (k: string) => string): NavGroup[] => [
       {
         name: t("nav.maintenance"), href: "/maintenance", icon: Wrench, badge: "!",
         children: [
-          { name: t("nav.all_requests"), href: "/maintenance" },
-          { name: t("nav.contractors"),  href: "/contractors" },
+          { name: t("nav.maintenance"), href: "/maintenance" },
+          { name: t("nav.contractors"), href: "/contractors" },
         ],
       },
-      { name: t("nav.inspections"),     href: "/inspections",      icon: ClipboardCheck },
       // Visitor management removed for staff — only managers, admins and caretakers can create visitor access
-      // { name: t("nav.visitor_log"),     href: "/visitor-management",icon: Users2 },
-      { name: t("nav.letting_pipeline"),href: "/prospects",         icon: Users2 },
       {
         name: t("nav.utilities"), href: "/utility-management", icon: Receipt,
         children: [
@@ -294,18 +284,19 @@ const getCaretakerNav = (t: (k: string) => string): NavGroup[] => [
     label: t("nav.group_property"),
     items: [
       { name: t("nav.dashboard"),  href: "/caretaker-portal", icon: LayoutDashboard },
-      { name: t("nav.properties"), href: "/properties",   icon: Home },
+      {
+        name: t("nav.properties"), href: "/properties", icon: Home,
+        children: [
+          { name: t("nav.properties"),  href: "/properties" },
+          { name: t("nav.inspections"), href: "/inspections" },
+        ],
+      },
     ],
   },
   {
     label: t("nav.group_operations"),
     items: [
-      {
-        name: t("nav.maintenance"), href: "/maintenance", icon: Wrench, badge: "!",
-        children: [
-          { name: t("nav.all_requests"), href: "/maintenance" },
-        ],
-      },
+      { name: t("nav.maintenance"), href: "/maintenance", icon: Wrench, badge: "!" },
       {
         name: t("nav.visitors"), href: "/visitor-management", icon: Users,
         children: [
@@ -313,7 +304,6 @@ const getCaretakerNav = (t: (k: string) => string): NavGroup[] => [
           { name: t("nav.guard_checkin"), href: "/guard-checkin" },
         ],
       },
-      { name: t("nav.inspections"), href: "/inspections", icon: ClipboardCheck },
     ],
   },
   {
@@ -538,4 +528,34 @@ export function isRouteAllowed(role: string | undefined, pathname: string): bool
     pathname.startsWith(prefix + "/") ||
     pathname.startsWith(prefix + "?")
   );
+}
+
+// ─── Section tabs ─────────────────────────────────────────────────────────────
+// Sidebar entries with `children` are shown as ONE link; the pages inside that
+// area are reached from a slim tab strip at the top of each page (SectionTabs).
+
+/** True when `href` (optionally with ?query) is the page currently shown. */
+export function isNavHrefActive(href: string, pathname: string, search: string, exact = false): boolean {
+  if (href === "/") return pathname === "/";
+  const [hrefPath, hrefQuery] = href.split("?");
+  if (hrefQuery) return pathname === hrefPath && search.replace(/^\?/, "") === hrefQuery;
+  if (exact) return pathname === hrefPath;
+  return pathname === hrefPath || pathname.startsWith(hrefPath + "/");
+}
+
+/** The sibling pages for the current route, or null when it has none. */
+export function getSectionTabs(
+  role: string | undefined, t: (k: string) => string, isDiasporaBuyer: boolean,
+  pathname: string, search: string,
+): { title: string; tabs: NavChild[] } | null {
+  for (const group of getNavForRole(role, t, isDiasporaBuyer)) {
+    for (const item of group.items) {
+      if (!item.children || item.children.length < 2) continue;
+      // Only on the section's own list pages, not on record detail pages.
+      if (item.children.some(c => c.href.split("?")[0] === pathname)) {
+        return { title: item.name, tabs: item.children };
+      }
+    }
+  }
+  return null;
 }

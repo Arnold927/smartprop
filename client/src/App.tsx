@@ -36,6 +36,7 @@ import Sidebar          from "@/components/layout/sidebar";
 import MobileHeader     from "@/components/layout/mobile-header";
 import TopBar           from "@/components/layout/top-bar";
 import MobileBottomNav  from "@/components/layout/mobile-bottom";
+import SectionTabs      from "@/components/layout/section-tabs";
 import ModuleUnavailable from "@/components/module-unavailable";
 import WhatsAppWidget   from "@/components/ui/whatsapp-widget"; // kept for future use
 import NotFound         from "@/pages/not-found";
@@ -369,6 +370,7 @@ function Router() {
         <TopBar />
 
         <main className="flex-1 min-h-0 overflow-auto">
+          <SectionTabs />
           <Switch>
             {/* Core */}
             <Route path="/"          component={() => <P><DashboardClean /></P>} />
@@ -420,7 +422,8 @@ function Router() {
             <Route path="/inspections"         component={() => <P><Inspections /></P>} />
             <Route path="/prospects"           component={() => <P><ProspectsPage /></P>} />
             <Route path="/utility-management"  component={() => <P><UtilityManagement /></P>} />
-            <Route path="/utilities"           component={() => <P><Utilities /></P>} />
+            {/* Old duplicate of Utility Management — send old links/bookmarks to the full page */}
+            <Route path="/utilities"           component={() => { navigate("/utility-management", { replace: true }); return null; }} />
             <Route path="/utility-bill-sender" component={() => <P><UtilityBillSenderPage /></P>} />
             <Route path="/payment-setup" component={() => <P><PaymentSetupPage /></P>} />
             <Route path="/external-landlords" component={() => <P><ExternalLandlordsPage /></P>} />

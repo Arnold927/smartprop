@@ -15,36 +15,24 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { getNavForRole, type NavItem } from "@/lib/roleNav";
+import { getNavForRole, isNavHrefActive, type NavItem } from "@/lib/roleNav";
 import { useQuery } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 
 function NavItemComponent({
-  item, isCollapsed, open, onOpen,
+  item, isCollapsed,
 }: {
   item: NavItem;
   isCollapsed: boolean;
-  open?: boolean;
-  onOpen?: () => void;
 }) {
   const [location] = useLocation();
-  const isActive = (href: string) => {
-    if (href === "/") return location === "/";
-    const [hrefPath, hrefQuery] = href.split("?");
-    // If the link carries a query string (e.g. /compliance?tab=kra), require an
-    // exact match on both pathname AND query string so sibling tab links don't
-    // all highlight simultaneously.
-    if (hrefQuery) {
-      const currentQuery = window.location.search.slice(1); // strip leading "?"
-      return location === hrefPath && currentQuery === hrefQuery;
-    }
-    // Plain pathname: exact match or sub-path (/maintenance/123) but NOT a
-    // prefix match that would cause /properties to highlight /prospects.
-    return location === hrefPath || location.startsWith(hrefPath + "/");
-  };
+  const search = typeof window !== "undefined" ? window.location.search : "";
+  const isActive = (href: string) => isNavHrefActive(href, location, search);
 
-  const active = isActive(item.href);
-  const childActive = item.children?.some(c => isActive(c.href)) ?? false;
+  // Items with `children` are a single link: the pages inside that area are
+  // reached from the tab strip at the top of the page (SectionTabs), so the
+  // sidebar stays short and never lists overlapping pages twice.
+  const active = isActive(item.href) || (item.children?.some(c => isActive(c.href)) ?? false);
   const Icon = item.icon;
 
   if (isCollapsed) {
@@ -53,7 +41,7 @@ function NavItemComponent({
         <TooltipTrigger asChild>
           <Link href={item.href}>
             <div className={`flex items-center justify-center w-10 h-10 rounded-lg cursor-pointer transition-all mx-auto relative ${
-              active || childActive
+              active
                 ? "bg-emerald-600 text-white shadow-sm"
                 : "text-muted-foreground hover:bg-muted hover:text-foreground"
             }`}>
@@ -68,7 +56,7 @@ function NavItemComponent({
         </TooltipTrigger>
         <TooltipContent side="right" className="font-medium">
           {item.name}
-          {item.children && (
+          {item.children && item.children.length > 1 && (
             <ul className="mt-1 space-y-0.5">
               {item.children.map(c => (
                 <li key={c.href} className="text-xs text-muted-foreground">{c.name}</li>
@@ -80,61 +68,22 @@ function NavItemComponent({
     );
   }
 
-  if (!item.children) {
-    return (
-      <Link href={item.href}>
-        <div className={`flex items-center gap-2.5 px-3 py-2 rounded-lg cursor-pointer transition-all text-sm group ${
-          active
-            ? "bg-emerald-600 text-white shadow-sm"
-            : "text-muted-foreground hover:bg-muted hover:text-foreground"
-        }`}>
-          <Icon className="w-4 h-4 flex-shrink-0" />
-          <span className="truncate flex-1">{item.name}</span>
-          {item.badge && (
-            <span className="ml-auto text-xs bg-red-500 text-white px-1.5 py-0.5 rounded-full font-medium">
-              {item.badge}
-            </span>
-          )}
-        </div>
-      </Link>
-    );
-  }
-
   return (
-    <div>
-      <button
-        onClick={() => onOpen?.()}
-        className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg transition-all text-sm ${
-          childActive || active
-            ? "bg-emerald-50 text-emerald-700 font-medium"
-            : "text-muted-foreground hover:bg-muted hover:text-foreground"
-        }`}
-      >
+    <Link href={item.href}>
+      <div className={`flex items-center gap-2.5 px-3 py-2 rounded-lg cursor-pointer transition-all text-sm group ${
+        active
+          ? "bg-emerald-600 text-white shadow-sm"
+          : "text-muted-foreground hover:bg-muted hover:text-foreground"
+      }`}>
         <Icon className="w-4 h-4 flex-shrink-0" />
-        <span className="truncate flex-1 text-left">{item.name}</span>
+        <span className="truncate flex-1">{item.name}</span>
         {item.badge && (
-          <span className="text-xs bg-red-500 text-white px-1.5 py-0.5 rounded-full font-medium">
+          <span className="ml-auto text-xs bg-red-500 text-white px-1.5 py-0.5 rounded-full font-medium">
             {item.badge}
           </span>
         )}
-        <ChevronDown className={`w-3.5 h-3.5 flex-shrink-0 opacity-50 transition-transform duration-200 ${open ? "rotate-0" : "-rotate-90"}`} />
-      </button>
-      {open && (
-        <div className="mt-0.5 ml-3 pl-3 border-l border-border dark:border-gray-700 space-y-0.5">
-          {item.children!.map(child => (
-            <Link key={child.href} href={child.href}>
-              <div className={`px-2.5 py-1.5 rounded-md cursor-pointer transition-all text-sm ${
-                isActive(child.href)
-                  ? "text-emerald-700 font-medium bg-emerald-50"
-                  : "text-muted-foreground hover:text-foreground hover:bg-muted"
-              }`}>
-                {child.name}
-              </div>
-            </Link>
-          ))}
-        </div>
-      )}
-    </div>
+      </div>
+    </Link>
   );
 }
 
@@ -209,26 +158,6 @@ export default function Sidebar({ isOpen, onClose, isCollapsed: isCollapsedProp 
     });
   };
 
-  // Track which nav item (by href) currently has its submenu open.
-  // Only one can be open at a time — clicking a new one closes the previous.
-  const [openNav, setOpenNav] = useState<string | null>(() => {
-    // Pre-open the group containing the current active route on first render.
-    const initialNavGroups = getNavForRole(user?.role, t, isDiasporaBuyer);
-    for (const group of initialNavGroups) {
-      for (const item of group.items) {
-        if (item.children) {
-          const loc = window.location.pathname;
-          const childActive = item.children.some(c => {
-            const path = c.href.split("?")[0];
-            return loc === path || loc.startsWith(path + "/");
-          });
-          if (childActive) return item.href;
-        }
-      }
-    }
-    return null;
-  });
-
   return (
     <>
       {isMobile && isOpen && (
@@ -289,8 +218,6 @@ export default function Sidebar({ isOpen, onClose, isCollapsed: isCollapsedProp 
                     key={item.href + item.name}
                     item={item}
                     isCollapsed={isCollapsed}
-                    open={item.children ? openNav === item.href : undefined}
-                    onOpen={item.children ? () => setOpenNav(prev => prev === item.href ? null : item.href) : undefined}
                   />
                 ))}
               </div>
