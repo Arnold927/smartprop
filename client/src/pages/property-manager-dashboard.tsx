@@ -10,11 +10,12 @@
  *  ✅ Mobile responsive (sm: breakpoints throughout)
  */
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/useAuth";
 import { useWsEvent } from "@/hooks/useWebSocket";
-import { apiRequest, ensureArray, fetchAllPages } from "@/lib/queryClient";
+import { apiRequest, ensureArray } from "@/lib/queryClient";
+import { useDashboardSummary } from "@/hooks/useDashboardSummary";
 import { useToast } from "@/hooks/use-toast";
 import { format, formatDistanceToNow, isToday } from "date-fns";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -250,20 +251,29 @@ function TenantsPanel() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  const { data: tenantsRaw, isLoading } = useQuery({
-    queryKey: ["/api/tenants", "all"],
-    queryFn: () => fetchAllPages("/api/tenants", "limit"),
+  // Server-side search + paging (20 per page) — never downloads the whole tenant list.
+  const PAGE = 20;
+  const [page, setPage] = useState(1);
+  const [debounced, setDebounced] = useState("");
+  useEffect(() => {
+    const id = setTimeout(() => { setDebounced(search.trim()); setPage(1); }, 300);
+    return () => clearTimeout(id);
+  }, [search]);
+
+  const { data: tenantsPage, isLoading, isFetching } = useQuery({
+    queryKey: ["/api/tenants", "pm", debounced, page],
+    queryFn: async () => {
+      const qs = new URLSearchParams({ limit: String(PAGE), page: String(page) });
+      if (debounced) qs.set("search", debounced);
+      const r = await apiRequest(`/api/tenants?${qs}`);
+      return r.json();
+    },
+    placeholderData: (prev: any) => prev,
     retry: false,
   });
-
-  const tenants = useMemo(() => {
-    const list = ensureArray(tenantsRaw);
-    if (!search.trim()) return list;
-    const q = search.toLowerCase();
-    return list.filter((t: any) =>
-      `${t.firstName} ${t.lastName}`.toLowerCase().includes(q) ||
-      t.email?.toLowerCase().includes(q) || t.phone?.includes(q));
-  }, [tenantsRaw, search]);
+  const tenants: any[] = ensureArray(tenantsPage);
+  const totalTenants = Number((tenantsPage as any)?.count ?? tenants.length);
+  const totalPages = Math.max(1, Math.ceil(totalTenants / PAGE));
 
   const sendMessage = async (t: any) => {
     if (!msgBody.trim() || !(t.userId ?? t.user_id)) return;
@@ -300,7 +310,7 @@ function TenantsPanel() {
                       {t.email && <span className="flex items-center gap-1 min-w-0"><Mail className="h-3 w-3 shrink-0" /><span className="break-all">{t.email}</span></span>}
                       {t.phone && <span className="flex items-center gap-1"><Phone className="h-3 w-3" />{t.phone}</span>}
                     </div>
-                    {t.unitNumber && <p className="text-xs text-muted-foreground mt-0.5 flex items-center gap-1"><MapPin className="h-3 w-3" />Unit {t.unitNumber}{t.propertyName ? ` · ${t.propertyName}` : ""}</p>}
+                    {(t.unit?.unitNumber ?? t.unitNumber) && <p className="text-xs text-muted-foreground mt-0.5 flex items-center gap-1"><MapPin className="h-3 w-3" />Unit {t.unit?.unitNumber ?? t.unitNumber}{(t.property?.name ?? t.propertyName) ? ` · ${t.property?.name ?? t.propertyName}` : ""}</p>}
                   </div>
                 </div>
                 <div className="flex flex-col items-end gap-1.5 shrink-0">
@@ -325,6 +335,18 @@ function TenantsPanel() {
               )}
             </div>
           ))}
+          {tenants.length === 0 && (
+            <p className="text-center text-sm text-muted-foreground py-8">{debounced ? "No tenants match your search." : "No tenants yet."}</p>
+          )}
+          {totalTenants > PAGE && (
+            <div className="flex items-center justify-between pt-2 text-xs text-muted-foreground">
+              <span>{(page - 1) * PAGE + 1}–{Math.min(page * PAGE, totalTenants)} of {totalTenants}{isFetching ? " · updating…" : ""}</span>
+              <div className="flex gap-2">
+                <Button size="sm" variant="outline" className="h-7 text-xs" disabled={page <= 1} onClick={() => setPage(p => Math.max(1, p - 1))}>Previous</Button>
+                <Button size="sm" variant="outline" className="h-7 text-xs" disabled={page >= totalPages} onClick={() => setPage(p => p + 1)}>Next</Button>
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>
@@ -566,29 +588,19 @@ export default function PropertyManagerDashboard() {
 
   const { data: propertiesRaw, isLoading } = useQuery({ queryKey: ["/api/properties"], queryFn: async () => { const r = await apiRequest("/api/properties"); return ensureArray(await r.json()); }, retry: false });
   const { data: maintenanceRaw } = useQuery({ queryKey: ["/api/maintenance-requests"], queryFn: async () => { const r = await apiRequest("/api/maintenance-requests"); return ensureArray(await r.json()); }, retry: false });
-  const { data: tenantsRaw } = useQuery({ queryKey: ["/api/tenants", "all"], queryFn: () => fetchAllPages("/api/tenants", "limit"), retry: false });
-  const { data: paymentsRaw } = useQuery({ queryKey: ["/api/rent-payments", "all"], queryFn: () => fetchAllPages("/api/rent-payments", "page_size"), retry: false });
+  const { data: summary } = useDashboardSummary();
 
   const properties  = useMemo(() => ensureArray(propertiesRaw),  [propertiesRaw]);
   const maintenance = useMemo(() => ensureArray(maintenanceRaw), [maintenanceRaw]);
-  const tenants     = useMemo(() => ensureArray(tenantsRaw),     [tenantsRaw]);
-  const payments    = useMemo(() => ensureArray(paymentsRaw),    [paymentsRaw]);
 
   const totalUnits    = properties.reduce((s: number, p: any) => s + Number(p.totalUnits ?? 0), 0);
   const occupiedUnits = properties.reduce((s: number, p: any) => s + Number(p.occupiedUnits ?? 0), 0);
   const occupancyRate = totalUnits > 0 ? Math.round(occupiedUnits / totalUnits * 100) : 0;
   const openTickets   = maintenance.filter((r: any) => !["completed","cancelled"].includes(r.status)).length;
   const urgentTickets = maintenance.filter((r: any) => ["urgent","critical"].includes(r.priority ?? "") && !["completed","cancelled"].includes(r.status)).length;
-  const activeTenants = tenants.filter((t: any) => t.status === "active").length;
+  const activeTenants = summary?.tenants.active ?? 0;
   const now = new Date();
-  const monthRevenue = payments.filter((p: any) => {
-    if (!["paid","completed"].includes(p.status)) return false;
-    // Use paidDate (set by mark-paid), fall back to dueDate (billing period), then createdAt
-    const d = p.paidDate ?? p.dueDate ?? p.createdAt;
-    if (!d) return false;
-    const pd = new Date(d);
-    return pd.getMonth()===now.getMonth() && pd.getFullYear()===now.getFullYear();
-  }).reduce((s: number, p: any) => s + Number(p.amount ?? 0), 0);
+  const monthRevenue = summary?.payments.revenueThisMonth ?? 0;
 
   const chartData = properties.slice(0, 8).map((p: any) => ({
     name: (p.name ?? "Property").slice(0, 12),

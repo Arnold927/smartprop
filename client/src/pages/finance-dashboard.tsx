@@ -6,7 +6,8 @@
 
 import { useAuth } from "@/hooks/useAuth";
 import { useQuery } from "@tanstack/react-query";
-import { apiRequest, ensureArray, fetchAllPages } from "@/lib/queryClient";
+import { apiRequest, ensureArray } from "@/lib/queryClient";
+import { useDashboardSummary } from "@/hooks/useDashboardSummary";
 import { format } from "date-fns";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
@@ -71,70 +72,33 @@ export default function FinanceDashboard() {
 
   const now_month = `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, "0")}`;
 
-  const { data: rentPayments, isLoading } = useQuery({
-    queryKey: ["/api/rent-payments", "all"],
-    queryFn: () => fetchAllPages("/api/rent-payments", "page_size"),
-    retry: false,
-  });
+  const { data: sum, isLoading } = useDashboardSummary();
   const { data: liveStats = {} } = useQuery({
     queryKey: ["/api/rent-payments/stats", now_month],
     queryFn: async () => (await apiRequest(`/api/rent-payments/stats?month=${now_month}`)).json(),
     staleTime: 30_000,
   });
-  const { data: expensesRaw = [] } = useQuery({
-    queryKey: ["/api/property-expenses"],
-    queryFn: async () => ensureArray(await (await apiRequest("/api/property-expenses")).json()),
-    staleTime: 5 * 60_000,
-  });
-
   const ls: any = liveStats;
-  const paysArr = Array.isArray(rentPayments) ? rentPayments : [];
-  const expArr  = Array.isArray(expensesRaw)  ? expensesRaw  : [];
-
-  // Money figures come from the full payment list (every page), not the first 20 rows.
-  // Revenue MTD = cash actually received this month; Outstanding = everything still
-  // unpaid, including rent that fell due in earlier months.
-  const mStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
-  const isPaid = (p: any) => p.status === "paid" || p.status === "completed";
-  const paidThisMonth = paysArr.filter((p: any) => isPaid(p) && new Date(p.paidDate ?? p.dueDate ?? p.createdAt ?? 0) >= mStart);
-  const unpaid        = paysArr.filter((p: any) => !isPaid(p) && p.status !== "cancelled");
-  const sumAmt = (rows: any[]) => rows.reduce((s: number, p: any) => s + Number(p.amount ?? 0), 0);
-
-  const totalRevenue     = sumAmt(paidThisMonth);
-  const collectedCount   = paidThisMonth.length;
-  const overdueRows      = unpaid.filter((p: any) => p.status === "overdue");
-  const pendingRows      = unpaid.filter((p: any) => p.status !== "overdue");
-  const pendingAmount    = sumAmt(pendingRows);
-  const overdueAmount    = sumAmt(overdueRows);
-  const pendingCount     = pendingRows.length;
-  const overdueCount     = overdueRows.length;
+  // Rent and expense figures are summed in the database (/api/dashboard/summary):
+  // Revenue MTD = cash received this month; Outstanding = everything still unpaid,
+  // including rent that fell due in earlier months; expenses = approved + paid.
+  const totalRevenue     = sum?.payments.revenueThisMonth ?? 0;
+  const collectedCount   = sum?.payments.collectedCount   ?? 0;
+  const overdueAmount    = sum?.payments.overdueAmount    ?? 0;
+  const pendingAmount    = sum?.payments.pendingAmount    ?? 0;
+  const overdueCount     = sum?.payments.overdueCount     ?? 0;
+  const pendingCount     = sum?.payments.pendingCount     ?? 0;
   // Collection rate stays "this month's rent collected ÷ this month's rent due" (server-side).
   const collectionRate   = Number(ls.collectionRate ?? 0);
 
-  const monthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
-  const expensesThisMonth = expArr.filter((e: any) => {
-    const d = new Date(e.expenseDate ?? e.createdAt ?? 0);
-    return d >= monthStart;
-  }).reduce((s: number, e: any) => s + Number(e.amount ?? 0), 0);
-
+  const expensesThisMonth = sum?.expensesThisMonth ?? 0;
   const netIncome    = totalRevenue - expensesThisMonth;
   const profitMargin = totalRevenue > 0 ? Math.round((netIncome / totalRevenue) * 1000) / 10 : 0;
 
-  // Monthly trend from raw payments
-  const monthlyMap: Record<string, { collected: number; pending: number; overdue: number }> = {};
-  paysArr.forEach((p: any) => {
-    const d = p.dueDate ? new Date(p.dueDate) : new Date();
-    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`; // sortable
-    if (!monthlyMap[key]) monthlyMap[key] = { collected: 0, pending: 0, overdue: 0 };
-    const amt = Number(p.amount ?? 0);
-    if (p.status === "paid" || p.status === "completed") monthlyMap[key].collected += amt;
-    else if (p.status === "pending") monthlyMap[key].pending += amt;
-    else if (p.status === "overdue") monthlyMap[key].overdue += amt;
-  });
-  const monthlyData = Object.entries(monthlyMap)
-    .sort(([a], [b]) => a.localeCompare(b))
-    .slice(-6)
-    .map(([key, v]) => ({ month: new Date(`${key}-01T00:00:00`).toLocaleString("default", { month: "short", year: "2-digit" }), ...v }));
+  const monthlyData = (sum?.dueTrend ?? []).map(x => ({
+    month: new Date(`${x.month}-01T00:00:00`).toLocaleString("default", { month: "short", year: "2-digit" }),
+    collected: x.collected, pending: x.pending, overdue: x.overdue,
+  }));
 
   const donutData = [
     { name: "Collected", value: totalRevenue,  fill: "#10b981" },
@@ -142,7 +106,7 @@ export default function FinanceDashboard() {
     { name: "Overdue",   value: overdueAmount, fill: "#ef4444" },
   ].filter(d => d.value > 0);
 
-  const recentPaid = paysArr.filter((p: any) => p.status === "paid" || p.status === "completed").sort((a: any, b: any) => new Date(b.paidDate ?? b.createdAt ?? 0).getTime() - new Date(a.paidDate ?? a.createdAt ?? 0).getTime()).slice(0, 6);
+  const recentPaid = sum?.payments.recentPaid ?? [];
 
   if (isLoading) return (
     <div className="min-h-screen bg-background p-8 space-y-6">
@@ -259,10 +223,10 @@ export default function FinanceDashboard() {
             <Section title="Key Metrics">
               <div className="space-y-3">
                 {[
-                  { label: "Gross Revenue MTD",    value: fmtKES(totalRevenue),             sub: `${ls.collectedCount ?? 0} payments` },
+                  { label: "Gross Revenue MTD",    value: fmtKES(totalRevenue),             sub: `${collectedCount} payments` },
                   { label: "Expenses MTD",          value: fmtKES(expensesThisMonth),        sub: "Approved & paid expenses" },
                   { label: "Net Income MTD",        value: fmtKES(netIncome),                sub: `${profitMargin}% profit margin` },
-                  { label: "Overdue Amount",        value: fmtKES(overdueAmount),            sub: `${overdueCount} tenants overdue` },
+                  { label: "Overdue Amount",        value: fmtKES(overdueAmount),            sub: `${overdueCount} overdue invoices` },
                   { label: "Pending Payments",      value: fmtKES(pendingAmount),            sub: `${pendingCount} invoices pending` },
                 ].map(row => (
                   <div key={row.label} className="flex items-start justify-between py-2.5 border-b border-border last:border-0 gap-3">

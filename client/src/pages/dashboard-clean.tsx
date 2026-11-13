@@ -9,7 +9,8 @@ import { MpesaStatusAlert } from "@/components/MpesaStatusAlert";
 import { FirstRunOverlay, needsFirstRun, markFirstRunDone } from "@/components/first-run-overlay";
 import { useQuery } from "@tanstack/react-query";
 import { useLocation } from "wouter";
-import { apiRequest, ensureArray, fetchAllPages } from "@/lib/queryClient";
+import { apiRequest, ensureArray } from "@/lib/queryClient";
+import { useDashboardSummary } from "@/hooks/useDashboardSummary";
 import { useAuth } from "@/hooks/useAuth";
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
@@ -322,12 +323,10 @@ export default function DashboardClean() {
   const fetchArr = (url: string) => apiRequest(url).then(r => r.json()).then(d => ensureArray(d));
 
   const { data: properties = [], isLoading: propLoad } = useQuery({ queryKey: ["/api/properties"], queryFn: () => fetchArr("/api/properties") });
-  const { data: tenants    = [], isLoading: tenLoad  } = useQuery({ queryKey: ["/api/tenants", "all"],    queryFn: () => fetchAllPages("/api/tenants", "limit") });
-  const { data: payments   = [], isLoading: pmtLoad  } = useQuery({ queryKey: ["/api/rent-payments", "all"],     queryFn: () => fetchAllPages("/api/rent-payments", "page_size") });
+  const { data: sum, isLoading: sumLoad } = useDashboardSummary();
   const { data: maintenance = [], isLoading: maintLoad } = useQuery({ queryKey: ["/api/maintenance"],      queryFn: () => fetchArr("/api/maintenance-requests") });
-  const { data: expenses   = [] } = useQuery({ queryKey: ["/api/property-expenses"], queryFn: () => fetchArr("/api/property-expenses") });
 
-  const isLoading = propLoad || tenLoad || pmtLoad || maintLoad;
+  const isLoading = propLoad || sumLoad || maintLoad;
 
   const m = useMemo(() => {
     const now = new Date();
@@ -337,48 +336,40 @@ export default function DashboardClean() {
     const totalUnits    = properties.reduce((s, p: any) => s + Number(p.totalUnits    ?? 0), 0);
     const occupiedUnits = properties.reduce((s, p: any) => s + Number(p.occupiedUnits ?? 0), 0);
     const occupancyPct  = totalUnits > 0 ? Math.round((occupiedUnits / totalUnits) * 100) : 0;
-    const activeTenants  = tenants.filter((t: any) => t.status === "active").length;
-    const pendingTenants = tenants.filter((t: any) => t.status === "pending").length;
-    const expiringLeases = tenants.filter((t: any) => {
-      if (!t.leaseEndDate) return false;
-      const end = new Date(t.leaseEndDate);
-      return isAfter(end, now) && isBefore(end, in30);
-    });
+    // Tenant, rent and expense figures are summed server-side (/api/dashboard/summary)
+    const activeTenants  = sum?.tenants.active  ?? 0;
+    const pendingTenants = sum?.tenants.pending ?? 0;
+    const expiringCount  = sum?.tenants.expiringLeases.count ?? 0;
+    const expiringItems  = sum?.tenants.expiringLeases.items ?? [];
 
-    const paidThisMonth   = payments.filter((p: any) => (p.status === "paid" || p.status === "completed") && new Date(p.paidDate ?? p.dueDate ?? p.createdAt ?? 0) >= monthStart);
-    const overduePayments = payments.filter((p: any) => p.status === "overdue");
-    const pendingPayments = payments.filter((p: any) => p.status === "pending");
-    const revenueThisMonth = paidThisMonth.reduce((s, p: any) => s + Number(p.amount ?? 0), 0);
-    const overdueAmount    = overduePayments.reduce((s, p: any) => s + Number(p.amount ?? 0), 0);
-    const pendingAmount    = pendingPayments.reduce((s, p: any) => s + Number(p.amount ?? 0), 0);
-    const monthExpenses    = expenses.filter((e: any) => new Date(e.expenseDate ?? e.date ?? e.createdAt ?? 0) >= monthStart).reduce((s, e: any) => s + Number(e.amount ?? 0), 0);
+    const revenueThisMonth = sum?.payments.revenueThisMonth ?? 0;
+    const overdueAmount    = sum?.payments.overdueAmount    ?? 0;
+    const pendingAmount    = sum?.payments.pendingAmount    ?? 0;
+    const monthExpenses    = sum?.expensesThisMonth         ?? 0;
     const netIncome        = revenueThisMonth - monthExpenses;
 
     const openMaint   = maintenance.filter((m: any) => !["completed","cancelled"].includes(m.status));
     const urgentMaint = openMaint.filter((m: any) => ["urgent","critical"].includes(m.priority ?? ""));
 
-    const chartMonths = Array.from({ length: 6 }, (_, i) => {
-      const d   = new Date(now.getFullYear(), now.getMonth() - (5 - i), 1);
-      const end = new Date(d.getFullYear(), d.getMonth() + 1, 0, 23, 59, 59);
-      const income  = payments.filter((p: any) => (p.status === "paid" || p.status === "completed") && new Date(p.paidDate ?? p.dueDate ?? p.createdAt ?? 0) >= d && new Date(p.paidDate ?? p.dueDate ?? p.createdAt ?? 0) <= end).reduce((s, p: any) => s + Number(p.amount ?? 0), 0);
-      const expense = expenses.filter((e: any) => { const ed = new Date(e.expenseDate ?? e.date ?? e.createdAt ?? 0); return ed >= d && ed <= end; }).reduce((s, e: any) => s + Number(e.amount ?? 0), 0);
-      return { month: d.toLocaleString("default", { month: "short" }), income, expense };
-    });
+    const chartMonths = (sum?.monthly ?? []).map(x => ({
+      month: new Date(`${x.month}-01T00:00:00`).toLocaleString("default", { month: "short" }),
+      income: x.income, expense: x.expense,
+    }));
 
-    const recentPayments = [...payments].filter((p: any) => p.status === "paid" || p.status === "completed").sort((a: any, b: any) => new Date(b.paidDate ?? b.createdAt ?? 0).getTime() - new Date(a.paidDate ?? a.createdAt ?? 0).getTime()).slice(0, 5);
+    const recentPayments = (sum?.payments.recentPaid ?? []).slice(0, 5);
     const recentMaint    = [...openMaint].sort((a: any, b: any) => { const ord: Record<string,number> = { urgent: 0, critical: 0, high: 1, medium: 2, low: 3 }; return (ord[a.priority] ?? 4) - (ord[b.priority] ?? 4); }).slice(0, 4);
     const topProperties  = [...properties].sort((a: any, b: any) => (b.totalUnits ?? 0) - (a.totalUnits ?? 0)).slice(0, 4);
 
     return {
       totalProperties: properties.length, totalUnits, occupiedUnits, occupancyPct,
-      activeTenants, pendingTenants, expiringLeases,
+      activeTenants, pendingTenants, expiringCount, expiringItems, totalTenants: sum?.tenants.total ?? 0, sampleTenants: sum?.tenants.sample ?? [],
       revenueThisMonth, overdueAmount, pendingAmount, netIncome,
-      overdueCount: overduePayments.length,
+      overdueCount: sum?.payments.overdueCount ?? 0,
       openMaint: openMaint.length, urgentMaint: urgentMaint.length,
       completedMTD: maintenance.filter((m: any) => m.status === "completed" && new Date(m.updatedAt ?? m.createdAt ?? 0) >= monthStart).length,
       chartMonths, recentPayments, recentMaint, topProperties,
     };
-  }, [properties, tenants, payments, maintenance, expenses]);
+  }, [properties, sum, maintenance]);
 
   if (isLoading) return <DashboardSkeleton />;
 
@@ -412,9 +403,9 @@ export default function DashboardClean() {
                 <AlertTriangle className="w-3.5 h-3.5" />{m.urgentMaint} urgent
               </button>
             )}
-            {m.expiringLeases.length > 0 && (
+            {m.expiringCount > 0 && (
               <button onClick={() => navigate("/tenants")} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-500/10 border border-amber-200 dark:border-amber-900 text-amber-600 dark:text-amber-400 text-xs font-medium hover:bg-amber-500/20 transition-colors">
-                <Bell className="w-3.5 h-3.5" />{m.expiringLeases.length} expiring
+                <Bell className="w-3.5 h-3.5" />{m.expiringCount} expiring
               </button>
             )}
             <button onClick={() => navigate("/reports")} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-foreground text-background text-xs font-medium hover:opacity-90 transition-opacity">
@@ -461,7 +452,7 @@ export default function DashboardClean() {
           <MetricCard
             label="Active Tenants"
             value={String(m.activeTenants)}
-            detail={`${m.pendingTenants} pending · ${m.expiringLeases.length} expiring soon`}
+            detail={`${m.pendingTenants} pending · ${m.expiringCount} expiring soon`}
             icon={Users} accent="bg-emerald-500"
             trend={null}
             onClick={() => navigate("/tenants")}
@@ -631,7 +622,7 @@ export default function DashboardClean() {
               {[
                 { label: "Active",   value: m.activeTenants,        color: "text-emerald-600 dark:text-emerald-400", bg: "bg-emerald-500/8 dark:bg-emerald-500/15" },
                 { label: "Pending",  value: m.pendingTenants,       color: "text-amber-600 dark:text-amber-400",     bg: "bg-amber-500/8 dark:bg-amber-500/15"     },
-                { label: "Expiring", value: m.expiringLeases.length, color: "text-red-600 dark:text-red-400",        bg: "bg-red-500/8 dark:bg-red-500/15"         },
+                { label: "Expiring", value: m.expiringCount, color: "text-red-600 dark:text-red-400",        bg: "bg-red-500/8 dark:bg-red-500/15"         },
               ].map(({ label, value, color, bg }) => (
                 <div key={label} className={`${bg} rounded-xl py-3 text-center`}>
                   <p className={`text-xl font-bold ${color} leading-none`}>{value}</p>
@@ -640,10 +631,10 @@ export default function DashboardClean() {
               ))}
             </div>
 
-            {m.expiringLeases.length > 0 ? (
+            {m.expiringCount > 0 ? (
               <div className="space-y-1">
                 <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-widest mb-2">Expiring in 30 days</p>
-                {m.expiringLeases.slice(0, 3).map((t: any) => (
+                {m.expiringItems.map((t: any) => (
                   <button key={t.id} onClick={() => navigate(`/tenants/${t.id}`)} className="w-full flex items-center gap-2.5 p-2 rounded-xl hover:bg-muted transition-colors text-left">
                     <Av name={`${t.firstName ?? ""} ${t.lastName ?? ""}`} />
                     <div className="flex-1 min-w-0">
@@ -653,11 +644,11 @@ export default function DashboardClean() {
                     <Clock className="w-3.5 h-3.5 text-amber-400 flex-shrink-0" />
                   </button>
                 ))}
-                {m.expiringLeases.length > 3 && <p className="text-xs text-muted-foreground px-2">+{m.expiringLeases.length - 3} more</p>}
+                {m.expiringCount > 3 && <p className="text-xs text-muted-foreground px-2">+{m.expiringCount - 3} more</p>}
               </div>
-            ) : tenants.length > 0 ? (
+            ) : m.totalTenants > 0 ? (
               <div className="space-y-1">
-                {(tenants as any[]).slice(0, 3).map(t => (
+                {m.sampleTenants.map((t: any) => (
                   <button key={t.id} onClick={() => navigate(`/tenants/${t.id}`)} className="w-full flex items-center gap-2.5 p-2 rounded-xl hover:bg-muted transition-colors text-left">
                     <Av name={`${t.firstName ?? ""} ${t.lastName ?? ""}`} />
                     <div className="flex-1 min-w-0">
@@ -675,7 +666,7 @@ export default function DashboardClean() {
         </div>
 
         {/* ── Alerts footer ── */}
-        {(m.urgentMaint > 0 || m.overdueCount > 0 || m.expiringLeases.length > 0) && (
+        {(m.urgentMaint > 0 || m.overdueCount > 0 || m.expiringCount > 0) && (
           <div className="rounded-2xl border border-amber-200 dark:border-amber-900 bg-amber-500/5 px-5 py-4">
             <div className="flex items-center gap-2 mb-3">
               <Activity className="w-4 h-4 text-amber-600 dark:text-amber-400" />
@@ -692,9 +683,9 @@ export default function DashboardClean() {
                   <DollarSign className="w-3.5 h-3.5" />{m.overdueCount} overdue · {fmtKES(m.overdueAmount)}
                 </button>
               )}
-              {m.expiringLeases.length > 0 && (
+              {m.expiringCount > 0 && (
                 <button onClick={() => navigate("/tenants")} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-500/10 border border-amber-200 dark:border-amber-900 text-amber-700 dark:text-amber-400 text-xs font-medium hover:bg-amber-500/20 transition-colors">
-                  <Clock className="w-3.5 h-3.5" />{m.expiringLeases.length} lease{m.expiringLeases.length > 1 ? "s" : ""} expiring in 30 days
+                  <Clock className="w-3.5 h-3.5" />{m.expiringCount} lease{m.expiringCount > 1 ? "s" : ""} expiring in 30 days
                 </button>
               )}
             </div>

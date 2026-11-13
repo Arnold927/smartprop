@@ -18,7 +18,7 @@ import {
   insertMpesaTransactionSchema,
 } from "@shared/schema";
 import { db } from "../db";
-import { eq, and, count, inArray } from "drizzle-orm";
+import { eq, and, or, ilike, asc, sql, count, inArray } from "drizzle-orm";
 import { properties } from "@shared/schema";
 import { authenticateJWT } from "../middleware/auth";
 import { requireOrg } from "../middleware/requireOrg";
@@ -32,7 +32,7 @@ const tenantRouter = Router();
 tenantRouter.use(authenticateJWT, requireOrg);
 
 // ── GET /api/tenants ──────────────────────────────────────────────────────────
-// ?page=1  &limit=20
+// ?page=1  &limit=20  &search=text (name, email or phone contains text)
 tenantRouter.get("/", async (req: any, res: any) => {
   try {
     const orgId: number  = req.user.organizationId;
@@ -81,14 +81,26 @@ tenantRouter.get("/", async (req: any, res: any) => {
     }
     // ── End owner scoping ────────────────────────────────────────────────────
 
-    const baseCondition = tenantIds
+    const scopeCondition = tenantIds
       ? and(eq(tenants.organizationId, orgId), inArray(tenants.id, tenantIds))
       : eq(tenants.organizationId, orgId);
+
+    // Optional text search (escape LIKE wildcards so "50%" or "_" match literally)
+    const searchText = typeof req.query.search === "string" ? req.query.search.trim().slice(0, 100) : "";
+    const like = `%${searchText.replace(/[\\%_]/g, (m: string) => "\\" + m)}%`;
+    const baseCondition = searchText
+      ? and(scopeCondition, or(
+          ilike(tenants.firstName, like), ilike(tenants.lastName, like),
+          ilike(sql`${tenants.firstName} || ' ' || ${tenants.lastName}`, like),
+          ilike(tenants.email, like), ilike(tenants.phone, like),
+        ))
+      : scopeCondition;
 
     const [rows, [{ total }]] = await Promise.all([
       db
         .select({
           id:             tenants.id,
+          userId:         tenants.userId,
           firstName:      tenants.firstName,
           lastName:       tenants.lastName,
           email:          tenants.email,
@@ -114,6 +126,7 @@ tenantRouter.get("/", async (req: any, res: any) => {
         .leftJoin(units, eq(tenants.unitId, units.id))
         .leftJoin(properties, eq(units.propertyId, properties.id))
         .where(baseCondition)
+        .orderBy(asc(tenants.id))   // stable order, otherwise paging can repeat/skip rows
         .limit(limit)
         .offset(offset),
       db
@@ -125,6 +138,7 @@ tenantRouter.get("/", async (req: any, res: any) => {
     // Reshape flat rows into the nested shape the frontend expects
     const results = rows.map(row => ({
       id:             row.id,
+      userId:         row.userId,
       firstName:      row.firstName,
       lastName:       row.lastName,
       email:          row.email,

@@ -103,29 +103,6 @@ export const queryClient = new QueryClient({
   },
 });
 
-/**
- * Fetch EVERY row of a paginated list endpoint (the API returns 20 rows per page
- * by default and caps a page at 100). Dashboards that add up or chart rows must
- * use this, not the bare list URL, or they only ever see the newest 20 records.
- * `sizeParam` is the page-size query name the endpoint understands
- * ("limit" for /api/tenants, "page_size" for /api/rent-payments).
- */
-export async function fetchAllPages<T = any>(
-  url: string, sizeParam: "limit" | "page_size" = "page_size", size = 100, maxPages = 30,
-): Promise<T[]> {
-  const sep = url.includes("?") ? "&" : "?";
-  const get = async (page: number) =>
-    (await apiRequest(`${url}${sep}${sizeParam}=${size}&page=${page}`)).json();
-  const first: any = await get(1);
-  const rows = ensureArray<T>(first);
-  if (Array.isArray(first)) return rows;
-  const total = Number(first?.count ?? rows.length);
-  const pages = Math.min(maxPages, Math.ceil(total / size));
-  if (pages <= 1) return rows;
-  const rest = await Promise.all(Array.from({ length: pages - 1 }, (_, i) => get(i + 2)));
-  return rows.concat(...rest.map(r => ensureArray<T>(r)));
-}
-
 export function ensureArray<T = any>(data: unknown): T[] {
   if (Array.isArray(data)) return data as T[];
   if (data && typeof data === "object") {

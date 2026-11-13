@@ -14,9 +14,9 @@ import { authenticateJWT } from "../middleware/auth";
 import { requireOrg } from "../middleware/requireOrg";
 import {
   properties, units, tenants, rentPayments, maintenanceRequests, projects, workOrders,
-  mpesaTransactions,
+  mpesaTransactions, propertyExpenses,
 } from "@shared/schema";
-import { eq, and, inArray, count, sql, gte, lte } from "drizzle-orm";
+import { eq, and, inArray, count, sql, gte, lte, gt, desc, asc } from "drizzle-orm";
 import { logger } from "../lib/logger";
 
 const router = Router();
@@ -208,5 +208,156 @@ router.get("/system-status", authenticateJWT, requireOrg, async (req: any, res) 
     res.status(500).json({ message: "Failed to fetch system status" });
   }
 });
+
+/**
+ * GET /api/dashboard/summary
+ *
+ * One aggregated payload for the Overview, Finance and Property Manager dashboards.
+ * Everything is summed in the database for the caller's organisation, so the browser
+ * never has to download (and page through) every tenant / payment / expense row.
+ *
+ * Definitions (kept identical to what the dashboards showed before):
+ *   paid      = status in (paid, completed)           — dated by paid_date, else due_date
+ *   overdue   = status = overdue                       — all time (rent still owed from any month)
+ *   pending   = every other unpaid status (pending, partial …), excluding cancelled
+ *   expenses  = status in (approved, paid), dated by expense_date
+ *   trend     = by due-date month, last 6 months that have payments
+ *   expiring  = lease ends after today and within 30 days
+ */
+const isoDay = (d: Date) => d.toISOString().slice(0, 10);
+const ym = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+
+router.get("/summary", authenticateJWT, requireOrg, async (req: any, res) => {
+  try {
+    const orgId: number = req.user.organizationId;
+    const now = new Date();
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+    const monthEnd   = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+    const sixAgo     = new Date(now.getFullYear(), now.getMonth() - 5, 1);
+    const in30       = new Date(now.getTime() + 30 * 86400000);
+
+    const PAID = ["paid", "completed"];
+    const payOrg = and(eq(tenants.organizationId, orgId));
+    const paidDay = sql`COALESCE(${rentPayments.paidDate}, ${rentPayments.dueDate})`;
+
+    // ── tenants ───────────────────────────────────────────────────────────────
+    const tenantRows = await db
+      .select({ status: tenants.status, n: count() })
+      .from(tenants).where(eq(tenants.organizationId, orgId)).groupBy(tenants.status);
+    const tenantByStatus: Record<string, number> = {};
+    let tenantTotal = 0;
+    for (const r of tenantRows) { tenantByStatus[r.status ?? "unknown"] = Number(r.n); tenantTotal += Number(r.n); }
+
+    const expiringWhere = and(
+      eq(tenants.organizationId, orgId),
+      gt(tenants.leaseEndDate, isoDay(now)),
+      lte(tenants.leaseEndDate, isoDay(in30)),
+    );
+    const [expiringCount] = await db.select({ n: count() }).from(tenants).where(expiringWhere);
+    const expiringItems = await db
+      .select({ id: tenants.id, firstName: tenants.firstName, lastName: tenants.lastName, leaseEndDate: tenants.leaseEndDate })
+      .from(tenants).where(expiringWhere).orderBy(asc(tenants.leaseEndDate)).limit(3);
+    const sampleTenants = await db
+      .select({ id: tenants.id, firstName: tenants.firstName, lastName: tenants.lastName, status: tenants.status })
+      .from(tenants).where(eq(tenants.organizationId, orgId)).orderBy(desc(tenants.createdAt)).limit(3);
+
+    // ── payments: totals by bucket ────────────────────────────────────────────
+    const [paidMonth] = await db
+      .select({ total: sql<string>`COALESCE(SUM(${rentPayments.amount}), 0)`, n: count() })
+      .from(rentPayments).innerJoin(tenants, eq(rentPayments.tenantId, tenants.id))
+      .where(and(payOrg, inArray(rentPayments.status, PAID),
+        gte(paidDay, isoDay(monthStart)), lte(paidDay, isoDay(monthEnd))));
+    const [overdue] = await db
+      .select({ total: sql<string>`COALESCE(SUM(${rentPayments.amount}), 0)`, n: count() })
+      .from(rentPayments).innerJoin(tenants, eq(rentPayments.tenantId, tenants.id))
+      .where(and(payOrg, eq(rentPayments.status, "overdue")));
+    const [pending] = await db
+      .select({ total: sql<string>`COALESCE(SUM(${rentPayments.amount}), 0)`, n: count() })
+      .from(rentPayments).innerJoin(tenants, eq(rentPayments.tenantId, tenants.id))
+      .where(and(payOrg, sql`${rentPayments.status} NOT IN ('paid','completed','overdue','cancelled')`));
+
+    // ── payments: monthly income (calendar months, by paid date) ─────────────
+    const incomeRows = await db
+      .select({ m: sql<string>`to_char(${paidDay}, 'YYYY-MM')`, total: sql<string>`COALESCE(SUM(${rentPayments.amount}), 0)` })
+      .from(rentPayments).innerJoin(tenants, eq(rentPayments.tenantId, tenants.id))
+      .where(and(payOrg, inArray(rentPayments.status, PAID), gte(paidDay, isoDay(sixAgo))))
+      .groupBy(sql`to_char(${paidDay}, 'YYYY-MM')`);
+    const incomeBy: Record<string, number> = {};
+    incomeRows.forEach(r => { incomeBy[r.m] = Number(r.total); });
+
+    // ── payments: due-month trend (collected / pending / overdue) ────────────
+    const trendRows = await db
+      .select({
+        m: sql<string>`to_char(${rentPayments.dueDate}, 'YYYY-MM')`,
+        collected: sql<string>`COALESCE(SUM(CASE WHEN ${rentPayments.status} IN ('paid','completed') THEN ${rentPayments.amount} ELSE 0 END), 0)`,
+        pending:   sql<string>`COALESCE(SUM(CASE WHEN ${rentPayments.status} NOT IN ('paid','completed','overdue','cancelled') THEN ${rentPayments.amount} ELSE 0 END), 0)`,
+        overdue:   sql<string>`COALESCE(SUM(CASE WHEN ${rentPayments.status} = 'overdue' THEN ${rentPayments.amount} ELSE 0 END), 0)`,
+      })
+      .from(rentPayments).innerJoin(tenants, eq(rentPayments.tenantId, tenants.id))
+      .where(payOrg)
+      .groupBy(sql`to_char(${rentPayments.dueDate}, 'YYYY-MM')`)
+      .orderBy(desc(sql`to_char(${rentPayments.dueDate}, 'YYYY-MM')`)).limit(6);
+    const dueTrend = trendRows.reverse().map(r => ({
+      month: r.m, collected: Number(r.collected), pending: Number(r.pending), overdue: Number(r.overdue),
+    }));
+
+    // ── payments: latest 6 received ──────────────────────────────────────────
+    const recentPaid = await db
+      .select({
+        id: rentPayments.id, amount: rentPayments.amount, paidDate: rentPayments.paidDate,
+        createdAt: rentPayments.createdAt, invoiceNumber: rentPayments.invoiceNumber,
+        firstName: tenants.firstName, lastName: tenants.lastName,
+      })
+      .from(rentPayments).innerJoin(tenants, eq(rentPayments.tenantId, tenants.id))
+      .where(and(payOrg, inArray(rentPayments.status, PAID)))
+      .orderBy(sql`${rentPayments.paidDate} DESC NULLS LAST`, desc(rentPayments.createdAt)).limit(6);
+
+    // ── expenses: monthly (approved + paid) ──────────────────────────────────
+    const expRows = await db
+      .select({ m: sql<string>`to_char(${propertyExpenses.expenseDate}, 'YYYY-MM')`, total: sql<string>`COALESCE(SUM(${propertyExpenses.amount}), 0)` })
+      .from(propertyExpenses).innerJoin(properties, eq(propertyExpenses.propertyId, properties.id))
+      .where(and(eq(properties.organizationId, orgId),
+        inArray(propertyExpenses.status, ["approved", "paid"]),
+        gte(propertyExpenses.expenseDate, sixAgo)))
+      .groupBy(sql`to_char(${propertyExpenses.expenseDate}, 'YYYY-MM')`);
+    const expenseBy: Record<string, number> = {};
+    expRows.forEach(r => { expenseBy[r.m] = Number(r.total); });
+
+    // six calendar months ending this month
+    const monthly = Array.from({ length: 6 }, (_, i) => {
+      const d = new Date(now.getFullYear(), now.getMonth() - (5 - i), 1);
+      const key = ym(d);
+      return { month: key, income: incomeBy[key] ?? 0, expense: expenseBy[key] ?? 0 };
+    });
+
+    res.json({
+      generatedAt: now.toISOString(),
+      tenants: {
+        total: tenantTotal,
+        active: tenantByStatus["active"] ?? 0,
+        pending: tenantByStatus["pending"] ?? 0,
+        byStatus: tenantByStatus,
+        expiringLeases: { count: Number(expiringCount?.n ?? 0), items: expiringItems },
+        sample: sampleTenants,
+      },
+      payments: {
+        revenueThisMonth: Number(paidMonth?.total ?? 0), collectedCount: Number(paidMonth?.n ?? 0),
+        overdueAmount: Number(overdue?.total ?? 0),      overdueCount: Number(overdue?.n ?? 0),
+        pendingAmount: Number(pending?.total ?? 0),      pendingCount: Number(pending?.n ?? 0),
+        recentPaid: recentPaid.map(p => ({
+          id: p.id, amount: p.amount, paidDate: p.paidDate, createdAt: p.createdAt, invoiceNumber: p.invoiceNumber,
+          tenant: { firstName: p.firstName, lastName: p.lastName },
+        })),
+      },
+      expensesThisMonth: expenseBy[ym(now)] ?? 0,
+      monthly,
+      dueTrend,
+    });
+  } catch (error) {
+    logger.error("Dashboard summary error:", error);
+    res.status(500).json({ message: "Failed to fetch dashboard summary" });
+  }
+});
+
 
 export default router;
