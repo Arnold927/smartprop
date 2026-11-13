@@ -1753,7 +1753,7 @@ const GeneralLedger = ({ onNavigateToSettings }: { onNavigateToSettings?: () => 
               <div className="relative flex-1 max-w-sm">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
-                  placeholder="Search by transaction ID, account, description…"
+                  placeholder="Search transactions…"
                   value={ledgerSearch}
                   onChange={(e) => { setLedgerSearch(e.target.value); setLedgerPage(1); }}
                   className="pl-9"

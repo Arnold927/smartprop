@@ -1109,13 +1109,13 @@ export default function MaintenanceDetails() {
               ) : tenant ? (
                 <div className="space-y-4">
                   <div className="flex items-center space-x-3">
-                    <Avatar>
+                    <Avatar className="shrink-0">
                       <AvatarFallback className="bg-blue-50 text-blue-600">
                         {tenant.firstName?.charAt(0)}{tenant.lastName?.charAt(0)}
                       </AvatarFallback>
                     </Avatar>
-                    <div>
-                      <p className="font-medium text-foreground">
+                    <div className="min-w-0">
+                      <p className="font-medium text-foreground break-words">
                         {tenant.firstName} {tenant.lastName}
                       </p>
                       <p className="text-sm text-muted-foreground">Tenant</p>
@@ -1124,14 +1124,14 @@ export default function MaintenanceDetails() {
 
                   <div className="space-y-2">
                     {tenant.email && (
-                      <Button variant="ghost" size="sm" className="w-full justify-start text-foreground">
-                        <Mail className="h-4 w-4 mr-2" />
+                      <Button variant="ghost" size="sm" className="w-full justify-start text-foreground h-auto min-h-9 py-1.5 whitespace-normal text-left break-all">
+                        <Mail className="h-4 w-4 mr-2 shrink-0" />
                         {tenant.email}
                       </Button>
                     )}
                     {tenant.phone && (
-                      <Button variant="ghost" size="sm" className="w-full justify-start text-foreground">
-                        <Phone className="h-4 w-4 mr-2" />
+                      <Button variant="ghost" size="sm" className="w-full justify-start text-foreground h-auto min-h-9 py-1.5 whitespace-normal text-left break-all">
+                        <Phone className="h-4 w-4 mr-2 shrink-0" />
                         {tenant.phone}
                       </Button>
                     )}
@@ -1222,7 +1222,7 @@ export default function MaintenanceDetails() {
                     <div key={doc.id} className="flex items-center justify-between p-2 border border-border rounded hover:bg-muted">
                       <div className="flex items-center space-x-2">
                         <Paperclip className="h-4 w-4 text-muted-foreground" />
-                        <span className="text-sm truncate max-w-[150px]">{doc.name}</span>
+                        <span className="text-sm break-words max-w-[150px]">{doc.name}</span>
                       </div>
                       <Button variant="ghost" size="sm" className="h-8 w-8 p-0" aria-label={`Download ${doc.name}`} onClick={() => { if ((doc as any).url) window.open((doc as any).url, "_blank", "noopener"); }}>
                         <Download className="h-4 w-4" />

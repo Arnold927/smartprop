@@ -254,7 +254,7 @@ export default function SeniorManagerDashboard() {
                 <div className="pt-2 space-y-2">
                   {[
                     { label: "Overall Risk Level", value: riskLevel, valueClass: riskColor },
-                    { label: "Net ROI",             value: `${netROI}%`, valueClass: "text-foreground" },
+                    { label: "Net ROI",             value: netROI !== null ? `${netROI}%` : "—", valueClass: "text-foreground" },
                     { label: "Overdue Rent Cases",  value: String(md.overdueRent ?? 0), valueClass: md.overdueRent > 0 ? "text-red-600 dark:text-red-400" : "text-foreground" },
                   ].map(row => (
                     <div key={row.label} className="flex items-center justify-between py-2 border-b border-border last:border-0">

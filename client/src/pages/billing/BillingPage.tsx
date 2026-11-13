@@ -179,9 +179,9 @@ export default function BillingPage() {
                   </div>
                 )}
                 <CardHeader className="pb-2">
-                  <div className="flex items-center gap-2 mb-1">
-                    {PLAN_ICONS[plan.id]}
-                    <CardTitle className="text-lg">{plan.name}</CardTitle>
+                  <div className="flex items-center gap-2 mb-1 min-w-0">
+                    <span className="shrink-0 flex">{PLAN_ICONS[plan.id]}</span>
+                    <CardTitle className="text-lg min-w-0 break-words">{plan.name}</CardTitle>
                   </div>
                   <CardDescription>
                     <span className="text-2xl font-semibold text-foreground">
@@ -202,7 +202,7 @@ export default function BillingPage() {
                 </CardContent>
                 <CardFooter>
                   <Button
-                    className="w-full"
+                    className="w-full h-auto min-h-10 py-2 whitespace-normal text-center break-words"
                     variant={isCurrent ? "outline" : "default"}
                     disabled={isCurrent || checkingOut === plan.id}
                     onClick={() => handleCheckout(plan.id)}

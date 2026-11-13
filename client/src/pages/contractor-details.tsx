@@ -772,7 +772,7 @@ const { data: contractor, isLoading, error } = useQuery<ServiceContractor>({
  </div>
  <div>
  <p className="text-sm font-medium text-foreground">Contractor Email</p>
- <p className="text-sm text-blue-600 font-medium truncate max-w-[180px]">{contractor.email || 'N/A'}</p>
+ <p className="text-sm text-blue-600 font-medium break-words max-w-[180px]">{contractor.email || 'N/A'}</p>
  </div>
  </div>
  <ChevronRight className="w-4 h-4 text-muted-foreground group-hover:text-blue-500 transition-colors" />

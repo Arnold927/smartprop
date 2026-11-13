@@ -1871,7 +1871,7 @@ export default function WhatsAppIntegration() {
                 <SearchBar
                   value={msgSearch}
                   onChange={handleMsgSearch}
-                  placeholder="Search by recipient, message, type or status…"
+                  placeholder="Search messages…"
                 />
                 {/* Status filter pills */}
                 <div className="flex flex-wrap gap-2 pt-1">
@@ -2025,7 +2025,7 @@ export default function WhatsAppIntegration() {
                     <RefreshCw className="h-3.5 w-3.5" />
                   </Button>
                 </div>
-                <SearchBar value={inboxSearch} onChange={handleInboxSearch} placeholder="Name, unit, phone, or message…" />
+                <SearchBar value={inboxSearch} onChange={handleInboxSearch} placeholder="Search chats…" />
               </CardHeader>
               <CardContent className="p-0 flex-1 overflow-y-auto">
                 {loadingConversations ? (
@@ -2453,7 +2453,7 @@ export default function WhatsAppIntegration() {
                 <SearchBar
                   value={tmplSearch}
                   onChange={handleTmplSearch}
-                  placeholder="Search by name, category, content or status…"
+                  placeholder="Search templates…"
                 />
               </div>
             </CardHeader>

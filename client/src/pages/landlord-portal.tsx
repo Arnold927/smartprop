@@ -1298,7 +1298,7 @@ function LandlordMessagesPanel({
                     {composeAttachments.map((a, i) => (
                       <div key={i} className="flex items-center gap-1.5 bg-muted rounded-lg px-2 py-1 text-xs border border-border">
                         <Paperclip className="w-3 h-3 text-muted-foreground" />
-                        <span className="max-w-[140px] truncate">{a.name}</span>
+                        <span className="max-w-[140px] break-words">{a.name}</span>
                         <span className="text-muted-foreground">({(a.size / 1024).toFixed(0)}KB)</span>
                         <button onClick={() => setComposeAttachments(prev => prev.filter((_, j) => j !== i))}>
                           <X className="w-3 h-3 text-muted-foreground hover:text-red-500" />
@@ -1360,7 +1360,7 @@ function LandlordMessagesPanel({
                                 <a key={i} href={a.url} target="_blank" rel="noopener noreferrer"
                                   className={`flex items-center gap-1.5 text-xs rounded-lg px-2 py-1 ${isMe ? "bg-blue-500 hover:bg-blue-400" : "bg-white/60 dark:bg-white/10 hover:bg-white/80"} transition-colors`}>
                                   <Download className="w-3 h-3 shrink-0" />
-                                  <span className="truncate max-w-[160px]">{a.name}</span>
+                                  <span className="break-words max-w-[160px]">{a.name}</span>
                                   <span className="shrink-0 opacity-70">({(a.size / 1024).toFixed(0)}KB)</span>
                                 </a>
                               ))}
@@ -1383,7 +1383,7 @@ function LandlordMessagesPanel({
                       {(replyAttachments[thread.subject] ?? []).map((a, i) => (
                         <div key={i} className="flex items-center gap-1.5 bg-muted rounded-lg px-2 py-1 text-xs">
                           <Paperclip className="w-3 h-3 text-muted-foreground" />
-                          <span className="max-w-[120px] truncate">{a.name}</span>
+                          <span className="max-w-[120px] break-words">{a.name}</span>
                           <button onClick={() => setReplyAttachments(prev => ({ ...prev, [thread.subject]: (prev[thread.subject] ?? []).filter((_, j) => j !== i) }))}>
                             <X className="w-3 h-3 text-muted-foreground hover:text-red-500" />
                           </button>
@@ -1540,7 +1540,7 @@ function TenantPaymentHistory({ tenantId, currency }: { tenantId: number; curren
               <td className="py-2 pr-3 whitespace-nowrap">{p.paidDate ? format(new Date(p.paidDate), "d MMM yyyy") : <span className="text-muted-foreground">—</span>}</td>
               <td className="py-2 pr-3 text-right font-semibold whitespace-nowrap">{currency ?? "KES"} {(Number(p.amount) || 0).toLocaleString("en-KE")}</td>
               <td className="py-2 pr-3 capitalize whitespace-nowrap">{p.paymentMethod?.replace("_", " ") ?? "—"}</td>
-              <td className="py-2 pr-3 font-mono text-[10px] max-w-[100px] truncate">{p.mpesaTransactionId ?? p.bankReference ?? p.invoiceNumber ?? "—"}</td>
+              <td className="py-2 pr-3 font-mono text-[10px] max-w-[100px] break-words">{p.mpesaTransactionId ?? p.bankReference ?? p.invoiceNumber ?? "—"}</td>
               <td className="py-2">
                 <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold capitalize ${STATUS_CLS[p.status] ?? STATUS_CLS.pending}`}>
                   {p.status ?? "pending"}
@@ -3581,7 +3581,7 @@ export default function LandlordPortal({ ownerId }: LandlordPortalProps) {
                         return (
                           <div key={v.name}>
                             <div className="flex justify-between text-xs mb-1">
-                              <span className="font-medium truncate max-w-[200px]">{v.name}</span>
+                              <span className="font-medium break-words max-w-[200px]">{v.name}</span>
                               <span className="text-muted-foreground ml-2 shrink-0">KES {v.total.toLocaleString("en-KE")} · {v.count} item{v.count > 1 ? "s" : ""}</span>
                             </div>
                             <div className="h-1.5 bg-muted rounded-full overflow-hidden">
@@ -3716,7 +3716,7 @@ export default function LandlordPortal({ ownerId }: LandlordPortalProps) {
                               <td className="py-3 pr-4 whitespace-nowrap text-xs text-muted-foreground">{e.expenseDate ? format(new Date(e.expenseDate), "d MMM yyyy") : "—"}</td>
                               <td className="py-3 pr-4 font-medium">{e.vendorName}</td>
                               <td className="py-3 pr-4"><Badge variant="secondary" className="text-[10px] capitalize">{String(e.category ?? "").replace(/_/g, " ")}</Badge></td>
-                              <td className="py-3 pr-4 text-muted-foreground max-w-[200px] truncate">{e.description}</td>
+                              <td className="py-3 pr-4 text-muted-foreground max-w-[200px] break-words">{e.description}</td>
                               <td className="py-3 pr-4 text-right font-semibold">{e.currency || "KES"} {(Number(e.amount) || 0).toLocaleString("en-KE")}</td>
                               <td className="py-3 pr-4">
                                 <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full capitalize ${
@@ -3845,7 +3845,8 @@ export default function LandlordPortal({ ownerId }: LandlordPortalProps) {
                   ) : (
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                       {filtered.map((doc: any) => {
-                        const ext = doc.name?.split(".").pop()?.toUpperCase() ?? "FILE";
+                        const rawExt = (doc.name ?? "").includes(".") ? (doc.name as string).split(".").pop()!.trim() : "";
+                        const ext = /^[A-Za-z0-9]{1,5}$/.test(rawExt) ? rawExt.toUpperCase() : "FILE";
                         const EXT_COLORS: Record<string, string> = { PDF: "bg-red-100 text-red-700", DOCX: "bg-blue-100 text-blue-700", DOC: "bg-blue-100 text-blue-700", XLSX: "bg-emerald-50 text-emerald-700 border border-emerald-200", JPG: "bg-purple-100 text-purple-700", JPEG: "bg-purple-100 text-purple-700", PNG: "bg-purple-100 text-purple-700" };
                         return (
                           <div key={doc.id} className="flex items-center gap-3 p-3 rounded-xl border border-border hover:border-primary/30 hover:shadow-sm transition-all group">

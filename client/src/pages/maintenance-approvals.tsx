@@ -266,7 +266,7 @@ export default function MaintenanceApprovals() {
                         <TableRow key={req.id} className="hover:bg-muted/30 cursor-pointer" onClick={() => handleReview(req)}>
                           <TableCell>
                             <p className="font-medium text-sm text-foreground">{req.title}</p>
-                            <p className="text-xs text-muted-foreground truncate max-w-[240px]">{req.description}</p>
+                            <p className="text-xs text-muted-foreground break-words max-w-[240px]">{req.description}</p>
                           </TableCell>
                           <TableCell><PriorityBadge priority={req.priority} /></TableCell>
                           <TableCell>
@@ -363,7 +363,7 @@ export default function MaintenanceApprovals() {
                       <TableRow key={req.id} className="hover:bg-muted/30">
                         <TableCell>
                           <p className="font-medium text-sm text-foreground">{req.title}</p>
-                          <p className="text-xs text-muted-foreground truncate max-w-[240px]">{req.description}</p>
+                          <p className="text-xs text-muted-foreground break-words max-w-[240px]">{req.description}</p>
                         </TableCell>
                         <TableCell><StatusBadge status={req.approval_status} /></TableCell>
                         <TableCell className="text-sm font-medium">{formatCost(req.estimatedCost)}</TableCell>

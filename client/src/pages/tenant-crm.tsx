@@ -661,7 +661,7 @@ export default function TenantCRM() {
                 <div className="flex items-center gap-2">
                   <div className="relative w-full sm:w-56">
                     <Input
-                      placeholder="Search tenants, property, status…"
+                      placeholder="Search leases…"
                       value={overviewSearch}
                       onChange={(e) => { setOverviewSearch(e.target.value); setOverviewPage(1); }}
                       className="pl-9"
@@ -714,7 +714,7 @@ export default function TenantCRM() {
                             <div className="font-medium">
                               {lease.firstName} {lease.lastName}
                             </div>
-                            <div className="text-sm text-muted-foreground break-all sm:truncate sm:max-w-[180px]">{lease.email}</div>
+                            <div className="text-sm text-muted-foreground break-all">{lease.email}</div>
                           </TableCell>
                           <TableCell>
                             <div className="font-medium">{lease.propertyName || "—"}</div>
@@ -866,7 +866,7 @@ export default function TenantCRM() {
                 <div className="flex items-center gap-2">
                   <div className="relative w-full sm:w-56">
                     <Input
-                      placeholder="Search by name, email, status…"
+                      placeholder="Search tenants…"
                       value={kycSearch}
                       onChange={(e) => { setKycSearch(e.target.value); setKycPage(1); }}
                       className="pl-9"
@@ -914,7 +914,7 @@ export default function TenantCRM() {
                           <TableRow key={lease.tenantId} className="hover:bg-muted/40 transition-colors">
                             <TableCell className="pl-6">
                               <div className="font-medium">{lease.firstName} {lease.lastName}</div>
-                              <div className="text-sm text-muted-foreground break-all sm:truncate sm:max-w-[200px]">{lease.email}</div>
+                              <div className="text-sm text-muted-foreground break-all">{lease.email}</div>
                             </TableCell>
                             <TableCell>
                               {lease.unitNumber ? (

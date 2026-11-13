@@ -243,7 +243,7 @@ export default function TenantRentPayments({
               <div className={`p-2 rounded-lg ${kpi.bg} flex-shrink-0`}>{kpi.icon}</div>
               <div className="min-w-0">
                 <p className="text-[11px] uppercase tracking-wide text-muted-foreground font-medium">{kpi.label}</p>
-                <p className="text-base font-bold text-foreground truncate">{kpi.value}</p>
+                <p className="text-sm sm:text-base font-bold text-foreground break-words">{kpi.value}</p>
                 <p className="text-[11px] text-muted-foreground">{kpi.sub}</p>
               </div>
             </CardContent>
@@ -253,14 +253,14 @@ export default function TenantRentPayments({
 
       {/* ── Invoice list ─────────────────────────────────────────────────── */}
       <Card className="rounded-2xl shadow-none border-border dark:border-gray-800">
-        <CardHeader className="pb-3 pt-5 px-5 flex flex-row items-center justify-between">
-          <div>
+        <CardHeader className="pb-3 pt-5 px-5 flex flex-row items-center justify-between flex-wrap gap-2 space-y-0">
+          <div className="min-w-0">
             <CardTitle className="text-sm font-semibold">Invoices</CardTitle>
             <CardDescription className="text-xs mt-0.5">
               Auto-generated monthly · record payment once received
             </CardDescription>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             <Button variant="outline" size="sm" className="h-8" onClick={handleExport}>
               <Download className="h-3.5 w-3.5 mr-1.5" />Export
             </Button>
@@ -299,7 +299,7 @@ export default function TenantRentPayments({
         <CardContent className="px-5 pb-5">
           {/* Toolbar */}
           <div className="flex items-center gap-2 flex-wrap mb-4">
-            <div className="relative flex-1 min-w-0 max-w-xs">
+            <div className="relative flex-1 min-w-[10rem] max-w-xs">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
               <Input
                 value={search}

@@ -253,7 +253,7 @@ function CertModal({
             <Label>Regulatory Authority *</Label>
             <Select value={form.authority} onValueChange={v => set("authority", v)}>
               <SelectTrigger className="mt-1.5">
-                <SelectValue />
+                <SelectValue>{AUTHORITIES.find(a => a.value === form.authority)?.label ?? form.authority}</SelectValue>
               </SelectTrigger>
               <SelectContent>
                 {AUTHORITIES.map(a => (
@@ -294,7 +294,7 @@ function CertModal({
             <Label>Certificate Title / Description *</Label>
             <Input
               className="mt-1.5"
-              placeholder="e.g. NEMA EIA Licence — Westlands Mixed-Use Development"
+              placeholder="e.g. NEMA EIA Licence"
               value={form.title}
               onChange={e => set("title", e.target.value)}
             />
@@ -387,7 +387,7 @@ function CertModal({
             <Label>Document URL</Label>
             <Input
               className="mt-1.5"
-              placeholder="Link to scanned certificate (Google Drive, S3, etc.)"
+              placeholder="Link to scanned certificate"
               value={form.documentUrl}
               onChange={e => set("documentUrl", e.target.value)}
             />

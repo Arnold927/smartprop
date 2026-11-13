@@ -897,6 +897,11 @@ button[role="combobox"][class] > span:not(:empty) {
 button[role="combobox"] > span {
   min-width: 0;
 }
+/* Inside pop-ups a dropdown fills its form column and shortens a very long value
+   with "…" instead of growing over the neighbouring field. */
+:is([role="dialog"], [role="alertdialog"]) button[role="combobox"][class] {
+  min-width: 0;
+}
 
 /* ── Tabs ────────────────────────────────────────────────────────────────────
    A row of 4+ tabs on a phone scrolls sideways as one tidy line (instead of a
@@ -943,6 +948,11 @@ button[role="combobox"] > span {
 @media (max-width: 480px) {
   :is([role="dialog"], [role="alertdialog"]) :is(.grid-cols-2, .grid-cols-3):has(input:not([type="checkbox"]):not([type="radio"]), textarea, button[role="combobox"]) {
     grid-template-columns: minmax(0, 1fr);
+  }
+  /* children that span 2-3 columns must not create an extra implicit column
+     once the grid is a single column (Add Utility Bill, Add Tenant meters…) */
+  :is([role="dialog"], [role="alertdialog"]) :is(.grid-cols-2, .grid-cols-3):has(input:not([type="checkbox"]):not([type="radio"]), textarea, button[role="combobox"]) > [class*="col-span-"] {
+    grid-column: 1 / -1;
   }
 }
 

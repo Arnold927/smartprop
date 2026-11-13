@@ -286,11 +286,11 @@ function PaymentMethodSection({
           </div>
         </div>
 
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div className="space-y-1.5">
             <Label className="text-xs">Bank Name</Label>
             <Input
-              placeholder="e.g. Equity Bank"
+              placeholder="Equity Bank"
               value={account.bankName}
               onChange={e => onChange({ bankName: e.target.value })}
             />
@@ -298,7 +298,7 @@ function PaymentMethodSection({
           <div className="space-y-1.5">
             <Label className="text-xs">Account Number</Label>
             <Input
-              placeholder="e.g. 0123456789"
+              placeholder="0123456789"
               value={account.bankAccountNumber}
               onChange={e => onChange({ bankAccountNumber: e.target.value })}
             />
@@ -306,7 +306,7 @@ function PaymentMethodSection({
           <div className="space-y-1.5">
             <Label className="text-xs">Account Name</Label>
             <Input
-              placeholder="e.g. ABC Properties Ltd"
+              placeholder="Account name"
               value={account.bankAccountName}
               onChange={e => onChange({ bankAccountName: e.target.value })}
             />
@@ -314,7 +314,7 @@ function PaymentMethodSection({
           <div className="space-y-1.5">
             <Label className="text-xs">Branch (optional)</Label>
             <Input
-              placeholder="e.g. Westlands Branch"
+              placeholder="Branch"
               value={account.bankBranch}
               onChange={e => onChange({ bankBranch: e.target.value })}
             />

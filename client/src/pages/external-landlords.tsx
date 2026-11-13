@@ -135,10 +135,10 @@ export default function ExternalLandlordsPage() {
           <Button variant="ghost" size="sm" className="gap-1.5 -ml-2" onClick={() => setSelectedId(null)}>
             <ArrowLeft className="h-4 w-4" /> Back to list
           </Button>
-          <div className="flex items-center gap-3 mb-2">
-            <h2 className="text-base font-semibold">{selected.name}</h2>
-            {selected.phone && <span className="text-sm text-muted-foreground flex items-center gap-1"><Phone className="h-3.5 w-3.5" /> {selected.phone}</span>}
-            {selected.email && <span className="text-sm text-muted-foreground flex items-center gap-1"><Mail className="h-3.5 w-3.5" /> {selected.email}</span>}
+          <div className="flex items-center gap-x-3 gap-y-1 mb-2 flex-wrap">
+            <h2 className="text-base font-semibold break-words min-w-0">{selected.name}</h2>
+            {selected.phone && <span className="text-sm text-muted-foreground flex items-center gap-1 min-w-0"><Phone className="h-3.5 w-3.5 shrink-0" /> <span className="break-all">{selected.phone}</span></span>}
+            {selected.email && <span className="text-sm text-muted-foreground flex items-center gap-1 min-w-0"><Mail className="h-3.5 w-3.5 shrink-0" /> <span className="break-all">{selected.email}</span></span>}
           </div>
           <PaymentConfigPanel scope="external" externalLandlordId={selected.id} organizationId={orgIdParam} />
         </div>
@@ -168,8 +168,8 @@ export default function ExternalLandlordsPage() {
                   )}
                 </div>
                 <div className="flex items-center gap-3 text-xs text-muted-foreground mt-1 flex-wrap">
-                  {l.phone && <span className="flex items-center gap-1"><Phone className="h-3 w-3" /> {l.phone}</span>}
-                  {l.email && <span className="flex items-center gap-1"><Mail className="h-3 w-3" /> {l.email}</span>}
+                  {l.phone && <span className="flex items-center gap-1 min-w-0"><Phone className="h-3 w-3 shrink-0" /> <span className="break-all">{l.phone}</span></span>}
+                  {l.email && <span className="flex items-center gap-1 min-w-0"><Mail className="h-3 w-3 shrink-0" /> <span className="break-all">{l.email}</span></span>}
                   <span className="flex items-center gap-1"><Home className="h-3 w-3" /> {l.propertyCount} propert{l.propertyCount === 1 ? "y" : "ies"}</span>
                 </div>
               </div>

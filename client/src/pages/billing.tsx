@@ -332,8 +332,8 @@ export default function Billing() {
               <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 bg-${color}-50`}>
                 <Icon className={`w-4 h-4 text-${color}-600`} />
               </div>
-              <div>
-                <p className="text-lg font-semibold">{value}</p>
+              <div className="min-w-0">
+                <p className="text-base sm:text-lg font-semibold break-words">{value}</p>
                 <p className="text-xs text-muted-foreground">{label}</p>
               </div>
             </CardContent>
@@ -501,7 +501,7 @@ export default function Billing() {
                         return (
                           <tr key={b.id} className="hover:bg-muted/40 transition-colors">
                             <td className="px-4 py-2.5 font-mono text-xs">{b.billNumber||`BILL-${b.id}`}</td>
-                            <td className="px-4 py-2.5 text-xs max-w-[100px] truncate">{acct?.accountNumber||"—"}</td>
+                            <td className="px-4 py-2.5 text-xs max-w-[100px] break-words">{acct?.accountNumber||"—"}</td>
                             <td className="px-4 py-2.5 text-xs whitespace-nowrap text-muted-foreground">
                               {b.billingPeriodStart ? fmtDate(b.billingPeriodStart).replace(/\d\d$/, "").trim() : "—"}
                             </td>
@@ -574,7 +574,7 @@ export default function Billing() {
                     <tbody className="divide-y divide-border/50">
                       {paged(filteredCharges, cPage, cSize).map((c: RecurringCharge) => (
                         <tr key={c.id} className="hover:bg-muted/40 transition-colors">
-                          <td className="px-4 py-2.5 font-medium break-words sm:max-w-[130px] sm:truncate">{c.chargeName}</td>
+                          <td className="px-4 py-2.5 font-medium break-words">{c.chargeName}</td>
                           <td className="px-4 py-2.5 text-xs capitalize">{(c.chargeType||"").replace(/_/g," ")}</td>
                           <td className="px-4 py-2.5 whitespace-nowrap">{fmtMoney(c.amount)}</td>
                           <td className="px-4 py-2.5 text-xs capitalize">{c.frequency}</td>
@@ -648,7 +648,7 @@ export default function Billing() {
                       {paged(filteredInvoices, iPage, iSize).map((i: Invoice) => (
                         <tr key={i.id} className="hover:bg-muted/40 transition-colors">
                           <td className="px-4 py-2.5 font-mono text-xs whitespace-nowrap">{i.invoiceNumber}</td>
-                          <td className="px-4 py-2.5 max-w-[150px] truncate text-xs">{i.description||"Invoice"}</td>
+                          <td className="px-4 py-2.5 max-w-[150px] break-words text-xs">{i.description||"Invoice"}</td>
                           <td className="px-4 py-2.5 whitespace-nowrap">{fmtMoney(i.amount)}</td>
                           <td className="px-4 py-2.5 text-xs whitespace-nowrap">{fmtDate(i.dueDate)}</td>
                           <td className="px-4 py-2.5 text-xs whitespace-nowrap">{fmtDate(i.paidDate)}</td>

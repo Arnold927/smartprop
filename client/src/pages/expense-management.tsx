@@ -925,7 +925,7 @@ export default function ExpenseManagement() {
               <FilterBar
                 search={servicesSearch}
                 onSearch={(v) => { setServicesSearch(v); servicesPag.reset(); }}
-                placeholder="Search by title, service type, or contract #..."
+                placeholder="Search title, type, contract #…"
                 filters={
                   <>
                     <Select value={servicesStatus} onValueChange={(v) => { setServicesStatus(v); servicesPag.reset(); }}>

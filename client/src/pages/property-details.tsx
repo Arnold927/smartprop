@@ -384,7 +384,7 @@ export default function PropertyDetailsPage() {
                   search={unitSearch} onSearch={v => { setUnitSearch(v); setUnitPage(1); }}
                   pageSize={unitPageSize} onPageSize={v => { setUnitPageSize(v); setUnitPage(1); }}
                   total={units.length} filtered={filteredUnits.length}
-                  placeholder="Search by unit number, beds, status…"
+                  placeholder="Search by unit"
                 />
 
                 {filteredUnits.length === 0 ? (
@@ -437,7 +437,7 @@ export default function PropertyDetailsPage() {
                     <Input
                       value={tenantSearch}
                       onChange={e => { setTenantSearch(e.target.value); setTenantPage(1); }}
-                      placeholder="Search by name, email, phone…"
+                      placeholder="Search tenants…"
                       className="pl-8 h-9 text-sm border-border dark:border-gray-700"
                     />
                     {tenantSearch && (

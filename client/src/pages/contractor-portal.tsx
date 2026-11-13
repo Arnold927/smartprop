@@ -290,7 +290,7 @@ function InvoiceModal({ workOrderId, currency, onClose, onDone }: { workOrderId:
           </div>
           <div>
             <label className="text-xs text-slate-400 mb-1.5 block">Invoice Reference / Number</label>
-            <Input placeholder="e.g. INV-2025-001" value={ref} onChange={e => setRef(e.target.value)} className="bg-slate-800 border-slate-700 text-white" />
+            <Input placeholder="e.g. INV-001" value={ref} onChange={e => setRef(e.target.value)} className="bg-slate-800 border-slate-700 text-white" />
           </div>
           <div>
             <label className="text-xs text-slate-400 mb-1.5 block">Payment Notes</label>

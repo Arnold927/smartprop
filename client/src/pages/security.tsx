@@ -653,7 +653,7 @@ function AdminVehicleLog({ properties: props }: { properties: any[] }) {
                       <td className="px-4 py-3 text-xs text-muted-foreground">{row.unitNumber ?? "—"}</td>
                       <td className="px-4 py-3 text-xs text-muted-foreground">{row.driverName ?? "—"}</td>
                       <td className="px-4 py-3 text-xs text-muted-foreground whitespace-nowrap">{row.loggedBy ?? "—"}</td>
-                      <td className="px-4 py-3 text-xs text-muted-foreground max-w-[160px] truncate" title={row.notes ?? ""}>{row.notes ?? "—"}</td>
+                      <td className="px-4 py-3 text-xs text-muted-foreground max-w-[160px] break-words" title={row.notes ?? ""}>{row.notes ?? "—"}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -1608,7 +1608,7 @@ export default function SecurityPage() {
 
                   {qrScanMode === "manual" && (
                     <div className="flex gap-2">
-                      <Input placeholder="Enter access code or QR code…" value={manualQrCode}
+                      <Input placeholder="Access / QR code…" value={manualQrCode}
                         onChange={e => setManualQrCode(e.target.value)}
                         onKeyDown={e => e.key === "Enter" && handleQrScan()} className="flex-1" />
                       <Button onClick={handleQrScan} disabled={!manualQrCode.trim() || qrScanMutation.isPending}
@@ -1745,7 +1745,7 @@ export default function SecurityPage() {
             <div className="flex flex-wrap items-center gap-2">
               <div className="relative flex-1 min-w-[180px]">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
-                <Input placeholder="Search gate passes…" value={gatePassSearch} onChange={e => { setGatePassSearch(e.target.value); setGatePassPage(1); }} className="pl-9 h-9" />
+                <Input placeholder="Search passes…" value={gatePassSearch} onChange={e => { setGatePassSearch(e.target.value); setGatePassPage(1); }} className="pl-9 h-9" />
               </div>
               <Select value={gatePassStatusFilter} onValueChange={v => { setGatePassStatusFilter(v); setGatePassPage(1); }}>
                 <SelectTrigger className="w-36 h-9"><SelectValue /></SelectTrigger>
@@ -1832,7 +1832,7 @@ export default function SecurityPage() {
             <div className="flex flex-wrap items-center gap-2">
               <div className="relative flex-1 min-w-[180px]">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
-                <Input placeholder="Plate, make, model…" value={vehicleSearch} onChange={e => { setVehicleSearch(e.target.value); setVehiclePage(1); }} className="pl-9 h-9" />
+                <Input placeholder="Plate or model…" value={vehicleSearch} onChange={e => { setVehicleSearch(e.target.value); setVehiclePage(1); }} className="pl-9 h-9" />
               </div>
               <Select value={vehicleStatusFilter} onValueChange={v => { setVehicleStatusFilter(v); setVehiclePage(1); }}>
                 <SelectTrigger className="w-40 h-9"><SelectValue /></SelectTrigger>

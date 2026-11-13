@@ -514,7 +514,7 @@ export default function MarketingHub() {
                   ) : paginated.map(b => (
                     <TableRow key={b.id} className="hover:bg-muted/50">
                       <TableCell>
-                        <div className="font-medium max-w-[200px] truncate" title={b.title}>{b.title}</div>
+                        <div className="font-medium break-words" title={b.title}>{b.title}</div>
                         <div className="text-xs text-muted-foreground flex items-center gap-1 mt-0.5">
                           {b.scheduledFor
                             ? <><Calendar className="h-3 w-3" />Scheduled {safeDate(b.scheduledFor)}</>

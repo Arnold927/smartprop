@@ -356,7 +356,7 @@ function NewReportModal({ open, onClose }: { open: boolean; onClose: () => void 
             <Input
               value={form.title}
               onChange={e => setForm(f => ({ ...f, title: e.target.value }))}
-              placeholder="e.g. Annual Sustainability Report 2025"
+              placeholder="e.g. Annual ESG Report 2025"
             />
           </div>
           <div className="grid grid-cols-2 gap-3">
@@ -1175,8 +1175,8 @@ const SustainabilityESG = () => {
           },
           {
             label: "ESG Score",
-            value: avgScore !== null ? `${avgScore}/100` : "—",
-            sub: `Across ${metricsResp?.count ?? 0} period${metricsResp?.count !== 1 ? "s" : ""}`,
+            value: avgScore !== null && avgScore !== undefined ? `${avgScore}/100` : "—",
+            sub: `Across ${metricsResp?.count ?? 0} period${(metricsResp?.count ?? 0) !== 1 ? "s" : ""}`,
             icon: Award,
             color: "text-purple-600",
             loading: metricsLoading,
@@ -1371,7 +1371,7 @@ const SustainabilityESG = () => {
               <div className="relative flex-1 min-w-[180px]">
                 <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
                 <Input
-                  placeholder="Search title, type, period…"
+                  placeholder="Search reports…"
                   value={reportSearch}
                   onChange={e => { setReportSearch(e.target.value); setReportPage(1); }}
                   className="pl-8 h-9 text-sm"
@@ -1563,7 +1563,7 @@ const SustainabilityESG = () => {
               <div className="relative flex-1 min-w-[180px]">
                 <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
                 <Input
-                  placeholder="Search name, supplier, certification…"
+                  placeholder="Search…"
                   value={matSearch}
                   onChange={e => { setMatSearch(e.target.value); setMatPage(1); }}
                   className="pl-8 h-9 text-sm"

@@ -299,10 +299,10 @@ export default function LeaseAgreementGenerator({
         {/* ── Section 1: Parties ── */}
         <div className="space-y-3">
           <h3 className="text-sm font-semibold text-gray-700 uppercase tracking-wide">Landlord Details</h3>
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1"><Label className="text-xs">Full Name *</Label><Input placeholder="e.g. John Kamau" value={data.landlordName} onChange={e => set({ landlordName: e.target.value })} /></div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="space-y-1"><Label className="text-xs">Full Name *</Label><Input placeholder="John Kamau" value={data.landlordName} onChange={e => set({ landlordName: e.target.value })} /></div>
             <div className="space-y-1"><Label className="text-xs">Phone</Label><Input placeholder="07XX XXX XXX" value={data.landlordPhone} onChange={e => set({ landlordPhone: e.target.value })} /></div>
-            <div className="space-y-1"><Label className="text-xs">Email</Label><Input placeholder="landlord@email.com" value={data.landlordEmail} onChange={e => set({ landlordEmail: e.target.value })} /></div>
+            <div className="space-y-1"><Label className="text-xs">Email</Label><Input placeholder="name@email.com" value={data.landlordEmail} onChange={e => set({ landlordEmail: e.target.value })} /></div>
           </div>
         </div>
 
@@ -310,9 +310,9 @@ export default function LeaseAgreementGenerator({
 
         <div className="space-y-3">
           <h3 className="text-sm font-semibold text-gray-700 uppercase tracking-wide">Tenant Details</h3>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div className="space-y-1"><Label className="text-xs">Full Name *</Label><Input value={data.tenantName} onChange={e => set({ tenantName: e.target.value })} /></div>
-            <div className="space-y-1"><Label className="text-xs">ID / Passport No. *</Label><Input placeholder="National ID or Passport" value={data.tenantIdNo} onChange={e => set({ tenantIdNo: e.target.value })} /></div>
+            <div className="space-y-1"><Label className="text-xs">ID / Passport No. *</Label><Input placeholder="ID number" value={data.tenantIdNo} onChange={e => set({ tenantIdNo: e.target.value })} /></div>
             <div className="space-y-1"><Label className="text-xs">Phone</Label><Input value={data.tenantPhone} onChange={e => set({ tenantPhone: e.target.value })} /></div>
             <div className="space-y-1"><Label className="text-xs">Email</Label><Input value={data.tenantEmail} onChange={e => set({ tenantEmail: e.target.value })} /></div>
           </div>
@@ -323,11 +323,11 @@ export default function LeaseAgreementGenerator({
         {/* ── Section 2: Property ── */}
         <div className="space-y-3">
           <h3 className="text-sm font-semibold text-gray-700 uppercase tracking-wide">Property & Unit</h3>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div className="space-y-1"><Label className="text-xs">Property Name</Label><Input value={data.propertyName} onChange={e => set({ propertyName: e.target.value })} /></div>
             <div className="space-y-1"><Label className="text-xs">Unit Number *</Label><Input value={data.unitNumber} onChange={e => set({ unitNumber: e.target.value })} /></div>
             <div className="col-span-2 space-y-1"><Label className="text-xs">Full Address *</Label><Input placeholder="e.g. Apt 4A, ABC Apartments, Westlands, Nairobi" value={data.propertyAddress} onChange={e => set({ propertyAddress: e.target.value })} /></div>
-            <div className="col-span-2 space-y-1"><Label className="text-xs">Unit Description</Label><Input placeholder="e.g. 2-bedroom apartment, 2nd floor, with parking" value={data.unitDescription} onChange={e => set({ unitDescription: e.target.value })} /></div>
+            <div className="col-span-2 space-y-1"><Label className="text-xs">Unit Description</Label><Input placeholder="e.g. 2-bedroom, 2nd floor" value={data.unitDescription} onChange={e => set({ unitDescription: e.target.value })} /></div>
           </div>
         </div>
 
@@ -336,7 +336,7 @@ export default function LeaseAgreementGenerator({
         {/* ── Section 3: Financial ── */}
         <div className="space-y-3">
           <h3 className="text-sm font-semibold text-gray-700 uppercase tracking-wide">Financial Terms</h3>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div className="space-y-1"><Label className="text-xs">Monthly Rent (KES) *</Label><Input type="number" value={data.monthlyRent} onChange={e => set({ monthlyRent: e.target.value })} /></div>
             <div className="space-y-1"><Label className="text-xs">Security Deposit (KES) *</Label><Input type="number" value={data.securityDeposit} onChange={e => set({ securityDeposit: e.target.value })} /></div>
             <div className="space-y-1"><Label className="text-xs">Rent Due Day</Label><Input placeholder="e.g. 5th" value={data.rentDueDay} onChange={e => set({ rentDueDay: e.target.value })} /></div>
@@ -349,7 +349,7 @@ export default function LeaseAgreementGenerator({
         {/* ── Section 4: Dates ── */}
         <div className="space-y-3">
           <h3 className="text-sm font-semibold text-gray-700 uppercase tracking-wide">Tenancy Period</h3>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div className="space-y-1"><Label className="text-xs">Start Date *</Label><Input type="date" value={data.leaseStartDate} onChange={e => set({ leaseStartDate: e.target.value })} /></div>
             <div className="space-y-1"><Label className="text-xs">End Date *</Label><Input type="date" value={data.leaseEndDate} onChange={e => set({ leaseEndDate: e.target.value })} /></div>
             <div className="space-y-1"><Label className="text-xs">Agreement Date</Label><Input type="date" value={data.agreementDate} onChange={e => set({ agreementDate: e.target.value })} /></div>

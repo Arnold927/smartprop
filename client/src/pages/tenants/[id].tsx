@@ -535,11 +535,11 @@ export default function TenantDetails() {
                     <div className="min-w-0">
                       <p className="text-[11px] uppercase tracking-wide text-muted-foreground font-medium">{row.label}</p>
                       {row.action ? (
-                        <button onClick={row.action} className="text-sm font-medium text-blue-600 hover:underline truncate block">
+                        <button onClick={row.action} className="text-sm font-medium text-blue-600 hover:underline break-all text-left block max-w-full">
                           {row.value}
                         </button>
                       ) : (
-                        <p className="text-sm font-medium text-foreground truncate">{row.value}</p>
+                        <p className="text-sm font-medium text-foreground break-words">{row.value}</p>
                       )}
                     </div>
                   </div>

@@ -330,7 +330,7 @@ export default function BroadcastMessaging() {
           <Input
             value={searchQuery}
             onChange={e => { setSearchQuery(e.target.value); setCurrentPage(1); }}
-            placeholder="Search by title, content, status, channel…"
+            placeholder="Search broadcasts…"
             className="h-8 pl-8 pr-8 text-xs"
           />
           {searchQuery && (

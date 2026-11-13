@@ -503,7 +503,7 @@ export default function VisitorManagement() {
 
               <div className="space-y-2">
                 <Label htmlFor="visitPurpose">Visit Purpose *</Label>
-                <Input name="visitPurpose" placeholder="e.g., Social visit, Delivery, Maintenance" required />
+                <Input name="visitPurpose" placeholder="Social visit, delivery…" required />
               </div>
 
               <div className="grid grid-cols-2 gap-4">
@@ -577,7 +577,7 @@ export default function VisitorManagement() {
               <FilterBar
                 search={searchQuery}
                 onSearch={handleSearchChange}
-                placeholder="Search visitors, codes, properties…"
+                placeholder="Search visitors, codes…"
                 actions={searchQuery ? (
                   <span className="text-sm text-muted-foreground whitespace-nowrap">
                     {filteredVisitors.length} result{filteredVisitors.length !== 1 ? "s" : ""} for &quot;{searchQuery}&quot;

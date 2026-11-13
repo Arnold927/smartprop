@@ -959,7 +959,7 @@ function ProfileTab({
                 <User className="w-3 h-3" /> Full Name
                 <Lock className="w-3 h-3 ml-auto text-muted-foreground/50" />
               </label>
-              <p className="text-sm font-medium text-foreground/60 h-9 flex items-center bg-muted/30 rounded-md px-3 cursor-not-allowed">
+              <p className="text-sm font-medium text-foreground/60 min-h-[2.25rem] py-1.5 min-w-0 [overflow-wrap:anywhere] flex items-center bg-muted/30 rounded-md px-3 cursor-not-allowed">
                 {tenant?.firstName} {tenant?.lastName}
               </p>
             </div>
@@ -968,7 +968,7 @@ function ProfileTab({
                 <Building className="w-3 h-3" /> Unit
                 <Lock className="w-3 h-3 ml-auto text-muted-foreground/50" />
               </label>
-              <p className="text-sm font-medium text-foreground/60 h-9 flex items-center bg-muted/30 rounded-md px-3 cursor-not-allowed">
+              <p className="text-sm font-medium text-foreground/60 min-h-[2.25rem] py-1.5 min-w-0 [overflow-wrap:anywhere] flex items-center bg-muted/30 rounded-md px-3 cursor-not-allowed">
                 {unitNumber ? `Unit ${unitNumber}` : "—"}
               </p>
             </div>
@@ -989,7 +989,7 @@ function ProfileTab({
                   placeholder="07XX XXX XXX"
                 />
               ) : (
-                <p className="text-sm font-medium text-foreground h-9 flex items-center">
+                <p className="text-sm font-medium text-foreground min-h-[2.25rem] py-1.5 min-w-0 [overflow-wrap:anywhere] flex items-center">
                   {tenant?.phone || <span className="text-muted-foreground italic">Not set</span>}
                 </p>
               )}
@@ -1008,7 +1008,7 @@ function ProfileTab({
                   placeholder="your@email.com"
                 />
               ) : (
-                <p className="text-sm font-medium text-foreground h-9 flex items-center">
+                <p className="text-sm font-medium text-foreground min-h-[2.25rem] py-1.5 min-w-0 [overflow-wrap:anywhere] flex items-center">
                   {tenant?.email || <span className="text-muted-foreground italic">Not set</span>}
                 </p>
               )}
@@ -1479,7 +1479,8 @@ function DocumentsPanel({
   );
 
   const DocRow = ({ doc }: { doc: any }) => {
-    const ext = doc.name?.split(".").pop()?.toUpperCase() || "FILE";
+    const rawExt = (doc.name ?? "").includes(".") ? (doc.name as string).split(".").pop()!.trim() : "";
+    const ext = /^[A-Za-z0-9]{1,5}$/.test(rawExt) ? rawExt.toUpperCase() : "FILE";
     const extCls = EXT_COLOR[ext] || "bg-muted text-muted-foreground";
     return (
       <div className="flex items-center justify-between p-4 rounded-2xl border border-border hover:border-primary/30 hover:shadow-sm transition-all gap-3 group">
@@ -2652,15 +2653,15 @@ export default function TenantPortal({ tenantId, initialTenantData }: TenantPort
       <div className="bg-slate-900 text-white px-4 sm:px-6 py-4 sm:py-6 border-b border-white/10">
         <div className="max-w-5xl mx-auto">
           <div className="flex items-start justify-between flex-wrap gap-4">
-            <div className="flex items-center gap-4">
-              <div className="w-12 h-12 rounded-2xl bg-white/10 backdrop-blur-sm border border-white/20 flex items-center justify-center">
+            <div className="flex items-center gap-4 min-w-0 max-w-full">
+              <div className="w-12 h-12 shrink-0 rounded-2xl bg-white/10 backdrop-blur-sm border border-white/20 flex items-center justify-center">
                 <span className="text-xl font-semibold text-white">
                   {tenant?.firstName?.[0]}{tenant?.lastName?.[0]}
                 </span>
               </div>
-              <div>
+              <div className="min-w-0">
                 <p className="text-white/60 text-xs font-medium uppercase tracking-wider mb-0.5">{t("tenantPortal.title")}</p>
-                <h1 className="text-xl font-semibold text-white">
+                <h1 className="text-xl font-semibold text-white break-words">
                   {t("tenantPortal.welcome")}, {tenant?.firstName}
                 </h1>
                 <div className="flex items-center gap-3 mt-1 flex-wrap">

@@ -688,7 +688,7 @@ export default function BankReconciliation() {
                 )}
                 <div className="flex justify-between">
                   <span className="text-muted-foreground text-xs">Description</span>
-                  <span className="text-xs max-w-[200px] text-right truncate">{matchDialogRow.description}</span>
+                  <span className="text-xs max-w-[200px] text-right break-words">{matchDialogRow.description}</span>
                 </div>
               </div>
 

@@ -295,39 +295,30 @@ export default function ComprehensiveTenantModal({ isOpen, onClose, properties: 
               </CardTitle>
             </CardHeader>
             <CardContent className="pt-4">
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="border-b border-border">
-                      <th className="text-left py-2 font-semibold text-foreground w-24">Utility</th>
-                      <th className="text-left py-2 font-semibold text-foreground">Meter Number *</th>
-                      <th className="text-left py-2 font-semibold text-foreground">Current Reading *</th>
-                      <th className="text-left py-2 font-semibold text-foreground">Reading Date *</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {[
-                      { label: "Water",       icon: <Droplets className="h-4 w-4 mr-2 text-blue-500" />,   reg: "water"       },
-                      { label: "Electricity", icon: <Zap      className="h-4 w-4 mr-2 text-yellow-500" />, reg: "electricity" },
-                      { label: "Gas",         icon: <Flame    className="h-4 w-4 mr-2 text-orange-500" />, reg: "gas"         },
-                    ].map(({ label, icon, reg }) => (
-                      <tr key={reg} className="border-b border-border">
-                        <td className="py-3">
-                          <span className="flex items-center">{icon}{label}</span>
-                        </td>
-                        <td className="py-3 pr-2">
-                          <Input {...form.register(`${reg}MeterNumber` as any)} placeholder={`${label[0]}M123456`} className="h-8 text-xs" />
-                        </td>
-                        <td className="py-3 pr-2">
-                          <Input {...form.register(`${reg}CurrentReading` as any)} placeholder="e.g. 1234" className="h-8 text-xs" />
-                        </td>
-                        <td className="py-3">
-                          <Input type="date" {...form.register(`${reg}ReadingDate` as any)} className="h-8 text-xs" />
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+              <div className="space-y-4">
+                {[
+                  { label: "Water",       icon: <Droplets className="h-4 w-4 mr-2 text-blue-500" />,   reg: "water"       },
+                  { label: "Electricity", icon: <Zap      className="h-4 w-4 mr-2 text-yellow-500" />, reg: "electricity" },
+                  { label: "Gas",         icon: <Flame    className="h-4 w-4 mr-2 text-orange-500" />, reg: "gas"         },
+                ].map(({ label, icon, reg }) => (
+                  <div key={reg} className="rounded-lg border border-border p-3 space-y-3">
+                    <span className="flex items-center text-sm font-semibold text-foreground">{icon}{label}</span>
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                      <div className="space-y-1">
+                        <Label className="text-xs text-muted-foreground">Meter Number *</Label>
+                        <Input {...form.register(`${reg}MeterNumber` as any)} placeholder={`${label[0]}M123456`} className="h-9 text-sm" />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-xs text-muted-foreground">Current Reading *</Label>
+                        <Input {...form.register(`${reg}CurrentReading` as any)} placeholder="e.g. 1234" className="h-9 text-sm" />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-xs text-muted-foreground">Reading Date *</Label>
+                        <Input type="date" {...form.register(`${reg}ReadingDate` as any)} className="h-9 text-sm" />
+                      </div>
+                    </div>
+                  </div>
+                ))}
               </div>
             </CardContent>
           </Card>

@@ -476,7 +476,7 @@ export default function ParkingManagement() {
           {/* ════════════════ VEHICLES TAB — table ═════════════════════════════ */}
           <TabsContent value="vehicles" className="space-y-4 mt-4">
             <div className="flex flex-wrap items-center gap-2">
-              <SearchBar value={vehiclesSearch} onChange={setVehiclesSearch} placeholder="Plate, make, model, colour, type..." />
+              <SearchBar value={vehiclesSearch} onChange={setVehiclesSearch} placeholder="Plate, make, model…" />
               <Select value={selectedProp} onValueChange={setSelectedProp}>
                 <SelectTrigger className="w-44 h-9"><SelectValue placeholder="All Properties" /></SelectTrigger>
                 <SelectContent><SelectItem value="all">All Properties</SelectItem>{properties.map((p:any)=><SelectItem key={p.id} value={p.id.toString()}>{p.name}</SelectItem>)}</SelectContent>

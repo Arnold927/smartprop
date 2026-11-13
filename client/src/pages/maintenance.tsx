@@ -472,7 +472,7 @@ export default function Maintenance() {
  <div className="flex flex-wrap items-center gap-2 md:gap-3">
  <div className="relative flex-1 min-w-[160px]">
  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
- <Input placeholder="Search requests..." className="pl-9 h-9 border-border dark:border-gray-700" value={search} onChange={e => { setSearch(e.target.value); setPage(1); }} />
+ <Input placeholder="Search…" className="pl-9 h-9 border-border dark:border-gray-700" value={search} onChange={e => { setSearch(e.target.value); setPage(1); }} />
  {search && <button className="absolute right-2.5 top-1/2 -translate-y-1/2" onClick={() => setSearch("")}><X className="w-3.5 h-3.5 text-muted-foreground" /></button>}
  </div>
  <Select value={priorityFilter} onValueChange={v => { setPriorityFilter(v); setPage(1); }}>

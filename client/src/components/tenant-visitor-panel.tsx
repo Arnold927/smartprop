@@ -359,7 +359,7 @@ export default function TenantVisitorPanel() {
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
                 <Input
                   className="pl-9 h-9 text-sm"
-                  placeholder="Search by name or code…"
+                  placeholder="Name or code…"
                   value={search}
                   onChange={e => setSearch(e.target.value)}
                 />

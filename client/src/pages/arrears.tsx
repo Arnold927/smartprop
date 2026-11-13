@@ -580,7 +580,7 @@ export default function ArrearsPage() {
                     <SPBadge status={reminder.status} />
                   </div>
                   <div className="bg-muted/50 rounded-lg p-3">
-                    <p className="text-xs text-muted-foreground whitespace-pre-wrap">{reminder.message}</p>
+                    <p className="text-xs text-muted-foreground whitespace-pre-wrap break-words">{reminder.message}</p>
                   </div>
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs text-muted-foreground">
                     <div><p className="font-medium text-foreground">Channel</p><p className="capitalize">{reminder.channel}</p></div>

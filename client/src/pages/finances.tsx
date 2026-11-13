@@ -374,7 +374,7 @@ export default function Finances() {
            <div className={`w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 ${t.type === "income" ? "bg-green-50 dark:bg-green-950" : "bg-red-50 dark:bg-red-950"}`}>
              {t.type === "income" ? <ArrowDownLeft className="w-3 h-3 text-green-600" /> : <ArrowUpRight className="w-3 h-3 text-red-500" />}
            </div>
-           <span className="text-foreground font-medium break-words sm:truncate sm:max-w-[200px]">{t.description}</span>
+           <span className="text-foreground font-medium break-words">{t.description}</span>
          </div>
        ),
      },

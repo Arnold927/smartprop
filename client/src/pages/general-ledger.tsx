@@ -297,7 +297,7 @@ function JournalBook() {
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
           <Input
             className="pl-9"
-            placeholder="Search entries…"
+            placeholder="Search…"
             value={search}
             onChange={e => { setSearch(e.target.value); setPage(1); }}
           />
@@ -522,14 +522,57 @@ function JournalBook() {
             </div>
             <div className="col-span-1">
               <label className="text-xs font-medium text-muted-foreground mb-1 block">Reference</label>
-              <Input placeholder="e.g. INV-2025-001" value={header.reference}
+              <Input placeholder="e.g. INV-001" value={header.reference}
                 onChange={e => setHeader(h => ({ ...h, reference: e.target.value }))} />
             </div>
           </div>
 
           {/* Lines table */}
           <div className="mt-2">
-            <div className="rounded-lg border overflow-hidden">
+            {/* Phone: one card per journal line so every field is full width */}
+            <div className="sm:hidden space-y-3">
+              {lines.map((line, i) => (
+                <div key={i} className="rounded-lg border p-3 space-y-2">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-xs font-medium text-muted-foreground">Line {i + 1}</span>
+                    <button type="button" onClick={() => removeLine(i)} disabled={lines.length <= 2}
+                      className="text-muted-foreground hover:text-red-500 disabled:opacity-40 p-1" aria-label={`Remove line ${i + 1}`}>
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+                  <Select value={line.accountId} onValueChange={v => updateLine(i, "accountId", v)}>
+                    <SelectTrigger className="text-sm"><SelectValue placeholder="Select account…" /></SelectTrigger>
+                    <SelectContent>
+                      {(accounts as Account[]).map(a => (
+                        <SelectItem key={a.id} value={String(a.id)}>{a.accountCode} — {a.accountName}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Input placeholder="Memo" value={line.description} onChange={e => updateLine(i, "description", e.target.value)} />
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="text-[11px] uppercase tracking-wide text-muted-foreground">Debit (KES)</label>
+                      <Input className={`text-right font-mono ${line.debitAmount ? "ring-1 ring-blue-400" : ""}`}
+                        placeholder="0.00" type="number" inputMode="decimal" min="0" step="0.01"
+                        value={line.debitAmount} onChange={e => updateLine(i, "debitAmount", e.target.value)} />
+                    </div>
+                    <div>
+                      <label className="text-[11px] uppercase tracking-wide text-muted-foreground">Credit (KES)</label>
+                      <Input className={`text-right font-mono ${line.creditAmount ? "ring-1 ring-orange-400" : ""}`}
+                        placeholder="0.00" type="number" inputMode="decimal" min="0" step="0.01"
+                        value={line.creditAmount} onChange={e => updateLine(i, "creditAmount", e.target.value)} />
+                    </div>
+                  </div>
+                </div>
+              ))}
+              <div className="rounded-lg bg-muted/40 p-3 grid grid-cols-2 gap-2 text-sm font-semibold">
+                <div><p className="text-[11px] uppercase tracking-wide text-muted-foreground font-medium">Total debit</p>
+                  <p className="font-mono tabular-nums">{totalDebit.toLocaleString("en-KE", { minimumFractionDigits: 2 })}</p></div>
+                <div><p className="text-[11px] uppercase tracking-wide text-muted-foreground font-medium">Total credit</p>
+                  <p className="font-mono tabular-nums">{totalCredit.toLocaleString("en-KE", { minimumFractionDigits: 2 })}</p></div>
+              </div>
+            </div>
+            <div className="hidden sm:block rounded-lg border overflow-x-auto">
               <table className="w-full text-sm border-collapse">
                 <thead>
                   <tr className="bg-muted text-xs uppercase tracking-wide text-muted-foreground">

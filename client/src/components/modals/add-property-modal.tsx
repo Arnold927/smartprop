@@ -547,7 +547,7 @@ export default function AddPropertyModal({ isOpen, onClose, onSuccess, property,
                   <FormItem>
                     <FormLabel className="text-foreground">Valuation Note <span className="font-normal text-muted-foreground">(optional)</span></FormLabel>
                     <FormControl>
-                      <Input placeholder="e.g. Independent valuation — Jan 2025" {...field} className="bg-card text-foreground border-border" />
+                      <Input placeholder="e.g. Valuation, Jan 2025" {...field} className="bg-card text-foreground border-border" />
                     </FormControl>
                   </FormItem>
                 )}

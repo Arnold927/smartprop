@@ -791,14 +791,14 @@ export default function TenantSubletting() {
           </DialogHeader>
           <div className="space-y-4">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-full bg-gradient-to-br from-rose-400 to-rose-600 flex items-center justify-center text-white font-bold text-lg">
+              <div className="w-10 h-10 shrink-0 rounded-full bg-gradient-to-br from-rose-400 to-rose-600 flex items-center justify-center text-white font-bold text-lg">
                 {booking.guestName?.charAt(0)}
               </div>
-              <div>
-                <p className="font-semibold">{booking.guestName}</p>
-                <div className="flex items-center gap-3 text-sm text-muted-foreground">
-                  <span className="flex items-center gap-1"><Mail className="h-3 w-3" />{booking.guestEmail}</span>
-                  {booking.guestPhone && <span className="flex items-center gap-1"><Phone className="h-3 w-3" />{booking.guestPhone}</span>}
+              <div className="min-w-0">
+                <p className="font-semibold break-words">{booking.guestName}</p>
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted-foreground">
+                  <span className="flex items-center gap-1 min-w-0"><Mail className="h-3 w-3 shrink-0" /><span className="break-all">{booking.guestEmail}</span></span>
+                  {booking.guestPhone && <span className="flex items-center gap-1 whitespace-nowrap"><Phone className="h-3 w-3 shrink-0" />{booking.guestPhone}</span>}
                 </div>
               </div>
             </div>
@@ -1198,14 +1198,14 @@ export default function TenantSubletting() {
               {canCreateOwnerManaged && !editingListing && (
                 <div className="space-y-2">
                   <Label>Listing type *</Label>
-                  <div className="flex gap-2">
+                  <div className="flex flex-col sm:flex-row gap-2">
                     <Button type="button" variant={listingMode === "tenant" ? "default" : "outline"}
-                      className={listingMode === "tenant" ? "bg-emerald-600 hover:bg-emerald-700" : ""}
+                      className={"h-auto min-h-10 whitespace-normal text-center " + (listingMode === "tenant" ? "bg-emerald-600 hover:bg-emerald-700" : "")}
                       onClick={() => setListingMode("tenant")}>
                       Tenant subletting their unit
                     </Button>
                     <Button type="button" variant={listingMode === "owner" ? "default" : "outline"}
-                      className={listingMode === "owner" ? "bg-emerald-600 hover:bg-emerald-700" : ""}
+                      className={"h-auto min-h-10 whitespace-normal text-center " + (listingMode === "owner" ? "bg-emerald-600 hover:bg-emerald-700" : "")}
                       onClick={() => setListingMode("owner")}>
                       Owner-managed property
                     </Button>
@@ -1279,7 +1279,7 @@ export default function TenantSubletting() {
 
               <div className="space-y-2">
                 <Label htmlFor="listingTitle">Listing Title *</Label>
-                <Input id="listingTitle" name="listingTitle" required defaultValue={editingListing?.listingTitle} placeholder="e.g., Cozy 2BR Apartment in Westlands" />
+                <Input id="listingTitle" name="listingTitle" required defaultValue={editingListing?.listingTitle} placeholder="e.g., Cozy 2BR in Westlands" />
               </div>
 
               <div className="space-y-2">
@@ -1288,7 +1288,7 @@ export default function TenantSubletting() {
                   placeholder="Describe the property, location, and what makes it special..." />
               </div>
 
-              <div className="grid grid-cols-4 gap-4">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="nightlyRate">Nightly Rate (KSh) *</Label>
                   <Input type="number" step="0.01" id="nightlyRate" name="nightlyRate" required defaultValue={editingListing?.nightlyRate} />
@@ -1309,7 +1309,7 @@ export default function TenantSubletting() {
 
               <div className="space-y-2">
                 <Label htmlFor="amenities">Amenities</Label>
-                <Input id="amenities" name="amenities" defaultValue={editingListing?.amenities.join(", ")} placeholder="Wi-Fi, Kitchen, Parking, Pool, Gym (comma-separated)" />
+                <Input id="amenities" name="amenities" defaultValue={editingListing?.amenities.join(", ")} placeholder="Wi-Fi, Kitchen, Parking…" />
               </div>
 
               <div className="grid grid-cols-2 gap-4">
@@ -1671,7 +1671,7 @@ export default function TenantSubletting() {
               <div className="flex flex-col md:flex-row gap-3">
                 <div className="flex-1 relative">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                  <Input className="pl-9" placeholder="Search by guest name or booking reference..." value={bookingSearch} onChange={e => setBookingSearch(e.target.value)} />
+                  <Input className="pl-9" placeholder="Search guest or booking ref…" value={bookingSearch} onChange={e => setBookingSearch(e.target.value)} />
                 </div>
                 <Select value={bookingStatusFilter} onValueChange={setBookingStatusFilter}>
                   <SelectTrigger className="w-44"><SelectValue placeholder="All Statuses" /></SelectTrigger>

@@ -929,7 +929,7 @@ export default function DiasporaRentToOwn() {
                 <div className="relative flex-1 md:w-64">
                   <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
                   <Input
-                    placeholder="Search name, country..."
+                    placeholder="Search…"
                     className="pl-9"
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
@@ -1331,7 +1331,7 @@ export default function DiasporaRentToOwn() {
             <div className="relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
-                placeholder="Search by client, country, provider, transaction ID..."
+                placeholder="Search payments…"
                 value={paymentsSearch}
                 onChange={(e) => { setPaymentsSearch(e.target.value); setPaymentsPage(1); }}
                 className="pl-9"
@@ -1639,7 +1639,7 @@ export default function DiasporaRentToOwn() {
                 <div className="relative mb-4">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                   <Input
-                    placeholder="Search by client, certificate number, type, status..."
+                    placeholder="Search…"
                     value={certificatesSearch}
                     onChange={(e) => { setCertificatesSearch(e.target.value); setCertificatesPage(1); }}
                     className="pl-9"
@@ -1845,7 +1845,7 @@ export default function DiasporaRentToOwn() {
             return (
               <div>
                 {/* Print toolbar */}
-                <div className="flex items-center justify-between px-6 py-3 border-b bg-slate-50">
+                <div className="flex flex-wrap items-center justify-between gap-2 px-4 sm:px-6 py-3 pr-12 border-b bg-slate-50">
                   <h2 className="font-bold text-sm text-muted-foreground">Certificate Preview</h2>
                   <div className="flex gap-2">
                     <Button size="sm" variant="outline" className="gap-1.5" onClick={() => window.print()}>
@@ -1933,7 +1933,7 @@ export default function DiasporaRentToOwn() {
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", position: "relative", zIndex: 1 }}>
                     <div>
                       <p style={{ color: "#64748b", fontSize: 10, marginBottom: 4 }}>Verification URL</p>
-                      <p style={{ color: "#94a3b8", fontSize: 10, fontFamily: "monospace" }}>{cert.verificationUrl || "N/A"}</p>
+                      <p style={{ color: "#94a3b8", fontSize: 10, fontFamily: "monospace", overflowWrap: "anywhere" }}>{!cert.verificationUrl ? "N/A" : String(cert.verificationUrl).startsWith("data:") ? "Verification document attached" : String(cert.verificationUrl).length > 80 ? String(cert.verificationUrl).slice(0, 80) + "…" : cert.verificationUrl}</p>
                     </div>
                     <div style={{ textAlign: "right" }}>
                       <div style={{ width: 80, height: 1, background: "rgba(212,175,55,0.5)", marginBottom: 4, marginLeft: "auto" }} />

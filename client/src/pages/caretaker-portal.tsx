@@ -166,8 +166,8 @@ export default function CaretakerPortalPage() {
 
           {/* Maintenance at this property */}
           <Card>
-            <CardHeader className="flex flex-row items-center justify-between pb-3">
-              <CardTitle className="text-base">
+            <CardHeader className="flex flex-row items-center justify-between gap-2 pb-3">
+              <CardTitle className="text-base min-w-0 flex-1 break-words">
                 Open Maintenance at {me.propertyName}
                 {openRequests.length > 0 && (
                   <span className="ml-2 text-xs bg-muted dark:bg-gray-800 text-muted-foreground px-1.5 py-0.5 rounded-full">
@@ -175,7 +175,7 @@ export default function CaretakerPortalPage() {
                   </span>
                 )}
               </CardTitle>
-              <Button variant="ghost" size="sm" className="gap-1" onClick={() => navigate("/maintenance")}>
+              <Button variant="ghost" size="sm" className="gap-1 shrink-0" onClick={() => navigate("/maintenance")}>
                 View all <ChevronRight className="h-3.5 w-3.5" />
               </Button>
             </CardHeader>

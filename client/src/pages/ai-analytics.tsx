@@ -968,7 +968,7 @@ export default function AIAnalytics() {
                       {propertyOccupancy.map((p, i) => (
                         <div key={i} className="space-y-1.5">
                           <div className="flex items-center justify-between text-sm">
-                            <span className="font-medium truncate max-w-[55%]">{p.name}</span>
+                            <span className="font-medium break-words max-w-[55%]">{p.name}</span>
                             <span className="text-muted-foreground text-xs">
                               {p.occupied}/{p.total} units · {fmtKES(p.monthlyRevenue)}/mo
                             </span>

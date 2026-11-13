@@ -423,7 +423,7 @@ const FacilityManagement = () => {
                       <Input
                         value={leaseSearch}
                         onChange={e => { setLeaseSearch(e.target.value); setLeasePage(1); }}
-                        placeholder="Search tenants…"
+                        placeholder="Search…"
                         className="pl-8 pr-7 h-8 w-44 text-xs"
                       />
                       {leaseSearch && (
@@ -492,9 +492,9 @@ const FacilityManagement = () => {
                         }`}
                       >
                         <div className="flex items-start justify-between gap-3 flex-wrap">
-                          <div>
+                          <div className="min-w-0 flex-1 basis-48">
                             <div className="flex items-center gap-2 flex-wrap">
-                              <p className="font-semibold text-sm text-foreground">
+                              <p className="font-semibold text-sm text-foreground break-words min-w-0">
                                 {lease.firstName} {lease.lastName}
                               </p>
                               <StatusBadge status={lease.leaseStatus} />
@@ -506,11 +506,11 @@ const FacilityManagement = () => {
                                 </Badge>
                               )}
                             </div>
-                            <p className="text-xs text-muted-foreground mt-0.5">
+                            <p className="text-xs text-muted-foreground mt-0.5 break-all">
                               Unit {lease.unitNumber ?? "N/A"} · {lease.email}
                             </p>
                           </div>
-                          <p className="font-bold text-sm text-foreground">{fmtKES(lease.monthlyRent)}/mo</p>
+                          <p className="font-bold text-sm text-foreground shrink-0 whitespace-nowrap">{fmtKES(lease.monthlyRent)}/mo</p>
                         </div>
 
                         <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-3 text-xs">
@@ -619,7 +619,7 @@ const FacilityManagement = () => {
                       <Input
                         value={woSearch}
                         onChange={e => { setWoSearch(e.target.value); setWoPage(1); }}
-                        placeholder="Search work orders…"
+                        placeholder="Search orders…"
                         className="pl-8 pr-7 h-8 w-48 text-xs"
                       />
                       {woSearch && (
@@ -842,7 +842,7 @@ const FacilityManagement = () => {
                         return (
                           <div key={i} className="space-y-1.5">
                             <div className="flex items-center justify-between text-sm">
-                              <span className="font-medium truncate max-w-[55%]">{p.name}</span>
+                              <span className="font-medium break-words max-w-[55%]">{p.name}</span>
                               <span className="text-muted-foreground text-xs">
                                 {p.occupied}/{p.units} units · {fmtKES(p.revenue)}/mo
                               </span>

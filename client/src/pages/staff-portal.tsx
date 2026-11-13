@@ -1897,8 +1897,8 @@ export default function StaffPortal() {
   const role = useMemo(() => detectRole(staffProfile, user), [staffProfile, user]);
   const meta = ROLE_META[role];
 
-  const fullName = staffProfile
-    ? `${staffProfile.first_name} ${staffProfile.last_name}`
+  const fullName = (staffProfile?.first_name || staffProfile?.last_name)
+    ? [staffProfile.first_name, staffProfile.last_name].filter(Boolean).join(" ")
     : [user?.firstName, user?.lastName].filter(Boolean).join(" ") || user?.email || "Staff Member";
   const position = staffProfile?.position?.replace(/_/g," ") ?? user?.role?.replace(/_/g," ") ?? "Staff";
   const department = staffProfile?.department?.replace(/_/g," ") ?? "";

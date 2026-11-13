@@ -419,7 +419,7 @@ function StampDutyLeaseCard({ l, editing, setEditing, form, setForm, update }: a
             )}
 
             {editing === l.id ? (
-              <div className="grid grid-cols-2 gap-3 border-t pt-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 border-t pt-4">
                 <div><Label className="text-xs">Stamp duty amount (KES)</Label><Input type="number" value={form.stampDutyAmount ?? ""} onChange={e => setForm((f: any) => ({ ...f, stampDutyAmount: e.target.value }))} /></div>
                 <div><Label className="text-xs">KRA Assessment / Payment Reference</Label><Input value={form.stampDutyKraRef ?? ""} onChange={e => setForm((f: any) => ({ ...f, stampDutyKraRef: e.target.value }))} /></div>
                 <div><Label className="text-xs">Date paid</Label><Input type="date" value={form.stampDutyPaidDate ?? ""} onChange={e => setForm((f: any) => ({ ...f, stampDutyPaidDate: e.target.value }))} /></div>
@@ -858,12 +858,12 @@ function KraReturnsTab() {
             </div>
           </div>
           {/* Allowable deductions */}
-          <div className="grid grid-cols-2 gap-3 border-t pt-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 border-t pt-3">
             <div>
               <Label className="text-xs">Allowable deductions (KES)</Label>
               <Input
                 type="number"
-                placeholder="e.g. mortgage interest, repairs…"
+                placeholder="e.g. 50,000"
                 value={genForm.allowableDeductions}
                 onChange={e => setGenForm(f => ({ ...f, allowableDeductions: e.target.value }))}
               />
@@ -871,7 +871,7 @@ function KraReturnsTab() {
             <div>
               <Label className="text-xs">Deduction notes</Label>
               <Input
-                placeholder="e.g. Mortgage interest KES 12,000"
+                placeholder="e.g. Mortgage interest"
                 value={genForm.deductionNotes}
                 onChange={e => setGenForm(f => ({ ...f, deductionNotes: e.target.value }))}
               />
@@ -1255,7 +1255,7 @@ function DepositInterestTab() {
               <div key={r.id} className="flex items-center justify-between text-sm py-0.5 border-b border-border last:border-0">
                 <span className="text-muted-foreground">{fmt(r.effectiveDate)}</span>
                 <span className="font-medium">{r.rate}%</span>
-                <span className="text-xs text-muted-foreground truncate max-w-[200px]">{r.notes}</span>
+                <span className="text-xs text-muted-foreground break-words max-w-[200px]">{r.notes}</span>
               </div>
             ))}
           </div>

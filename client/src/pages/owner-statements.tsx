@@ -621,7 +621,7 @@ function RentRollTab() {
               />
             }
             columns={[
-              { header: "Property", cell: (r: any) => <span className="font-medium truncate max-w-[140px] block">{r.propertyName}</span> },
+              { header: "Property", cell: (r: any) => <span className="font-medium break-words max-w-[140px] block">{r.propertyName}</span> },
               { header: "Unit", cell: (r: any) => r.unitNumber, hideOnMobile: true },
               { header: "Tenant", cell: (r: any) => r.tenantName ?? <span className="text-muted-foreground italic">Vacant</span> },
               { header: "Monthly Rent", cell: (r: any) => <KESAmount amount={r.monthlyRent} />, hideOnMobile: true },

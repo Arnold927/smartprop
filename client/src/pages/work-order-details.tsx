@@ -349,7 +349,7 @@ export default function WorkOrderDetailsPage() {
                         ].filter(r => r.value).map(({ label, value }) => (
                           <div key={label} className="flex justify-between items-baseline border-b border-border/50 pb-2 last:border-0">
                             <span className="text-xs text-muted-foreground">{label}</span>
-                            <span className="text-sm font-medium text-foreground text-right max-w-[60%] truncate">{value}</span>
+                            <span className="text-sm font-medium text-foreground text-right max-w-[60%] break-words">{value}</span>
                           </div>
                         ))}
                       </div>
