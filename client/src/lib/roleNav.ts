@@ -386,14 +386,14 @@ const getGuardNav = (t: (k: string) => string): NavGroup[] => [
 ];
 
 // ─── Contractor ───────────────────────────────────────────────────────────────
-// External contractors: their work portal, messaging with the PM, and profile.
+// External contractors: their work portal and profile. Messaging lives inside the
+// portal (Messages tab), so a sidebar "Messages" link would only duplicate it.
 const getContractorNav = (t: (k: string) => string): NavGroup[] => [
   {
     label: t("nav.group_work"),
     items: [
-      { name: t("nav.my_portal"),         href: "/contractor-portal", icon: LayoutDashboard },
-      { name: t("nav.internal_messages"), href: "/messages",          icon: MessageSquare },
-      { name: t("nav.my_profile"),        href: "/profile",           icon: User },
+      { name: t("nav.my_portal"),  href: "/contractor-portal", icon: LayoutDashboard },
+      { name: t("nav.my_profile"), href: "/profile",           icon: User },
     ],
   },
 ];

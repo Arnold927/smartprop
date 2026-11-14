@@ -1310,6 +1310,18 @@ export default function ContractorPortal() {
     enabled: !!profile && tab === "ratings",
   });
 
+  // Unread count for the Messages tab badge (shares the cache with MessagesTab)
+  const { data: msgData } = useQuery<{ messages: Message[] }>({
+    queryKey: ["/api/contractor-portal/messages"],
+    queryFn: async () => {
+      const res = await apiRequest("/api/contractor-portal/messages");
+      if (!res.ok) throw new Error("Failed");
+      return res.json();
+    },
+    refetchInterval: 30_000,
+  });
+  const unreadMessages = (msgData?.messages ?? []).filter(m => !m.isRead && !m.isOwn).length;
+
   const allWOs = woData?.workOrders ?? [];
   const pendingCount = allWOs.filter(r => ["assigned", "approved", "pending_approval"].includes(r.workOrder.status)).length;
   const userId = String(user?.id ?? "");
@@ -1417,6 +1429,9 @@ export default function ContractorPortal() {
                 }`}>
                 <t.icon className="w-3.5 h-3.5" />
                 {t.label}
+                {t.id === "messages" && unreadMessages > 0 && (
+                  <span className="ml-0.5 min-w-[16px] rounded-full bg-red-500 px-1 text-center text-[10px] font-bold leading-4 text-white">{unreadMessages > 9 ? "9+" : unreadMessages}</span>
+                )}
               </button>
             ))}
           </div>

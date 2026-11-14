@@ -1919,30 +1919,10 @@ export default function StaffPortal() {
       {/* <NotificationDrawer open={notifOpen} onClose={() => setNotifOpen(false)} /> */}
 
       {/* Body */}
-      <div className="max-w-4xl mx-auto px-4 sm:px-6 py-4 sm:py-6 pb-20 lg:pb-8">
+      <div className="max-w-4xl mx-auto px-4 sm:px-6 py-4 sm:py-6 pb-8">
         <Tabs value={tab} onValueChange={setTab}>
-          {/* Desktop: full-width tab bar. Mobile: scrollable pill bar */}
-          <div className="flex gap-1 bg-muted/40 p-1 rounded-xl border border-border mb-6">
-            {([
-              { id: "role",     label: meta.tabLabel,  icon: meta.tabIcon },
-              // Ratings tab removed — not yet in use
-              // { id: "ratings",  label: "My Ratings",   icon: Star },
-              // Messages tab removed — use the Messages link in the sidebar instead
-              // { id: "messages", label: "Messages",      icon: MessageSquare },
-              // Profile tab removed — use the Profile link in the sidebar instead
-              // { id: "profile",  label: "Profile",       icon: User },
-            ] as any[]).map((item) => (
-              <button key={item.id} onClick={() => setTab(item.id)}
-                className={`flex items-center justify-center gap-2 flex-1 px-4 py-2.5 rounded-lg text-sm font-medium transition-all ${
-                  tab === item.id
-                    ? "bg-white dark:bg-slate-800 text-emerald-700 dark:text-emerald-400 shadow-sm"
-                    : "text-muted-foreground hover:text-foreground"
-                }`}>
-                <item.icon className="w-4 h-4 shrink-0" />
-                <span>{item.label}</span>
-              </button>
-            ))}
-          </div>
+          {/* Single-section portal: the page itself is the "role" panel, so no tab bar
+              (a one-item switcher only repeated the sidebar's Dashboard link). */}
           <TabsList className="hidden">
             <TabsTrigger value="role" />
             {/* <TabsTrigger value="ratings" /> — removed */}
@@ -1985,33 +1965,6 @@ export default function StaffPortal() {
         </Tabs>
       </div>
 
-      {/* ── Staff Portal Bottom Navigation (mobile only) ──────────────── */}
-      <nav className="lg:hidden fixed bottom-0 left-0 right-0 z-40 bg-card/95 backdrop-blur-md border-t border-border"
-        style={{ paddingBottom: "env(safe-area-inset-bottom, 0px)" }}>
-        <div className="max-w-4xl mx-auto flex items-stretch h-16">
-          {([
-            { id: "role",     icon: meta.tabIcon, label: meta.tabLabel },
-            // Ratings removed
-            // { id: "ratings",  icon: Star,         label: "Ratings" },
-            // Messages removed — use sidebar Messages link instead
-            // { id: "messages", icon: MessageSquare, label: "Messages" },
-            // Profile removed — use sidebar Profile link instead
-            // { id: "profile",  icon: User,          label: "Profile" },
-          ] as const).map((item: any) => {
-            const active = tab === item.id;
-            return (
-              <button key={item.id} onClick={() => setTab(item.id)}
-                className={`flex-1 flex flex-col items-center justify-center gap-1 relative transition-colors ${
-                  active ? "text-emerald-600 dark:text-emerald-400" : "text-muted-foreground hover:text-foreground"
-                }`}>
-                {active && <span className="absolute top-0 left-1/2 -translate-x-1/2 w-8 h-0.5 bg-emerald-600 rounded-b-full" />}
-                <item.icon className={`w-5 h-5 ${active ? "stroke-[2.5]" : ""}`} />
-                <span className="text-[10px] font-medium">{item.label}</span>
-              </button>
-            );
-          })}
-        </div>
-      </nav>
     </div>
   );
 }

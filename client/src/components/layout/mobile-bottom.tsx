@@ -164,11 +164,10 @@ const getConfigs = (t: (key: string) => string): Record<string, RoleConfig> => {
       ],
     },
 
-    // Contractor — portal, messages, profile
+    // Contractor — portal and profile (messaging is a tab inside the portal)
     contractor: {
       primary: [
         { label: t("nav.my_portal"), href: "/contractor-portal", icon: LayoutDashboard },
-        { label: t("nav.messages"),  href: "/messages",          icon: MessageSquare, badgeKey: "messages" },
         { label: t("nav.my_profile"), href: "/profile",          icon: UserCog },
       ],
       groups: [],
