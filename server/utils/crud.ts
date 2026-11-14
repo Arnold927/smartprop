@@ -5,7 +5,7 @@ import { eq, and, sql } from 'drizzle-orm';
 import { z } from 'zod';
 import { authenticateJWT } from '../middleware/auth';
 import { auditLog } from '../middleware/auditLog';
-import { parseQueryOptions, buildQuery, paginateResponse } from './query';
+import { parseQueryOptions, buildQuery, buildConditions, paginateResponse } from './query';
 
 // Define a type for the database result
 type QueryResult<T> = T[];
@@ -84,18 +84,21 @@ export const createCRUDRouter = (options: CRUDOptions): Router => {
       const queryOptions = parseQueryOptions(authReq);
       const orgId = authReq.user?.organizationId || authReq.session?.organizationId;
 
-      let baseQuery = db.select().from(options.table);
-      
-      if (options.organizationScoped && orgId && options.table.organizationId) {
-        baseQuery = baseQuery.where(eq(options.table.organizationId, orgId)) as any;
-      }
+      // The organisation scope is passed INTO the query builder (not applied with a separate
+      // .where() first): a second .where() replaces the first, which used to drop the scope as
+      // soon as a request carried any filter. The count uses the same conditions, so `count`
+      // matches the filtered list instead of the whole table.
+      const orgCondition = options.organizationScoped && orgId && options.table.organizationId
+        ? eq(options.table.organizationId, orgId)
+        : undefined;
 
-      const query = buildQuery(baseQuery, options.table, queryOptions);
+      const query = buildQuery(db.select().from(options.table), options.table, queryOptions, orgCondition);
       const results = await query;
 
+      const countConditions = buildConditions(options.table, queryOptions, orgCondition);
       let countQuery = db.select({ count: sql<number>`count(*)` }).from(options.table);
-      if (options.organizationScoped && orgId && options.table.organizationId) {
-        countQuery = countQuery.where(eq(options.table.organizationId, orgId)) as any;
+      if (countConditions.length > 0) {
+        countQuery = countQuery.where(and(...countConditions)) as any;
       }
       const totalResult = await countQuery;
       

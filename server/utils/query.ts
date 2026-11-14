@@ -49,9 +49,14 @@ export const parseQueryOptions = (req: Request): QueryOptions => {
   return options;
 };
 
-export const buildQuery = (baseQuery: any, table: any, options: QueryOptions) => {
-  let query = baseQuery;
-  const conditions: any[] = [];
+/**
+ * The WHERE conditions a list request's filters/search ask for. `baseCondition` (e.g. the caller's
+ * organisation scope) is ALWAYS included: Drizzle's .where() REPLACES any earlier .where(), so
+ * the scope has to travel in the same call or a request carrying any filter (?propertyId=9)
+ * silently dropped the organisation check and read other organisations' rows.
+ */
+export const buildConditions = (table: any, options: QueryOptions, baseCondition?: any) => {
+  const conditions: any[] = baseCondition ? [baseCondition] : [];
 
   // Apply filters - with validation
   if (options.filters) {
@@ -80,6 +85,13 @@ export const buildQuery = (baseQuery: any, table: any, options: QueryOptions) =>
       conditions.push(or(...searchConditions));
     }
   }
+
+  return conditions;
+};
+
+export const buildQuery = (baseQuery: any, table: any, options: QueryOptions, baseCondition?: any) => {
+  let query = baseQuery;
+  const conditions = buildConditions(table, options, baseCondition);
 
   // Only add WHERE clause if there are conditions
   if (conditions.length > 0) {

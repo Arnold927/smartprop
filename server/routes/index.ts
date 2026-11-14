@@ -9,6 +9,7 @@ import organizationsRouter from "./organizations";
 import aiProxyRouter from "./ai-proxy";
 import { propertyRouter, unitRouter, expenseRouter, visitorRouter } from "./properties";
 import unitVacancyGuardRouter from "./unit-vacancy-guard";
+import { landlordPropertyGuard, landlordUnitGuard } from "./landlord-scope-guard";
 import propertiesListRouter from "./properties-list";
 import { tenantRouter, paymentRouter, invoiceRouter, mpesaRouter } from "./tenants";
 import mpesaTransactionsGuardRouter from "./mpesa-transactions-guard";
@@ -288,8 +289,10 @@ export function registerModularRoutes(app: Express) {
   mount(app, "/api/import",                            importRouter);
   mount(app, "/api/leases",                            leasesRouter);
   mount(app, "/api/exchange-rates",                    exchangeRatesRouter);  
+  mount(app, "/api/properties",                        landlordPropertyGuard);  // landlord: new property is theirs; only their own by id (before everything below)
   mount(app, "/api/properties",                        propertiesListRouter);  // enriched GET / (must be before propertyRouter)
   mount(app, "/api/properties",                        propertyRouter);
+  mount(app, "/api/units",                             landlordUnitGuard);  // landlord: only units in their own properties
   mount(app, "/api/units",                             unitVacancyGuardRouter);  // PATCH /:id ownership + tenant-safety check (must be before unitRouter)
   mount(app, "/api/units",                             unitRouter);
   mount(app, "/api/visitors",                          visitorRouter);
