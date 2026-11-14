@@ -225,10 +225,13 @@ export default function Properties() {
           </div>
           <div className="flex items-center gap-2.5 flex-wrap">
             <ExportMenu disabled={filtered.length === 0} onPdf={handleExportPdf} onExcel={handleExport} />
-            <Button size="sm" className="h-9 bg-emerald-600 hover:bg-emerald-700 text-white px-4"
-              onClick={() => setBulkOpen(true)} data-testid="add-property-with-units">
-              <Layers className="w-4 h-4 mr-1.5" /> Add property with units
-            </Button>
+            {/* Same roles the server allows for /api/property-setup (staff can view properties, not create them this way). */}
+            {(canEdit || guard.isLandlord) && (
+              <Button size="sm" className="h-9 bg-emerald-600 hover:bg-emerald-700 text-white px-4"
+                onClick={() => setBulkOpen(true)} data-testid="add-property-with-units">
+                <Layers className="w-4 h-4 mr-1.5" /> Add property with units
+              </Button>
+            )}
             <Button size="sm" variant="outline" className="h-9 px-4"
               onClick={() => { setEditingProperty(null); setIsAddModalOpen(true); }}>
               <Plus className="w-4 h-4 mr-1.5" /> Add property
