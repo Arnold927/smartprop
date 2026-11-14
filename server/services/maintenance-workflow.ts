@@ -30,7 +30,7 @@
 import { db } from "../db";
 import { and, eq, inArray, sql } from "drizzle-orm";
 import {
-  maintenanceRequests, units, properties, tenants, users, staffMembers, contractors, workOrders, pmAgreements,
+  maintenanceRequests, units, properties, tenants, users, staffMembers, contractors, workOrders, pmAgreements, utilityBills,
 } from "@shared/schema";
 import { storage } from "../storage";
 import { notifyMaintenanceUpdated } from "../ws";
@@ -110,7 +110,12 @@ export interface RequestCtx {
   responseTime: number | null;
   satisfactionRating: number | null;
   estimatedCost: string | null;
+  actualCost: string | null;
   description: string | null;
+  chargeTenant: boolean | null;
+  tenantChargeAmount: string | null;
+  tenantChargeReason: string | null;
+  tenantChargeBillId: number | null;
 }
 
 /** Resolve the request's org via its unit (maintenance_requests has no organization_id of its own). */
@@ -136,6 +141,11 @@ export async function loadRequestCtx(id: number, orgId: number): Promise<Request
       responseTime: maintenanceRequests.responseTime,
       satisfactionRating: maintenanceRequests.satisfactionRating,
       estimatedCost: maintenanceRequests.estimatedCost,
+      actualCost: maintenanceRequests.actualCost,
+      chargeTenant: maintenanceRequests.chargeTenant,
+      tenantChargeAmount: maintenanceRequests.tenantChargeAmount,
+      tenantChargeReason: maintenanceRequests.tenantChargeReason,
+      tenantChargeBillId: maintenanceRequests.tenantChargeBillId,
       unitOrgId: units.organizationId,
       propertyId: units.propertyId,
       propertyName: properties.name,
@@ -438,6 +448,12 @@ export async function transition(requestId: number, action: WorkflowAction, acto
   const threadText = action === "approve" ? input.comments : action === "cancel" && actor.role !== "tenant" ? (input.reason ? `Cancelled: ${input.reason}` : "Cancelled") : action === "reject" ? `Rejected: ${updated.rejectionReason}` : undefined;
   if (threadText) await appendThreadNote(requestId, actor, threadText).catch(() => {});
 
+  // ── Charge-back: a job flagged "charge the tenant" is billed the moment it is completed ──
+  if (action === "complete" && updated.chargeTenant) {
+    try { await issueTenantChargeBill(updated, ctx.tenantId, actor); }
+    catch (e) { console.warn("[maintenance-workflow] tenant charge bill failed:", e); }
+  }
+
   // ── Work-order bookkeeping ──
   try {
     if (!input.fromWorkOrder) {
@@ -532,6 +548,125 @@ async function afterTransition(action: WorkflowAction, ctx: RequestCtx, updated:
   else if (action === "reject") await notifyOversight(org, ctx, "Request rejected", `${who} rejected ${ctx.title ?? t} (#${t}).${updated.rejectionReason ? ` Reason: ${updated.rejectionReason}` : ""}`, me);
 }
 
+// ── Charge to tenant ─────────────────────────────────────────────────────────────────────────────
+/**
+ * When the tenant (not the owner) must pay for a repair — damage they caused, say — the request is flagged
+ * "charge tenant" with a reason. The bill is issued when the job is completed (that's when the final cost is known),
+ * as a utility_bill of type 'repair': the tenant already sees those in their portal and can pay them by M-Pesa,
+ * and the payment reconciles itself. Only managers/admins and the property's own landlord decide this.
+ */
+export const REPAIR_BILL_DUE_DAYS = 14;
+
+const money = (v: unknown): number => { const n = Number(v); return Number.isFinite(n) ? n : 0; };
+
+/** The most the tenant may be billed: never more than the repair actually cost. */
+function chargeCap(row: { actualCost: any; estimatedCost?: any }): number | null {
+  const actual = money(row.actualCost);
+  return actual > 0 ? actual : null;
+}
+
+/** Charge messages go out on every channel: WhatsApp/email (as the tenant prefers) AND the portal's notification bell. */
+async function tellTenant(tenantId: number, title: string, message: string, requestId: number) {
+  await notifyTenant(tenantId, { type: "custom", message }).catch(() => {});
+  const [t] = await db.select({ userId: tenants.userId }).from(tenants).where(eq(tenants.id, tenantId)).limit(1);
+  if (t?.userId) pushNotification(t.userId, { type: "payment", title, message, ts: new Date().toISOString(), link: "/tenant-portal", meta: { requestId } });
+}
+
+export async function issueTenantChargeBill(updated: any, tenantId: number | null, actor: Actor, dueInDays = REPAIR_BILL_DUE_DAYS) {
+  if (!tenantId) return null;
+  const [tenant] = await db.select({ id: tenants.id, currency: tenants.currency }).from(tenants).where(eq(tenants.id, tenantId)).limit(1);
+  if (!tenant) return null;
+  let amount = money(updated.tenantChargeAmount) || money(updated.actualCost) || money(updated.estimatedCost);
+  const cap = chargeCap(updated);
+  if (cap != null && amount > cap) amount = cap;
+  if (!(amount > 0)) return null; // nothing to bill yet — the manager sets an amount and it is issued then
+
+  const now = new Date();
+  const notes = `Repair charge for "${updated.title}" (#${updated.ticketNumber})${updated.tenantChargeReason ? `: ${updated.tenantChargeReason}` : ""}`;
+  const fields = { amount: amount.toFixed(2), notes };
+
+  // Already billed? Update it while it is unpaid; a paid bill is never touched.
+  if (updated.tenantChargeBillId) {
+    const [bill] = await db.select().from(utilityBills).where(eq(utilityBills.id, updated.tenantChargeBillId)).limit(1);
+    if (bill) {
+      if (bill.status === "paid") return bill;
+      const [b] = await db.update(utilityBills).set(fields as any).where(eq(utilityBills.id, bill.id)).returning();
+      if (money(bill.amount) !== amount) {
+        await tellTenant(tenantId, "Repair charge updated", `The repair charge for request #${updated.ticketNumber} was changed to ${tenant.currency ?? "KES"} ${amount.toLocaleString("en-KE")}. See Utility Bills in your portal.`, updated.id);
+      }
+      return b;
+    }
+  }
+  const [bill] = await db.insert(utilityBills).values({
+    tenantId: tenant.id, utilityType: "repair", billNumber: `REP-${updated.ticketNumber}`,
+    billingPeriodStart: updated.completedAt ?? now, billingPeriodEnd: updated.completedAt ?? now,
+    dueDate: new Date(now.getTime() + dueInDays * 86_400_000),
+    currency: tenant.currency ?? "KES", status: "pending", ...fields,
+  } as any).returning();
+  await db.update(maintenanceRequests).set({ tenantChargeBillId: bill.id, tenantChargeAmount: amount.toFixed(2) } as any).where(eq(maintenanceRequests.id, updated.id));
+  const cur = tenant.currency ?? "KES";
+  await tellTenant(tenantId, "Repair charge added", `A repair charge of ${cur} ${amount.toLocaleString("en-KE")} was added to your account for request #${updated.ticketNumber}${updated.tenantChargeReason ? ` (${updated.tenantChargeReason})` : ""}. You can see and pay it under Utility Bills in your portal.`, updated.id);
+  return bill;
+}
+
+export async function setTenantCharge(
+  requestId: number, actor: Actor,
+  input: { charge: boolean; amount?: number | string | null; reason?: string | null },
+) {
+  const ctx = await loadRequestCtx(requestId, actor.organizationId);
+  if (!ctx || (!actor.system && !(await callerCanAccess(ctx, { user: actor })))) throw new WorkflowError(404, "Maintenance request not found", "NOT_FOUND");
+  const mayDecide = PM_ROLES.has(actor.role) || (actor.role === "landlord" && ctx.ownerId === actor.id);
+  if (!mayDecide) throw new WorkflowError(403, "Only the property manager or the owner can charge a repair to a tenant.", "FORBIDDEN");
+  if (ctx.status === "cancelled") throw new WorkflowError(409, "A cancelled request can't be charged to the tenant.", "BAD_STATE");
+  if (!ctx.tenantId) throw new WorkflowError(400, "This request isn't linked to a tenant.", "NO_TENANT");
+
+  const bill = ctx.tenantChargeBillId
+    ? (await db.select().from(utilityBills).where(eq(utilityBills.id, ctx.tenantChargeBillId)).limit(1))[0] ?? null
+    : null;
+
+  // ── Remove the charge ──
+  if (!input.charge) {
+    if (bill?.status === "paid") throw new WorkflowError(409, "The tenant has already paid this charge. Refund it from Finances instead.", "ALREADY_PAID");
+    if (bill) await db.delete(utilityBills).where(eq(utilityBills.id, bill.id));
+    const [u] = await db.update(maintenanceRequests)
+      .set({ chargeTenant: false, tenantChargeAmount: null, tenantChargeReason: null, tenantChargeBillId: null, updatedAt: new Date() } as any)
+      .where(eq(maintenanceRequests.id, requestId)).returning();
+    await appendThreadNote(requestId, actor, "Charge to tenant removed").catch(() => {});
+    if (bill) await tellTenant(ctx.tenantId, "Repair charge removed", `The repair charge for request #${ctx.ticketNumber} was removed — you don't need to pay it.`, requestId);
+    notifyMaintenanceUpdated(actor.organizationId, { id: u.id, status: u.status, title: u.title } as any);
+    return u;
+  }
+
+  // ── Set / change the charge ──
+  const reason = (input.reason ?? ctx.tenantChargeReason ?? "").trim();
+  if (reason.length < 3) throw new WorkflowError(400, "Say why the tenant is being charged (they will see it).", "NO_REASON");
+  let amount: number | null = null;
+  if (input.amount !== undefined && input.amount !== null && String(input.amount).trim() !== "") {
+    amount = money(input.amount);
+    if (!(amount > 0)) throw new WorkflowError(400, "Enter an amount greater than zero.", "BAD_AMOUNT");
+  } else if (ctx.tenantChargeAmount) amount = money(ctx.tenantChargeAmount);
+  const cap = chargeCap(ctx);
+  if (amount != null && cap != null && amount > cap) throw new WorkflowError(400, `The tenant can't be charged more than the repair cost (${cap.toLocaleString("en-KE")}).`, "OVER_COST");
+  if (bill?.status === "paid" && amount != null && amount !== money(bill.amount)) throw new WorkflowError(409, "The tenant has already paid this charge, so the amount can't change.", "ALREADY_PAID");
+  if (ctx.status === "completed" && amount == null && !(money(ctx.actualCost) > 0) && !(money(ctx.estimatedCost) > 0)) {
+    throw new WorkflowError(400, "Enter the amount to charge.", "NO_AMOUNT");
+  }
+
+  const [u] = await db.update(maintenanceRequests)
+    .set({ chargeTenant: true, tenantChargeReason: reason, tenantChargeAmount: amount != null ? amount.toFixed(2) : null, updatedAt: new Date() } as any)
+    .where(eq(maintenanceRequests.id, requestId)).returning();
+  await appendThreadNote(requestId, actor, `Repair charged to tenant${amount != null ? `: ${amount.toLocaleString("en-KE")}` : ""} — ${reason}`).catch(() => {});
+
+  if (ctx.status === "completed") {
+    await issueTenantChargeBill(u, ctx.tenantId, actor);
+  } else if (!ctx.chargeTenant) {
+    await tellTenant(ctx.tenantId, "Repair may be charged to you", `Heads up: the cost of repair request #${ctx.ticketNumber} may be charged to you (${reason}). You'll see the final amount once the job is done.`, requestId);
+  }
+  notifyMaintenanceUpdated(actor.organizationId, { id: u.id, status: u.status, title: u.title } as any);
+  const [fresh] = await db.select().from(maintenanceRequests).where(eq(maintenanceRequests.id, requestId)).limit(1);
+  return fresh;
+}
+
 // ── Rating ───────────────────────────────────────────────────────────────────────────────────────
 /** The tenant rates a COMPLETED request, once. (A reopened request can be rated again after the next fix.) */
 export async function rateRequest(requestId: number, actor: Actor, input: { rating: number; comments?: string }) {
@@ -564,6 +699,7 @@ export const WORKFLOW_OWNED_FIELDS = [
   "assignedTo", "technicianId", "contractorId", "assignedDate", "startedDate", "workStartTime", "workEndTime",
   "completedAt", "responseTime", "resolutionTime",
   "satisfactionRating", "customerSatisfaction", "satisfactionComments", "feedbackDate", "ticketNumber",
+  "chargeTenant", "tenantChargeAmount", "tenantChargeReason", "tenantChargeBillId",
 ] as const;
 
 /** A brand-new request always starts as pending (or pending_approval when its cost needs sign-off) — whatever the client sent. */

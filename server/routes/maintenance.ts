@@ -10,7 +10,7 @@ import { notifyTenant } from '../services/notifyTenant';
 import { storage } from '../storage';
 import { sanitizeNewRequest, announceNewRequest, actorFromReq } from '../services/maintenance-workflow';
 import { 
-  maintenanceRequests, contractors, tenants, units, properties, staffMembers,
+  maintenanceRequests, contractors, tenants, units, properties, staffMembers, utilityBills,
   projects, projectTasks, projectMilestones,
   insertMaintenanceRequestSchema, insertContractorSchema,
   insertProjectSchema, insertProjectTaskSchema, insertProjectMilestoneSchema
@@ -89,6 +89,13 @@ maintenanceListRouter.get('/', authenticateJWT, requireOrg, async (req: any, res
         satisfactionRating: maintenanceRequests.satisfactionRating,
         satisfactionComments: maintenanceRequests.satisfactionComments,
         feedbackDate: maintenanceRequests.feedbackDate,
+        chargeTenant: maintenanceRequests.chargeTenant,
+        tenantChargeAmount: maintenanceRequests.tenantChargeAmount,
+        tenantChargeReason: maintenanceRequests.tenantChargeReason,
+        tenantChargeBillId: maintenanceRequests.tenantChargeBillId,
+        chargeBillStatus: utilityBills.status,
+        chargeBillAmount: utilityBills.amount,
+        tenantCurrency: tenants.currency,
         technicianFirstName: staffMembers.first_name,
         technicianLastName: staffMembers.last_name,
         tenantFirstName: tenants.firstName,
@@ -118,6 +125,7 @@ maintenanceListRouter.get('/', authenticateJWT, requireOrg, async (req: any, res
       .leftJoin(tenants, eq(maintenanceRequests.tenantId, tenants.id))
       .leftJoin(properties, eq(units.propertyId, properties.id))
       .leftJoin(staffMembers, eq(maintenanceRequests.technicianId, staffMembers.id))
+      .leftJoin(utilityBills, eq(maintenanceRequests.tenantChargeBillId, utilityBills.id))
       .orderBy(desc(maintenanceRequests.createdAt));
 
     const results = rows.map(r => ({
@@ -146,6 +154,11 @@ maintenanceListRouter.get('/', authenticateJWT, requireOrg, async (req: any, res
       satisfactionRating: r.satisfactionRating,
       satisfactionComments: r.satisfactionComments,
       feedbackDate: r.feedbackDate,
+      chargeTenant: !!r.chargeTenant,
+      tenantChargeAmount: r.chargeBillAmount ?? r.tenantChargeAmount,
+      tenantChargeReason: r.tenantChargeReason,
+      tenantChargeBillStatus: r.tenantChargeBillId ? (r.chargeBillStatus ?? null) : null,
+      tenantCurrency: r.tenantCurrency ?? 'KES',
       technicianName: [r.technicianFirstName, r.technicianLastName].filter(Boolean).join(' ') || null,
       tenant: (r.tenantFirstName || r.tenantLastName)
         ? { id: r.tenantId, firstName: r.tenantFirstName ?? '', lastName: r.tenantLastName ?? '', email: r.tenantEmail ?? '' }

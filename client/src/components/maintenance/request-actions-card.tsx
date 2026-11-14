@@ -31,6 +31,12 @@ export interface ActionsCardRequest {
   approvalRequired?: boolean | null;
   satisfactionRating?: number | null;
   satisfactionComments?: string | null;
+  // charge-back (the tenant pays for this repair)
+  chargeTenant?: boolean | null;
+  tenantChargeAmount?: string | null;
+  tenantChargeReason?: string | null;
+  tenantChargeBillStatus?: string | null;
+  tenantCurrency?: string | null;
 }
 
 /**
@@ -68,6 +74,8 @@ export function RequestActionsCard({
   const [costOpen, setCostOpen] = useState(false);
   const [addTechOpen, setAddTechOpen] = useState(false);
   const [assignOpen, setAssignOpen] = useState(false);
+  const [chargeOpen, setChargeOpen] = useState(false);
+  const [unchargeOpen, setUnchargeOpen] = useState(false);
 
   const act = useMutation({
     mutationFn: async ({ action, reason, notes, cost }: { action: "start" | "pause" | "complete" | "cancel"; reason?: string; notes?: string; cost?: string }) =>
@@ -99,11 +107,22 @@ export function RequestActionsCard({
     onError: fail("Couldn't record the decision"),
   });
 
+  const charge = useMutation({
+    mutationFn: async (data: { charge: boolean; amount?: string; reason?: string }) =>
+      (await apiRequest(`/api/maintenance-requests/${request.id}/charge`, { method: "PATCH", data: { ...data, amount: data.amount ? Number(data.amount) : undefined } })).json(),
+    onSuccess: (_d, v) => {
+      refresh(); setChargeOpen(false); setUnchargeOpen(false);
+      toast({ title: v.charge ? (request.status === "completed" ? "Charged to the tenant — they've been billed" : "Saved — the tenant is billed when the job is completed") : "Charge removed" });
+    },
+    onError: fail("Couldn't update the charge"),
+  });
+
   const canApprove = acts.includes("approve");
   const canAssign = acts.includes("assign");
   const canUnassign = acts.includes("unassign");
   const canSchedule = ["pending", "assigned", "in_progress"].includes(request.status) && (canAssign || acts.includes("start"));
   const isPM = ["platform_admin", "admin", "manager"].includes(role ?? "");
+  const canCharge = request.status !== "cancelled" && request.status !== "pending_approval" && (isPM || role === "landlord");
   const canCost = request.status !== "cancelled" && (isPM || canAssign || acts.includes("complete") || acts.includes("approve"));
   const hasAssignee = !!(request.technicianId || request.contractorId);
   const isLive = ["pending", "assigned", "in_progress"].includes(request.status);
@@ -230,6 +249,11 @@ export function RequestActionsCard({
           </div>
         )}
 
+        {canCharge && (
+          <ChargeSection request={request} busy={charge.isPending}
+            onEdit={() => setChargeOpen(true)} onRemove={() => setUnchargeOpen(true)} />
+        )}
+
         {acts.includes("cancel") && (
           <Button variant="ghost" size="sm" className="w-full text-red-600 hover:text-red-700 hover:bg-red-50" onClick={() => setCancelOpen(true)} data-testid="act-cancel">
             <XCircle className="h-4 w-4 mr-2" /> Cancel request
@@ -245,6 +269,12 @@ export function RequestActionsCard({
         onConfirm={(notes, cost) => act.mutate({ action: "complete", notes, cost })} />
       <ApprovalDialog open={approveOpen} onOpenChange={setApproveOpen} busy={decide.isPending} estimated={request.estimatedCost ?? ""} currency={request.currency ?? "KES"}
         onDecide={(d) => decide.mutate(d)} />
+      <ChargeDialog open={chargeOpen} onOpenChange={setChargeOpen} busy={charge.isPending} request={request}
+        onSave={(d) => charge.mutate({ charge: true, ...d })} />
+      <ReasonDialog open={unchargeOpen} onOpenChange={setUnchargeOpen} title="Take the charge off the tenant?"
+        description="The unpaid repair bill is removed from the tenant's account and they are told."
+        confirmLabel="Remove charge" destructive busy={charge.isPending}
+        onConfirm={() => charge.mutate({ charge: false })} />
       <CostDialog open={costOpen} onOpenChange={setCostOpen} busy={edit.isPending} request={request}
         onSave={(data) => edit.mutate(data)} />
     </Card>
@@ -340,6 +370,75 @@ function CostDialog({ open, onOpenChange, onSave, busy, request }: {
         <DialogFooter className="gap-2 sm:gap-0">
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={busy}>Back</Button>
           <Button disabled={busy} onClick={() => onSave({ ...(est !== (request.estimatedCost ?? "") && est ? { estimatedCost: est } : {}), ...(act !== (request.actualCost ?? "") && act ? { actualCost: act } : {}) })} data-testid="cost-save">{busy ? "Saving…" : "Save"}</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+const chargeCurrency = (r: ActionsCardRequest) => r.tenantCurrency ?? r.currency ?? "KES";
+
+/** "Charge to tenant": who pays for this repair. Billing happens on completion (or at once if it is already done). */
+function ChargeSection({ request, busy, onEdit, onRemove }: { request: ActionsCardRequest; busy: boolean; onEdit: () => void; onRemove: () => void }) {
+  const cur = chargeCurrency(request);
+  if (!request.chargeTenant) {
+    return (
+      <Button variant="outline" className="w-full" onClick={onEdit} data-testid="open-charge">
+        <DollarSign className="h-4 w-4 mr-2" /> Charge to tenant…
+      </Button>
+    );
+  }
+  const billed = request.tenantChargeBillStatus;
+  const paid = billed === "paid";
+  return (
+    <div className="rounded-lg border border-orange-200 bg-orange-50 dark:bg-orange-950/30 dark:border-orange-800 p-3 text-sm space-y-1.5" data-testid="charge-status">
+      <p className="font-medium flex items-center justify-between gap-2">
+        <span>Charged to tenant{request.tenantChargeAmount ? `: ${cur} ${Number(request.tenantChargeAmount).toLocaleString()}` : ""}</span>
+        {billed && <Badge variant="outline" className={paid ? "border-emerald-300 text-emerald-700" : "border-yellow-400 text-yellow-800"}>{paid ? "Paid" : "Billed · unpaid"}</Badge>}
+      </p>
+      {request.tenantChargeReason && <p className="text-muted-foreground">{request.tenantChargeReason}</p>}
+      {!billed && <p className="text-xs text-muted-foreground">{request.status === "completed" ? "Set the amount to bill the tenant." : "The tenant is billed when the job is completed."}</p>}
+      <div className="flex gap-2 pt-1">
+        {!paid && <Button size="sm" variant="outline" className="h-7 text-xs" onClick={onEdit} disabled={busy} data-testid="edit-charge">Edit</Button>}
+        {!paid && <Button size="sm" variant="ghost" className="h-7 text-xs text-red-600 hover:text-red-700 hover:bg-red-50" onClick={onRemove} disabled={busy} data-testid="remove-charge">Remove</Button>}
+        {paid && <p className="text-xs text-muted-foreground">Already paid — refund it from Finances if needed.</p>}
+      </div>
+    </div>
+  );
+}
+
+function ChargeDialog({ open, onOpenChange, onSave, busy, request }: {
+  open: boolean; onOpenChange: (o: boolean) => void; busy: boolean; request: ActionsCardRequest; onSave: (d: { amount?: string; reason: string }) => void;
+}) {
+  const cur = chargeCurrency(request);
+  const [amount, setAmount] = useState(request.tenantChargeAmount ?? "");
+  const [reason, setReason] = useState(request.tenantChargeReason ?? "");
+  const hint = request.actualCost || request.estimatedCost || "";
+  return (
+    <Dialog open={open} onOpenChange={(o) => { onOpenChange(o); if (o) { setAmount(request.tenantChargeAmount ?? ""); setReason(request.tenantChargeReason ?? ""); } }}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle>Charge this repair to the tenant</DialogTitle>
+          <DialogDescription>
+            The tenant sees the reason and the amount, and pays it from their portal like any other bill.
+            {request.status === "completed" ? " The job is done, so they're billed straight away." : " They're billed when the job is completed."}
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-3">
+          <div>
+            <Label>Why is the tenant paying? <span className="text-red-600">*</span></Label>
+            <Textarea rows={2} value={reason} onChange={(e) => setReason(e.target.value)} placeholder="e.g. Window broken by the tenant" data-testid="charge-reason" />
+          </div>
+          <div>
+            <Label>Amount ({cur}) <span className="text-muted-foreground font-normal">— leave empty to bill the actual repair cost</span></Label>
+            <Input inputMode="decimal" value={amount} placeholder={hint ? String(Number(hint)) : "Actual cost"}
+              onChange={(e) => setAmount(e.target.value.replace(/[^\d.]/g, ""))} data-testid="charge-amount" />
+            <p className="text-[11px] text-muted-foreground mt-1">Can't be more than what the repair actually cost.</p>
+          </div>
+        </div>
+        <DialogFooter className="gap-2 sm:gap-0">
+          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={busy}>Back</Button>
+          <Button disabled={busy || reason.trim().length < 3} onClick={() => onSave({ amount: amount || undefined, reason: reason.trim() })} data-testid="charge-save">{busy ? "Saving…" : "Save charge"}</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

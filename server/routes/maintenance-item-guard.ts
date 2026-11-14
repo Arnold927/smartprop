@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { db } from "../db";
-import { maintenanceRequests, workOrders, units, tenants, insertMaintenanceRequestSchema } from "@shared/schema";
+import { maintenanceRequests, workOrders, units, tenants, utilityBills, insertMaintenanceRequestSchema } from "@shared/schema";
 import { eq, and, inArray } from "drizzle-orm";
 import { authenticateJWT } from "../middleware/auth";
 import { requireOrg } from "../middleware/requireOrg";
@@ -31,7 +31,13 @@ router.get("/:id", async (req: any, res: any, next: any) => {
     const [full] = await db.select().from(maintenanceRequests).where(eq(maintenanceRequests.id, id)).limit(1);
     // Internal working notes never go to the tenant.
     if (req.user.role === "tenant") { delete (full as any).technicianNotes; delete (full as any).internalNotes; }
-    res.json(full);
+    // Charge-back status: what the tenant was billed and whether it is paid.
+    let bill: { status: string | null; amount: string } | undefined;
+    if ((full as any).tenantChargeBillId) {
+      [bill] = await db.select({ status: utilityBills.status, amount: utilityBills.amount }).from(utilityBills).where(eq(utilityBills.id, (full as any).tenantChargeBillId)).limit(1);
+    }
+    const [tn] = full.tenantId ? await db.select({ currency: tenants.currency }).from(tenants).where(eq(tenants.id, full.tenantId)).limit(1) : [];
+    res.json({ ...full, tenantChargeBillStatus: bill?.status ?? null, tenantChargeAmount: bill?.amount ?? (full as any).tenantChargeAmount ?? null, tenantCurrency: tn?.currency ?? "KES" });
   } catch (err) {
     console.error("[maintenance-item-guard] GET /:id:", err);
     res.status(500).json({ message: "Internal server error" });

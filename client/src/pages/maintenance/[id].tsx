@@ -257,12 +257,13 @@ export default function MaintenanceDetails() {
       const response = await apiRequest(
         `/api/tenants?ids=${commentTenantIds.join(',')}`
       );
-      return response.json(); // [{ id, firstName, lastName }]
+      const j = await response.json(); // the list endpoint is paged: { results: [{ id, firstName, lastName }] }
+      return Array.isArray(j) ? j : (j?.results ?? j?.data ?? []);
     },
     enabled: commentTenantIds.length > 0,
   });
 
-  const tenantMap = commentTenants?.reduce((acc: Record<string, string>, t: any) => {
+  const tenantMap = (Array.isArray(commentTenants) ? commentTenants : []).reduce((acc: Record<string, string>, t: any) => {
     acc[t.id] = `${t.firstName} ${t.lastName}`;
     return acc;
   }, {}) || {};

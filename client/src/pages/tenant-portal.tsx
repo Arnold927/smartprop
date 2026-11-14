@@ -544,7 +544,7 @@ function StarRating({ value, onChange, readonly }: {
 
 // ─── Maintenance request card with inline feedback ────────────────────────────
 
-function MaintenanceCard({ req }: { req: any }) {
+function MaintenanceCard({ req, onViewBills }: { req: any; onViewBills?: () => void }) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [expanded, setExpanded] = useState(false);
@@ -650,6 +650,49 @@ function MaintenanceCard({ req }: { req: any }) {
             {req.scheduledDate ? <>📅 Visit {fmtDate(req.scheduledDate)}</> : null}
           </p>
         )}
+
+        {/* What it costs, and whether any of it is the tenant's to pay */}
+        {req.status !== "cancelled" && (() => {
+          const cur = req.tenantCurrency || "KES";
+          const money = (n: number) => `${cur} ${n.toLocaleString()}`;
+          const est = Number(req.estimatedCost) || 0;
+          const act = Number(req.actualCost) || 0;
+          const shown = isResolved ? (act > 0 ? act : est) : est;
+          const billed = req.chargeTenant && req.tenantChargeBillStatus;
+          const unpaid = billed && req.tenantChargeBillStatus !== "paid";
+          if (!shown && !req.chargeTenant) return null;
+          return (
+            <div className="mt-3 space-y-2" data-testid="cost-info">
+              {shown > 0 && (
+                <p className="text-xs text-muted-foreground" data-testid="cost-line">
+                  {isResolved && act > 0 ? "Repair cost" : "Estimated cost"}: <span className="font-semibold text-foreground">{money(shown)}</span>
+                </p>
+              )}
+              {req.chargeTenant && (
+                <div className="rounded-xl border border-orange-200 dark:border-orange-800 bg-orange-50 dark:bg-orange-950/30 p-3 text-xs" data-testid="charge-info">
+                  {billed ? (
+                    <>
+                      <p className="font-semibold text-orange-900 dark:text-orange-200">
+                        Charged to you: {money(Number(req.tenantChargeAmount) || 0)}
+                        <span className={`ml-2 rounded-full px-2 py-0.5 text-[10px] font-medium ${unpaid ? "bg-yellow-100 text-yellow-800" : "bg-emerald-100 text-emerald-800"}`}>{unpaid ? "Unpaid" : "Paid"}</span>
+                      </p>
+                      {req.tenantChargeReason && <p className="mt-1 text-orange-800 dark:text-orange-300">{req.tenantChargeReason}</p>}
+                      {unpaid && onViewBills && (
+                        <Button size="sm" variant="outline" className="mt-2 h-7 text-xs" onClick={onViewBills} data-testid="view-repair-bill">View &amp; pay</Button>
+                      )}
+                    </>
+                  ) : (
+                    <>
+                      <p className="font-semibold text-orange-900 dark:text-orange-200">This repair may be charged to you</p>
+                      {req.tenantChargeReason && <p className="mt-1 text-orange-800 dark:text-orange-300">{req.tenantChargeReason}</p>}
+                      <p className="mt-1 text-orange-700 dark:text-orange-400">You'll see the final amount here once the job is done.</p>
+                    </>
+                  )}
+                </div>
+              )}
+            </div>
+          );
+        })()}
 
         {/* Rate resolved request */}
         {isResolved && !req.satisfactionRating && !showRating && (
@@ -1361,8 +1404,8 @@ function PaymentHistoryTable({ payments, isLoading, tenant, unitNumber, property
 
 // ─── Repairs list panel with search + pagination ───────────────────────────────
 
-function RepairsListPanel({ requests, isLoading, onRefresh }: {
-  requests: any[]; isLoading: boolean; onRefresh: () => void;
+function RepairsListPanel({ requests, isLoading, onRefresh, onViewBills }: {
+  requests: any[]; isLoading: boolean; onRefresh: () => void; onViewBills?: () => void;
 }) {
   const [search, setSearch]     = useState("");
   const [pageSize, setPageSize] = useState(5);
@@ -1462,7 +1505,7 @@ function RepairsListPanel({ requests, isLoading, onRefresh }: {
         <p className="text-sm text-muted-foreground text-center py-6">No requests match your filters.</p>
       ) : (
         <div className="space-y-3">
-          {paged.map(r => <MaintenanceCard key={r.id} req={r} />)}
+          {paged.map(r => <MaintenanceCard key={r.id} req={r} onViewBills={onViewBills} />)}
         </div>
       )}
 
@@ -2944,7 +2987,7 @@ export default function TenantPortal({ tenantId, initialTenantData }: TenantPort
                 <QuickAction
                   icon={Droplets} color="blue"
                   label="Utility Bills"
-                  description="View your water, electricity and other utility bill history"
+                  description="Your water, electricity and other utility bills, plus any repair charges"
                   onClick={() => setActiveTab("utilities")}
                   badge={unpaidUtilityBills.length > 0 ? unpaidUtilityBills.length : undefined}
                 />
@@ -3341,7 +3384,7 @@ export default function TenantPortal({ tenantId, initialTenantData }: TenantPort
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                <RepairsListPanel requests={myRequests} isLoading={maintLoading} onRefresh={refetchMaint} />
+                <RepairsListPanel requests={myRequests} isLoading={maintLoading} onRefresh={refetchMaint} onViewBills={() => setActiveTab("utilities")} />
               </CardContent>
             </Card>
           </TabsContent>
@@ -3394,9 +3437,9 @@ export default function TenantPortal({ tenantId, initialTenantData }: TenantPort
                     {/* Bill list */}
                     {myUtilityBills.map(bill => {
                       const utilType = (bill.utilityType || "other").toLowerCase();
-                      const iconMap: Record<string, any> = { water: Droplets, electricity: Zap, gas: Flame, internet: WifiIcon };
+                      const iconMap: Record<string, any> = { water: Droplets, electricity: Zap, gas: Flame, internet: WifiIcon, repair: Wrench };
                       const BillIcon = iconMap[utilType] || Zap;
-                      const colorMap: Record<string, string> = { water: "text-sky-500 bg-sky-50 dark:bg-sky-950/40", electricity: "text-yellow-500 bg-yellow-50 dark:bg-yellow-950/40", gas: "text-red-500 bg-red-50 dark:bg-red-950/40", internet: "text-purple-500 bg-purple-50 dark:bg-purple-950/40" };
+                      const colorMap: Record<string, string> = { repair: "text-orange-500 bg-orange-50 dark:bg-orange-950/40", water: "text-sky-500 bg-sky-50 dark:bg-sky-950/40", electricity: "text-yellow-500 bg-yellow-50 dark:bg-yellow-950/40", gas: "text-red-500 bg-red-50 dark:bg-red-950/40", internet: "text-purple-500 bg-purple-50 dark:bg-purple-950/40" };
                       const iconCls = colorMap[utilType] || "text-muted-foreground bg-muted";
                       const statusCls: Record<string, string> = { pending: "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200", paid: "bg-emerald-50 text-emerald-700 border border-emerald-200", overdue: "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200", disputed: "bg-gray-100 text-muted-foreground" };
 
@@ -3408,11 +3451,13 @@ export default function TenantPortal({ tenantId, initialTenantData }: TenantPort
                           <div className="flex-1 min-w-0">
                             <div className="flex items-start justify-between gap-2 flex-wrap">
                               <div>
-                                <p className="font-semibold text-sm capitalize">{utilType} Bill</p>
+                                <p className="font-semibold text-sm capitalize" data-testid={utilType === "repair" ? "repair-bill" : undefined}>{utilType === "repair" ? "Repair charge" : `${utilType} Bill`}</p>
                                 <p className="text-xs text-muted-foreground mt-0.5">
-                                  {bill.billingPeriodStart && bill.billingPeriodEnd
-                                    ? `${fmtDate(bill.billingPeriodStart)} – ${fmtDate(bill.billingPeriodEnd)}`
-                                    : "—"}
+                                  {utilType === "repair"
+                                    ? (bill.notes || "Charged for a repair")
+                                    : bill.billingPeriodStart && bill.billingPeriodEnd
+                                      ? `${fmtDate(bill.billingPeriodStart)} – ${fmtDate(bill.billingPeriodEnd)}`
+                                      : "—"}
                                 </p>
                               </div>
                               <Badge className={`text-[11px] px-2 py-0 shrink-0 ${statusCls[bill.status] ?? statusCls.pending}`}>

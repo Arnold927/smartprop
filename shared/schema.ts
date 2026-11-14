@@ -588,6 +588,12 @@ export const maintenanceRequests = pgTable("maintenance_requests", {
   followUpRequired: boolean("follow_up_required").default(false),
   followUpDate: timestamp("follow_up_date"),
   recurrence: varchar("recurrence", { enum: ["none", "weekly", "monthly", "quarterly", "annually"] }).default("none"),
+  // Charge-back: when the tenant (not the owner) must pay for the repair. Set only through the workflow service;
+  // the bill itself lives in utility_bills (utility_type 'repair') so the tenant sees it and pays it like any other bill.
+  chargeTenant: boolean("charge_tenant").default(false),
+  tenantChargeAmount: decimal("tenant_charge_amount", { precision: 10, scale: 2 }),
+  tenantChargeReason: text("tenant_charge_reason"),
+  tenantChargeBillId: integer("tenant_charge_bill_id"), // utility_bills.id once issued (no FK: bills can be deleted by finance)
   completedAt: timestamp("completed_at"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),

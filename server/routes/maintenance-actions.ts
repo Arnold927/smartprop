@@ -15,7 +15,7 @@ import { s3Upload, resolveUploadUrl } from "../middleware/s3Upload";
 import { resolveScopedRequest, callerCanAccess } from "./maintenance-item-guard";
 import { landlordStaffPrefix } from "./assignable-staff";
 import {
-  transition, rateRequest, actorFromReq, contractorUserId, WorkflowError,
+  transition, rateRequest, setTenantCharge, actorFromReq, contractorUserId, WorkflowError,
   type WorkflowAction,
 } from "../services/maintenance-workflow";
 
@@ -122,6 +122,22 @@ router.patch("/:id/feedback", auditLog("maintenance_request", "ACTION"), async (
     const { rating, comments } = z.object({ rating: z.number().int().min(1).max(5), comments: z.string().trim().max(2000).optional() }).parse(req.body);
     res.json(await rateRequest(id, actorFromReq(req), { rating, comments }));
   } catch (err) { fail(res, err, "submit feedback"); }
+});
+
+// PATCH /api/maintenance-requests/:id/charge — charge the repair to the tenant (or take the charge off).
+// Body: { charge: boolean, amount?: number, reason?: string }. Billing happens when the job is completed
+// (immediately if it already is). Managers/admins and the property's own landlord only.
+router.patch("/:id/charge", auditLog("maintenance_request", "ACTION"), async (req: any, res) => {
+  try {
+    const id = idOf(req);
+    if (!Number.isInteger(id)) return res.status(404).json({ message: "Maintenance request not found" });
+    const body = z.object({
+      charge: z.boolean(),
+      amount: z.union([z.number(), z.string()]).nullish(),
+      reason: z.string().trim().max(500).nullish(),
+    }).parse(req.body);
+    res.json(await setTenantCharge(id, actorFromReq(req), body));
+  } catch (err) { fail(res, err, "update the tenant charge"); }
 });
 
 // GET /api/maintenance-requests/:id/comments
