@@ -2,6 +2,7 @@
 export interface Unit {
   id: number;
   unitNumber: string;
+  floor?: string | null;
   unitType?: "apartment" | "house" | "office" | "retail" | "kiosk" | "anchor_retail" | "warehouse" | "parking" | "storage" | "other";
   bedrooms?: number | null;
   bathrooms?: number | null;

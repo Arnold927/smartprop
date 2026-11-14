@@ -158,15 +158,30 @@ router.post("/properties", async (req: any, res: any) => {
         .where(and(eq(units.propertyId, propId), eq(units.unitNumber, unitNum), eq(units.organizationId, orgId))).limit(1);
       if (eu) { skippedUnits++; continue; }
 
+      // unit_type / floor / rent_basis / rate_per_sqft used to be ignored, so a mall or office block
+      // imported as fixed-rent apartments. Unknown values fall back to the old defaults.
+      const UNIT_TYPES = ["apartment", "house", "office", "retail", "kiosk", "anchor_retail", "warehouse", "parking", "storage", "other"];
+      const unitType  = UNIT_TYPES.includes((row.unit_type ?? row.type ?? "").toLowerCase().replace(/\s+/g, "_"))
+        ? (row.unit_type ?? row.type).toLowerCase().replace(/\s+/g, "_") : "apartment";
+      const sqftVal   = parseInt(row.sqft ?? "0") || null;
+      const rateVal   = parseFloat((row.rate_per_sqft ?? "").replace(/[^0-9.]/g, "")) || 0;
+      const perSqft   = (row.rent_basis ?? "").toLowerCase() === "per_sqft" && !!sqftVal && rateVal > 0;
+      const rentVal   = parseMoney(row.monthly_rent ?? row.rent);
+      const residentialUnit = unitType === "apartment" || unitType === "house";
+
       await db.insert(units).values({
         organizationId: orgId,
         propertyId:  propId,
         unitNumber:  unitNum,
-        monthlyRent: parseMoney(row.monthly_rent ?? row.rent),
+        floor:       row.floor ? row.floor.slice(0, 20) : null,
+        unitType,
+        rentBasis:   perSqft ? "per_sqft" : "fixed",
+        ratePerSqft: perSqft ? String(rateVal) : null,
+        monthlyRent: perSqft && Number(rentVal) === 0 ? String(Math.round(sqftVal! * rateVal * 100) / 100) : rentVal,
         currency:    row.currency ?? "KES",
-        bedrooms:    parseInt(row.bedrooms ?? "0") || null,
-        bathrooms:   row.bathrooms ? String(parseFloat(row.bathrooms)) : null,
-        sqft:        parseInt(row.sqft ?? "0") || null,
+        bedrooms:    residentialUnit ? (parseInt(row.bedrooms ?? "0") || null) : null,
+        bathrooms:   residentialUnit && row.bathrooms ? String(parseFloat(row.bathrooms)) : null,
+        sqft:        sqftVal,
         isOccupied:  false,
       } as any);
       importedUnits++;
@@ -268,7 +283,7 @@ router.get("/templates", (_req: any, res: any) => {
     properties: {
       description: "One row per unit. Rows with the same property_name share a property record.",
       required: ["property_name", "unit_number", "monthly_rent"],
-      optional: ["address", "total_units", "bedrooms", "bathrooms", "sqft", "currency"],
+      optional: ["address", "floor", "unit_type", "bedrooms", "bathrooms", "sqft", "rent_basis", "rate_per_sqft", "currency"],
       example:  { property_name: "Runda Heights", address: "Runda Road, Nairobi", unit_number: "A101", monthly_rent: "85000", bedrooms: "2", bathrooms: "2", sqft: "1200", currency: "KES" },
     },
     rent_payments: {

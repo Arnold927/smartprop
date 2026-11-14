@@ -424,6 +424,9 @@ export const units = pgTable("units", {
   organizationId: integer("organization_id").references(() => organizations.id).notNull(),
   propertyId: integer("property_id").references(() => properties.id).notNull(),
   unitNumber: varchar("unit_number").notNull(),
+  // Which floor the unit is on ("G", "1", "12", "B1", "Mezzanine"…). Free text on purpose —
+  // buildings label floors differently. Optional; filled by the bulk "add property with units" tool.
+  floor: varchar("floor", { length: 20 }),
   // What kind of space this unit is. Drives which fields apply in the UI:
   // apartment/house use bedrooms/bathrooms; the rest are sqft/rate-based.
   unitType: varchar("unit_type", {

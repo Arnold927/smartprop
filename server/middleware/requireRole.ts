@@ -84,6 +84,7 @@ export const ROUTE_POLICY: Record<string, AppRole[]> = {
   '/api/bank-reconciliation':        ADMIN_MANAGER,           // bank statement reconciliation
   '/api/chart-of-accounts':          ADMIN_MANAGER,
   '/api/cost-centers':               ADMIN_MANAGER,
+  '/api/property-setup':             ADMIN_MANAGER_LANDLORD, // create a property + all its units at once (platform_admin bypasses)
   '/api/import':                     ADMIN_MANAGER,           // bulk data import — admin/manager only
   '/api/ai':                         ADMIN_MANAGER,           // AI proxy — restrict to privileged roles
   '/api/arrears':                    ADMIN_MANAGER,

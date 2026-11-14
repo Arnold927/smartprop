@@ -62,7 +62,7 @@ export function PropertyUnitCard({ unit, propertyName, tenant, onClick, onToggle
         {/* Card body */}
         <div className="p-4">
           <div className="flex justify-between items-start mb-2">
-            <h3 className="font-bold text-base text-foreground">Unit {unit.unitNumber}</h3>
+            <h3 className="font-bold text-base text-foreground">Unit {unit.unitNumber}{unit.floor ? <span className="ml-1.5 text-[11px] font-medium text-muted-foreground">· Floor {unit.floor}</span> : null}</h3>
             <p className="font-bold text-blue-600 dark:text-blue-400 text-sm">
               Ksh {Number(unit.monthlyRent ?? 0).toLocaleString()}
               <span className="text-[10px] font-normal text-muted-foreground">/mo</span>

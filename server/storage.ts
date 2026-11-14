@@ -433,6 +433,7 @@ async getUnitsByPropertyId(propertyId: number): Promise<Unit[]> {
         organizationId: unit.organizationId,
         propertyId: unit.propertyId,
         unitNumber: unit.unitNumber,
+        floor: unit.floor ?? null,
         unitType: unit.unitType ?? "apartment",
         bedrooms: unit.bedrooms,
         bathrooms: unit.bathrooms ?? null,

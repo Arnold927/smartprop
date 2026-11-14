@@ -30,6 +30,7 @@ interface AddUnitDialogProps {
 interface CreateUnitData {
  propertyId: number;
  unitNumber: string;
+ floor?: string | null;
  unitType: string;
  bedrooms?: number | null;
  bathrooms?: number | null;
@@ -79,6 +80,7 @@ export default function AddUnitDialog({
 
  const [formData, setFormData] = useState({
  unitNumber: unitToEdit?.unitNumber || "",
+ floor: unitToEdit?.floor || "",
  unitType: unitToEdit?.unitType || "apartment",
  bedrooms: unitToEdit?.bedrooms || 1,
  bathrooms: initialBathrooms,
@@ -101,6 +103,7 @@ export default function AddUnitDialog({
  
  setFormData({
  unitNumber: unitToEdit.unitNumber,
+ floor: unitToEdit.floor || "",
  unitType: unitToEdit.unitType || "apartment",
  bedrooms: unitToEdit.bedrooms ?? 1,
  bathrooms: bathroomsValue ?? 1,
@@ -115,6 +118,7 @@ export default function AddUnitDialog({
  // Reset to defaults for adding new unit
  setFormData({
  unitNumber: "",
+ floor: "",
  unitType: "apartment",
  bedrooms: 1,
  bathrooms: 1,
@@ -270,6 +274,7 @@ export default function AddUnitDialog({
  propertyId: propertyId,
  organizationId: organizationId,
  unitNumber: formData.unitNumber,
+ floor: formData.floor.trim() || null,
  unitType: formData.unitType,
  bedrooms: isResidential ? formData.bedrooms : null,
  bathrooms: isResidential ? formData.bathrooms : null,
@@ -343,6 +348,18 @@ export default function AddUnitDialog({
  />
  </div>
  </div>
+ </div>
+
+ <div className="space-y-2">
+ <Label htmlFor="unitFloor" className="font-medium">Floor <span className="font-normal text-muted-foreground">(optional)</span></Label>
+ <Input
+ id="unitFloor"
+ placeholder="e.g., G, 1, 2, B1"
+ maxLength={20}
+ value={formData.floor}
+ onChange={(e) => setFormData({ ...formData, floor: e.target.value })}
+ className="border-border focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
+ />
  </div>
 
  <div className="space-y-2">

@@ -11,7 +11,7 @@ import { useToast } from "@/hooks/use-toast";
 import {
   Plus, Search, Home, MapPin, Users, MoreVertical,
   Eye, Edit, Trash2, Download, Building2, TrendingUp,
-  Filter, X, ChevronRight, ChevronLeft, ArrowLeft,
+  Filter, X, ChevronRight, ChevronLeft, ArrowLeft, Layers,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -25,6 +25,7 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import AddPropertyModal from "@/components/modals/add-property-modal";
+import { BulkPropertyDialog } from "@/components/bulk-property-dialog";
 import { getPropertyGradient } from "@/lib/propertyGradient";
 // import { TitleVerificationBadge } from "@/components/ui/title-verification-badge"; // Ardhisasa pending
 import { PageShell, PageHeader, SectionCard, SPBadge, EmptyState, PrimaryButton, SecondaryButton, FilterBar, SPTable, SPAvatar, StatTile, StatsGrid, KESAmount, ActionMenu, ConfirmDialog } from "@/components/ui/sp-ui";
@@ -91,6 +92,7 @@ export default function Properties() {
   const [pageSize, setPageSize] = useState(12);
   const [currentPage, setCurrentPage] = useState(1);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [bulkOpen, setBulkOpen] = useState(false);
   const [editingProperty, setEditingProperty] = useState<Property | null>(null);
   const { toast } = useToast();
   const [, navigate] = useLocation();
@@ -106,8 +108,8 @@ export default function Properties() {
   const properties: Property[] = Array.isArray(raw) ? raw : (raw?.results ?? []);
 
   const { data: unitsRaw } = useQuery<any>({
-    queryKey: ["/api/units"],
-    queryFn: async () => { const r = await apiRequest("/api/units"); return ensureArray(await r.json()); },
+    queryKey: ["/api/units", orgIdParam],
+    queryFn: async () => { const r = await apiRequest(withOrgParam("/api/units", orgIdParam)); return ensureArray(await r.json()); },
     staleTime: 5 * 60 * 1000,
   });
   const allUnits: any[] = Array.isArray(unitsRaw) ? unitsRaw : (unitsRaw?.results ?? []);
@@ -224,6 +226,10 @@ export default function Properties() {
           <div className="flex items-center gap-2.5 flex-wrap">
             <ExportMenu disabled={filtered.length === 0} onPdf={handleExportPdf} onExcel={handleExport} />
             <Button size="sm" className="h-9 bg-emerald-600 hover:bg-emerald-700 text-white px-4"
+              onClick={() => setBulkOpen(true)} data-testid="add-property-with-units">
+              <Layers className="w-4 h-4 mr-1.5" /> Add property with units
+            </Button>
+            <Button size="sm" variant="outline" className="h-9 px-4"
               onClick={() => { setEditingProperty(null); setIsAddModalOpen(true); }}>
               <Plus className="w-4 h-4 mr-1.5" /> Add property
             </Button>
@@ -479,6 +485,13 @@ export default function Properties() {
           </>
         )}
       </div>
+
+      <BulkPropertyDialog
+        open={bulkOpen}
+        onOpenChange={setBulkOpen}
+        organizationId={orgIdParam}
+        onCreated={(r) => navigate(withOrgParam(`/properties/${r.property.id}`, orgIdParam))}
+      />
 
       <AddPropertyModal
         isOpen={isAddModalOpen}

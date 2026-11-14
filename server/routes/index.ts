@@ -11,6 +11,7 @@ import { propertyRouter, unitRouter, expenseRouter, visitorRouter } from "./prop
 import unitVacancyGuardRouter from "./unit-vacancy-guard";
 import { landlordPropertyGuard, landlordUnitGuard } from "./landlord-scope-guard";
 import assignableStaffRouter from "./assignable-staff";
+import propertySetupRouter from "./property-setup";
 import propertiesListRouter from "./properties-list";
 import { tenantRouter, paymentRouter, invoiceRouter, mpesaRouter } from "./tenants";
 import mpesaTransactionsGuardRouter from "./mpesa-transactions-guard";
@@ -289,6 +290,7 @@ export function registerModularRoutes(app: Express) {
 
   // Staff and above (includes landlords)
   mount(app, "/api/import",                            importRouter);
+  mount(app, "/api/property-setup",                    propertySetupRouter);  // property + all its units in one request
   mount(app, "/api/leases",                            leasesRouter);
   mount(app, "/api/exchange-rates",                    exchangeRatesRouter);  
   mount(app, "/api/properties",                        landlordPropertyGuard);  // landlord: new property is theirs; only their own by id (before everything below)

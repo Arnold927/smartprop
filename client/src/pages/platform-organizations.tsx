@@ -22,6 +22,7 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Building2, Users, Home, ChevronRight, CreditCard, Wallet, Plus, UserPlus, Link2 } from "lucide-react";
 import { AddOrganisationDialog, InviteOrgAdminDialog, LinkLandlordDialog } from "@/components/platform-org-dialogs";
+import { BulkPropertyDialog } from "@/components/bulk-property-dialog";
 
 interface OrgRow {
   id: number;
@@ -65,6 +66,7 @@ export default function PlatformOrganizationsPage() {
   const [addOpen, setAddOpen] = useState(false);
   const [inviteOrg, setInviteOrg] = useState<{ id: number; name: string } | null>(null);
   const [linkOrg, setLinkOrg] = useState<{ id: number; name: string } | null>(null);
+  const [bulkOrg, setBulkOrg] = useState<{ id: number; name: string } | null>(null);
 
   const { data: orgs = [], isLoading, error } = useQuery<OrgRow[]>({
     queryKey: ["/api/platform/organizations", selectedMonth],
@@ -100,6 +102,13 @@ export default function PlatformOrganizationsPage() {
       </div>
       <AddOrganisationDialog open={addOpen} onOpenChange={setAddOpen} organisations={orgs.filter(o => o.isActive).map(o => ({ id: o.id, name: o.name }))} />
       <LinkLandlordDialog org={linkOrg} onOpenChange={(o) => { if (!o) setLinkOrg(null); }} />
+      <BulkPropertyDialog
+        open={!!bulkOrg}
+        onOpenChange={(o) => { if (!o) setBulkOrg(null); }}
+        organizationId={bulkOrg ? String(bulkOrg.id) : null}
+        organizationName={bulkOrg?.name}
+        onCreated={(r) => { const id = bulkOrg?.id; setBulkOrg(null); if (id) navigate(`/properties/${r.property.id}?organizationId=${id}`); }}
+      />
       <InviteOrgAdminDialog org={inviteOrg} onOpenChange={(o) => { if (!o) setInviteOrg(null); }} />
 
       {!isLoading && !error && orgs.length > 0 && (
@@ -218,6 +227,18 @@ export default function PlatformOrganizationsPage() {
                     }}
                   >
                     <Link2 className="h-3.5 w-3.5" /> Link landlord
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-7 text-xs gap-1.5"
+                    data-testid={`add-property-${org.id}`}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setBulkOrg({ id: org.id, name: org.name });
+                    }}
+                  >
+                    <Building2 className="h-3.5 w-3.5" /> Add property
                   </Button>
                   <Button
                     variant="outline"
