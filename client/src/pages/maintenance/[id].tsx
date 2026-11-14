@@ -1,3 +1,5 @@
+import { useAuth } from "@/hooks/useAuth";
+import { TechnicianSelect, useAssignableStaff, useAssignTechnician, AddTeamMemberDialog } from "@/components/technician-picker";
 import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { EntityMedia } from "@/components/entity-media";
@@ -11,6 +13,7 @@ import { Input } from "@/components/ui/input";
 import {
   ArrowLeft, Calendar, DollarSign, User, Home, Building, Clock, CheckCircle, XCircle, AlertCircle, Wrench, MessageSquare,
   Paperclip, Send, Download, Printer, MoreVertical, Edit, Trash2, ExternalLink, Phone, Mail, MapPin,
+  UserPlus,
 } from "lucide-react";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger,
@@ -44,6 +47,7 @@ interface MaintenanceRequest {
   scheduledDate?: string;
   completedDate?: string;
   assignedTo?: string;
+  technicianId?: number | null;
   createdAt: string;
   updatedAt: string;
   tenant?: {
@@ -145,38 +149,17 @@ export default function MaintenanceDetails() {
   })();
 
 
-  // BUG 2 FIX: /api/staff-members does not accept a ?departments= filter — remove it.
-  // Client-side filtering by department is done below when rendering the select.
-  const { data: staffMembers = [], isLoading: isLoadingStaff } = useQuery({
-    queryKey: [`/api/staff-members`],
-    queryFn: async () => {
-      const response = await apiRequest('/api/staff-members');
-      const data = await response.json();
-
-      if (Array.isArray(data)) {
-        return data;
-      }
-
-      if (data.staff && Array.isArray(data.staff)) {
-        return data.staff;
-      }
-
-      if (data.data && Array.isArray(data.data)) {
-        return data.data;
-      }
-
-      if (typeof data === 'string') {
-        try {
-          const parsed = JSON.parse(data);
-          return Array.isArray(parsed) ? parsed : [];
-        } catch {
-          return [];
-        }
-      }
-
-      return [];
-    },
-  });
+  // Everyone work can be handed to — all active staff (not only the "maintenance" department),
+  // and readable by landlords too. Same list and same assign endpoint as every other screen.
+  const { data: staffMembers = [], isLoading: isLoadingStaff } = useAssignableStaff();
+  const [addTechOpen, setAddTechOpen] = useState(false);
+  const assignTechnician = useAssignTechnician();
+  const { user } = useAuth() as any;
+  const canAddTech = ["landlord", "admin", "manager"].includes(user?.role ?? "");
+  // technicianId is what the assign endpoint writes; older requests only have assignedTo (a staff id).
+  const isAssigned = (r: { technicianId?: number | null; assignedTo?: string }) => !!(r.technicianId || r.assignedTo);
+  const assignedStaffOf = (r: { technicianId?: number | null; assignedTo?: string }) =>
+    staffMembers.find((s) => (r.technicianId ? s.id === r.technicianId : !!r.assignedTo && String(s.id) === String(r.assignedTo)));
 
   // BUG 3 FIX: tenant default changed from [] to null — it is a single object,
   // not an array. Calling .firstName on [] crashes.
@@ -675,20 +658,15 @@ export default function MaintenanceDetails() {
               <div>
                 <p className="text-sm font-medium text-muted-foreground">Assigned To</p>
                 <p className="text-2xl font-semibold text-foreground mt-1">
-                  {request.assignedTo ? (
+                  {isAssigned(request) ? (
                     (() => {
-                      const assignedStaff = staffMembers.find((s: any) => s.id?.toString() === request.assignedTo);
-                      if (assignedStaff) {
-                        const firstName = assignedStaff.first_name || assignedStaff.firstName || '';
-                        const lastName = assignedStaff.last_name || assignedStaff.lastName || '';
-                        return `${firstName} ${lastName}`.trim();
-                      }
-                      return request.technician?.name || "Technician";
+                      const assignedStaff = assignedStaffOf(request);
+                      return assignedStaff ? `${assignedStaff.firstName} ${assignedStaff.lastName}`.trim() : (request.technician?.name || "Technician");
                     })()
                   ) : "Unassigned"}
                 </p>
                 <p className="text-xs text-muted-foreground mt-1">
-                  {request.assignedTo ? (
+                  {isAssigned(request) ? (
                     <>
                       <span className="text-green-600 font-medium">● Assigned</span>
                       {request.status && ` • ${request.status.replace('_', ' ')}`}
@@ -698,8 +676,8 @@ export default function MaintenanceDetails() {
                   )}
                 </p>
               </div>
-              <div className={`p-3 rounded-lg ${request.assignedTo ? 'bg-green-50' : 'bg-muted'}`}>
-                <User className={`h-6 w-6 ${request.assignedTo ? 'text-green-600' : 'text-muted-foreground'}`} />
+              <div className={`p-3 rounded-lg ${isAssigned(request) ? 'bg-green-50' : 'bg-muted'}`}>
+                <User className={`h-6 w-6 ${isAssigned(request) ? 'text-green-600' : 'text-muted-foreground'}`} />
               </div>
             </div>
           </CardContent>
@@ -876,14 +854,14 @@ export default function MaintenanceDetails() {
           <Card className="border-border">
             <CardHeader>
               <CardTitle>Status & Actions</CardTitle>
-              {request.assignedTo && (
+              {isAssigned(request) && (
                 <CardDescription className="flex items-center space-x-2">
                   <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200" >
                     <User className="h-3 w-3 mr-1" />
                     Assigned
                   </Badge>
                   <span className="text-sm text-muted-foreground">
-                    to {staffMembers.find((s: any) => s.id?.toString() === request.assignedTo)?.firstName || "Technician"}
+                    to {assignedStaffOf(request)?.firstName || "Technician"}
                   </span>
                 </CardDescription>
               )}
@@ -915,103 +893,45 @@ export default function MaintenanceDetails() {
               <div>
                 <Label htmlFor="assignedTo">
                   Assign Technician
-                  {request.assignedTo && (
+                  {isAssigned(request) && (
                     <span className="ml-2 text-xs font-normal text-green-600">
                       ✓ Currently assigned
                     </span>
                   )}
                 </Label>
 
-                <Select
-                  value={request.assignedTo || ""}
-                  onValueChange={(value) => {
-                    updateStatusMutation.mutate({
-                      status: value ? "assigned" : "pending",
-                      assignedTo: value || null,
-                    });
-                  }}
-                  disabled={updateStatusMutation.isPending || isLoadingStaff}
-                >
-                  <SelectTrigger className={`border-border ${request.assignedTo ? 'dark:bg-green-900/20 bg-green-50 border-green-200' : ''}`}>
-                    {request.assignedTo ? (
-                      <div className="flex items-center">
-                        <User className="h-4 w-4 mr-2 text-green-600" />
-                        <span className="font-medium text-green-800">
-                          {(() => {
-                            const assignedStaff = staffMembers.find((s: any) => s.id?.toString() === request.assignedTo);
-                            if (assignedStaff) {
-                              const firstName = assignedStaff.first_name || assignedStaff.firstName || '';
-                              const lastName = assignedStaff.last_name || assignedStaff.lastName || '';
-                              return `${firstName} ${lastName}`.trim();
-                            }
-                            return "Technician";
-                          })()}
-                        </span>
-                      </div>
-                    ) : (
-                      <SelectValue placeholder="Select technician" />
-                    )}
-                  </SelectTrigger>
-                  <SelectContent className="border-border shadow-md max-h-[300px]">
-                    {isLoadingStaff ? (
-                      <SelectItem value="loading" disabled className="text-muted-foreground">
-                        Loading technicians...
-                      </SelectItem>
-                    ) : (Array.isArray(staffMembers) ? staffMembers : []).filter((staff: any) => {
-                      // BUG 2 FIX: filter client-side since the API returns all staff.
-                      const department = staff.department?.toString().toLowerCase() || '';
-                      const cleanDepartment = department.replace(/[{}]/g, '').toLowerCase();
-                      return cleanDepartment === 'maintenance';
-                    }).length > 0 ? (
-                      staffMembers
-                        .filter((staff: any) => {
-                          const department = staff.department?.toString().toLowerCase() || '';
-                          const cleanDepartment = department.replace(/[{}]/g, '').toLowerCase();
-                          return cleanDepartment === 'maintenance';
-                        })
-                        .map((staff: any) => {
-                          const staffId = staff.id?.toString() || '';
-                          const firstName = staff.first_name || staff.firstName || '';
-                          const lastName = staff.last_name || staff.lastName || '';
-                          const role = staff.role || staff.job_title || '';
+                <TechnicianSelect
+                  value={request.technicianId ?? assignedStaffOf(request)?.id ?? null}
+                  disabled={assignTechnician.isPending}
+                  onChange={(id) => assignTechnician.mutate({ requestId: request.id, technicianId: id })}
+                  placeholder="Select who will do the work"
+                  className="border-border"
+                />
 
-                          return (
-                            <SelectItem key={staffId} value={staffId}>
-                              {firstName} {lastName}
-                              {role && ` - ${role}`}
-                            </SelectItem>
-                          );
-                        })
-                    ) : (
-                      <SelectItem value="none" disabled className="text-muted-foreground">
-                        No maintenance technicians available
-                      </SelectItem>
-                    )}
-                  </SelectContent>
-                </Select>
-
-                {/* Unassign button (only shown when assigned) */}
-                {request.assignedTo && (
-                  <div className="mt-2 flex justify-end">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="h-7 text-xs text-red-600 hover:text-red-700 hover:bg-red-50"
-                      onClick={() => {
-                        // BUG 5 FIX: Pass null explicitly to clear assignedTo,
-                        // rather than undefined which was silently dropped.
-                        updateStatusMutation.mutate({
-                          status: "pending",
-                          assignedTo: null,
-                        });
-                      }}
-                      disabled={updateStatusMutation.isPending}
-                    >
-                      <XCircle className="h-3 w-3 mr-1" />
-                      Unassign Technician
+                {canAddTech && (
+                  <div className="mt-2 flex items-center justify-between">
+                    <Button variant="ghost" size="sm" className="h-7 text-xs gap-1" onClick={() => setAddTechOpen(true)}>
+                      <UserPlus className="h-3 w-3" /> Add a technician
                     </Button>
+                    {isAssigned(request) && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-7 text-xs text-red-600 hover:text-red-700 hover:bg-red-50"
+                        onClick={() => assignTechnician.mutate({ requestId: request.id, technicianId: null })}
+                        disabled={assignTechnician.isPending}
+                      >
+                        <XCircle className="h-3 w-3 mr-1" />
+                        Unassign Technician
+                      </Button>
+                    )}
                   </div>
                 )}
+                <AddTeamMemberDialog
+                  open={addTechOpen}
+                  onOpenChange={setAddTechOpen}
+                  onCreated={(sid) => assignTechnician.mutate({ requestId: request.id, technicianId: sid })}
+                />
 
                 {isLoadingStaff && (
                   <p className="text-xs text-muted-foreground mt-1">Loading staff members...</p>

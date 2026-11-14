@@ -10,6 +10,7 @@
  *  ✅ Mobile responsive (sm: breakpoints throughout)
  */
 
+import { TechnicianSelect, useAssignTechnician } from "@/components/technician-picker";
 import { PortalHeader, PortalMeta } from "@/components/portal-header";
 import { tenantOptions, unitOptions, propertyOptions, userOptions, byId } from "@/lib/pickerOptions";
 import { SearchableSelect } from "@/components/ui/searchable-select";
@@ -77,17 +78,8 @@ function MaintenancePanel() {
     queryFn: async () => { const r = await apiRequest("/api/maintenance-requests"); return ensureArray(await r.json()); },
     retry: false,
   });
-  const { data: staffRaw } = useQuery({
-    queryKey: ["/api/staff-members"],
-    queryFn: async () => { const r = await apiRequest("/api/staff-members"); return ensureArray(await r.json()); },
-    retry: false,
-  });
 
   const reqs = useMemo(() => ensureArray(rawReqs), [rawReqs]);
-  const staff = useMemo(() =>
-    ensureArray(staffRaw).filter((s: any) =>
-      ["technician","maintenance_supervisor","facilities_manager","groundskeeper","janitor"].includes(s.position ?? "")
-    ), [staffRaw]);
 
   const displayed = useMemo(() => {
     let list = reqs;
@@ -102,15 +94,7 @@ function MaintenancePanel() {
     return list;
   }, [reqs, filter, search]);
 
-  const assignMutation = useMutation({
-    mutationFn: async ({ id, technicianId }: { id: number; technicianId: number }) => {
-      const r = await apiRequest(`/api/maintenance-requests/${id}/assign-technician`, { method: "PATCH", data: { technicianId, status: "assigned" } });
-      if (!r.ok) throw new Error("Assignment failed");
-      return r.json();
-    },
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["/api/maintenance-requests"] }); toast({ title: "Technician assigned" }); },
-    onError: (e: any) => toast({ title: e.message ?? "Failed", variant: "destructive" }),
-  });
+  const assignMutation = useAssignTechnician();
 
   const statusMutation = useMutation({
     mutationFn: async ({ id, status }: { id: number; status: string }) => {
@@ -216,15 +200,14 @@ function MaintenancePanel() {
                         <Button size="sm" variant="outline" className="text-xs h-7 border-red-300 dark:border-red-800 text-red-600 dark:text-red-400" onClick={() => approveMutation.mutate({ id: req.id, action: "reject" })}><X className="h-3 w-3 mr-1" />Reject</Button>
                       </div>
                     )}
-                    {!["completed","cancelled"].includes(req.status) && staff.length > 0 && (
-                      <Select onValueChange={val => assignMutation.mutate({ id: req.id, technicianId: Number(val) })}>
-                        <SelectTrigger className="h-8 text-xs bg-background"><SelectValue placeholder={req.technicianId ? "Re-assign technician" : "Assign technician…"} /></SelectTrigger>
-                        <SelectContent>
-                          {staff.map((s: any) => (
-                            <SelectItem key={s.id} value={String(s.id)}>{s.first_name} {s.last_name} · <span className="capitalize text-muted-foreground">{s.position?.replace(/_/g," ")}</span></SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                    {!["completed","cancelled"].includes(req.status) && (
+                      <TechnicianSelect
+                        value={req.technicianId ?? null}
+                        disabled={assignMutation.isPending}
+                        onChange={(id) => assignMutation.mutate({ requestId: req.id, technicianId: id })}
+                        placeholder={req.technicianId ? "Re-assign technician" : "Assign technician…"}
+                        className="h-8 text-xs bg-background"
+                      />
                     )}
                     {!["completed","cancelled"].includes(req.status) && (
                       <div className="flex gap-2 flex-wrap">

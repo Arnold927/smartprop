@@ -20,7 +20,8 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Building2, Users, Home, ChevronRight, CreditCard, Wallet } from "lucide-react";
+import { Building2, Users, Home, ChevronRight, CreditCard, Wallet, Plus, UserPlus, Link2 } from "lucide-react";
+import { AddOrganisationDialog, InviteOrgAdminDialog, LinkLandlordDialog } from "@/components/platform-org-dialogs";
 
 interface OrgRow {
   id: number;
@@ -61,6 +62,9 @@ export default function PlatformOrganizationsPage() {
   const [, navigate] = useLocation();
   const monthOptions = recentMonthOptions();
   const [selectedMonth, setSelectedMonth] = useState(monthOptions[0].value);
+  const [addOpen, setAddOpen] = useState(false);
+  const [inviteOrg, setInviteOrg] = useState<{ id: number; name: string } | null>(null);
+  const [linkOrg, setLinkOrg] = useState<{ id: number; name: string } | null>(null);
 
   const { data: orgs = [], isLoading, error } = useQuery<OrgRow[]>({
     queryKey: ["/api/platform/organizations", selectedMonth],
@@ -84,13 +88,19 @@ export default function PlatformOrganizationsPage() {
         <div className="rounded-xl bg-emerald-500/10 p-2.5">
           <Building2 className="h-5 w-5 text-emerald-600" />
         </div>
-        <div>
+        <div className="flex-1 min-w-0">
           <h1 className="text-lg font-semibold text-foreground">Organisations</h1>
           <p className="text-xs text-muted-foreground mt-0.5">
             Every organisation on the platform. Pick one to see its properties.
           </p>
         </div>
+        <Button size="sm" className="gap-1.5 shrink-0" onClick={() => setAddOpen(true)}>
+          <Plus className="h-4 w-4" /> Add landlord / organisation
+        </Button>
       </div>
+      <AddOrganisationDialog open={addOpen} onOpenChange={setAddOpen} organisations={orgs.filter(o => o.isActive).map(o => ({ id: o.id, name: o.name }))} />
+      <LinkLandlordDialog org={linkOrg} onOpenChange={(o) => { if (!o) setLinkOrg(null); }} />
+      <InviteOrgAdminDialog org={inviteOrg} onOpenChange={(o) => { if (!o) setInviteOrg(null); }} />
 
       {!isLoading && !error && orgs.length > 0 && (
         <div className="space-y-3 mb-6">
@@ -138,7 +148,10 @@ export default function PlatformOrganizationsPage() {
           </p>
         </div>
       ) : orgs.length === 0 ? (
-        <div className="text-center py-16 text-muted-foreground">No organisations yet.</div>
+        <div className="text-center py-16 text-muted-foreground">
+          <p>No organisations yet.</p>
+          <Button size="sm" className="gap-1.5 mt-4" onClick={() => setAddOpen(true)}><Plus className="h-4 w-4" /> Add landlord / organisation</Button>
+        </div>
       ) : (
         <div className="space-y-3">
           {orgs.map(org => (
@@ -184,6 +197,28 @@ export default function PlatformOrganizationsPage() {
                     <CreditCard className="h-3.5 w-3.5" />
                     <span>{fmtKES(org.revenueThisMonth)} <span className="text-xs opacity-70">/ {fmtKES(org.revenueTotal)} total</span></span>
                   </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-7 text-xs gap-1.5"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setInviteOrg({ id: org.id, name: org.name });
+                    }}
+                  >
+                    <UserPlus className="h-3.5 w-3.5" /> Invite admin
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-7 text-xs gap-1.5"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setLinkOrg({ id: org.id, name: org.name });
+                    }}
+                  >
+                    <Link2 className="h-3.5 w-3.5" /> Link landlord
+                  </Button>
                   <Button
                     variant="outline"
                     size="sm"

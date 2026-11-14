@@ -17,6 +17,7 @@ import { whatsappService } from "../whatsapp";
 import { notifyTenant } from "../services/notifyTenant";
 import { s3Upload, resolveUploadUrl } from "../middleware/s3Upload";
 import { resolveScopedRequest, callerCanAccess } from "./maintenance-item-guard";
+import { landlordStaffPrefix } from "./assignable-staff";
 
 // Use the same S3/R2-backed upload middleware as documents and messages.
 // Falls back to local disk automatically when S3 env vars are absent (dev mode).
@@ -65,30 +66,56 @@ router.patch("/:id/assign-technician", auditLog("maintenance_request", "ACTION")
       return res.status(404).json({ message: "Maintenance request not found" });
     }
 
+    // technicianId null = take the technician off the request again (back to "pending").
     const schema = z.object({
-      technicianId: z.number().int().positive(),
+      technicianId: z.number().int().positive().nullable(),
       workStartTime: z.string().optional(),
       status: z.string().optional(),
     });
     const { technicianId, workStartTime, status } = schema.parse(req.body);
 
+    const [existing] = await db
+      .select({ createdAt: maintenanceRequests.createdAt })
+      .from(maintenanceRequests)
+      .where(eq(maintenanceRequests.id, id));
+    if (!existing) return res.status(404).json({ message: "Maintenance request not found" });
+
+    if (technicianId === null) {
+      const [cleared] = await db
+        .update(maintenanceRequests)
+        .set({ technicianId: null, assignedTo: null, assignedDate: null, status: (status as any) ?? "pending" } as any)
+        .where(eq(maintenanceRequests.id, id))
+        .returning();
+      notifyMaintenanceUpdated(req.user.organizationId, { id: cleared.id, status: cleared.status ?? "pending", title: cleared.title ?? undefined });
+      return res.json(cleared);
+    }
+
     // Previously unchecked — a staffMembers.id from a completely different
     // organisation could be assigned as the technician on this request.
     const [technician] = await db
-      .select({ id: staffMembers.id })
+      .select({ id: staffMembers.id, email: staffMembers.email, employeeId: staffMembers.employee_id })
       .from(staffMembers)
       .where(and(eq(staffMembers.id, technicianId), eq(staffMembers.organization_id, req.user.organizationId)))
       .limit(1);
     if (!technician) {
       return res.status(404).json({ message: "Staff member not found in your organisation" });
     }
+    // A landlord can hand work to the manager's staff and to people they added — not to another landlord's.
+    if (req.user.role === "landlord" && technician.employeeId.startsWith("LL-") && !technician.employeeId.startsWith(landlordStaffPrefix(req.user.id))) {
+      return res.status(404).json({ message: "Staff member not found in your organisation" });
+    }
 
-    const [existing] = await db
-      .select({ createdAt: maintenanceRequests.createdAt })
-      .from(maintenanceRequests)
-      .where(eq(maintenanceRequests.id, id));
-
-    if (!existing) return res.status(404).json({ message: "Maintenance request not found" });
+    // The technician's own portal finds its work by user id (assignedTo) or staff id (technicianId):
+    // set both, so a request assigned from ANY screen reaches them.
+    let technicianUserId: string | null = null;
+    if (technician.email) {
+      const [u] = await db
+        .select({ id: users.id })
+        .from(users)
+        .where(and(eq(users.email, technician.email), eq(users.organizationId, req.user.organizationId)))
+        .limit(1);
+      technicianUserId = u?.id ?? null;
+    }
 
     const assignmentTime = new Date();
     const responseTime = existing.createdAt
@@ -99,6 +126,7 @@ router.patch("/:id/assign-technician", auditLog("maintenance_request", "ACTION")
       .update(maintenanceRequests)
       .set({
         technicianId,
+        assignedTo: technicianUserId,
         status: (status as any) ?? "assigned",
         responseTime,
         assignedDate: assignmentTime,

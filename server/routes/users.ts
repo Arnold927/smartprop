@@ -6,7 +6,7 @@ import { authenticateJWT, forgetUserActiveState } from "../middleware/auth";
 import { revokeAllUserTokens } from "./auth";
 import { requireOrg } from "../middleware/requireOrg";
 import { auditLog } from "../middleware/auditLog";
-import { buildInviteLink, deliverInvite, isPendingInvite, INVITE_TTL_MS } from "../utils/invites";
+import { buildInviteLink, deliverInvite, isPendingInvite, INVITE_TTL_MS, organisationConflictMessage } from "../utils/invites";
 import { randomUUID } from "crypto";
 import bcrypt from "bcrypt";
 import { z } from "zod";
@@ -174,6 +174,16 @@ router.post("/", authenticateJWT, requireActiveSubscription as any, enforceUserL
     }
 
     const orgId: number = req.user.organizationId;
+
+    // An email can only belong to one organisation (sign-in looks accounts up by email alone).
+    const [inOtherOrg] = await db
+      .select({ id: users.id })
+      .from(users)
+      .where(and(eq(users.email, email.toLowerCase()), ne(users.organizationId, orgId)))
+      .limit(1);
+    if (inOtherOrg) {
+      return res.status(409).json({ message: organisationConflictMessage(email.toLowerCase()) });
+    }
 
     const inviteToken = randomUUID();
     const inviteExpiresAt = new Date(Date.now() + 1000 * 60 * 60 * 24 * 7); // 7 days — what the email itself promises

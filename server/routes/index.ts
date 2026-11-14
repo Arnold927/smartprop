@@ -10,6 +10,7 @@ import aiProxyRouter from "./ai-proxy";
 import { propertyRouter, unitRouter, expenseRouter, visitorRouter } from "./properties";
 import unitVacancyGuardRouter from "./unit-vacancy-guard";
 import { landlordPropertyGuard, landlordUnitGuard } from "./landlord-scope-guard";
+import assignableStaffRouter from "./assignable-staff";
 import propertiesListRouter from "./properties-list";
 import { tenantRouter, paymentRouter, invoiceRouter, mpesaRouter } from "./tenants";
 import mpesaTransactionsGuardRouter from "./mpesa-transactions-guard";
@@ -258,6 +259,7 @@ export function registerModularRoutes(app: Express) {
   mount(app, "/api/projects",                          projectRouter);
   mount(app, "/api/project-tasks",                     projectTaskRouter);
   mount(app, "/api/project-milestones",                projectMilestoneRouter);
+  mount(app, "/api/assignable-staff",                  assignableStaffRouter);  // who work can be assigned to; landlords add their own people here
   mount(app, "/api/staff-members",                     staffMembersRouter);
   mount(app, "/api/caretakers",                        caretakersRouter);
   mount(app, "/api/analytics",                         analyticsRouter);

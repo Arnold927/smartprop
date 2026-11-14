@@ -1,3 +1,4 @@
+import { AssignTechnicianDialog } from "@/components/technician-picker";
 import { EntityMedia } from "@/components/entity-media";
 import { downloadExcel } from "@/lib/excel";
 import { ExportMenu } from "@/components/export-menu";
@@ -50,6 +51,7 @@ interface MaintenanceRequest {
  priority: string;
  status: string;
  assignedTo?: string;
+ technicianId?: number | null;
  estimatedCost?: string;
  category?: string;
  createdAt: string;
@@ -275,6 +277,7 @@ function MobileMaintenanceCard({
   onEdit,
   onComplete,
   onApprove,
+  onAssign,
   canActProp,
 }: {
   r: MaintenanceRequest;
@@ -282,6 +285,7 @@ function MobileMaintenanceCard({
   onEdit: () => void;
   onComplete: () => void;
   onApprove: () => void;
+  onAssign: () => void;
   canActProp: boolean;
 }) {
   const [isSheetOpen, setIsSheetOpen] = useState(false);
@@ -291,6 +295,7 @@ function MobileMaintenanceCard({
   const actions = [
     { label: "View Details", icon: Eye, onClick: onView },
     { label: "Edit Request", icon: Edit, onClick: onEdit },
+    ...(canActProp && canComplete && !needsApproval ? [{ label: r.technicianId ? "Re-assign technician" : "Assign technician", icon: Wrench, onClick: onAssign }] : []),
     ...(needsApproval && canActProp ? [{ label: "Approve / Reject", icon: ShieldCheck, onClick: onApprove, className: "text-violet-600" }] : []),
     ...(canComplete && !needsApproval && canActProp ? [{ label: "Mark as Completed", icon: CheckCircle, onClick: onComplete, className: "text-green-600" }] : []),
   ];
@@ -349,6 +354,7 @@ export default function Maintenance() {
  const [isEditOpen, setIsEditOpen] = useState(false);
  const [isApprovalOpen, setIsApprovalOpen] = useState(false);
  const [selected, setSelected] = useState<MaintenanceRequest | null>(null);
+ const [assignTarget, setAssignTarget] = useState<MaintenanceRequest | null>(null);
  const PER_PAGE = pageSize;
  const { toast } = useToast();
  const queryClient = useQueryClient();
@@ -598,6 +604,7 @@ export default function Maintenance() {
  onEdit={() => { setSelected(r); setIsEditOpen(true); }}
  onComplete={() => updateMutation.mutate({ id: r.id, status: "completed" })}
  onApprove={() => openApproval(r)}
+ onAssign={() => setAssignTarget(r)}
  canActProp={canAct}
  />
  ))}
@@ -693,6 +700,11 @@ export default function Maintenance() {
  <CheckCircle className="w-4 h-4 mr-2" />Mark complete
  </DropdownMenuItem>
  )}
+ {canAct && r.status !== "completed" && r.status !== "cancelled" && r.status !== "pending_approval" && (
+ <DropdownMenuItem onClick={() => setAssignTarget(r)}>
+ <Wrench className="w-4 h-4 mr-2" />{r.technicianId ? "Re-assign technician" : "Assign technician"}
+ </DropdownMenuItem>
+ )}
  {canAct && r.status === "pending" && (
  <DropdownMenuItem className="text-blue-600"
  onClick={() => updateMutation.mutate({ id: r.id, status: "in_progress" })}>
@@ -745,6 +757,7 @@ export default function Maintenance() {
  onSuccess={() => { queryClient.invalidateQueries({ queryKey: ["/api/maintenance-requests"] }); setIsAddOpen(false); }} />}
  <ViewMaintenanceModal isOpen={isViewOpen} onClose={() => setIsViewOpen(false)} request={selected} />
  <EditMaintenanceModal isOpen={isEditOpen} onClose={() => setIsEditOpen(false)} request={selected} />
+ <AssignTechnicianDialog request={assignTarget} onOpenChange={(o) => { if (!o) setAssignTarget(null); }} />
  <ApprovalDialog request={selected} open={isApprovalOpen} onOpenChange={setIsApprovalOpen} />
  </div>
  );

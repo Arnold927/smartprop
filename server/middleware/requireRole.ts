@@ -122,6 +122,7 @@ export const ROUTE_POLICY: Record<string, AppRole[]> = {
   '/api/project-tasks':              ADMIN_MANAGER_STAFF,
   '/api/project-milestones':         ADMIN_MANAGER_STAFF,
   '/api/staff-members':              ADMIN_MANAGER_STAFF,
+  '/api/assignable-staff':           ADMIN_MANAGER_LANDLORD_STAFF, // minimal list + landlord adds own technicians (POST limited inside the handler)
   '/api/caretakers':                 [...ADMIN_MANAGER, 'landlord', 'caretaker'], // landlords scoped to their own properties; caretaker role can only reach GET /me (checked inside the router)
   '/api/compliance':                 ADMIN_MANAGER_LANDLORD, // compliance module (ARMA/KRA/stamp duty/valuations)
   '/api/regulatory-certificates':    ADMIN_MANAGER_LANDLORD, // NEMA/NCA/County regulatory certificates

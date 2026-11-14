@@ -35,6 +35,11 @@ export class InviteConflictError extends Error {
   }
 }
 
+/** Shared wording for "this email already lives in another organisation". */
+export function organisationConflictMessage(email: string): string {
+  return `${email} already has a SmartProp account in another organisation, and an email can only belong to one. Use a different email, or ask the SmartProp platform admin to link the account.`;
+}
+
 export function buildInviteLink(token: string): string {
   const base = (process.env.APP_URL || "http://localhost:5173").replace(/\/+$/, "");
   return `${base}/accept-invite/${token}`;
@@ -85,6 +90,17 @@ export async function issueInvite(opts: {
   const expires = new Date(Date.now() + INVITE_TTL_MS);
 
   if (!existing) {
+    // Sign-in finds an account by email alone, so one email can only belong to ONE organisation.
+    // Without this check a second (pending) account with the same email was created in this
+    // organisation and sign-in could not tell the two apart.
+    const [elsewhere] = await ex
+      .select({ id: users.id })
+      .from(users)
+      .where(eq(users.email, email))
+      .limit(1);
+    if (elsewhere) {
+      throw new InviteConflictError(organisationConflictMessage(email));
+    }
     const id = randomUUID();
     await ex.insert(users).values({
       id,
