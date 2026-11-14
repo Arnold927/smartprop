@@ -14,6 +14,7 @@
  * All data is fetched from /api/diaspora-portal/* — buyer-scoped, read-only.
  */
 
+import { EntityMedia } from "@/components/entity-media";
 import { useState } from "react";
 import { useSearch } from "wouter";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -437,6 +438,9 @@ function ConstructionTab({ contractId }: { contractId: number }) {
                       </div>
                     </div>
                   )}
+
+                  {/* Photos & videos posted by the project team (viewer, plays video) */}
+                  <EntityMedia entityType="construction_update" entityId={u.id} bare hideIfEmptyReadOnly className="mt-3" />
 
                   {/* Videos — inline player */}
                   {videos.length > 0 && (

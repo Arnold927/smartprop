@@ -146,6 +146,8 @@ export const ROUTE_POLICY: Record<string, AppRole[]> = {
   '/api/utility-meter-readings':     ADMIN_MANAGER_STAFF,    // landlord removed — same reason
   '/api/recurring-charges':          ADMIN_MANAGER_STAFF,
   '/api/upload':                     ADMIN_MANAGER_STAFF,
+  // Photos/videos: every portal that raises or works on a record. Access to each file is decided per record in routes/media.ts.
+  '/api/media':                      ALL_AUTHENTICATED,
   '/api/tenant-onboarding':          STAFF_AND_ABOVE,
 
   // ── Staff and above (operational + landlord) ──────────────────────────────────

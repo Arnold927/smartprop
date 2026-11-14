@@ -12,6 +12,7 @@
  */
 
 import { Building2 as Building2Ic, Lock as LockIc } from "lucide-react";
+import { EntityMedia } from "@/components/entity-media";
 import { PortalHeader, PortalChip, PortalMeta } from "@/components/portal-header";
 import { downloadDocPdf } from "@/lib/document-theme";
 import React, { useState, useMemo, useCallback, useReducer, useEffect, useRef, memo, Component } from "react";
@@ -1461,7 +1462,7 @@ function MaintenancePhotos({ requestId }: { requestId: number }) {
   });
 
   if (isLoading) return <div className="flex items-center gap-2 text-xs text-muted-foreground py-2"><Loader2 className="w-3 h-3 animate-spin" /> Loading photos…</div>;
-  if (photos.length === 0) return <p className="text-xs text-muted-foreground italic">No photos attached by tenant.</p>;
+  if (photos.length === 0) return null; // photos/videos sent with the request are shown by <EntityMedia> right below
 
   return (
     <div className="space-y-2">
@@ -3176,6 +3177,7 @@ export default function LandlordPortal({ ownerId }: LandlordPortalProps) {
 
                               {/* Tenant photos */}
                               <MaintenancePhotos requestId={req.id} />
+                              <EntityMedia entityType="maintenance_request" entityId={req.id} bare size="sm" includeWork emptyText="No photos or videos attached." />
                             </div>
                           )}
                         </div>

@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { EntityMedia } from "@/components/entity-media";
 import { useParams, Link, useLocation } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -854,11 +855,7 @@ export default function MaintenanceDetails() {
                   onChange={(e) => setNewComment(e.target.value)}
                   className="min-h-[100px] border-border"
                 />
-                <div className="flex justify-between items-center">
-                  <Button variant="ghost" size="sm" className="text-muted-foreground">
-                    <Paperclip className="h-4 w-4 mr-2" />
-                    Attach File
-                  </Button>
+                <div className="flex justify-end items-center">
                   <Button
                     onClick={handleAddComment}
                     disabled={!newComment.trim() || addCommentMutation.isPending}
@@ -1204,45 +1201,48 @@ export default function MaintenanceDetails() {
             </CardContent>
           </Card>
 
-          {/* Attachments */}
+          {/* Photos & videos: what the tenant sent with the request, and the contractor's work photos */}
           <Card className="border-border">
             <CardHeader>
-              <CardTitle>Attachments</CardTitle>
+              <CardTitle>Photos &amp; videos</CardTitle>
             </CardHeader>
             <CardContent>
-              {isLoadingDocuments ? (
-                <div className="space-y-2">
-                  {[1, 2].map(i => (
-                    <Skeleton key={i} className="h-10 w-full rounded-lg" />
-                  ))}
-                </div>
-              ) : documents.length > 0 ? (
-                <div className="space-y-2">
-                  {(Array.isArray(documents) ? documents : []).map((doc) => (
-                    <div key={doc.id} className="flex items-center justify-between p-2 border border-border rounded hover:bg-muted">
-                      <div className="flex items-center space-x-2">
-                        <Paperclip className="h-4 w-4 text-muted-foreground" />
-                        <span className="text-sm break-words max-w-[150px]">{doc.name}</span>
-                      </div>
-                      <Button variant="ghost" size="sm" className="h-8 w-8 p-0" aria-label={`Download ${doc.name}`} onClick={() => { if ((doc as any).url) window.open((doc as any).url, "_blank", "noopener"); }}>
-                        <Download className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="text-center py-4">
-                  <Paperclip className="h-8 w-8 mx-auto text-muted-foreground mb-2" />
-                  <p className="text-sm text-muted-foreground">No attachments</p>
-                </div>
-              )}
-
-              <Button variant="outline" size="sm" className="w-full mt-3 border-border">
-                <Paperclip className="h-4 w-4 mr-2" />
-                Add Attachment
-              </Button>
+              <EntityMedia entityType="maintenance_request" entityId={Number(id)} bare includeWork
+                emptyText="Nothing attached yet. Tenant photos and the contractor's before/after photos appear here." />
             </CardContent>
           </Card>
+
+          {/* Documents attached to the request (PDFs etc.) */}
+          {(isLoadingDocuments || documents.length > 0) && (
+            <Card className="border-border">
+              <CardHeader>
+                <CardTitle>Documents</CardTitle>
+              </CardHeader>
+              <CardContent>
+                {isLoadingDocuments ? (
+                  <div className="space-y-2">
+                    {[1, 2].map(i => (
+                      <Skeleton key={i} className="h-10 w-full rounded-lg" />
+                    ))}
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {(Array.isArray(documents) ? documents : []).map((doc) => (
+                      <div key={doc.id} className="flex items-center justify-between p-2 border border-border rounded hover:bg-muted">
+                        <div className="flex items-center space-x-2">
+                          <Paperclip className="h-4 w-4 text-muted-foreground" />
+                          <span className="text-sm break-words max-w-[150px]">{doc.name}</span>
+                        </div>
+                        <Button variant="ghost" size="sm" className="h-8 w-8 p-0" aria-label={`Download ${doc.name}`} onClick={() => { if ((doc as any).url) window.open((doc as any).url, "_blank", "noopener"); }}>
+                          <Download className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          )}
         </div>
       </div>
 

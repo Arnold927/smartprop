@@ -33,6 +33,9 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { Progress } from "@/components/ui/progress";
+import { MediaPicker, type StagedMedia } from "@/components/ui/media-picker";
+import { EntityMedia } from "@/components/entity-media";
+import { uploadAll } from "@/lib/media";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import {
@@ -638,6 +641,12 @@ function MaintenanceCard({ req }: { req: any }) {
                 <p className={`font-medium mt-0.5 ${row.className || ""}`}>{row.value}</p>
               </div>
             ))}
+          </div>
+
+          <div>
+            <p className="mb-1.5 text-xs font-medium text-muted-foreground">Photos &amp; videos</p>
+            <EntityMedia entityType="maintenance_request" entityId={req.id} size="sm" includeWork bare
+              emptyText="No photos or videos on this request. Add some to help the technician." />
           </div>
 
           {req.notes && (
@@ -2495,6 +2504,10 @@ export default function TenantPortal({ tenantId, initialTenantData }: TenantPort
     defaultValues: { title: "", description: "", priority: "medium", category: "" },
   });
 
+  const [repairMedia, setRepairMedia] = useState<StagedMedia[]>([]);
+  const repairMediaRef = useRef<StagedMedia[]>([]);
+  repairMediaRef.current = repairMedia;
+
   const submitRepair = useMutation({
     mutationFn: async (data: z.infer<typeof repairSchema>) => {
       if (!tenant?.unitId) throw new Error("NO_UNIT");
@@ -2506,10 +2519,25 @@ export default function TenantPortal({ tenantId, initialTenantData }: TenantPort
         const err = await r.json().catch(() => ({}));
         throw new Error(err.message || "Submission failed");
       }
-      return r.json();
+      const created = await r.json();
+      // The request exists now, so photos/videos can be attached to it. A failed file never undoes the request.
+      const staged = repairMediaRef.current;
+      let mediaFailed = 0;
+      if (staged.length) {
+        const up = await uploadAll(staged.map(s => s.file), { entityType: "maintenance_request", entityId: created.id });
+        mediaFailed = up.failed.length;
+      }
+      return { ...created, mediaFailed };
     },
-    onSuccess: (created) => {
-      toast({ title: "Request submitted", description: `Ticket #${created.ticketNumber ?? created.id} logged. You'll be notified of updates.` });
+    onSuccess: (created: any) => {
+      toast({
+        title: "Request submitted",
+        description: created.mediaFailed
+          ? `Ticket #${created.ticketNumber ?? created.id} logged, but ${created.mediaFailed} file${created.mediaFailed > 1 ? "s" : ""} didn't upload. Open the request and add ${created.mediaFailed > 1 ? "them" : "it"} again.`
+          : `Ticket #${created.ticketNumber ?? created.id} logged. You'll be notified of updates.`,
+      });
+      repairMediaRef.current.forEach(s => URL.revokeObjectURL(s.preview));
+      setRepairMedia([]);
       repairForm.reset();
       queryClient.invalidateQueries({ queryKey: ["/api/maintenance-requests"] });
       setActiveTab("repairs");
@@ -3209,11 +3237,17 @@ export default function TenantPortal({ tenantId, initialTenantData }: TenantPort
                         <FormMessage />
                       </FormItem>
                     )} />
+                    <div className="space-y-1.5">
+                      <p className="text-sm font-medium">Photos or videos <span className="font-normal text-muted-foreground">(optional)</span></p>
+                      <MediaPicker value={repairMedia} onChange={setRepairMedia} disabled={submitRepair.isPending}
+                        onError={m => toast({ title: "Can't add that file", description: m, variant: "destructive" })}
+                        hint="Showing the problem helps your manager send the right person. Photos up to 15 MB, videos up to 60 MB." />
+                    </div>
                     <Button type="submit"
                       className="w-full bg-slate-900 hover:bg-slate-800 dark:bg-white dark:text-foreground dark:hover:bg-slate-100 text-white h-10"
                       disabled={submitRepair.isPending || !tenant?.unitId}>
                       {submitRepair.isPending
-                        ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Submitting…</>
+                        ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />{repairMedia.length ? "Submitting & uploading…" : "Submitting…"}</>
                         : <><Wrench className="w-4 h-4 mr-2" />Submit Repair Request</>}
                     </Button>
                   </form>

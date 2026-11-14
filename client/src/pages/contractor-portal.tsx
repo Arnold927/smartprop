@@ -27,6 +27,9 @@
 
 import { Building2 as Building2Ic, Lock as LockIc } from "lucide-react";
 import { PortalHeader, PortalChip, PortalMeta } from "@/components/portal-header";
+import { MediaPicker, type StagedMedia } from "@/components/ui/media-picker";
+import { EntityMedia } from "@/components/entity-media";
+import { uploadAll } from "@/lib/media";
 import { useState, useEffect, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
@@ -222,15 +225,26 @@ function RejectModal({ workOrderId, onClose, onDone }: { workOrderId: number; on
 function CompleteModal({ workOrderId, currency, onClose, onDone }: { workOrderId: number; currency: string; onClose: () => void; onDone: () => void }) {
   const [notes, setNotes] = useState("");
   const [cost, setCost] = useState("");
-  const { toast } = useToast();
+  const [proof, setProof] = useState<StagedMedia[]>([]);
+    const { toast } = useToast();
   const qc = useQueryClient();
   const mut = useMutation({
     mutationFn: async () => {
       const res = await apiRequest(`/api/contractor-portal/work-orders/${workOrderId}/complete`, { method: "PATCH", data: { completionNotes: notes, actualCost: cost ? Number(cost) : undefined } });
       if (!res.ok) throw new Error((await res.json().catch(() => ({}))).message ?? "Failed");
+      // Proof-of-work photos/videos go on once the job is saved; a failed file never undoes the completion.
+      if (proof.length) {
+        const up = await uploadAll(proof.map(p => p.file), { entityType: "work_order", entityId: workOrderId, label: "after" });
+        qc.invalidateQueries({ queryKey: ["/api/media", "work_order", workOrderId] });
+        return up.failed.length;
+      }
+      return 0;
     },
-    onSuccess: () => {
-      toast({ title: "Work order completed!" });
+    onSuccess: (failed: number) => {
+      proof.forEach(p => URL.revokeObjectURL(p.preview));
+      toast(failed
+        ? { title: "Work order completed", description: `${failed} file${failed > 1 ? "s" : ""} didn't upload. Add ${failed > 1 ? "them" : "it"} from the job's Photos section.` }
+        : { title: "Work order completed!" });
       qc.invalidateQueries({ queryKey: ["/api/contractor-portal/work-orders"] });
       qc.invalidateQueries({ queryKey: ["/api/contractor-portal/earnings"] });
       qc.invalidateQueries({ queryKey: ["/api/contractor-portal/stats"] });
@@ -251,11 +265,17 @@ function CompleteModal({ workOrderId, currency, onClose, onDone }: { workOrderId
             <label className="text-xs text-muted-foreground mb-1.5 block">Actual Cost ({currency}) — optional</label>
             <Input type="number" placeholder="e.g. 15000" value={cost} onChange={e => setCost(e.target.value)}  />
           </div>
+          <div>
+            <label className="text-xs text-muted-foreground mb-1.5 block">Photos or video of the finished work — optional</label>
+            <MediaPicker value={proof} onChange={setProof} disabled={mut.isPending}
+              onError={m => toast({ title: "Can't add that file", description: m, variant: "destructive" })}
+              hint="Shows the manager and tenant the job is done. Photos up to 15 MB, videos up to 60 MB." />
+          </div>
         </div>
         <DialogFooter>
           <Button variant="ghost" onClick={onClose} className="text-muted-foreground/70">Cancel</Button>
           <Button className="bg-emerald-600 hover:bg-emerald-700 text-white" disabled={!notes.trim() || mut.isPending} onClick={() => mut.mutate()}>
-            {mut.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <CheckCircle className="w-4 h-4 mr-2" />} Submit Completion
+            {mut.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <CheckCircle className="w-4 h-4 mr-2" />} {mut.isPending && proof.length ? "Uploading…" : "Submit Completion"}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -500,6 +520,17 @@ function WorkOrderDetail({ row, onBack }: { row: WorkOrderRow; onBack: () => voi
                 <p className="text-sm text-muted-foreground">{workOrder.rejectionReason}</p>
               </div>
             )}
+            {maintenanceRequest && (
+              <div className="p-4">
+                <p className="text-xs text-muted-foreground uppercase tracking-wide mb-2">Reported by the tenant</p>
+                <EntityMedia entityType="maintenance_request" entityId={maintenanceRequest.id} bare size="sm" readOnly emptyText="The tenant didn't attach any photos or videos." />
+              </div>
+            )}
+            <div className="p-4">
+              <p className="text-xs text-muted-foreground uppercase tracking-wide mb-2">Your work photos &amp; videos</p>
+              <EntityMedia entityType="work_order" entityId={workOrder.id} bare size="sm" labels={["before", "progress", "after"]} defaultLabel="progress"
+                emptyText="Add before, progress and after photos so the manager can see the job." />
+            </div>
           </div>
         )}
 

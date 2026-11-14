@@ -37,6 +37,7 @@ import broadcastMessagesRouter from "./broadcast-messages";
 import reportsRouter from "./reports";
 import whatsappRouter from "./whatsapp";
 import uploadRouter from "./upload";
+import mediaRouter from "./media";
 import mpesaActionsRouter from "./mpesa-actions";
 import {
   contractorCategoriesRouter,
@@ -280,6 +281,7 @@ export function registerModularRoutes(app: Express) {
   mount(app, "/api/utility-meter-readings",             utilityMeterReadingsRouter);
   mount(app, "/api/recurring-charges",                 recurringChargesRouter);
   mount(app, "/api/upload",                            uploadRouter);
+  mount(app, "/api/media",                             mediaRouter);   // photos/videos on requests, work orders, construction updates (per-record access in the route)
   mount(app, "/api/tenant-onboarding",                 tenantOnboardingRouter);
 
   // Staff and above (includes landlords)

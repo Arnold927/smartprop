@@ -1,6 +1,8 @@
 import { tenantOptions, unitOptions, propertyOptions, userOptions, byId } from "@/lib/pickerOptions";
 import { SearchableSelect } from "@/components/ui/searchable-select";
 import { useState, useEffect } from "react"; // Add useEffect
+import { MediaPicker, type StagedMedia } from "@/components/ui/media-picker";
+import { uploadAll } from "@/lib/media";
 import { useTranslation } from "react-i18next";
 import { useMutation, useQueryClient, useQuery } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
@@ -177,6 +179,7 @@ export default function AddMaintenanceModal({
  }
  }, [isOpen, preSelectedTenantId, tenants, form, toast]);
 
+ const [media, setMedia] = useState<StagedMedia[]>([]);
  const addMaintenanceMutation = useMutation({
  mutationFn: async (data: AddMaintenanceForm) => {
  const payload = {
@@ -185,19 +188,31 @@ export default function AddMaintenanceModal({
  unitId: Number(data.unitId),
  estimatedCost: data.estimatedCost ? parseFloat(data.estimatedCost) : undefined,
  };
- return await apiRequest("/api/maintenance-requests", {
+ const res = await apiRequest("/api/maintenance-requests", {
  method: "POST",
  data: payload,
  });
+ const created = await res.json().catch(() => null);
+ // Photos/videos are attached to the new request once it exists; a failed file never undoes the request.
+ let mediaFailed = 0;
+ if (created?.id && media.length) {
+ const up = await uploadAll(media.map(m => m.file), { entityType: "maintenance_request", entityId: created.id });
+ mediaFailed = up.failed.length;
+ }
+ return { ...created, mediaFailed };
  },
- onSuccess: () => {
+ onSuccess: (created: any) => {
+ media.forEach(m => URL.revokeObjectURL(m.preview));
+ setMedia([]);
  queryClient.invalidateQueries({ queryKey: ["/api/maintenance-requests"] });
  queryClient.invalidateQueries({ queryKey: ["/api/dashboard/metrics"] });
  form.reset();
  setSelectedTenant("");
  toast({
  title: "Success!",
- description: "Maintenance request has been created successfully",
+ description: created?.mediaFailed
+ ? `Request created, but ${created.mediaFailed} file${created.mediaFailed > 1 ? "s" : ""} didn't upload. Open the request to add ${created.mediaFailed > 1 ? "them" : "it"} again.`
+ : "Maintenance request has been created successfully",
  });
  onSuccess?.();
  onClose();
@@ -228,6 +243,8 @@ export default function AddMaintenanceModal({
 
  const handleClose = () => {
  form.reset();
+ media.forEach(m => URL.revokeObjectURL(m.preview));
+ setMedia([]);
  setSelectedTenant("");
  onClose();
  };
@@ -463,6 +480,12 @@ export default function AddMaintenanceModal({
  </FormItem>
  )}
  />
+ </div>
+
+ <div className="space-y-1.5">
+ <p className="text-sm font-medium">Photos or videos <span className="font-normal text-muted-foreground">(optional)</span></p>
+ <MediaPicker value={media} onChange={setMedia} disabled={addMaintenanceMutation.isPending}
+ onError={m => toast({ title: "Can't add that file", description: m, variant: "destructive" })} />
  </div>
 
  {/* Form Actions */}

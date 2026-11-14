@@ -1,3 +1,4 @@
+import { EntityMedia } from "@/components/entity-media";
 import { downloadExcel } from "@/lib/excel";
 import { ExportMenu } from "@/components/export-menu";
 import { BulkBar } from "@/components/bulk-bar";
@@ -164,6 +165,7 @@ function ApprovalDialog({
               <PriorityBadge p={request.priority} />
             </div>
             <p className="text-xs text-muted-foreground leading-relaxed">{request.description}</p>
+            <EntityMedia entityType="maintenance_request" entityId={request.id} bare size="sm" includeWork hideIfEmptyReadOnly className="pt-1" />
             <div className="flex items-center gap-4 pt-1 text-xs text-muted-foreground flex-wrap">
               {request.property?.name && (
                 <span className="flex items-center gap-1">

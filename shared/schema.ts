@@ -5915,3 +5915,29 @@ export const etimsInvoices = pgTable("etims_invoices", {
 
 export type EtimsDeviceInfo  = typeof etimsDeviceInfo.$inferSelect;
 export type EtimsInvoice     = typeof etimsInvoices.$inferSelect;
+
+// ── Media attachments (photos / videos on maintenance requests, work orders, construction updates) ──
+// One generic table so every portal can attach and view media the same way.
+// Visibility is decided by the entity the media hangs off (see server/routes/media.ts).
+export const mediaAttachments = pgTable("media_attachments", {
+  id:             serial("id").primaryKey(),
+  organizationId: integer("organization_id").notNull(),
+  entityType:     varchar("entity_type", { length: 40 }).notNull(), // maintenance_request | work_order | construction_update
+  entityId:       integer("entity_id"),                              // null for files uploaded before their parent record exists
+  kind:           varchar("kind", { length: 12 }).notNull(),         // image | video
+  url:            text("url").notNull(),
+  thumbnailUrl:   text("thumbnail_url"),
+  publicId:       varchar("public_id"),
+  storage:        varchar("storage", { length: 12 }).notNull().default("cloudinary"),
+  mimeType:       varchar("mime_type", { length: 80 }),
+  sizeBytes:      integer("size_bytes"),
+  label:          varchar("label", { length: 24 }),                   // issue | before | after | progress
+  caption:        text("caption"),
+  uploadedBy:     uuid("uploaded_by").notNull(),
+  uploaderRole:   varchar("uploader_role", { length: 20 }),
+  createdAt:      timestamp("created_at").defaultNow(),
+}, (t) => ({
+  byEntity: index("media_attachments_entity_idx").on(t.entityType, t.entityId),
+  byOrg:    index("media_attachments_org_idx").on(t.organizationId),
+}));
+export type MediaAttachment = typeof mediaAttachments.$inferSelect;

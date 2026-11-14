@@ -9,7 +9,10 @@
  * no waiting for other tabs to become active.
  */
 
-import { useState, useRef } from "react";
+import { MediaPicker, type StagedMedia } from "@/components/ui/media-picker";
+import { EntityMedia } from "@/components/entity-media";
+import { uploadAll } from "@/lib/media";
+import { useState } from "react";
 import { useRoute, useLocation } from "wouter";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
@@ -112,12 +115,9 @@ export default function DiasporaContractDetail() {
   const [activeTab, setActiveTab] = useState("details");
   const [isUploadOpen, setIsUploadOpen] = useState(false);
   const [isPaymentOpen, setIsPaymentOpen] = useState(false);
-  const [stagedPhotos, setStagedPhotos] = useState<{ file: File; preview: string }[]>([]);
-  const [stagedVideos, setStagedVideos] = useState<{ file: File; name: string }[]>([]);
+  const [stagedMedia, setStagedMedia] = useState<StagedMedia[]>([]);
   const [viewingCert, setViewingCert] = useState<any>(null);
   const [generatingInvoice, setGeneratingInvoice] = useState(false);
-  const photoRef = useRef<HTMLInputElement>(null);
-  const videoRef = useRef<HTMLInputElement>(null);
 
   // ── queries ───────────────────────────────────────────────────────────────
   const { data: contract, isLoading: loadingContract, refetch: refetchContract } = useQuery<any>({
@@ -196,20 +196,27 @@ export default function DiasporaContractDetail() {
     onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
   });
 
-  const uploadFiles = (files: File[]): Promise<string[]> =>
-    Promise.all(files.map(f => new Promise<string>((res, rej) => {
-      const r = new FileReader(); r.onload = () => res(r.result as string); r.onerror = rej; r.readAsDataURL(f);
-    })));
-
   const constructionMutation = useMutation({
-    mutationFn: (data: any) => apiRequest("/api/construction-updates", { method: "POST", data }),
-    onSuccess: async () => {
+    mutationFn: async (data: any) => {
+      const r = await apiRequest("/api/construction-updates", { method: "POST", data });
+      const created = await r.json();
+      // Photos and videos are stored as media on the new update (not inside the JSON), so large files work.
+      let mediaFailed = 0;
+      if (stagedMedia.length && created?.id) {
+        const up = await uploadAll(stagedMedia.map(m => m.file), { entityType: "construction_update", entityId: created.id, label: "progress" });
+        mediaFailed = up.failed.length;
+      }
+      return { ...created, mediaFailed };
+    },
+    onSuccess: async (created: any) => {
       await refetchUpdates();
       await refetchContract();
       setIsUploadOpen(false);
-      setStagedPhotos([]);
-      setStagedVideos([]);
-      toast({ title: "Update posted", description: "Construction progress shared with the client." });
+      stagedMedia.forEach(m => URL.revokeObjectURL(m.preview));
+      setStagedMedia([]);
+      toast(created?.mediaFailed
+        ? { title: "Update posted", description: `${created.mediaFailed} file${created.mediaFailed > 1 ? "s" : ""} didn't upload. Open the update and add ${created.mediaFailed > 1 ? "them" : "it"} again.`, variant: "destructive" }
+        : { title: "Update posted", description: "Construction progress shared with the client." });
     },
     onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
   });
@@ -649,7 +656,7 @@ export default function DiasporaContractDetail() {
             {/* Upload dialog */}
             <Dialog open={isUploadOpen} onOpenChange={(open) => {
               setIsUploadOpen(open);
-              if (!open) { setStagedPhotos([]); setStagedVideos([]); }
+              if (!open) { stagedMedia.forEach(m => URL.revokeObjectURL(m.preview)); setStagedMedia([]); }
             }}>
               <DialogTrigger asChild>
                 <Button size="sm" className="gap-2 bg-emerald-600 hover:bg-emerald-700 text-white" onClick={() => setIsUploadOpen(true)}>
@@ -667,8 +674,6 @@ export default function DiasporaContractDetail() {
                     e.preventDefault();
                     const fd = new FormData(e.currentTarget);
                     const data = Object.fromEntries(fd.entries());
-                    const photoUrls = stagedPhotos.length > 0 ? await uploadFiles(stagedPhotos.map(p => p.file)) : [];
-                    const videoUrls = stagedVideos.length > 0 ? await uploadFiles(stagedVideos.map(v => v.file)) : [];
                     constructionMutation.mutate({
                       diasporaContractId: contractId,
                       updateTitle: data.updateTitle,
@@ -680,8 +685,8 @@ export default function DiasporaContractDetail() {
                       estimatedCompletionDate: data.estimatedCompletionDate
                         ? new Date(data.estimatedCompletionDate as string).toISOString() : null,
                       clientNotified: true,
-                      photoUrls,
-                      videoUrls,
+                      photoUrls: [],
+                      videoUrls: [],
                       documentUrls: [],
                     });
                   }}
@@ -708,63 +713,17 @@ export default function DiasporaContractDetail() {
                   </div>
                   <div className="space-y-2"><Label>Est. Completion Date</Label><Input type="date" name="estimatedCompletionDate" /></div>
 
-                  {/* Photos */}
+                  {/* Photos & videos */}
                   <div className="space-y-2">
-                    <Label className="flex items-center gap-1.5"><Camera className="h-3.5 w-3.5 text-emerald-600" /> Photos</Label>
-                    <input ref={photoRef} type="file" accept="image/*" multiple className="hidden" onChange={e => {
-                      setStagedPhotos(prev => [...prev, ...Array.from(e.target.files || []).map(f => ({ file: f, preview: URL.createObjectURL(f) }))]);
-                      e.target.value = "";
-                    }} />
-                    <div className="border-2 border-dashed border-emerald-200 dark:border-emerald-800 rounded-xl p-4 text-center cursor-pointer hover:bg-emerald-50/30 dark:hover:bg-emerald-950/10 transition-colors"
-                      onClick={() => photoRef.current?.click()}>
-                      <Upload className="h-5 w-5 mx-auto mb-1 text-muted-foreground" />
-                      <p className="text-sm text-muted-foreground">Click to upload photos</p>
-                    </div>
-                    {stagedPhotos.length > 0 && (
-                      <div className="grid grid-cols-4 gap-2">
-                        {stagedPhotos.map((p, i) => (
-                          <div key={i} className="relative aspect-square rounded-lg overflow-hidden border border-border group">
-                            <img src={p.preview} className="w-full h-full object-cover" alt="" />
-                            <button type="button" onClick={() => setStagedPhotos(prev => { URL.revokeObjectURL(prev[i].preview); return prev.filter((_,j) => j !== i); })}
-                              className="absolute top-1 right-1 bg-black/60 text-white rounded-full p-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
-                              <X className="h-3 w-3" />
-                            </button>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Videos */}
-                  <div className="space-y-2">
-                    <Label className="flex items-center gap-1.5"><Video className="h-3.5 w-3.5 text-emerald-600" /> Videos</Label>
-                    <input ref={videoRef} type="file" accept="video/*" multiple className="hidden" onChange={e => {
-                      setStagedVideos(prev => [...prev, ...Array.from(e.target.files || []).map(f => ({ file: f, name: f.name }))]);
-                      e.target.value = "";
-                    }} />
-                    <div className="border-2 border-dashed border-emerald-200 dark:border-emerald-800 rounded-xl p-4 text-center cursor-pointer hover:bg-emerald-50/30 dark:hover:bg-emerald-950/10 transition-colors"
-                      onClick={() => videoRef.current?.click()}>
-                      <Play className="h-5 w-5 mx-auto mb-1 text-muted-foreground" />
-                      <p className="text-sm text-muted-foreground">Click to upload videos</p>
-                    </div>
-                    {stagedVideos.length > 0 && (
-                      <div className="space-y-2">
-                        {stagedVideos.map((v, i) => (
-                          <div key={i} className="flex items-center gap-3 border border-border rounded-lg px-3 py-2 bg-muted/30">
-                            <Play className="h-4 w-4 text-emerald-600 flex-shrink-0" />
-                            <span className="text-sm flex-1 truncate">{v.name}</span>
-                            <button type="button" onClick={() => setStagedVideos(prev => prev.filter((_,j) => j !== i))} className="text-muted-foreground hover:text-destructive">
-                              <X className="h-4 w-4" />
-                            </button>
-                          </div>
-                        ))}
-                      </div>
-                    )}
+                    <Label className="flex items-center gap-1.5"><Camera className="h-3.5 w-3.5 text-emerald-600" /> Photos &amp; videos</Label>
+                    <MediaPicker value={stagedMedia} onChange={setStagedMedia} disabled={constructionMutation.isPending}
+                      onError={m => toast({ title: "Can't add that file", description: m, variant: "destructive" })}
+                      hint="The client sees these in their portal. Photos up to 15 MB, videos up to 60 MB." />
                   </div>
 
                   <div className="flex gap-3 pt-2">
                     <Button type="submit" className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white" disabled={constructionMutation.isPending}>
-                      {constructionMutation.isPending ? "Posting..." : "Post Update"}
+                      {constructionMutation.isPending ? (stagedMedia.length ? "Posting & uploading…" : "Posting...") : "Post Update"}
                     </Button>
                     <Button type="button" variant="outline" onClick={() => setIsUploadOpen(false)}>Cancel</Button>
                   </div>
@@ -865,6 +824,8 @@ export default function DiasporaContractDetail() {
                           </div>
                         </div>
                       )}
+
+                      <EntityMedia entityType="construction_update" entityId={u.id} bare hideIfEmptyReadOnly />
 
                       <div className="flex items-center gap-2 text-xs text-muted-foreground pt-1 border-t border-border">
                         {u.clientNotified
