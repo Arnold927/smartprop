@@ -2,8 +2,8 @@
  * Citizen Reporting — manager-facing view of all tenant maintenance requests.
  *
  * Sits at /citizen-reporting in the manager sidebar (under Tenants → Citizen reporting).
- * Managers can: view all submitted reports, filter/search, update statuses,
- * assign technicians, post comments, and see resolution rates.
+ * Managers can: view all submitted reports, filter/search, move them along
+ * (assign, start, complete, cancel — via the shared actions card), post comments, and see resolution rates.
  *
  * Tenants submit requests through /tenant-portal → Submit Repair Request,
  * which already correctly supplies tenantId + unitId.
@@ -24,6 +24,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Progress } from "@/components/ui/progress";
 import { useToast } from "@/hooks/use-toast";
+import { RequestActionsCard } from "@/components/maintenance/request-actions-card";
 import { format } from "date-fns";
 import { PageShell, PageHeader, SectionCard, SPBadge, EmptyState, PrimaryButton, SecondaryButton, FilterBar, SPTable, SPAvatar, StatTile, StatsGrid, KESAmount, ActionMenu, ConfirmDialog } from "@/components/ui/sp-ui";
 import {
@@ -46,6 +47,7 @@ const fmtDateTime = (d: string | Date | null | undefined) => {
 
 const STATUS_CFG: Record<string, { label: string; cls: string; icon: typeof Clock }> = {
   pending:     { label: "Pending",     cls: "bg-blue-100   text-blue-800   dark:bg-blue-900   dark:text-blue-200",   icon: Clock       },
+  pending_approval: { label: "Awaiting approval", cls: "bg-violet-100 text-violet-800 dark:bg-violet-900 dark:text-violet-200", icon: Clock },
   assigned:    { label: "Assigned",    cls: "bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200", icon: Users       },
   in_progress: { label: "In Progress", cls: "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200", icon: RefreshCw   },
   completed:   { label: "Resolved",    cls: "bg-emerald-50 text-emerald-700 border border-emerald-200" ,  icon: CheckCircle },
@@ -118,27 +120,11 @@ function ReportDetail({ report, userRole }: { report: any; userRole: string }) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [commentText, setCommentText] = useState("");
-  const [assignee, setAssignee] = useState(report.assignedTo ?? "");
-  const [nextStatus, setNextStatus] = useState(report.status);
+  const { user: me } = useAuth();
 
-  // Fetch staff for assignee dropdown
+  // Status and assignment are workflow moves (assign / start / complete / cancel…) — the shared actions card offers only the valid ones.
   const canEdit = canManage(userRole);
   const canPostComment = canComment(userRole);
-  const { data: staffRaw, isLoading: staffLoading } = useQuery<any[]>({
-    queryKey: ["/api/staff-members"],
-    queryFn: async () => ensureArray(await (await apiRequest("/api/staff-members")).json()),
-    staleTime: 10 * 60 * 1000,
-    enabled: canEdit,
-  });
-  const activeStaff: any[] = (Array.isArray(staffRaw) ? staffRaw : [])
-    .filter(s => !s.status || s.status === "active");
-
-  // Build the full-name list so we can detect if the stored assignedTo is already in the list
-  const staffNames = activeStaff.map(s => `${s.first_name ?? ""} ${s.last_name ?? ""}`.trim());
-  // If the saved name isn't in the staff list (legacy ID or free-text), surface it as a special option
-  const storedAssignee = report.assignedTo ?? "";
-  const storedIsOrphan = storedAssignee && !staffNames.includes(storedAssignee);
-
   // Fetch comments
   const { data: commentsRaw = [], isLoading: loadingComments } = useQuery<any[]>({
     queryKey: [`/api/maintenance-requests/${report.id}/comments`],
@@ -161,31 +147,6 @@ function ReportDetail({ report, userRole }: { report: any; userRole: string }) {
     },
     onError: () => toast({ title: "Could not post comment", variant: "destructive" }),
   });
-
-  // Update status / assignee
-  const updateMutation = useMutation({
-    mutationFn: async (patch: Record<string, any>) => {
-      const r = await apiRequest(`/api/maintenance-requests/${report.id}`, { method: "PUT", data: patch });
-      if (!r.ok) throw new Error("Update failed");
-      return r.json();
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/maintenance-requests"] });
-      toast({ title: "Report updated" });
-    },
-    onError: () => toast({ title: "Update failed", variant: "destructive" }),
-  });
-
-  // Keep local state in sync when the report refreshes after a successful save
-  useEffect(() => { setAssignee(report.assignedTo ?? ""); }, [report.assignedTo]);
-  useEffect(() => { setNextStatus(report.status); },         [report.status]);
-
-  const handleSaveChanges = () => {
-    const patch: Record<string, any> = {};
-    if (nextStatus !== report.status) patch.status = nextStatus;
-    if (assignee !== (report.assignedTo ?? "")) patch.assignedTo = assignee || null;
-    if (Object.keys(patch).length > 0) updateMutation.mutate(patch);
-  };
 
   return (
     <div className="border-t border-border bg-muted/30 dark:bg-gray-900/30 p-4 space-y-5">
@@ -212,61 +173,12 @@ function ReportDetail({ report, userRole }: { report: any; userRole: string }) {
         </div>
       </div>
 
-      {/* Status & assignee controls — admins and managers only */}
-      {canEdit && <div className="grid grid-cols-1 md:grid-cols-3 gap-3 items-end">
-        <div className="space-y-1">
-          <Label className="text-xs">Update Status</Label>
-          <Select value={nextStatus} onValueChange={setNextStatus}>
-            <SelectTrigger className="h-8 text-xs">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {Object.entries(STATUS_CFG).map(([v, cfg]) => (
-                <SelectItem key={v} value={v} className="text-xs">{cfg.label}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+      {/* Status & actions — admins and managers only */}
+      {canEdit && (
+        <div className="max-w-md">
+          <RequestActionsCard request={report} role={userRole} userId={me?.id} canAddTech assigneeName={report.technicianName ?? null} />
         </div>
-        <div className="space-y-1">
-          <Label className="text-xs">Assign Technician</Label>
-          <Select
-            value={assignee || "__unassigned__"}
-            onValueChange={v => setAssignee(v === "__unassigned__" ? "" : v)}
-            disabled={staffLoading}
-          >
-            <SelectTrigger className="h-8 text-xs">
-              <SelectValue placeholder={staffLoading ? "Loading staff…" : "Select technician…"} />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="__unassigned__" className="text-xs text-muted-foreground">— Unassigned —</SelectItem>
-              {/* If the saved value isn't in the staff list (e.g. was stored as an ID or free text),
-                  show it as its own option so the dropdown still reflects the current assignment */}
-              {storedIsOrphan && (
-                <SelectItem value={storedAssignee} className="text-xs text-amber-700 dark:text-amber-400">
-                  {storedAssignee} (not in staff list)
-                </SelectItem>
-              )}
-              {activeStaff.map(s => {
-                const fullName = `${s.first_name ?? ""} ${s.last_name ?? ""}`.trim();
-                const label    = s.position ? `${fullName} · ${s.position}` : fullName;
-                return (
-                  <SelectItem key={s.id} value={fullName} className="text-xs">
-                    {label}
-                  </SelectItem>
-                );
-              })}
-            </SelectContent>
-          </Select>
-        </div>
-        <Button
-          size="sm"
-          className="h-8 text-xs"
-          onClick={handleSaveChanges}
-          disabled={updateMutation.isPending || (nextStatus === report.status && assignee === (report.assignedTo ?? ""))}
-        >
-          {updateMutation.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : "Save Changes"}
-        </Button>
-      </div>}
+      )}
       {!canEdit && (
         <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
           <Lock className="w-3 h-3" />

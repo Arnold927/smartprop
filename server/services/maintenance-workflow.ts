@@ -372,6 +372,7 @@ export async function transition(requestId: number, action: WorkflowAction, acto
     throw new WorkflowError(409, msg, "BAD_STATE");
   }
   await assertAllowed(actor, action, ctx);
+  if (action === "complete") await assertCostEditAllowed(ctx, input.actualCost);
 
   const now = new Date();
   const set: Record<string, any> = { updatedAt: now };
@@ -447,6 +448,9 @@ export async function transition(requestId: number, action: WorkflowAction, acto
   // ── Thread note: why it was approved / cancelled (comments live in the request's thread, see appendThreadNote) ──
   const threadText = action === "approve" ? input.comments : action === "cancel" && actor.role !== "tenant" ? (input.reason ? `Cancelled: ${input.reason}` : "Cancelled") : action === "reject" ? `Rejected: ${updated.rejectionReason}` : undefined;
   if (threadText) await appendThreadNote(requestId, actor, threadText).catch(() => {});
+
+  // ── Charge-back: an unpaid charge is withdrawn when the tenant says it isn't fixed ──
+  if (action === "reopen") await pauseChargeOnReopen(ctx, actor).catch((e) => console.warn("[maintenance-workflow] charge pause failed:", e));
 
   // ── Charge-back: a job flagged "charge the tenant" is billed the moment it is completed ──
   if (action === "complete" && updated.chargeTenant) {
@@ -603,10 +607,58 @@ export async function issueTenantChargeBill(updated: any, tenantId: number | nul
     dueDate: new Date(now.getTime() + dueInDays * 86_400_000),
     currency: tenant.currency ?? "KES", status: "pending", ...fields,
   } as any).returning();
-  await db.update(maintenanceRequests).set({ tenantChargeBillId: bill.id, tenantChargeAmount: amount.toFixed(2) } as any).where(eq(maintenanceRequests.id, updated.id));
+  // Only the link is stored: tenant_charge_amount stays the amount someone AGREED (empty = "whatever the repair cost"),
+  // so the bill keeps tracking the real cost if that is corrected later.
+  await db.update(maintenanceRequests).set({ tenantChargeBillId: bill.id } as any).where(eq(maintenanceRequests.id, updated.id));
   const cur = tenant.currency ?? "KES";
   await tellTenant(tenantId, "Repair charge added", `A repair charge of ${cur} ${amount.toLocaleString("en-KE")} was added to your account for request #${updated.ticketNumber}${updated.tenantChargeReason ? ` (${updated.tenantChargeReason})` : ""}. You can see and pay it under Utility Bills in your portal.`, updated.id);
   return bill;
+}
+
+/** The tenant's repair bill, if one was issued and still exists. */
+async function chargeBillOf(billId: number | null | undefined) {
+  if (!billId) return null;
+  const [b] = await db.select().from(utilityBills).where(eq(utilityBills.id, billId)).limit(1);
+  return b ?? null;
+}
+
+/** A cost can't be corrected below what the tenant has already paid — that would mean they overpaid. */
+export async function assertCostEditAllowed(ctx: Pick<RequestCtx, "tenantChargeBillId" | "chargeTenant">, newActualCost: unknown) {
+  if (!ctx.chargeTenant || newActualCost == null || String(newActualCost) === "") return;
+  const bill = await chargeBillOf(ctx.tenantChargeBillId);
+  if (bill?.status === "paid" && money(newActualCost) < money(bill.amount)) {
+    throw new WorkflowError(409, `The tenant has already paid ${money(bill.amount).toLocaleString("en-KE")} for this repair, so the cost can't be lowered below that. Refund the charge from Finances first.`, "ALREADY_PAID");
+  }
+}
+
+/**
+ * After a cost is corrected on a completed request, bring the tenant's bill in line (capped at the real cost, and the tenant is told).
+ * A paid bill is never touched. Safe to call any time: it does nothing when there is no charge.
+ */
+export async function reconcileTenantCharge(requestId: number, actor: Actor) {
+  const [row] = await db.select().from(maintenanceRequests).where(eq(maintenanceRequests.id, requestId)).limit(1);
+  if (!row || !row.chargeTenant || row.status !== "completed") return null;
+  return issueTenantChargeBill(row, row.tenantId, actor);
+}
+
+/**
+ * The tenant reopened the request ("not fixed"). Billing them for a repair that didn't work would be wrong, so an UNPAID
+ * charge is withdrawn now; the "charge tenant" decision is kept and the bill is issued again when the re-fix is completed.
+ * A charge the tenant has already paid stays (money isn't moved automatically) and the team is told.
+ */
+async function pauseChargeOnReopen(ctx: RequestCtx, actor: Actor) {
+  if (!ctx.chargeTenant || !ctx.tenantId) return;
+  const bill = await chargeBillOf(ctx.tenantChargeBillId);
+  if (!bill) return;
+  if (bill.status === "paid") {
+    await appendThreadNote(ctx.id, actor, "Reopened after the tenant had already paid the repair charge — decide whether to refund it from Finances.").catch(() => {});
+    await notifyOversight(actor.organizationId, ctx, "Reopened after a paid charge", `${ctx.title ?? ctx.ticketNumber} (#${ctx.ticketNumber}) was reopened, but the tenant already paid its repair charge. Consider a refund.`, actor.id ? [actor.id] : []).catch(() => {});
+    return;
+  }
+  await db.delete(utilityBills).where(eq(utilityBills.id, bill.id));
+  await db.update(maintenanceRequests).set({ tenantChargeBillId: null } as any).where(eq(maintenanceRequests.id, ctx.id));
+  await appendThreadNote(ctx.id, actor, "Repair charge withdrawn while the job is redone — it will be billed again when it is completed.").catch(() => {});
+  await tellTenant(ctx.tenantId, "Repair charge on hold", `You reopened request #${ctx.ticketNumber}, so the repair charge was taken off your account for now. You'll only be billed once the fix is done.`, ctx.id);
 }
 
 export async function setTenantCharge(
@@ -640,14 +692,19 @@ export async function setTenantCharge(
   // ── Set / change the charge ──
   const reason = (input.reason ?? ctx.tenantChargeReason ?? "").trim();
   if (reason.length < 3) throw new WorkflowError(400, "Say why the tenant is being charged (they will see it).", "NO_REASON");
-  let amount: number | null = null;
-  if (input.amount !== undefined && input.amount !== null && String(input.amount).trim() !== "") {
+  // amount: omitted → keep what was agreed; empty/null → "bill whatever the repair cost"; a number → that amount.
+  let amount: number | null = ctx.tenantChargeAmount ? money(ctx.tenantChargeAmount) : null;
+  if (input.amount === null || (input.amount !== undefined && String(input.amount).trim() === "")) amount = null;
+  else if (input.amount !== undefined) {
     amount = money(input.amount);
     if (!(amount > 0)) throw new WorkflowError(400, "Enter an amount greater than zero.", "BAD_AMOUNT");
-  } else if (ctx.tenantChargeAmount) amount = money(ctx.tenantChargeAmount);
+  }
   const cap = chargeCap(ctx);
   if (amount != null && cap != null && amount > cap) throw new WorkflowError(400, `The tenant can't be charged more than the repair cost (${cap.toLocaleString("en-KE")}).`, "OVER_COST");
-  if (bill?.status === "paid" && amount != null && amount !== money(bill.amount)) throw new WorkflowError(409, "The tenant has already paid this charge, so the amount can't change.", "ALREADY_PAID");
+  if (bill?.status === "paid") {
+    const effective = Math.min(amount ?? (money(ctx.actualCost) || money(ctx.estimatedCost)), cap ?? Infinity);
+    if (effective !== money(bill.amount)) throw new WorkflowError(409, "The tenant has already paid this charge, so the amount can't change.", "ALREADY_PAID");
+  }
   if (ctx.status === "completed" && amount == null && !(money(ctx.actualCost) > 0) && !(money(ctx.estimatedCost) > 0)) {
     throw new WorkflowError(400, "Enter the amount to charge.", "NO_AMOUNT");
   }

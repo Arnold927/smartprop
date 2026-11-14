@@ -189,7 +189,7 @@ export default function Reports() {
 
   const openMaint = useMemo(() =>
     allMaint.filter(r => {
-      if (!["pending", "assigned", "in_progress"].includes(r.status)) return false;
+      if (!["pending", "pending_approval", "assigned", "in_progress"].includes(r.status)) return false;
       const t = r.createdAt ? new Date(r.createdAt).getTime() : null;
       return t !== null && t >= since.getTime() && t <= until.getTime();
     }).length,

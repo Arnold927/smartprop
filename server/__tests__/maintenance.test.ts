@@ -80,26 +80,24 @@ describe("POST /api/maintenance-requests", () => {
   });
 });
 
-describe("Status transitions via /api/maintenance-actions", () => {
-  it("PATCH status to in_progress → 200", async () => {
-    const res = await authedPatch(
-      app,
-      `/api/maintenance-actions/${requestId}/status`,
-      ctx.adminToken,
-      { status: "in_progress" }
-    );
+describe("Status transitions", () => {
+  it("a request can't be started while nobody is assigned → 409", async () => {
+    const res = await authedPatch(app, `/api/maintenance-requests/${requestId}/start`, ctx.adminToken, {});
+    expect(res.status).toBe(409);
+  });
 
-    // Accept 200 or 404 (route may be structured differently) — just not 500
-    expect(res.status).not.toBe(500);
+  it("the tenant can't move their own request along → 403", async () => {
+    const res = await authedPatch(app, `/api/maintenance-requests/${requestId}`, ctx.tenantToken, { status: "completed" });
+    expect(res.status).toBe(403);
+    const after = await authedGet(app, `/api/maintenance-requests/${requestId}`, ctx.adminToken);
+    expect(after.body.status).toBe("pending");
   });
 });
 
 describe("GET /api/maintenance-requests — single request", () => {
   it("fetches a single request by ID", async () => {
     const res = await authedGet(app, `/api/maintenance-requests/${requestId}`, ctx.adminToken);
-    expect([200, 404]).toContain(res.status); // 404 if route doesn't support single fetch
-    if (res.status === 200) {
-      expect(res.body.id).toBe(requestId);
-    }
+    expect(res.status).toBe(200);
+    expect(res.body.id).toBe(requestId);
   });
 });

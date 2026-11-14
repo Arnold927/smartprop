@@ -77,7 +77,7 @@ interface MaintenanceRequest {
   description: string;
   category: string;
   priority: "low" | "medium" | "high" | "urgent";
-  status: "pending" | "assigned" | "in_progress" | "completed" | "cancelled";
+  status: "pending" | "pending_approval" | "assigned" | "in_progress" | "completed" | "cancelled";
   assignedTo?: string;
   scheduledDate?: string;
   estimatedCost?: string;
@@ -255,7 +255,7 @@ export default function TenantDetails() {
   };
   const maintenanceStats = {
     total:      maintenanceRequests.length,
-    pending:    maintenanceRequests.filter(m => m.status === "pending").length,
+    pending:    maintenanceRequests.filter(m => m.status === "pending" || m.status === "pending_approval").length,
     inProgress: maintenanceRequests.filter(m => m.status === "in_progress").length,
     completed:  maintenanceRequests.filter(m => m.status === "completed").length,
     urgent:     maintenanceRequests.filter(m => m.priority === "urgent").length,

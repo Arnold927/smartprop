@@ -673,7 +673,7 @@ function MaintenanceCard({ req, onViewBills }: { req: any; onViewBills?: () => v
                   {billed ? (
                     <>
                       <p className="font-semibold text-orange-900 dark:text-orange-200">
-                        Charged to you: {money(Number(req.tenantChargeAmount) || 0)}
+                        Charged to you: {money(Number(req.tenantChargeBilledAmount ?? req.tenantChargeAmount) || 0)}
                         <span className={`ml-2 rounded-full px-2 py-0.5 text-[10px] font-medium ${unpaid ? "bg-yellow-100 text-yellow-800" : "bg-emerald-100 text-emerald-800"}`}>{unpaid ? "Unpaid" : "Paid"}</span>
                       </p>
                       {req.tenantChargeReason && <p className="mt-1 text-orange-800 dark:text-orange-300">{req.tenantChargeReason}</p>}

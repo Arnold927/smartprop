@@ -8,6 +8,7 @@ import {
   loadRequestCtx, callerCanAccess as callerCanAccessImpl, resolveScopedRequest as resolveScopedRequestImpl,
   exceedsApprovalThreshold as exceedsApprovalThresholdImpl, transition, actionForStatusChange,
   filterGenericFields, normalizeMoney, isAssigneeOfRequest, actorFromReq, WorkflowError, notifyOversight,
+  assertCostEditAllowed, reconcileTenantCharge,
   type RequestStatus, type WorkflowAction,
 } from "../services/maintenance-workflow";
 import { notifyTenant } from "../services/notifyTenant";
@@ -37,7 +38,7 @@ router.get("/:id", async (req: any, res: any, next: any) => {
       [bill] = await db.select({ status: utilityBills.status, amount: utilityBills.amount }).from(utilityBills).where(eq(utilityBills.id, (full as any).tenantChargeBillId)).limit(1);
     }
     const [tn] = full.tenantId ? await db.select({ currency: tenants.currency }).from(tenants).where(eq(tenants.id, full.tenantId)).limit(1) : [];
-    res.json({ ...full, tenantChargeBillStatus: bill?.status ?? null, tenantChargeAmount: bill?.amount ?? (full as any).tenantChargeAmount ?? null, tenantCurrency: tn?.currency ?? "KES" });
+    res.json({ ...full, tenantChargeBillStatus: bill?.status ?? null, tenantChargeBilledAmount: bill?.amount ?? null, tenantCurrency: tn?.currency ?? "KES" });
   } catch (err) {
     console.error("[maintenance-item-guard] GET /:id:", err);
     res.status(500).json({ message: "Internal server error" });
@@ -89,6 +90,9 @@ async function handleUpdate(req: any, res: any) {
       }
     }
 
+    // A cost can't be corrected below what the tenant already paid as a repair charge.
+    if (validated.actualCost !== undefined) await assertCostEditAllowed(ctx, validated.actualCost);
+
     // 1. Status change → workflow action (validated before anything is written).
     const wanted = body.status as RequestStatus | undefined;
     let current: any = null;
@@ -126,6 +130,10 @@ async function handleUpdate(req: any, res: any) {
         .returning();
     }
     if (!updated) [updated] = await db.select().from(maintenanceRequests).where(eq(maintenanceRequests.id, id)).limit(1);
+    // The repair cost changed → keep the tenant's repair bill in line with it.
+    if ((validated.actualCost !== undefined || validated.estimatedCost !== undefined) && updated.status === "completed") {
+      await reconcileTenantCharge(id, actor).catch((e) => console.warn("[maintenance-item-guard] charge reconcile failed:", e));
+    }
     // A visit was (re)scheduled → tell the tenant.
     if (validated.scheduledDate && ctx.tenantId && ["pending", "assigned", "in_progress"].includes(updated.status)) {
       notifyTenant(ctx.tenantId, { type: "maintenance_scheduled", ticketNumber: ctx.ticketNumber, scheduledDate: new Date(validated.scheduledDate).toISOString() }).catch(() => {});

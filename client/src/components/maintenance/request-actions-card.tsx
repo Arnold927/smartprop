@@ -33,7 +33,8 @@ export interface ActionsCardRequest {
   satisfactionComments?: string | null;
   // charge-back (the tenant pays for this repair)
   chargeTenant?: boolean | null;
-  tenantChargeAmount?: string | null;
+  tenantChargeAmount?: string | null;        // the amount someone agreed (empty = whatever the repair cost)
+  tenantChargeBilledAmount?: string | null;  // what the tenant was actually billed
   tenantChargeReason?: string | null;
   tenantChargeBillStatus?: string | null;
   tenantCurrency?: string | null;
@@ -109,7 +110,7 @@ export function RequestActionsCard({
 
   const charge = useMutation({
     mutationFn: async (data: { charge: boolean; amount?: string; reason?: string }) =>
-      (await apiRequest(`/api/maintenance-requests/${request.id}/charge`, { method: "PATCH", data: { ...data, amount: data.amount ? Number(data.amount) : undefined } })).json(),
+      (await apiRequest(`/api/maintenance-requests/${request.id}/charge`, { method: "PATCH", data: { ...data, amount: data.amount ? Number(data.amount) : null } })).json(),
     onSuccess: (_d, v) => {
       refresh(); setChargeOpen(false); setUnchargeOpen(false);
       toast({ title: v.charge ? (request.status === "completed" ? "Charged to the tenant — they've been billed" : "Saved — the tenant is billed when the job is completed") : "Charge removed" });
@@ -393,7 +394,7 @@ function ChargeSection({ request, busy, onEdit, onRemove }: { request: ActionsCa
   return (
     <div className="rounded-lg border border-orange-200 bg-orange-50 dark:bg-orange-950/30 dark:border-orange-800 p-3 text-sm space-y-1.5" data-testid="charge-status">
       <p className="font-medium flex items-center justify-between gap-2">
-        <span>Charged to tenant{request.tenantChargeAmount ? `: ${cur} ${Number(request.tenantChargeAmount).toLocaleString()}` : ""}</span>
+        <span>Charged to tenant{(request.tenantChargeBilledAmount ?? request.tenantChargeAmount) ? `: ${cur} ${Number(request.tenantChargeBilledAmount ?? request.tenantChargeAmount).toLocaleString()}` : ""}</span>
         {billed && <Badge variant="outline" className={paid ? "border-emerald-300 text-emerald-700" : "border-yellow-400 text-yellow-800"}>{paid ? "Paid" : "Billed · unpaid"}</Badge>}
       </p>
       {request.tenantChargeReason && <p className="text-muted-foreground">{request.tenantChargeReason}</p>}

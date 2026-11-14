@@ -19,6 +19,7 @@ import { FeatureAnnouncementCenter } from "@/components/ui/feature-announcement"
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; bg: string }> = {
   pending:     { label: "Pending",     color: "text-blue-600 dark:text-blue-400",   bg: "bg-blue-500/10"   },
+  pending_approval: { label: "Awaiting approval", color: "text-violet-600 dark:text-violet-400", bg: "bg-violet-500/10" },
   assigned:    { label: "Assigned",    color: "text-violet-600 dark:text-violet-400", bg: "bg-violet-500/10" },
   in_progress: { label: "In Progress", color: "text-amber-600 dark:text-amber-400", bg: "bg-amber-500/10"  },
   completed:   { label: "Completed",   color: "text-emerald-600 dark:text-emerald-400", bg: "bg-emerald-500/10" },
@@ -86,7 +87,7 @@ export default function MaintenanceDashboard() {
   const todayStr = new Date().toDateString();
 
   // Real computed metrics
-  const pendingCount  = reqArr.filter((r: any) => r.status === "pending").length;
+  const pendingCount  = reqArr.filter((r: any) => r.status === "pending" || r.status === "pending_approval").length;
   const inProgCount   = reqArr.filter((r: any) => r.status === "in_progress").length;
   const completedToday = reqArr.filter((r: any) => r.status === "completed" && (r.completedAt || r.updatedAt) && new Date(r.completedAt ?? r.updatedAt).toDateString() === todayStr).length;
   const emergencyCount = reqArr.filter((r: any) => ["urgent","critical"].includes(r.priority ?? "") && !["completed","cancelled"].includes(r.status)).length;
@@ -94,7 +95,7 @@ export default function MaintenanceDashboard() {
   const openCount = reqArr.filter((r: any) => !["completed","cancelled"].includes(r.status)).length;
   const completionRate = reqArr.length > 0 ? Math.round((reqArr.filter((r: any) => r.status === "completed").length / reqArr.length) * 100) : 0;
 
-  const respondedReqs = reqArr.filter((r: any) => r.status !== "pending" && r.createdAt && r.updatedAt);
+  const respondedReqs = reqArr.filter((r: any) => r.status !== "pending" && r.status !== "pending_approval" && r.createdAt && r.updatedAt);
   const avgResponseTime = respondedReqs.length > 0
     ? Math.round(respondedReqs.reduce((s: number, r: any) => s + Math.min((new Date(r.updatedAt).getTime() - new Date(r.createdAt).getTime()) / 3600000, 72), 0) / respondedReqs.length * 10) / 10
     : null;
