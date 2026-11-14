@@ -168,6 +168,16 @@ self.addEventListener('fetch', (event) => {
   const isAPI  = url.pathname.startsWith('/api/');
   const isGet  = request.method === 'GET';
 
+  // Photos/videos people upload (Cloudinary, or /uploads in dev): never touched by the worker.
+  // Video playback needs Range requests and partial (206) responses, which this worker's
+  // generic handlers can't cache or replay, and private media shouldn't pile up in the shell cache.
+  if (
+    request.destination === 'video' || request.destination === 'audio' ||
+    request.headers.has('range') ||
+    url.hostname === 'res.cloudinary.com' ||
+    url.pathname.startsWith('/uploads/')
+  ) return;
+
   // ── Mutating requests (POST / PATCH / PUT / DELETE) ─────────────────────
   if (!isGet && isAPI) {
     // Check if this endpoint is in the queue-worthy set

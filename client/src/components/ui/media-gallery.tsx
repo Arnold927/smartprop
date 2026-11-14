@@ -21,8 +21,9 @@ export function MediaGallery({
   size?: "sm" | "md";
 }) {
   const [open, setOpen] = useState<number | null>(null);
+  const [failed, setFailed] = useState<number | null>(null); // id of a video that could not be played
   const count = items.length;
-  const close = useCallback(() => setOpen(null), []);
+  const close = useCallback(() => { setOpen(null); setFailed(null); }, []);
   const step = useCallback((d: number) => setOpen(i => (i === null ? i : (i + d + count) % count)), [count]);
 
   useEffect(() => {
@@ -91,7 +92,9 @@ export function MediaGallery({
           </div>
           <div className="relative flex min-h-0 flex-1 items-center justify-center px-2 pb-4 sm:px-14" onClick={e => e.stopPropagation()}>
             {cur.kind === "video"
-              ? <video key={cur.id} src={cur.url} poster={cur.thumbnailUrl ?? undefined} controls autoPlay playsInline className="max-h-full max-w-full rounded-lg" />
+              ? failed === cur.id
+                ? <p className="max-w-xs text-center text-sm text-white/80">This video couldn't be played here (it may still be processing). Try again in a moment, or <a href={cur.url} target="_blank" rel="noopener noreferrer" className="underline">open it directly</a>.</p>
+                : <video key={cur.id} src={cur.url} poster={cur.thumbnailUrl ?? undefined} controls autoPlay playsInline onError={() => setFailed(cur.id)} className="max-h-full max-w-full rounded-lg" />
               : <img key={cur.id} src={cur.url} alt="" className="max-h-full max-w-full rounded-lg object-contain" />}
             {count > 1 && (
               <>

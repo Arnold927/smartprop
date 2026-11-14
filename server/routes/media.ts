@@ -86,7 +86,10 @@ function withUrls(cloudinary: any, row: any) {
   if (row.kind === "video") {
     return {
       ...row,
-      url: cloudinary.url(row.publicId, { ...base, resource_type: "video", format: "mp4", transformation: [{ video_codec: "h264", quality: "auto" }] }),
+      // MP4 uploads play as they are (no transcoding wait). MOV / WebM / 3GP (e.g. iPhone clips) are converted to H.264 MP4 so every browser can play them.
+      url: row.mimeType === "video/mp4"
+        ? cloudinary.url(row.publicId, { ...base, resource_type: "video", format: "mp4" })
+        : cloudinary.url(row.publicId, { ...base, resource_type: "video", format: "mp4", transformation: [{ video_codec: "h264", quality: "auto" }] }),
       thumbnailUrl: cloudinary.url(row.publicId, { ...base, resource_type: "video", format: "jpg", transformation: [{ width: 480, height: 360, crop: "fill", start_offset: "0" }] }),
     };
   }
@@ -248,7 +251,7 @@ router.post("/upload", (req: any, res: any, next: any) => {
     const saved: any[] = [];
     for (const f of files) {
       const kind = VIDEO_MIME.has(f.mimetype) ? "video" : "image";
-      if (kind === "image" && f.size > IMAGE_MAX) { cleanup([f]); return res.status(413).json({ message: `${f.originalname}: images can be up to 15 MB.` }); }
+      if (kind === "image" && f.size > IMAGE_MAX) { return res.status(413).json({ message: `${f.originalname}: images can be up to 15 MB.` }); }
       let url: string; let publicId: string | null = null; let store = "cloudinary";
       if (cloudinary) {
         const r: any = await cloudinary.uploader.upload(f.path, {
@@ -270,12 +273,12 @@ router.post("/upload", (req: any, res: any, next: any) => {
       }).returning();
       saved.push({ ...withUrls(cloudinary, row), canRemove: true });
     }
-    cleanup(files);
     res.status(201).json(saved);
   } catch (err: any) {
-    cleanup(files);
     logger.error("media upload failed", { err: String(err?.message ?? err) });
     res.status(500).json({ message: "Upload failed. Please try again." });
+  } finally {
+    cleanup(files); // temp files are removed on every path: success, refusal (403/400/413) or error
   }
 });
 
