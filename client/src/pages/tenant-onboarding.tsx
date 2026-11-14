@@ -21,6 +21,7 @@ import { cn } from "@/lib/utils";
 import { PageShell, PageHeader, SectionCard, SPBadge, EmptyState, PrimaryButton, SecondaryButton, FilterBar, SPTable, SPAvatar, StatTile, StatsGrid, KESAmount, ActionMenu, ConfirmDialog } from "@/components/ui/sp-ui";
 import { useRoleGuard, ROLES } from "@/hooks/useRoleGuard";
 import { useAuth } from "@/hooks/useAuth";
+import { announceInvite } from "@/lib/invite-notice";
 
 
 const tenantOnboardingSchema = z.object({
@@ -170,8 +171,17 @@ export default function TenantOnboarding() {
         throw new Error(message);
       }
     },
-    onSuccess: () => {
-      toast({ title: "Onboarding Complete", description: "Tenant has been registered and a portal invite has been sent to their email address." });
+    onSuccess: (result: any, vars: TenantOnboardingForm) => {
+      const invite = result?.invite;
+      toast({
+        title: "Onboarding Complete",
+        description: invite?.emailSent
+          ? "Tenant has been registered and a portal invite has been emailed to them."
+          : invite?.link
+            ? "Tenant has been registered. The invite email could not be sent — share the link that is shown."
+            : "Tenant has been registered.",
+      });
+      announceInvite(invite, (vars as any)?.email, (vars as any)?.tenantName);
       form.reset();
       localStorage.removeItem("tenant_onboarding_draft");
       setCurrentStep(1);

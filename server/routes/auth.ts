@@ -577,16 +577,29 @@ router.post("/reset-password", async (req, res) => {
 });
 
 // GET /api/auth/invite/:token — validate an invite token (unauthenticated)
+// An expired link used to validate fine here and only fail at the very end, after the person had
+// typed a password. It is now rejected up front with a message that says what to do.
 router.get("/invite/:token", async (req, res) => {
   try {
     const [user] = await db
-      .select({ email: users.email, role: users.role })
+      .select({
+        email: users.email, role: users.role, firstName: users.firstName, lastName: users.lastName,
+        expiresAt: users.emailVerificationExpiresAt, orgName: organizations.name,
+      })
       .from(users)
+      .leftJoin(organizations, eq(users.organizationId, organizations.id))
       .where(eq(users.emailVerificationToken, req.params.token))
       .limit(1);
 
-    if (!user) return res.status(400).json({ message: "Invalid invite token" });
-    res.json({ email: user.email, role: user.role });
+    if (!user) return res.status(400).json({ message: "This invitation link is invalid or has already been used." });
+    if (!user.expiresAt || user.expiresAt < new Date()) {
+      return res.status(410).json({ message: "This invitation link has expired. Ask the person who invited you to send a new one.", expired: true });
+    }
+    res.json({
+      email: user.email, role: user.role,
+      firstName: user.firstName, lastName: user.lastName,
+      organizationName: user.orgName ?? null,
+    });
   } catch (err) {
     console.error("Invite token lookup error:", err);
     res.status(500).json({ message: "Failed to validate invite" });
@@ -631,12 +644,15 @@ router.post("/activate", async (req, res) => {
   try {
     const schema = z.object({
       token: z.string(),
+      // Optional: invites created from the Users page carry no name, so the accept page asks for it.
+      firstName: z.string().trim().min(1).max(100).optional(),
+      lastName: z.string().trim().max(100).optional(),
       password: z.string().min(8).refine(
         (p) => /[A-Z]/.test(p) && /[0-9]/.test(p) && /[^A-Za-z0-9]/.test(p),
         { message: "Password must contain uppercase, number, and special character" }
       ),
     });
-    const { token, password } = schema.parse(req.body);
+    const { token, password, firstName, lastName } = schema.parse(req.body);
 
     // Look up first and check expiry — previously this went straight to an
     // UPDATE keyed only on token match, with no expiry check at all, unlike
@@ -650,8 +666,11 @@ router.post("/activate", async (req, res) => {
       .where(eq(users.emailVerificationToken, token))
       .limit(1);
 
-    if (!existing || !existing.emailVerificationExpiresAt || existing.emailVerificationExpiresAt < new Date()) {
-      return res.status(400).json({ message: "Invalid or expired token" });
+    if (!existing) {
+      return res.status(400).json({ message: "This invitation link is invalid or has already been used." });
+    }
+    if (!existing.emailVerificationExpiresAt || existing.emailVerificationExpiresAt < new Date()) {
+      return res.status(410).json({ message: "This invitation link has expired. Ask the person who invited you to send a new one.", expired: true });
     }
 
     const passwordHash = await bcrypt.hash(password, BCRYPT_ROUNDS);
@@ -663,6 +682,8 @@ router.post("/activate", async (req, res) => {
         emailVerified: true,
         emailVerificationToken: null,
         emailVerificationExpiresAt: null,
+        ...(firstName && !existing.firstName ? { firstName } : {}),
+        ...(lastName && !existing.lastName ? { lastName } : {}),
         updatedAt: new Date(),
       })
       .where(eq(users.id, existing.id))
@@ -694,7 +715,7 @@ router.post("/activate", async (req, res) => {
       }
     }
 
-    res.json({ success: true });
+    res.json({ success: true, email: user.email });
   } catch (err: any) {
     if (err instanceof z.ZodError) {
       return res.status(400).json({ message: err.errors[0]?.message });

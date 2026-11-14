@@ -16,6 +16,7 @@ import { CurrencyDisplay } from '@/components/ui/currency-display';
 import { useRoleGuard, ROLES } from "@/hooks/useRoleGuard";
 import { useAuth } from "@/hooks/useAuth";
 import { PageShell, PageHeader, SectionCard, SPBadge, EmptyState, PrimaryButton, SecondaryButton, FilterBar, SPTable, SPAvatar, StatTile, StatsGrid, KESAmount, ActionMenu, ConfirmDialog } from "@/components/ui/sp-ui";
+import { announceInvite } from "@/lib/invite-notice";
 
 
 // Standard property services offered as specialty options
@@ -113,11 +114,15 @@ export default function ContractorsManagement() {
   const contractors = ensureArray(contractorsRaw);
 
   const createMutation = useMutation({
-    mutationFn: (data: any) => apiRequest("/api/contractors", { method: "POST", data }),
-    onSuccess: () => {
+    mutationFn: async (data: any) => {
+      const r = await apiRequest("/api/contractors", { method: "POST", data });
+      return r.json().catch(() => null);
+    },
+    onSuccess: (created: any, vars: any) => {
       queryClient.invalidateQueries({ queryKey: ["/api/contractors"] });
       setIsCreateOpen(false);
       toast({ title: "Contractor registered successfully" });
+      announceInvite(created?.invite, vars?.email, vars?.companyName || vars?.name);
     },
     onError: (e: any) => toast({ title: "Error", description: e?.message || "Failed to register contractor", variant: "destructive" }),
   });

@@ -12,6 +12,7 @@
  */
 import { Router } from "express";
 import { createCRUDRouter } from "../utils/crud";
+import { randomUUID } from "crypto";
 import {
   tenants, rentPayments, invoices, mpesaTransactions, units, users,
   insertTenantSchema, insertRentPaymentSchema, insertInvoiceSchema,
@@ -24,7 +25,8 @@ import { authenticateJWT } from "../middleware/auth";
 import { requireOrg } from "../middleware/requireOrg";
 import { z } from "zod";
 import { storage } from "../storage";
-import { inviteTenantUser } from "../utils/inviteTenantUser";
+import { resolveOrInviteTenantUser } from "../utils/resolveOrInviteTenantUser";
+import { InviteConflictError, type InviteResult } from "../utils/invites";
 
 const tenantRouter = Router();
 
@@ -342,28 +344,42 @@ tenantRouter.post("/", async (req: any, res: any) => {
       }
     }
 
-    // Resolve the tenant's OWN user account by their email so that
-    // GET /api/tenants/me can find the record when the tenant logs in.
-    // If no user account exists yet for that email, userId is left null
-    // and the /me endpoint's email-fallback will handle the lookup.
-    let tenantUserId: string | null = null;
+    // Resolve (or create) the tenant's OWN login. tenants.userId is NOT NULL, so a
+    // brand-new tenant has to get their pending login BEFORE the record is
+    // inserted — this used to leave userId null for any email with no existing
+    // account, and every such "Add Tenant" failed validation. The lookup is also
+    // organisation-scoped now (it used to match an account from ANY organisation).
     const tenantEmail: string = (req.body.email ?? "").trim().toLowerCase();
-    if (tenantEmail) {
-      const [tenantUser] = await db
-        .select({ id: users.id })
-        .from(users)
-        .where(eq(users.email, tenantEmail))
-        .limit(1);
-      if (tenantUser) tenantUserId = tenantUser.id;
+    if (!tenantEmail) {
+      return res.status(400).json({ message: "An email address is required so the tenant can be given portal access." });
+    }
+    // Validate the payload first (with a placeholder userId) so a bad form never
+    // leaves an orphaned pending login behind.
+    const candidate = { ...req.body, organizationId: orgId, email: tenantEmail };
+    const check = insertTenantSchema.safeParse({ ...candidate, userId: randomUUID() });
+    if (!check.success) {
+      return res.status(422).json({
+        message: "Validation error",
+        errors: check.error.flatten().fieldErrors,
+      });
     }
 
-    const tenantData = {
-      ...req.body,
-      organizationId: orgId,
-      userId: tenantUserId,  // tenant's own user account (not the creating manager's)
-    };
+    let tenantUserId: string;
+    let invite: InviteResult;
+    try {
+      ({ userId: tenantUserId, invite } = await resolveOrInviteTenantUser({
+        organizationId: orgId,
+        invitedByUserId: req.user.id,
+        email: tenantEmail,
+        firstName: String(req.body.firstName ?? "").trim() || "Tenant",
+        lastName:  String(req.body.lastName ?? "").trim() || "-",
+      }));
+    } catch (e: any) {
+      if (e instanceof InviteConflictError) return res.status(409).json({ message: e.message });
+      throw e;
+    }
 
-    const parsed = insertTenantSchema.safeParse(tenantData);
+    const parsed = insertTenantSchema.safeParse({ ...candidate, userId: tenantUserId });
     if (!parsed.success) {
       return res.status(422).json({
         message: "Validation error",
@@ -372,23 +388,7 @@ tenantRouter.post("/", async (req: any, res: any) => {
     }
     const tenant = await storage.createTenant(parsed.data);
 
-    // Auto-invite the tenant to the portal — same behavior as
-    // /api/tenant-onboarding, so which "Add Tenant" entry point someone
-    // used no longer determines whether the tenant can ever log in. Only
-    // when no existing user account was already found above for this
-    // email — otherwise this would email an already-active tenant a
-    // confusing "set up your account" link for an account they already use.
-    if (!tenantUserId) {
-      inviteTenantUser({
-        organizationId: orgId,
-        invitedByUserId: req.user.id,
-        email: tenantData.email,
-        firstName: tenantData.firstName,
-        lastName: tenantData.lastName,
-      });
-    }
-
-    return res.status(201).json(tenant);
+    return res.status(201).json({ ...tenant, invite });
   } catch (error: any) {
     console.error("Error creating tenant:", error);
     return res.status(500).json({ message: error.message || "Failed to create tenant" });

@@ -26,6 +26,7 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { UserPlus, Shield, Home, Phone } from "lucide-react";
+import { announceInvite } from "@/lib/invite-notice";
 
 interface CaretakerRow {
   id: number;
@@ -92,12 +93,21 @@ export default function CaretakersPage() {
 
   const createMutation = useMutation({
     mutationFn: (data: any) => apiRequest("/api/caretakers", { method: "POST", data }),
-    onSuccess: async (r) => {
+    onSuccess: async (r, vars: any) => {
       if (!r.ok) {
         const body = await r.json().catch(() => ({}));
         throw new Error(body.message || "Failed to add caretaker");
       }
-      toast({ title: "Caretaker added", description: "An invite email has been sent to set up their account." });
+      const created = await r.json().catch(() => null);
+      toast({
+        title: "Caretaker added",
+        description: created?.invite?.emailSent
+          ? "An invite email has been sent to set up their account."
+          : created?.invite?.link
+            ? "Added. The invite email could not be sent — share the link that is shown."
+            : "Added.",
+      });
+      announceInvite(created?.invite, vars?.email, [vars?.firstName, vars?.lastName].filter(Boolean).join(" "));
       queryClient.invalidateQueries({ queryKey: ["/api/caretakers"] });
       setIsAddOpen(false);
     },

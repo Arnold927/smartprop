@@ -33,6 +33,7 @@ import { authenticateJWT } from "../middleware/auth";
 import { requireOrg } from "../middleware/requireOrg";
 import { storage } from "../storage";
 import { resolveOrInviteCaretakerUser } from "../utils/resolveOrInviteCaretakerUser";
+import { InviteConflictError } from "../utils/invites";
 
 const router = Router();
 const auth = [authenticateJWT as any, requireOrg as any];
@@ -277,13 +278,20 @@ router.post("/", ...auth, requireAdminManagerLandlord, async (req: any, res: any
       return res.status(404).json({ message: "Property not found in your organisation" });
     }
 
-    const userId = await resolveOrInviteCaretakerUser({
-      organizationId: orgId,
-      invitedByUserId: req.user.id,
-      email,
-      firstName,
-      lastName,
-    });
+    let userId: string;
+    let invite: any;
+    try {
+      ({ userId, invite } = await resolveOrInviteCaretakerUser({
+        organizationId: orgId,
+        invitedByUserId: req.user.id,
+        email,
+        firstName,
+        lastName,
+      }));
+    } catch (e: any) {
+      if (e instanceof InviteConflictError) return res.status(409).json({ message: e.message });
+      throw e;
+    }
 
     const created = await storage.createCaretaker({
       userId,
@@ -298,7 +306,7 @@ router.post("/", ...auth, requireAdminManagerLandlord, async (req: any, res: any
       status: "active",
     });
 
-    res.status(201).json(created);
+    res.status(201).json({ ...created, invite });
   } catch (err) {
     console.error("POST /api/caretakers error:", err);
     res.status(500).json({ message: "Failed to create caretaker" });

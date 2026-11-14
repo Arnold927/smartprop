@@ -35,6 +35,7 @@ import {
 } from "recharts";
 import { RegulatoryCompliancePanel } from "@/components/regulatory-compliance-panel";
 import { PageShell, PageHeader, SectionCard, SPBadge, EmptyState, PrimaryButton, SecondaryButton, FilterBar, SPTable, SPAvatar, StatTile, StatsGrid, KESAmount, ActionMenu, ConfirmDialog } from "@/components/ui/sp-ui";
+import { announceInvite } from "@/lib/invite-notice";
 
 const STATUS_COLORS: Record<string, string> = {
   active:   "#22c55e",
@@ -230,6 +231,8 @@ export default function PropertyDetailsPage() {
         },
       });
       if (!res.ok) return false;
+      const created = await res.clone().json().catch(() => null);
+      announceInvite(created?.invite, data.email, `${data.firstName} ${data.lastName}`.trim());
       queryClient.invalidateQueries({ queryKey: [`/api/properties/${propertyId}/full`] });
       setIsAddTenantOpen(false);
       return true;

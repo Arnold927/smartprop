@@ -18,6 +18,7 @@ import { eq, and } from "drizzle-orm";
 import { authenticateJWT } from "../middleware/auth";
 import { requireOrg } from "../middleware/requireOrg";
 import { resolveOrInviteTenantUser } from "../utils/resolveOrInviteTenantUser";
+import { InviteConflictError } from "../utils/invites";
 
 const tenantOnboardingRouter = Router();
 
@@ -163,13 +164,20 @@ tenantOnboardingRouter.post("/", async (req: any, res: any) => {
     if (!tenantEmailNormalized) {
       return res.status(400).json({ message: "Email is required to onboard a tenant." });
     }
-    const tenantUserId = await resolveOrInviteTenantUser({
-      organizationId: orgId,
-      invitedByUserId: requestingUserId,
-      email: tenantEmailNormalized,
-      firstName,
-      lastName,
-    });
+    let tenantUserId: string;
+    let invite: any;
+    try {
+      ({ userId: tenantUserId, invite } = await resolveOrInviteTenantUser({
+        organizationId: orgId,
+        invitedByUserId: requestingUserId,
+        email: tenantEmailNormalized,
+        firstName,
+        lastName,
+      }));
+    } catch (e: any) {
+      if (e instanceof InviteConflictError) return res.status(409).json({ message: e.message });
+      throw e;
+    }
 
     // ── 5. Create the tenant record ──────────────────────────────────────────
     const [newTenant] = await db
@@ -201,6 +209,7 @@ tenantOnboardingRouter.post("/", async (req: any, res: any) => {
       message: "Tenant onboarded successfully.",
       tenant:  newTenant,
       notes,
+      invite,
     });
   } catch (error: any) {
     console.error("Tenant onboarding error:", error);

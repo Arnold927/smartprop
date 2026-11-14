@@ -31,6 +31,7 @@ import { Button } from "@/components/ui/button";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { isUnauthorizedError } from "@/lib/authUtils";
+import { announceInvite } from "@/lib/invite-notice";
 
 const addTenantSchema = z.object({
  firstName: z.string().min(1, "First name is required"),
@@ -88,9 +89,11 @@ export default function AddTenantModal({ isOpen, onClose }: AddTenantModalProps)
  unitId: Number(data.unitId),
  monthlyRent: data.monthlyRent,
  };
- await apiRequest("/api/tenants", { method: "POST", data: payload });
+ const res = await apiRequest("/api/tenants", { method: "POST", data: payload });
+ return res.json().catch(() => null);
  },
- onSuccess: () => {
+ onSuccess: (created: any, vars: AddTenantForm) => {
+ announceInvite(created?.invite, (vars as any)?.email, [(vars as any)?.firstName, (vars as any)?.lastName].filter(Boolean).join(" "));
  queryClient.invalidateQueries({ queryKey: ["/api/tenants"] });
  queryClient.invalidateQueries({ queryKey: ["/api/dashboard/metrics"] });
  form.reset();

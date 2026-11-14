@@ -21,6 +21,7 @@ import { apiRequest, ensureArray } from "@/lib/queryClient";
 import { formatCurrency } from "@shared/currency";
 import { PageShell, PageHeader, SectionCard, SPBadge, EmptyState, PrimaryButton, SecondaryButton, FilterBar, SPTable, SPAvatar, StatTile, StatsGrid, KESAmount, ActionMenu, ConfirmDialog } from "@/components/ui/sp-ui";
 import { useRoleGuard, ROLES } from "@/hooks/useRoleGuard";
+import { announceInvite } from "@/lib/invite-notice";
 
 interface DiasporaContract {
   id: number;
@@ -402,13 +403,16 @@ export default function DiasporaRentToOwn() {
     onSuccess: (result: any) => {
       queryClient.invalidateQueries({ queryKey: ["/api/diaspora-contracts"] });
       setIsAddContractOpen(false);
-      const invited = result?._meta?.buyerInvited;
+      const meta = result?._meta;
       toast({
         title: "Contract created",
-        description: invited
-          ? "An invitation email has been sent to the client so they can access their buyer portal."
+        description: meta?.buyerInvited
+          ? meta.emailSent
+            ? "An invitation email has been sent to the client so they can access their buyer portal."
+            : "Contract created. The invitation email could not be sent — share the link that is shown."
           : "Contract created and linked to the client's existing account.",
       });
+      if (meta?.buyerInvited) announceInvite({ status: "created", link: meta.inviteLink, emailSent: !!meta.emailSent }, result?.clientEmail, result?.clientName);
     },
     onError: (error: any) => {
       toast({ title: "Error", description: error?.message || "Failed to create contract.", variant: "destructive" });

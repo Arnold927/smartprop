@@ -15,6 +15,7 @@ import { apiRequest } from "@/lib/queryClient";
 import { withOrgParam } from "@/lib/platformOrgContext";
 import { User, Zap, Receipt, CreditCard, FileText, Droplets, Flame, Save, Building } from "lucide-react";
 import { z } from "zod";
+import { announceInvite } from "@/lib/invite-notice";
 
 // ─── Schema ───────────────────────────────────────────────────────────────────
 
@@ -118,9 +119,11 @@ export default function ComprehensiveTenantModal({ isOpen, onClose, properties: 
 
   const submitOnboardingMutation = useMutation({
     mutationFn: async (data: TenantOnboardingForm) => {
-      return await apiRequest(withOrgParam("/api/tenant-onboarding", organizationId), { method: "POST", data });
+      const res = await apiRequest(withOrgParam("/api/tenant-onboarding", organizationId), { method: "POST", data });
+      return res.json().catch(() => null);
     },
-    onSuccess: () => {
+    onSuccess: (result: any, vars: TenantOnboardingForm) => {
+      announceInvite(result?.invite, (vars as any)?.email, (vars as any)?.tenantName);
       toast({
         title: "Tenant Onboarding Complete",
         description: "Comprehensive tenant onboarding completed successfully.",

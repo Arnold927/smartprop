@@ -13,6 +13,7 @@ import { DollarSign, UserPlus } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
+import { announceInvite } from "@/lib/invite-notice";
 
 // Form validation schema
 const staffFormSchema = z.object({
@@ -108,16 +109,20 @@ export default function StaffFormModal({
  // Mutations
  const createStaffMutation = useMutation({
  mutationFn: async (data: StaffFormData) => {
- return apiRequest("/api/staff-members", {
+ const res = await apiRequest("/api/staff-members", {
  method: "POST",
  data,
  });
+ return res.json().catch(() => null);
  },
- onSuccess: () => {
+ onSuccess: (created: any, vars: StaffFormData) => {
  toast({
  title: "Success",
- description: "Staff member added successfully",
+ description: created?.invite?.emailSent
+ ? "Staff member added. A portal invite was emailed to them."
+ : "Staff member added successfully",
  });
+ announceInvite(created?.invite, (vars as any)?.email, [(vars as any)?.first_name, (vars as any)?.last_name].filter(Boolean).join(" "));
  queryClient.invalidateQueries({ queryKey: ["/api/staff-members"] });
  onOpenChange(false);
  form.reset();

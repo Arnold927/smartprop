@@ -8,7 +8,7 @@
  *   - Filter by status / search by name
  */
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -22,9 +22,10 @@ import { apiRequest, ensureArray } from "@/lib/queryClient";
 import {
   UserPlus, User, Clock, CheckCircle2, XCircle, Search,
   Car, Phone, Mail, Calendar, RefreshCw, ChevronDown,
-  ChevronUp, Copy, Loader2, QrCode, Ban,
+  ChevronUp, Copy, Loader2, QrCode, Ban, MessageCircle as WhatsAppIcon,
 } from "lucide-react";
 import { format, isAfter, isBefore, parseISO } from "date-fns";
+import QRCode from "qrcode";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -38,7 +39,10 @@ interface Visitor {
   expectedDeparture: string | null;
   actualArrival: string | null;
   actualDeparture: string | null;
-  status: "pending" | "arrived" | "departed" | "cancelled" | "expired";
+  // The values the server actually stores (visitor_status enum). This list used to be a different,
+  // made-up vocabulary ("arrived", "departed", "cancelled"), so a guest the guard had checked in still
+  // showed as "Pending" here, the "Visited" count never moved, and the status filter matched nothing.
+  status: "pending" | "approved" | "checked_in" | "checked_out" | "denied" | "expired";
   accessCode: string;
   vehiclePlate: string | null;
   parkingSpot: string | null;
@@ -58,20 +62,50 @@ function fmtShort(d: string | null | undefined) {
 }
 
 const STATUS_STYLE: Record<string, string> = {
-  pending:   "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/40 dark:text-yellow-300",
-  arrived:   "bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300",
-  departed:  "bg-emerald-50 text-emerald-700 border border-emerald-200",
-  cancelled: "bg-gray-100 text-gray-600 dark:bg-gray-800 ",
-  expired:   "bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300",
+  pending:     "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/40 dark:text-yellow-300",
+  approved:    "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/40 dark:text-yellow-300",
+  checked_in:  "bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300",
+  checked_out: "bg-emerald-50 text-emerald-700 border border-emerald-200",
+  denied:      "bg-gray-100 text-gray-600 dark:bg-gray-800 ",
+  expired:     "bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300",
 };
 
 const STATUS_ICON: Record<string, any> = {
-  pending:   Clock,
-  arrived:   CheckCircle2,
-  departed:  CheckCircle2,
-  cancelled: Ban,
-  expired:   XCircle,
+  pending:     Clock,
+  approved:    Clock,
+  checked_in:  CheckCircle2,
+  checked_out: CheckCircle2,
+  denied:      Ban,
+  expired:     XCircle,
 };
+
+const STATUS_LABEL: Record<string, string> = {
+  pending:     "Invited",
+  approved:    "Approved",
+  checked_in:  "Arrived",
+  checked_out: "Departed",
+  denied:      "Cancelled",
+  expired:     "Expired",
+};
+
+/** The pass the guard scans. Rendered in the browser so it also works offline / when the email never arrived. */
+function AccessQr({ code }: { code: string }) {
+  const [src, setSrc] = useState<string>("");
+  useEffect(() => {
+    let live = true;
+    QRCode.toDataURL(code, { width: 220, margin: 1, color: { dark: "#0f172a", light: "#ffffff" } })
+      .then(u => { if (live) setSrc(u); })
+      .catch(() => { if (live) setSrc(""); });
+    return () => { live = false; };
+  }, [code]);
+  if (!src) return null;
+  return (
+    <div className="flex flex-col items-center gap-1.5 py-2">
+      <img src={src} alt={`QR pass for access code ${code}`} width={176} height={176} className="rounded-lg border border-border bg-white p-1" />
+      <p className="text-[11px] text-muted-foreground">Show this QR to the guard at the gate</p>
+    </div>
+  );
+}
 
 // ── Invite Form ───────────────────────────────────────────────────────────────
 
@@ -97,7 +131,9 @@ function InviteForm({ onSuccess }: { onSuccess: () => void }) {
     onSuccess: (data) => {
       toast({
         title: "Visitor invited!",
-        description: `Access code ${data.accessCode} sent to ${form.visitorEmail}`,
+        description: data.emailSent
+          ? `Access code ${data.accessCode} emailed to ${form.visitorEmail}`
+          : `Access code ${data.accessCode} is ready, but the email could not be sent — open the visit below to share the QR or code yourself.`,
       });
       setForm({ visitorName: "", visitorEmail: "", visitorPhone: "", visitPurpose: "", expectedArrival: "", expectedDeparture: "", vehiclePlate: "" });
       setOpen(false);
@@ -191,8 +227,12 @@ function VisitorCard({ visitor, onCancel }: { visitor: Visitor; onCancel: (id: n
     toast({ title: "Access code copied!", description: visitor.accessCode });
   };
 
-  const isPast = isBefore(new Date(visitor.expectedArrival), new Date());
-  const canCancel = visitor.status === "pending" && !isPast;
+  const active = visitor.status === "pending" || visitor.status === "approved";
+  const canCancel = active; // the server allows cancelling any invite that has not been checked in yet
+
+  const shareText = `Hi ${visitor.visitorName}, your access code for ${fmtDate(visitor.expectedArrival)} is ${visitor.accessCode}. Show it (or its QR code) to the guard at the gate.`;
+  const phoneDigits = (visitor.visitorPhone ?? "").replace(/[^\d]/g, "").replace(/^0/, "254");
+  const whatsappUrl = `https://wa.me/${phoneDigits}?text=${encodeURIComponent(shareText)}`;
 
   return (
     <div className="rounded-xl border border-border hover:border-primary/20 transition-all">
@@ -209,7 +249,7 @@ function VisitorCard({ visitor, onCancel }: { visitor: Visitor; onCancel: (id: n
             <p className="font-semibold text-sm">{visitor.visitorName}</p>
             <Badge className={`text-[11px] px-2 py-0 shrink-0 ${STATUS_STYLE[visitor.status] ?? STATUS_STYLE.pending}`}>
               <StatusIcon className="w-2.5 h-2.5 mr-1 inline" />
-              {visitor.status.replace(/_/g, " ").replace(/^\w/, (c: string) => c.toUpperCase())}
+              {STATUS_LABEL[visitor.status] ?? visitor.status.replace(/_/g, " ")}
             </Badge>
           </div>
           <p className="text-xs text-muted-foreground mt-0.5">{visitor.purposeOfVisit}</p>
@@ -256,6 +296,15 @@ function VisitorCard({ visitor, onCancel }: { visitor: Visitor; onCancel: (id: n
               <Copy className="w-3 h-3" /> Copy
             </Button>
           </div>
+
+          {active && <AccessQr code={visitor.accessCode} />}
+          {active && (
+            <Button variant="outline" size="sm" className="w-full h-8 text-xs gap-1.5" asChild>
+              <a href={whatsappUrl} target="_blank" rel="noopener noreferrer">
+                <WhatsAppIcon className="w-3 h-3" /> Send code on WhatsApp
+              </a>
+            </Button>
+          )}
 
           {canCancel && (
             <Button
@@ -305,8 +354,8 @@ export default function TenantVisitorPanel() {
 
   // Stats
   const total = visitors.length;
-  const pending = visitors.filter(v => v.status === "pending").length;
-  const arrived = visitors.filter(v => v.status === "arrived" || v.status === "departed").length;
+  const pending = visitors.filter(v => v.status === "pending" || v.status === "approved").length;
+  const arrived = visitors.filter(v => v.status === "checked_in" || v.status === "checked_out").length;
 
   // Filter
   const filtered = visitors.filter(v => {
@@ -369,8 +418,8 @@ export default function TenantVisitorPanel() {
                 value={statusFilter}
                 onChange={e => setStatusFilter(e.target.value)}
               >
-                {["all", "pending", "arrived", "departed", "cancelled", "expired"].map(s => (
-                  <option key={s} value={s}>{s === "all" ? "All statuses" : s.charAt(0).toUpperCase() + s.slice(1)}</option>
+                {["all", "pending", "checked_in", "checked_out", "denied", "expired"].map(s => (
+                  <option key={s} value={s}>{s === "all" ? "All statuses" : STATUS_LABEL[s]}</option>
                 ))}
               </select>
             </div>

@@ -8,6 +8,7 @@ import {
   diasporaCertificates,
   invoices,
   users,
+  properties,
 } from "@shared/schema";
 import { eq, desc, and } from "drizzle-orm";
 import { journalEntries, journalEntryLines, chartOfAccounts } from "@shared/schema";
@@ -15,7 +16,7 @@ import { authenticateJWT } from "../middleware/auth";
 import { requireOrg } from "../middleware/requireOrg";
 import { getMidMarketRate, computeDisbursement } from "../services/fxService";
 import { logger } from "../lib/logger";
-import { sendInviteEmail } from "../lib/email";
+import { issueInvite, deliverInvite, InviteConflictError, type IssuedInvite } from "../utils/invites";
 
 const auth = [authenticateJWT as any, requireOrg as any];
 
@@ -290,74 +291,37 @@ diasporaContractsRouter.post("/", async (req: any, res) => {
       dateFields
     );
 
+    // ── Required fields — checked up front so a half-filled form is a clear 400 instead of a
+    //    raw database NOT NULL error, and (importantly) before any buyer login is created.
+    const REQUIRED: [string, string][] = [
+      ["propertyId", "property"], ["clientName", "buyer name"], ["clientEmail", "buyer email"],
+      ["clientPhone", "buyer phone"], ["clientWhatsapp", "buyer WhatsApp number"], ["clientCountry", "buyer country"],
+      ["totalPropertyValue", "total property value"], ["contractDurationMonths", "contract duration"],
+      ["paymentMethod", "payment method"], ["internationalProvider", "international payment provider"],
+    ];
+    const missing = REQUIRED.filter(([k]) => body[k] === undefined || body[k] === null || String(body[k]).trim() === "").map(([, l]) => l);
+    if (missing.length) {
+      return res.status(400).json({ message: `Please fill in: ${missing.join(", ")}.` });
+    }
+
+    // The property must belong to the caller's own organisation.
+    const [ownProperty] = await db
+      .select({ id: properties.id })
+      .from(properties)
+      .where(and(eq(properties.id, Number(body.propertyId)), eq(properties.organizationId, req.user.organizationId)))
+      .limit(1);
+    if (!ownProperty) return res.status(400).json({ message: "Property not found in your organisation." });
+
     // ── Buyer account & invitation ─────────────────────────────────────────
-    // 1. If a user with this email already exists in the org, link them.
-    // 2. If not, create a new tenant-role user and send them an invite email.
-    const clientEmail = (body.clientEmail as string ?? "").toLowerCase().trim();
-    let buyerUserId: string | null = (merged as any).buyerUserId ?? null;
-
-    if (clientEmail && !buyerUserId) {
-      // Check if user already exists in this org
-      const [existingUser] = await db
-        .select({ id: users.id })
-        .from(users)
-        .where(eq(users.email, clientEmail))
-        .limit(1);
-
-      if (existingUser) {
-        // Already has an account — just link them
-        buyerUserId = existingUser.id;
-        logger.info(`[diaspora] Linked existing user ${existingUser.id} to contract`);
-      } else {
-        // New buyer — create account + send invite
-        const inviteToken = randomUUID();
-        const inviteExpiresAt = new Date(Date.now() + 1000 * 60 * 60 * 24 * 7); // 7 days
-        const newUserId = randomUUID();
-
-        // Parse name for firstName/lastName
-        const nameParts = ((body.clientName as string) ?? "").trim().split(/\s+/);
-        const firstName = nameParts[0] ?? "Diaspora";
-        const lastName  = nameParts.slice(1).join(" ") || "Buyer";
-
-        await db.insert(users).values({
-          id:                          newUserId,
-          email:                       clientEmail,
-          role:                        "tenant",
-          organizationId:              req.user.organizationId,
-          firstName,
-          lastName,
-          invitedAt:                   new Date(),
-          invitedBy:                   req.user.id,
-          emailVerificationToken:      inviteToken,
-          emailVerificationExpiresAt:  inviteExpiresAt,
-          passwordHash:                "",
-          emailVerified:               false,
-        } as any);
-
-        buyerUserId = newUserId;
-
-        // Send invitation email (non-fatal — contract still created if email fails)
-        const appUrl = process.env.APP_URL || "http://localhost:5173";
-        const inviteLink = `${appUrl}/accept-invite/${inviteToken}`;
-        const clientName = ((body.clientName as string) ?? "").trim() || "there";
-        try {
-          await sendInviteEmail({
-            to:          clientEmail,
-            inviteLink,
-            subject:     `Your SmartProp diaspora buyer portal is ready`,
-            intro:       `Hi ${clientName}, your property manager has set up a rent-to-own contract for you on SmartProp. Click below to activate your account and access your buyer portal — track construction progress, view your payment schedule, and download your certificates.`,
-            expiryNote:  "This invitation link expires in 7 days.",
-          });
-          logger.info(`[diaspora] Invite sent to ${clientEmail}`);
-        } catch (emailErr) {
-          logger.warn(`[diaspora] Invite email failed (non-fatal) for ${clientEmail}:`, emailErr);
-        }
-      }
-    }
-
-    if (buyerUserId) {
-      (merged as any).buyerUserId = buyerUserId;
-    }
+    // The buyer's login (new pending one, or the existing tenant-role account in THIS organisation)
+    // is created in the same transaction as the contract, so a failed contract never leaves a login
+    // and an email behind. Previously the lookup matched an account in ANY organisation and any
+    // role, and a failed insert still sent the invite.
+    const clientEmail = (body.clientEmail as string).toLowerCase().trim();
+    const nameParts = ((body.clientName as string) ?? "").trim().split(/\s+/);
+    const buyerFirst = nameParts[0] || "Diaspora";
+    const buyerLast  = nameParts.slice(1).join(" ") || "Buyer";
+    delete (merged as any).buyerUserId; // never trust a client-supplied link
 
     // Ensure numeric fields are cast to strings for decimal columns
     // totalPaid starts at downPayment (already paid at contract signing)
@@ -375,9 +339,48 @@ diasporaContractsRouter.post("/", async (req: any, res) => {
       interestRate:          String(merged.interestRate         ?? "0.00"),
     };
 
-    const [contract] = await db.insert(diasporaContracts).values(toInsert as any).returning();
+    let issued: IssuedInvite;
+    let contract: any;
+    try {
+      ({ issued, contract } = await db.transaction(async (tx) => {
+        const issuedInvite = await issueInvite({
+          organizationId: req.user.organizationId,
+          invitedByUserId: req.user.id,
+          email: clientEmail,
+          role: "tenant",
+          firstName: buyerFirst,
+          lastName: buyerLast,
+          executor: tx as any,
+        });
+        const [row] = await tx
+          .insert(diasporaContracts)
+          .values({ ...(toInsert as any), buyerUserId: issuedInvite.userId })
+          .returning();
+        return { issued: issuedInvite, contract: row };
+      }));
+    } catch (e: any) {
+      if (e instanceof InviteConflictError) return res.status(409).json({ message: e.message });
+      throw e;
+    }
 
-    res.status(201).json({ ...contract, _meta: { buyerInvited: !!buyerUserId } });
+    // Email goes out only once the contract is safely committed. A failure is reported, not fatal.
+    let emailSent = false;
+    if (issued.link) {
+      const clientName = ((body.clientName as string) ?? "").trim() || "there";
+      emailSent = await deliverInvite({
+        to: clientEmail,
+        link: issued.link,
+        subject: `Your SmartProp diaspora buyer portal is ready`,
+        intro: `Hi ${clientName}, your property manager has set up a rent-to-own contract for you on SmartProp. Click below to activate your account and access your buyer portal.`,
+        expiryNote: "This invitation link expires in 7 days.",
+      });
+      logger.info(`[diaspora] Invite ${emailSent ? "sent" : "NOT sent"} to ${clientEmail}`);
+    }
+
+    res.status(201).json({
+      ...contract,
+      _meta: { buyerInvited: !!issued.link, emailSent, inviteLink: issued.link },
+    });
   } catch (err: any) {
     logger.error("diaspora-contracts POST error:", err);
     // Return the underlying DB message if available

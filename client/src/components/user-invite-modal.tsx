@@ -21,7 +21,8 @@ import { useToast } from "@/hooks/use-toast";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/useAuth";
 import { apiRequest } from "@/lib/queryClient";
-import { CheckCircle, UserPlus, Shield } from "lucide-react";
+import { CheckCircle, UserPlus, Shield, Link2 } from "lucide-react";
+import { InviteLinkDialog } from "@/components/invite-link-dialog";
 import { Label } from "@/components/ui/label";
 
 /** apiRequest throws on a non-2xx response with the raw response TEXT as e.message — for a JSON
@@ -69,7 +70,11 @@ const ROLE_OPTIONS: { value: string; label: string; description: string }[] = [
 
 export default function UserInviteModal({ triggerText }: { triggerText: string }) {
   const [open, setOpen] = useState(false);
+  const [role, setRole] = useState("");
+  const [linkResult, setLinkResult] = useState<{ link: string; email: string; emailSent: boolean; emailRequested: boolean } | null>(null);
   const formRef = useRef<HTMLFormElement>(null);
+  /** Which button was pressed: email the invite, or just hand me the link. */
+  const sendEmailRef = useRef(true);
   const { toast } = useToast();
   const { user } = useAuth();
   const queryClient = useQueryClient();
@@ -81,16 +86,23 @@ export default function UserInviteModal({ triggerText }: { triggerText: string }
     : ROLE_OPTIONS;
 
   const inviteUserMutation = useMutation({
-    mutationFn: (data: { email: string; role: string }) =>
-      apiRequest("/api/users", { method: "POST", data }),
-    onSuccess: () => {
-      toast({
-        title: "Invite sent!",
-        description: "The invitation has been sent to the user's email.",
-      });
+    mutationFn: async (data: { email: string; role: string; sendEmail: boolean; firstName?: string; lastName?: string }) => {
+      const res = await apiRequest("/api/users", { method: "POST", data });
+      return res.json();
+    },
+    onSuccess: (result: any, vars) => {
       queryClient.invalidateQueries({ queryKey: ["/api/users"] });
       setOpen(false);
       formRef.current?.reset();
+      setRole("");
+      if (result?.emailSent) {
+        toast({ title: "Invite sent!", description: `The invitation was emailed to ${vars.email}.` });
+      } else if (result?.inviteLink) {
+        // Link-only was requested, or the email could not be sent — either way the link is the way in.
+        setLinkResult({ link: result.inviteLink, email: vars.email, emailSent: false, emailRequested: !!vars.sendEmail });
+      } else {
+        toast({ title: "Invite created" });
+      }
     },
     onError: (err: any) =>
       toast({
@@ -102,14 +114,24 @@ export default function UserInviteModal({ triggerText }: { triggerText: string }
 
   const handleInviteUser = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+    if (!role) {
+      toast({ title: "Choose a role", description: "Pick what this person will be able to do.", variant: "destructive" });
+      return;
+    }
     const formData = new FormData(e.currentTarget);
+    const first = String(formData.get("firstName") ?? "").trim();
+    const last = String(formData.get("lastName") ?? "").trim();
     inviteUserMutation.mutate({
-      email: formData.get("email") as string,
-      role: formData.get("role") as string,
+      email: String(formData.get("email") ?? "").trim(),
+      role,
+      sendEmail: sendEmailRef.current,
+      ...(first ? { firstName: first } : {}),
+      ...(last ? { lastName: last } : {}),
     });
   };
 
   return (
+    <>
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
         <Button className="gap-2">
@@ -146,12 +168,23 @@ export default function UserInviteModal({ triggerText }: { triggerText: string }
                 />
               </div>
 
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-2">
+                  <Label htmlFor="invite-first" className="text-sm font-medium text-foreground">First name <span className="text-muted-foreground font-normal">(optional)</span></Label>
+                  <Input id="invite-first" name="firstName" autoComplete="off" maxLength={100} />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="invite-last" className="text-sm font-medium text-foreground">Last name <span className="text-muted-foreground font-normal">(optional)</span></Label>
+                  <Input id="invite-last" name="lastName" autoComplete="off" maxLength={100} />
+                </div>
+              </div>
+
               <div className="space-y-3">
                 <Label htmlFor="invite-role" className="text-sm font-medium text-foreground flex items-center gap-2">
                   <Shield className="h-4 w-4" />
                   Assign Role
                 </Label>
-                <Select name="role" required>
+                <Select value={role} onValueChange={setRole}>
                   <SelectTrigger
                     id="invite-role"
                     className="border-border focus:border-emerald-500 focus:ring-emerald-500 transition-colors"
@@ -180,30 +213,52 @@ export default function UserInviteModal({ triggerText }: { triggerText: string }
                   <div>
                     <p className="text-sm font-medium text-green-800">Self-service setup</p>
                     <p className="text-xs text-green-600 mt-1">
-                      The user will receive an invitation link and can set up their own password. Their role is applied automatically when they accept.
+                      They get an invitation link to set their own password, valid for 7 days. Email it, or create the link and send it yourself over WhatsApp. Their role is applied when they accept.
                     </p>
                   </div>
                 </div>
               </div>
 
-              <Button
-                type="submit"
-                disabled={inviteUserMutation.isPending}
-                className="w-full bg-green-600 hover:bg-green-700 transition-colors"
-              >
-                {inviteUserMutation.isPending ? (
-                  <>
-                    <div className="h-4 w-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2" />
-                    Sending Invite...
-                  </>
-                ) : (
-                  "Send Invitation Email"
-                )}
-              </Button>
+              <div className="space-y-2">
+                <Button
+                  type="submit"
+                  disabled={inviteUserMutation.isPending}
+                  onClick={() => { sendEmailRef.current = true; }}
+                  className="w-full bg-green-600 hover:bg-green-700 transition-colors"
+                >
+                  {inviteUserMutation.isPending && sendEmailRef.current ? (
+                    <>
+                      <div className="h-4 w-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2" />
+                      Sending Invite...
+                    </>
+                  ) : (
+                    "Send Invitation Email"
+                  )}
+                </Button>
+                <Button
+                  type="submit"
+                  variant="outline"
+                  disabled={inviteUserMutation.isPending}
+                  onClick={() => { sendEmailRef.current = false; }}
+                  className="w-full gap-2"
+                >
+                  <Link2 className="h-4 w-4" />
+                  Create link only (share it yourself)
+                </Button>
+              </div>
             </form>
           </div>
         </div>
       </DialogContent>
     </Dialog>
+    <InviteLinkDialog
+      open={!!linkResult}
+      onOpenChange={(o) => { if (!o) setLinkResult(null); }}
+      link={linkResult?.link ?? ""}
+      email={linkResult?.email}
+      emailSent={linkResult?.emailSent ?? false}
+      emailRequested={linkResult?.emailRequested ?? true}
+    />
+    </>
   );
 }

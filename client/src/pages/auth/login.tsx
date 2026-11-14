@@ -151,7 +151,7 @@ export default function AuthPage() {
   const [showConfirmPwd, setShowConfirmPwd] = useState(false);
 
   // ── Login form state ──────────────────────────────────────────────────────
-  const [loginData, setLoginData] = useState({ email: "", password: "", rememberMe: false });
+  const [loginData, setLoginData] = useState({ email: new URLSearchParams(window.location.search).get("email") ?? "", password: "", rememberMe: false });
   const setLogin = (k: keyof typeof loginData) => (v: string | boolean) =>
     setLoginData(d => ({ ...d, [k]: v }));
 

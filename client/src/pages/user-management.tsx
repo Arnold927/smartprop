@@ -7,7 +7,7 @@ import { useToast } from "@/hooks/use-toast";
 import {
   Users, Shield, CheckCircle, XCircle,
   Settings, Mail, ChevronLeft, ChevronRight,
-  RotateCcw, Save, Lock, Info,
+  RotateCcw, Save, Lock, Info, Send, Link2, Trash2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -18,6 +18,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import UserInviteModal from "@/components/user-invite-modal";
+import { InviteLinkDialog } from "@/components/invite-link-dialog";
 import { PageShell, PageHeader, SectionCard, SPBadge, EmptyState, FilterBar, SPTable, SPAvatar, StatTile, StatsGrid, ActionMenu, ConfirmDialog } from "@/components/ui/sp-ui";
 import { useRoleGuard, ROLES } from "@/hooks/useRoleGuard";
 import { useAuth } from "@/hooks/useAuth";
@@ -563,6 +564,8 @@ export default function UserManagement() {
   const [editingUser, setEditingUser] = useState<any | null>(null);
   const [newRoleName, setNewRoleName] = useState("");
   const [confirmDeactivate, setConfirmDeactivate] = useState<any | null>(null);
+  const [confirmRevoke, setConfirmRevoke] = useState<any | null>(null);
+  const [linkResult, setLinkResult] = useState<{ link: string; email: string; emailSent: boolean; emailRequested: boolean; who: string } | null>(null);
   const [pageSize, setPageSize] = useState(10);
   const [page, setPage] = useState(1);
 
@@ -596,6 +599,37 @@ export default function UserManagement() {
       toast({ title: "Update failed", description: errMsg(e), variant: "destructive" });
       setConfirmDeactivate(null);
     },
+  });
+
+  // Pending invites: re-issue (optionally emailing it) or withdraw. Works for every role — a tenant,
+  // caretaker or buyer whose first email never arrived is fixed from here too.
+  const resendMutation = useMutation({
+    mutationFn: async ({ u, sendEmail }: { u: any; sendEmail: boolean }) => {
+      const r = await apiRequest(withOrgParam(`/api/users/${u.id}/resend-invite`, orgIdParam), { method: "POST", data: { sendEmail } });
+      return { ...(await r.json()), u, sendEmail };
+    },
+    onSuccess: (res: any) => {
+      queryClient.invalidateQueries({ queryKey: [usersEndpoint] });
+      if (res.emailSent) {
+        toast({ title: "Invitation re-sent", description: `A fresh link was emailed to ${res.u.email}. Any earlier link no longer works.` });
+      } else {
+        setLinkResult({ link: res.inviteLink, email: res.u.email, emailSent: false, emailRequested: !!res.sendEmail, who: displayName(res.u) });
+      }
+    },
+    onError: (e: any) => toast({ title: "Couldn't re-issue the invite", description: errMsg(e), variant: "destructive" }),
+  });
+
+  const revokeMutation = useMutation({
+    mutationFn: async (u: any) => {
+      const r = await apiRequest(withOrgParam(`/api/users/${u.id}/invite`, orgIdParam), { method: "DELETE" });
+      return r.json();
+    },
+    onSuccess: (res: any) => {
+      queryClient.invalidateQueries({ queryKey: [usersEndpoint] });
+      toast({ title: res?.removed ? "Invite withdrawn" : "Invite link switched off", description: res?.message });
+      setConfirmRevoke(null);
+    },
+    onError: (e: any) => { toast({ title: "Couldn't withdraw the invite", description: errMsg(e), variant: "destructive" }); setConfirmRevoke(null); },
   });
 
   /** Active = signed in before and switched on; Pending = invited but hasn't set a password yet; Deactivated = switched off. */
@@ -747,7 +781,19 @@ export default function UserManagement() {
                     ),
                   },
                   { header: "Role", hideOnMobile: true, cell: (u: any) => <RoleBadge role={u.role} /> },
-                  { header: "Status", cell: (u: any) => <SPBadge status={statusOf(u)} /> },
+                  {
+                    header: "Status",
+                    cell: (u: any) => (
+                      <div>
+                        <SPBadge status={statusOf(u)} />
+                        {statusOf(u) === "pending" && (!u.inviteExpiresAt
+                          ? <p className="text-[11px] text-amber-600 mt-1">No active link</p>
+                          : new Date(u.inviteExpiresAt) < new Date()
+                            ? <p className="text-[11px] text-amber-600 mt-1">Link expired</p>
+                            : <p className="text-[11px] text-muted-foreground mt-1">Link valid to {fmtDate(u.inviteExpiresAt)}</p>)}
+                      </div>
+                    ),
+                  },
                   {
                     header: "Last login",
                     hideOnMobile: true,
@@ -763,6 +809,20 @@ export default function UserManagement() {
                     align: "right",
                     cell: (u: any) => {
                       const items = [
+                        ...(statusOf(u) === "pending" && canActOn(u) ? [
+                          {
+                            label: "Resend invite email", icon: <Send className="w-4 h-4" />,
+                            onClick: () => resendMutation.mutate({ u, sendEmail: true }),
+                          },
+                          {
+                            label: "Get invite link", icon: <Link2 className="w-4 h-4" />,
+                            onClick: () => resendMutation.mutate({ u, sendEmail: false }),
+                          },
+                          {
+                            label: "Withdraw invite", icon: <Trash2 className="w-4 h-4" />, destructive: true, separator: true,
+                            onClick: () => setConfirmRevoke(u),
+                          },
+                        ] : []),
                         ...(canChangeRole(u) ? [{
                           label: "Change role", icon: <Settings className="w-4 h-4" />,
                           onClick: () => { setEditingUser(u); setNewRoleName(u.role); },
@@ -862,6 +922,25 @@ export default function UserManagement() {
         </DialogContent>
       </Dialog>
 
+      <ConfirmDialog
+        open={!!confirmRevoke}
+        onClose={() => setConfirmRevoke(null)}
+        title="Withdraw this invite?"
+        description={`${confirmRevoke?.email ?? "They"} will no longer be able to use their invitation link. You can invite them again later.`}
+        confirmLabel="Withdraw invite"
+        onConfirm={() => confirmRevoke && revokeMutation.mutate(confirmRevoke)}
+        loading={revokeMutation.isPending}
+        destructive
+      />
+      <InviteLinkDialog
+        open={!!linkResult}
+        onOpenChange={(o) => { if (!o) setLinkResult(null); }}
+        link={linkResult?.link ?? ""}
+        email={linkResult?.email}
+        who={linkResult?.who}
+        emailSent={linkResult?.emailSent ?? false}
+        emailRequested={linkResult?.emailRequested ?? true}
+      />
       <ConfirmDialog
         open={!!confirmDeactivate}
         onClose={() => setConfirmDeactivate(null)}

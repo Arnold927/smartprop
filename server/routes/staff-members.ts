@@ -174,7 +174,7 @@ router.post(
       // with no way for that person to ever log in unless someone
       // separately used the unrelated admin "invite a user" flow and
       // happened to match the email manually.
-      inviteStaffUser({
+      const invite = await inviteStaffUser({
         organizationId: orgId,
         invitedByUserId: req.user.id,
         email: created.email,
@@ -183,7 +183,7 @@ router.post(
         position: created.position ?? undefined,
       });
 
-      res.status(201).json(created);
+      res.status(201).json({ ...created, invite });
     } catch (err: any) {
       if (err instanceof z.ZodError) {
         return res.status(400).json({ message: "Validation error", errors: err.errors });

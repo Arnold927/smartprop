@@ -1,12 +1,12 @@
 import { Router } from "express";
 import { db } from "../db";
-import { users, organizations, auditLogs } from "@shared/schema";
+import { users, organizations, auditLogs, tenants, caretakers, diasporaContracts } from "@shared/schema";
 import { eq, ne, and, desc } from "drizzle-orm";
 import { authenticateJWT, forgetUserActiveState } from "../middleware/auth";
 import { revokeAllUserTokens } from "./auth";
 import { requireOrg } from "../middleware/requireOrg";
 import { auditLog } from "../middleware/auditLog";
-import { sendInviteEmail } from "../lib/email";
+import { buildInviteLink, deliverInvite, isPendingInvite, INVITE_TTL_MS } from "../utils/invites";
 import { randomUUID } from "crypto";
 import bcrypt from "bcrypt";
 import { z } from "zod";
@@ -55,6 +55,8 @@ router.get("/", authenticateJWT, requireOrg, async (req: any, res) => {
         createdAt: users.createdAt,
         lastLoginAt: users.lastLoginAt,
         emailVerified: users.emailVerified,
+        // Lets the Users page flag a pending invite whose link has lapsed. The token itself is never returned.
+        inviteExpiresAt: users.emailVerificationExpiresAt,
       })
       .from(users)
       .where(and(...conditions));
@@ -130,9 +132,13 @@ router.post("/", authenticateJWT, requireActiveSubscription as any, enforceUserL
       // platform_admin is deliberately excluded: that tier isn't meant to
       // be self-service-invitable by a regular org admin.
       role: z.enum(["admin", "manager", "staff", "landlord", "guard"]).default("staff"),
+      // false = "just give me the link" (to share over WhatsApp etc.) — nothing is emailed.
+      sendEmail: z.boolean().default(true),
+      firstName: z.string().trim().max(100).optional(),
+      lastName: z.string().trim().max(100).optional(),
     });
 
-    const { email, role } = schema.parse(req.body);
+    const { email, role, sendEmail, firstName, lastName } = schema.parse(req.body);
 
     // A manager may invite anyone except an admin — prevents a manager
     // from granting themselves or anyone else admin-level access.
@@ -163,6 +169,8 @@ router.post("/", authenticateJWT, requireActiveSubscription as any, enforceUserL
         email: email.toLowerCase(),
         role,
         organizationId: orgId,
+        firstName: firstName || null,
+        lastName: lastName || null,
         invitedAt: new Date(),
         invitedBy: req.user.id,
         emailVerificationToken: inviteToken,
@@ -197,26 +205,140 @@ router.post("/", authenticateJWT, requireActiveSubscription as any, enforceUserL
       return res.status(409).json({ message: "A user with this email already exists in your organisation." });
     }
 
-    const inviteLink = `${process.env.APP_URL || "http://localhost:5173"}/accept-invite/${inviteToken}`;
+    const inviteLink = buildInviteLink(inviteToken);
 
-    // The invite row is already saved at this point, so a mail failure is reported as exactly that
-    // (rather than a generic error) and sending again will simply re-issue the pending invite.
-    try {
-      await sendInviteEmail({ to: email, inviteLink });
-    } catch (mailErr) {
-      logger.error("Invite email failed:", mailErr);
-      return res.status(502).json({
-        message: "The invite was saved but the email could not be sent. Check the email settings, then send the invite again.",
+    // The invite row is already saved at this point. The link is always handed back so the
+    // inviter can share it themselves (WhatsApp, SMS...) — and so a failed email is not a dead end.
+    let emailSent = false;
+    if (sendEmail) {
+      const [org] = await db.select({ name: organizations.name }).from(organizations).where(eq(organizations.id, orgId)).limit(1);
+      emailSent = await deliverInvite({
+        to: email,
+        link: inviteLink,
+        subject: org?.name ? `You've been invited to join ${org.name} on SmartProp` : undefined,
+        intro: org?.name ? `${org.name} has invited you to join them on SmartProp as ${role === "admin" ? "an" : "a"} ${role}.` : undefined,
       });
     }
-
-    res.json({ success: true });
+    res.json({ success: true, inviteLink, emailSent, emailRequested: sendEmail });
   } catch (err: any) {
     if (err instanceof z.ZodError) {
       return res.status(400).json({ message: "Invalid input", errors: err.errors });
     }
     logger.error("Invite user error:", err);
     res.status(500).json({ message: "Failed to send invite" });
+  }
+});
+
+// POST /api/users/:id/resend-invite — issue a fresh set-password link for someone who was invited
+// but has not set a password yet (any role: staff, landlord, tenant, caretaker, contractor, diaspora
+// buyer...). Body { sendEmail?: boolean } — false just returns the link. Any earlier link stops working.
+router.post("/:id/resend-invite", authenticateJWT, requireOrg, auditLog("user", "UPDATE"), async (req: any, res) => {
+  try {
+    const callerRole: string = req.user.role;
+    if (!["admin", "manager"].includes(callerRole)) {
+      return res.status(403).json({ message: "Admin or manager privileges required" });
+    }
+    const orgId: number = req.user.organizationId;
+    const sendEmail = req.body?.sendEmail !== false;
+
+    const [target] = await db
+      .select({
+        id: users.id, email: users.email, role: users.role,
+        passwordHash: users.passwordHash, emailVerified: users.emailVerified,
+        isActive: users.isActive,
+      })
+      .from(users)
+      .where(and(eq(users.id, req.params.id), eq(users.organizationId, orgId)))
+      .limit(1);
+
+    if (!target) return res.status(404).json({ message: "User not found." });
+    if (!isPendingInvite(target)) {
+      return res.status(409).json({ message: "This person has already set up their account. Use \"Forgot password\" on the sign-in page if they are locked out." });
+    }
+    if (callerRole === "manager" && target.role === "admin") {
+      return res.status(403).json({ message: "Managers cannot modify admin accounts." });
+    }
+
+    const token = randomUUID();
+    await db
+      .update(users)
+      .set({
+        invitedAt: new Date(),
+        invitedBy: req.user.id,
+        emailVerificationToken: token,
+        emailVerificationExpiresAt: new Date(Date.now() + INVITE_TTL_MS),
+        updatedAt: new Date(),
+      } as any)
+      .where(eq(users.id, target.id));
+
+    const inviteLink = buildInviteLink(token);
+    let emailSent = false;
+    if (sendEmail) {
+      const [org] = await db.select({ name: organizations.name }).from(organizations).where(eq(organizations.id, orgId)).limit(1);
+      emailSent = await deliverInvite({
+        to: target.email,
+        link: inviteLink,
+        subject: org?.name ? `Your invitation to ${org.name} on SmartProp` : undefined,
+        intro: org?.name ? `${org.name} has invited you to SmartProp. Here is a fresh link to set up your account.` : undefined,
+      });
+    }
+    res.json({ success: true, inviteLink, emailSent, emailRequested: sendEmail });
+  } catch (err) {
+    logger.error("Resend invite error:", err);
+    res.status(500).json({ message: "Failed to re-issue the invite" });
+  }
+});
+
+// DELETE /api/users/:id/invite — withdraw an invite that has not been accepted yet. The link stops
+// working immediately. A login that nothing else points at is removed; one that a tenant, caretaker
+// or buyer record is attached to is kept (the record needs it) with its link switched off.
+router.delete("/:id/invite", authenticateJWT, requireOrg, auditLog("user", "DELETE"), async (req: any, res) => {
+  try {
+    const callerRole: string = req.user.role;
+    if (!["admin", "manager"].includes(callerRole)) {
+      return res.status(403).json({ message: "Admin or manager privileges required" });
+    }
+    const orgId: number = req.user.organizationId;
+    const [target] = await db
+      .select({ id: users.id, role: users.role, passwordHash: users.passwordHash, emailVerified: users.emailVerified })
+      .from(users)
+      .where(and(eq(users.id, req.params.id), eq(users.organizationId, orgId)))
+      .limit(1);
+    if (!target) return res.status(404).json({ message: "User not found." });
+    if (!isPendingInvite(target)) {
+      return res.status(409).json({ message: "This person has already accepted their invite. Deactivate the account instead." });
+    }
+    if (callerRole === "manager" && target.role === "admin") {
+      return res.status(403).json({ message: "Managers cannot modify admin accounts." });
+    }
+
+    const [t] = await db.select({ id: tenants.id }).from(tenants).where(eq(tenants.userId, target.id)).limit(1);
+    const [c] = await db.select({ id: caretakers.id }).from(caretakers).where(eq(caretakers.userId, target.id)).limit(1);
+    const [d] = await db.select({ id: diasporaContracts.id }).from(diasporaContracts).where(eq(diasporaContracts.buyerUserId, target.id)).limit(1);
+
+    if (t || c || d) {
+      await db
+        .update(users)
+        .set({ emailVerificationToken: null, emailVerificationExpiresAt: null, updatedAt: new Date() } as any)
+        .where(eq(users.id, target.id));
+      return res.json({ success: true, removed: false, message: "The invite link was switched off. The login is kept because a tenant, caretaker or buyer record is attached to it — send a new invite whenever you are ready." });
+    }
+    try {
+      await db.delete(users).where(eq(users.id, target.id));
+    } catch (e: any) {
+      if (e?.code === "23503") {
+        await db
+          .update(users)
+          .set({ emailVerificationToken: null, emailVerificationExpiresAt: null, updatedAt: new Date() } as any)
+          .where(eq(users.id, target.id));
+        return res.json({ success: true, removed: false, message: "The invite link was switched off." });
+      }
+      throw e;
+    }
+    res.json({ success: true, removed: true, message: "Invite withdrawn." });
+  } catch (err) {
+    logger.error("Revoke invite error:", err);
+    res.status(500).json({ message: "Failed to withdraw the invite" });
   }
 });
 

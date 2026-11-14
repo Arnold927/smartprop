@@ -29,7 +29,7 @@ import {
 } from "@shared/schema";
 import { eq, inArray, and } from "drizzle-orm";
 import { z } from "zod";
-import { sendInviteEmail } from "../lib/email";
+import { issueInvite, deliverInvite } from "../utils/invites";
 import { randomUUID } from "crypto";
 
 // ─── Contractor Categories ────────────────────────────────────────────────────
@@ -314,47 +314,36 @@ export const contractorCreateHookRouter = Router();
 // there just wasn't anything creating that login in the first place.
 // Skipped silently when no email is given — a contractor doesn't strictly
 // need portal access to be assigned work orders.
-contractorCreateHookRouter.post("/", authenticateJWT, requireOrg, async (req: any, res, next) => {
-  try {
-    const email: string | undefined = req.body?.email?.trim();
-    if (email) {
-      const orgId: number = req.user.organizationId;
-      const inviteToken = randomUUID();
-      const inviteExpiresAt = new Date(Date.now() + 1000 * 60 * 60 * 24); // 24h
+contractorCreateHookRouter.post("/", authenticateJWT, requireOrg, (req: any, res, next) => {
+  const email: string | undefined = req.body?.email?.trim();
+  if (!email) return next();
 
-      await db
-        .insert(users)
-        .values({
-          id: randomUUID(),
-          email: email.toLowerCase(),
-          role: "contractor",
-          organizationId: orgId,
-          invitedAt: new Date(),
-          invitedBy: req.user.id,
-          emailVerificationToken: inviteToken,
-          emailVerificationExpiresAt: inviteExpiresAt,
-          passwordHash: "",
-          emailVerified: false,
-        } as any)
-        .onConflictDoUpdate({
-          target: [users.organizationId, users.email],
-          set: {
-            invitedAt: new Date(),
-            emailVerificationToken: inviteToken,
-            emailVerificationExpiresAt: inviteExpiresAt,
-            role: "contractor",
-          },
-        });
-
-      const inviteLink = `${process.env.APP_URL || "http://localhost:5173"}/accept-invite/${inviteToken}`;
-      await sendInviteEmail({ to: email, inviteLink });
-    }
-  } catch (err) {
-    // Don't block contractor creation if the invite fails (e.g. email
-    // service down) — the contractor record is still useful without portal
-    // access, and this can be retried by re-saving the contractor's email.
-    console.error("Contractor invite error:", err);
-  }
+  // The invite is issued only AFTER the contractor record has actually been
+  // created (a 2xx from the CRUD router below). It used to run first, so a
+  // contractor that then failed validation still got a login and an email.
+  // The result is attached to the response so the manager can copy the link
+  // if the email could not be sent.
+  const orgId: number = req.user.organizationId;
+  const invitedBy: string = req.user.id;
+  const send = res.json.bind(res);
+  res.json = ((body: any) => {
+    if (res.statusCode < 200 || res.statusCode >= 300) return send(body);
+    (async () => {
+      let invite: any = null;
+      try {
+        const issued = await issueInvite({ organizationId: orgId, invitedByUserId: invitedBy, email, role: "contractor" });
+        const emailSent = issued.link ? await deliverInvite({ to: email, link: issued.link }) : false;
+        invite = { status: issued.status, link: issued.link, emailSent };
+      } catch (err: any) {
+        // e.g. the email already belongs to an active account with another role:
+        // the contractor record stays (it is useful without portal access) and
+        // the response says why no portal invite went out.
+        invite = { status: "active", link: null, emailSent: false, warning: err?.message ?? "Portal invite could not be created." };
+      }
+      send(body && typeof body === "object" && !Array.isArray(body) ? { ...body, invite } : body);
+    })();
+    return res;
+  }) as any;
   next();
 });
 
