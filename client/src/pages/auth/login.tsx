@@ -198,7 +198,16 @@ export default function AuthPage() {
         setLocation("/auth/verify-email?pending=true");
         return;
       }
-      toast({ title: "Login failed", description: err.message || "Invalid email or password", variant: "destructive" });
+      const msg = err.message || "Invalid email or password";
+      toast({
+        title: "Login failed",
+        // Static hint (not account-specific, so it reveals nothing about which emails exist): people who were
+        // invited but never opened the invitation link otherwise have no idea why a password they never set fails.
+        description: /invalid email or password/i.test(msg)
+          ? "Invalid email or password. If you were invited, open the link in your invitation email to set your password — or use “Forgot password” to get a new one."
+          : msg,
+        variant: "destructive",
+      });
     },
   });
 

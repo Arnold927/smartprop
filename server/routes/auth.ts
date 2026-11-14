@@ -565,6 +565,12 @@ router.post("/reset-password", async (req, res) => {
         passwordHash,
         passwordResetToken: null,
         passwordResetExpiresAt: null,
+        // The reset link was emailed to this address, so using it proves they own it. Without this, someone
+        // who was invited, lost the invite email and used "Forgot password" ended up with a password but a
+        // permanent "verify your email" block at login — a dead end. Any leftover invite link is retired too.
+        emailVerified: true,
+        emailVerificationToken: null,
+        emailVerificationExpiresAt: null,
         updatedAt: new Date(),
       })
       .where(eq(users.id, user.id));

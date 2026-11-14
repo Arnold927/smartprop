@@ -133,7 +133,9 @@ function InviteForm({ onSuccess }: { onSuccess: () => void }) {
         title: "Visitor invited!",
         description: data.emailSent
           ? `Access code ${data.accessCode} emailed to ${form.visitorEmail}`
-          : `Access code ${data.accessCode} is ready, but the email could not be sent — open the visit below to share the QR or code yourself.`,
+          : form.visitorEmail.trim()
+            ? `Access code ${data.accessCode} is ready, but the email could not be sent — open the visit below to share the QR or code yourself.`
+            : `Access code ${data.accessCode} is ready — open the visit below to send it to your guest on WhatsApp.`,
       });
       setForm({ visitorName: "", visitorEmail: "", visitorPhone: "", visitPurpose: "", expectedArrival: "", expectedDeparture: "", vehiclePlate: "" });
       setOpen(false);
@@ -142,7 +144,8 @@ function InviteForm({ onSuccess }: { onSuccess: () => void }) {
     onError: (e: any) => toast({ title: "Failed to invite", description: e.message, variant: "destructive" }),
   });
 
-  const canSubmit = form.visitorName.trim() && form.visitorEmail.trim() && form.visitPurpose.trim() && form.expectedArrival;
+  // The guest needs somewhere to receive the pass: an email OR a phone number (WhatsApp works fine without email).
+  const canSubmit = form.visitorName.trim() && (form.visitorEmail.trim() || form.visitorPhone.trim()) && form.visitPurpose.trim() && form.expectedArrival;
 
   return (
     <Card className="rounded-2xl border-border shadow-none">
@@ -170,11 +173,11 @@ function InviteForm({ onSuccess }: { onSuccess: () => void }) {
               <Input placeholder="e.g. Jane Wanjiru" value={form.visitorName} onChange={e => set({ visitorName: e.target.value })} />
             </div>
             <div className="space-y-1.5">
-              <Label className="text-xs">Email * <span className="font-normal text-muted-foreground">(access code sent here)</span></Label>
+              <Label className="text-xs">Email <span className="font-normal text-muted-foreground">(code is emailed here)</span></Label>
               <Input type="email" placeholder="visitor@email.com" value={form.visitorEmail} onChange={e => set({ visitorEmail: e.target.value })} />
             </div>
             <div className="space-y-1.5">
-              <Label className="text-xs">Phone (optional)</Label>
+              <Label className="text-xs">Phone / WhatsApp <span className="font-normal text-muted-foreground">(email or phone is required)</span></Label>
               <Input type="tel" placeholder="07XX XXX XXX" value={form.visitorPhone} onChange={e => set({ visitorPhone: e.target.value })} />
             </div>
             <div className="col-span-2 space-y-1.5">

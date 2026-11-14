@@ -143,7 +143,13 @@ tenantVisitorRouter.post("/invite-visitor", ...auth, async (req: any, res: any) 
 
     // ── Validation ────────────────────────────────────────────────────────────
     if (!visitorName?.trim())  return res.status(400).json({ message: "visitorName is required" });
-    if (!visitorEmail?.trim()) return res.status(400).json({ message: "visitorEmail is required" });
+    // A guest needs a way to receive their pass — but that is often just a phone number (WhatsApp), not an email.
+    if (!visitorEmail?.trim() && !visitorPhone?.trim()) {
+      return res.status(400).json({ message: "Enter the guest's email or phone number so they can receive their access code." });
+    }
+    if (visitorEmail?.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(visitorEmail.trim())) {
+      return res.status(400).json({ message: "That email address doesn't look right." });
+    }
     if (!visitPurpose?.trim()) return res.status(400).json({ message: "visitPurpose is required" });
     if (!expectedArrival)      return res.status(400).json({ message: "expectedArrival is required" });
 
@@ -193,7 +199,7 @@ tenantVisitorRouter.post("/invite-visitor", ...auth, async (req: any, res: any) 
             tenantId: tenantRow.id,
             visitorName: visitorName.trim(),
             visitorPhone: visitorPhone?.trim() || null,
-            visitorEmail: visitorEmail.trim().toLowerCase(),
+            visitorEmail: visitorEmail?.trim() ? visitorEmail.trim().toLowerCase() : null,
             idNumber: visitorIdNumber?.trim() || null,
             purposeOfVisit: visitPurpose.trim(),
             expectedArrival: new Date(expectedArrival),
@@ -220,7 +226,7 @@ tenantVisitorRouter.post("/invite-visitor", ...auth, async (req: any, res: any) 
       try {
         await db.insert(registeredVehicles).values({
           propertyId,
-          ownerId: visitorEmail.trim().toLowerCase(),
+          ownerId: visitorEmail?.trim() ? visitorEmail.trim().toLowerCase() : (visitorPhone?.trim() || accessCode),
           ownerType: "visitor" as any,
           plateNumber: vehiclePlate.trim().toUpperCase(),
           vehicleType: vehicleType || "car",
@@ -240,6 +246,7 @@ tenantVisitorRouter.post("/invite-visitor", ...auth, async (req: any, res: any) 
     // ── Send visitor invite email ─────────────────────────────────────────────
     let emailSent = false;
     try {
+      if (!visitorEmail?.trim()) throw new Error("no email address — pass is shared by phone/WhatsApp");
       await sendVisitorInviteEmail({
         to: visitorEmail.trim().toLowerCase(),
         visitorName: visitorName.trim(),

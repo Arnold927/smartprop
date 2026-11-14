@@ -202,6 +202,12 @@ export default function UserInviteModal({ triggerText }: { triggerText: string }
                     ))}
                   </SelectContent>
                 </Select>
+                {role === "landlord" && (
+                  <p className="text-xs text-emerald-700 bg-emerald-50 border border-emerald-100 rounded-md px-2.5 py-2">
+                    Once they've joined, link their properties: open the property (or add a new one) and choose them as its owner.
+                    They'll only ever see the properties assigned to them.
+                  </p>
+                )}
                 <p className="text-xs text-muted-foreground">
                   Adding a tenant, contractor, or caretaker? Use the invite flow on the Tenants, Contractors, or Caretakers page instead — it links their unit/lease, contractor record, or property assignment automatically.
                 </p>

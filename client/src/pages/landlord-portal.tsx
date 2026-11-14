@@ -2771,7 +2771,7 @@ export default function LandlordPortal({ ownerId }: LandlordPortalProps) {
                   <EmptyState
                     icon={Building}
                     title={propSearch ? "No properties match your search" : "No properties yet"}
-                    description={propSearch ? "Try a different search term." : "Your managed properties will appear here once added."}
+                    description={propSearch ? "Try a different search term." : "Your property manager links properties to your account — they will appear here as soon as they do. Nothing for you to set up."}
                   />
                 </CardContent>
               </Card>

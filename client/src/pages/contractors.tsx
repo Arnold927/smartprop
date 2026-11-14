@@ -17,6 +17,7 @@ import { useRoleGuard, ROLES } from "@/hooks/useRoleGuard";
 import { useAuth } from "@/hooks/useAuth";
 import { PageShell, PageHeader, SectionCard, SPBadge, EmptyState, PrimaryButton, SecondaryButton, FilterBar, SPTable, SPAvatar, StatTile, StatsGrid, KESAmount, ActionMenu, ConfirmDialog } from "@/components/ui/sp-ui";
 import { announceInvite } from "@/lib/invite-notice";
+import { InviteStatusChip } from "@/components/invite-status-chip";
 
 
 // Standard property services offered as specialty options
@@ -343,6 +344,7 @@ export default function ContractorsManagement() {
                     <div className="min-w-0">
                       <CardTitle className="text-base leading-snug truncate">{c.name || c.companyName}</CardTitle>
                       <CardDescription className="mt-0.5">{c.specialty}</CardDescription>
+                      <InviteStatusChip email={c.email} className="mt-1.5" />
                     </div>
                     <div className="flex flex-col items-end gap-1 flex-shrink-0">
                       {(c.isVerified || false) && (

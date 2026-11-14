@@ -27,6 +27,7 @@ import {
 } from "@/components/ui/select";
 import { UserPlus, Shield, Home, Phone } from "lucide-react";
 import { announceInvite } from "@/lib/invite-notice";
+import { InviteStatusChip } from "@/components/invite-status-chip";
 
 interface CaretakerRow {
   id: number;
@@ -242,6 +243,7 @@ export default function CaretakersPage() {
                     <p className="text-sm font-semibold">{c.userName}</p>
                     <Badge variant="outline" className="text-[10px] px-1.5 py-0 capitalize">{c.caretakerType}</Badge>
                     <SPBadge status={c.status} />
+                    <InviteStatusChip email={c.userEmail} />
                   </div>
                   <p className="text-xs text-muted-foreground mt-1 break-all">{c.userEmail}</p>
                   <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-2 text-xs text-muted-foreground">

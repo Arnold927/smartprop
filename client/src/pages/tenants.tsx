@@ -32,6 +32,7 @@ import ComprehensiveTenantModal from "@/components/modals/comprehensive-tenant-m
 import QueryError from "@/components/query-error";
 import { PageShell, PageHeader, SectionCard, SPBadge, EmptyState, PrimaryButton, SecondaryButton, FilterBar, SPTable, SPAvatar, StatTile, StatsGrid, KESAmount, ActionMenu, ConfirmDialog } from "@/components/ui/sp-ui";
 import { useRoleGuard, ROLES } from "@/hooks/useRoleGuard";
+import { InviteStatusChip } from "@/components/invite-status-chip";
 
 
 interface Tenant {
@@ -155,6 +156,7 @@ function SwipeTenantCard({
             <div className="flex items-center gap-2 flex-wrap">
               <p className="font-semibold text-foreground text-sm truncate">{t.firstName} {t.lastName}</p>
               <SPBadge status={t.status} />
+              <InviteStatusChip email={t.email} />
             </div>
             <p className="text-xs text-muted-foreground truncate mt-0.5">
               {t.unit ? `Unit ${t.unit.unitNumber}` : "No unit"} · {t.property?.name ?? "No property"}
@@ -537,6 +539,7 @@ export default function Tenants() {
                             <p className="text-xs text-muted-foreground truncate flex items-center gap-1">
                               <Mail className="w-3 h-3" />{t.email}
                             </p>
+                            <InviteStatusChip email={t.email} className="mt-1" />
                           </div>
                         </div>
                       ),

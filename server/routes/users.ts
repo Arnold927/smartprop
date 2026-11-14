@@ -68,6 +68,33 @@ router.get("/", authenticateJWT, requireOrg, async (req: any, res) => {
   }
 });
 
+// GET /api/users/pending-invites — who has been invited but has not set a password yet. Lets the Tenants,
+// Caretakers and Contractors pages flag them (and offer "resend") without loading the whole user list.
+// Declared before "/:id" so it is not captured as an id.
+router.get("/pending-invites", authenticateJWT, requireOrg, async (req: any, res) => {
+  try {
+    if (!["admin", "manager", "platform_admin"].includes(req.user.role)) {
+      return res.status(403).json({ message: "Insufficient permissions" });
+    }
+    const rows = await db
+      .select({
+        id: users.id, email: users.email, role: users.role,
+        inviteExpiresAt: users.emailVerificationExpiresAt,
+      })
+      .from(users)
+      .where(and(
+        eq(users.organizationId, req.user.organizationId),
+        eq(users.passwordHash, ""),
+        eq(users.emailVerified, false),
+        eq(users.isActive, true),
+      ));
+    res.json(rows);
+  } catch (err) {
+    logger.error("List pending invites error:", err);
+    res.status(500).json({ message: "Failed to list pending invites" });
+  }
+});
+
 // GET /api/users/:id
 router.get("/:id", authenticateJWT, requireOrg, async (req: any, res) => {
   try {
