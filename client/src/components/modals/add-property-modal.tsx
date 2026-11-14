@@ -215,7 +215,7 @@ export default function AddPropertyModal({ isOpen, onClose, onSuccess, property,
  // Keep modal open so PM can run title verification on the new property
  if (created?.id) setCreatedPropertyId(created.id);
  toast({
- title: "Property added ✓",
+ title: "Property added",
  description: "Enter a title deed number below to verify land ownership with Ardhisasa.",
  });
  onSuccess?.();

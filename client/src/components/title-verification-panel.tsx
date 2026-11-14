@@ -82,7 +82,7 @@ export function TitleVerificationPanel({
       onVerified?.(data.result.titleNumber, data.result.status);
 
       if (data.result.status === "verified") {
-        toast({ title: "Title verified ✓", description: data.result.message });
+        toast({ title: "Title verified", description: data.result.message });
       } else if (data.result.status === "encumbered") {
         toast({
           title: "Title has encumbrances",

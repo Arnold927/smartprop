@@ -2117,7 +2117,7 @@ const averageHours = filteredRecords.length > 0 ? toNum(totalHours / filteredRec
  localStorage.setItem('earlyDepartureThreshold', JSON.stringify(earlyDepartureThreshold));
  setShowTimeSettings(false);
  toast({
- title: "✅ Settings Saved",
+ title: "Settings Saved",
  description: "Your time thresholds have been updated",
  duration: 3000,
  });

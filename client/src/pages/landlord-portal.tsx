@@ -11,6 +11,8 @@
  *   POST /api/landlord-portal/reports/:id/email
  */
 
+import { Building2 as Building2Ic, Lock as LockIc } from "lucide-react";
+import { PortalHeader, PortalChip, PortalMeta } from "@/components/portal-header";
 import { downloadDocPdf } from "@/lib/document-theme";
 import React, { useState, useMemo, useCallback, useReducer, useEffect, useRef, memo, Component } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -1942,7 +1944,7 @@ export default function LandlordPortal({ ownerId }: LandlordPortalProps) {
     onSuccess: (_, vars) => {
       queryClient.invalidateQueries({ queryKey: ["/api/landlord-portal/maintenance/pending-approval", ownerId] });
       queryClient.invalidateQueries({ queryKey: ["/api/landlord-portal/maintenance", ownerId] });
-      toast({ title: vars.action === "approve" ? "✅ Request approved" : "❌ Request rejected" });
+      toast({ title: vars.action === "approve" ? "Request approved" : "Request rejected" });
       setApprovalExpandedId(null);
     },
     onError: (e: Error) => toast({ title: "Failed", description: e.message, variant: "destructive" }),
@@ -2290,7 +2292,7 @@ export default function LandlordPortal({ ownerId }: LandlordPortalProps) {
       <div className="flex items-center justify-center min-h-[60vh] p-6">
         <div className="text-center max-w-sm space-y-3">
           <div className="w-14 h-14 rounded-full bg-amber-50 border border-amber-200 flex items-center justify-center mx-auto">
-            <span className="text-2xl">🔒</span>
+            <LockIc className="h-6 w-6 text-amber-600" />
           </div>
           <h2 className="text-lg font-semibold text-foreground">Access restricted</h2>
           <p className="text-sm text-muted-foreground">This portal is for landlords only.</p>
@@ -2303,7 +2305,7 @@ export default function LandlordPortal({ ownerId }: LandlordPortalProps) {
       <div className="flex items-center justify-center min-h-[60vh] p-6">
         <div className="text-center max-w-sm space-y-3">
           <div className="w-14 h-14 rounded-full bg-amber-50 border border-amber-200 flex items-center justify-center mx-auto">
-            <span className="text-2xl">🏢</span>
+            <Building2Ic className="h-6 w-6 text-amber-600" />
           </div>
           <h2 className="text-lg font-semibold text-foreground">No organisation linked</h2>
           <p className="text-sm text-muted-foreground">Your account is not linked to an organisation. Contact your administrator.</p>
@@ -2329,46 +2331,30 @@ export default function LandlordPortal({ ownerId }: LandlordPortalProps) {
       )}
 
       {/* Header */}
-      <div className="bg-slate-900 text-white px-6 py-6 border-b border-white/10">
-        <div className="max-w-7xl mx-auto flex items-start justify-between flex-wrap gap-4">
-            <div className="flex items-center gap-4">
-              <div className="w-12 h-12 rounded-2xl bg-white/10 backdrop-blur-sm border border-white/20 flex items-center justify-center">
-                <Building className="h-6 w-6 text-white" />
-              </div>
-              <div>
-                <p className="text-white/60 text-xs font-medium uppercase tracking-wider mb-0.5">Owner Portal</p>
-                <h1 className="text-xl font-semibold text-white">Portfolio Insights</h1>
-                <div className="flex items-center gap-3 mt-1 flex-wrap">
-                  <span className="flex items-center gap-1 text-white/70 text-xs">
-                    <Building className="w-3 h-3" />
-                    {properties.length} {properties.length === 1 ? "Asset" : "Assets"}
-                  </span>
-                  <span className="flex items-center gap-1 text-white/70 text-xs">
-                    <Clock className="w-3 h-3" />
-                    Updated {format(new Date(), "MMMM d, yyyy")}
-                  </span>
-                </div>
-              </div>
-            </div>
-            <div className="flex items-center gap-2 flex-wrap">
-              <div className="flex items-center gap-1.5 bg-white/10 border border-white/20 text-white/80 text-xs font-medium px-3 py-1.5 rounded-full">
-                <div className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
-                Active landlord
-              </div>
-
-              <Button
-                size="sm"
-                onClick={() => { generateReport.mutate("monthly"); }}
-                disabled={generateReport.isPending}
-                className="bg-card text-foreground hover:bg-muted text-xs font-bold px-4 py-1.5 rounded-full h-auto border border-border"
-              >
-                {generateReport.isPending ? <Loader2 className="w-3 h-3 mr-1 animate-spin" /> : <Download className="w-3 h-3 mr-1" />}
-                Financial Package
-              </Button>
-            </div>
-          </div>
-        </div>
-
+      <PortalHeader
+        icon={Building}
+        eyebrow="Owner Portal"
+        title="Portfolio Insights"
+        maxWidth="max-w-7xl"
+        className="sm:px-6"
+        meta={<>
+          <PortalMeta icon={Building}>{properties.length} {properties.length === 1 ? "Asset" : "Assets"}</PortalMeta>
+          <PortalMeta icon={Clock}>Updated {format(new Date(), "MMMM d, yyyy")}</PortalMeta>
+        </>}
+        actions={<>
+          <PortalChip tone="green" dot pulse>Active landlord</PortalChip>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => { generateReport.mutate("monthly"); }}
+            disabled={generateReport.isPending}
+            className="h-auto gap-1 rounded-full px-4 py-1.5 text-xs font-semibold"
+          >
+            {generateReport.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : <Download className="w-3 h-3" />}
+            Financial Package
+          </Button>
+        </>}
+      />
 
         <main className="flex-1 min-w-0 w-full">
         <div className="px-4 lg:px-8 xl:px-10 py-5 pb-24 max-w-7xl mx-auto w-full">

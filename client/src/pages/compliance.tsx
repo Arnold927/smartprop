@@ -11,6 +11,7 @@
  *   7. RRT Notices           — Rent Restriction Tribunal notices (Cap 296)
  */
 
+import { AlertTriangle as AlertTriangleIc } from "lucide-react";
 import { SearchableSelect } from "@/components/ui/searchable-select";
 import { downloadExcel } from "@/lib/excel";
 import { useState } from "react";
@@ -547,7 +548,7 @@ function KraReturnsTab() {
       if (data?.belowThreshold) {
         toast({
           title: "Return generated",
-          description: "⚠ " + (data.warning ?? "Gross rent is below the KES 24,000/month threshold — monthly filing may not be required."),
+          description: (data.warning ?? "Gross rent is below the KES 24,000/month threshold — monthly filing may not be required."),
           variant: "destructive",
         });
       } else {
@@ -607,7 +608,7 @@ function KraReturnsTab() {
               </p>
               {!kraProfile?.kraPin && (
                 <p className="text-xs text-amber-700 mt-0.5">
-                  ⚠ KRA PIN not set — required for filing rental income returns under Income Tax Act Cap 470
+                  <AlertTriangleIc className="inline h-3.5 w-3.5 mr-1 -mt-0.5" />KRA PIN not set — required for filing rental income returns under Income Tax Act Cap 470
                 </p>
               )}
             </div>
@@ -1259,7 +1260,7 @@ function ValuationsTab() {
                 </div>
                 {cgt.cgtLiability > 0 && (
                   <p className="text-xs text-amber-700 mt-2">
-                    ⚠ KRA CGT return must be filed and tax paid within <strong>30 days</strong> of disposal via iTax.
+                    <AlertTriangleIc className="inline h-3.5 w-3.5 mr-1 -mt-0.5" />KRA CGT return must be filed and tax paid within <strong>30 days</strong> of disposal via iTax.
                   </p>
                 )}
               </>
@@ -2252,7 +2253,7 @@ function RrtNoticesTab() {
                     : "text-muted-foreground"
                 }`}>
                   {["owner_occupation","redevelopment"].includes(evictionForm.groundCode)
-                    ? "⚠ This ground requires a minimum of 60 days notice (Cap 296 — owner occupation / redevelopment)"
+                    ? "This ground requires a minimum of 60 days notice (Cap 296 — owner occupation / redevelopment)"
                     : "ℹ Minimum 30 days notice required for this ground (Cap 296 s.9)"
                   }
                 </p>
@@ -2266,7 +2267,7 @@ function RrtNoticesTab() {
                 const days = Math.round((new Date(evictionForm.vacateDate).getTime() - Date.now()) / 86400000);
                 if (days < minDays) return (
                   <p className="text-xs text-red-600 mt-0.5">
-                    ⚠ Date is only {days} days away — minimum is {minDays} days for this ground
+                    <AlertTriangleIc className="inline h-3.5 w-3.5 mr-1 -mt-0.5" />Date is only {days} days away — minimum is {minDays} days for this ground
                   </p>
                 );
                 return null;

@@ -15,6 +15,7 @@
  * signed-up customers; this page just doesn't lead with them.
  */
 
+import { MessageCircle as MessageCircleIc, Mail as MailIc, Phone as PhoneIc } from "lucide-react";
 import { useState, useEffect, useRef } from "react";
 import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
@@ -1187,15 +1188,15 @@ function Contact() {
 
           <div className="grid sm:grid-cols-3 gap-4 max-w-3xl mx-auto mb-10">
             {[
-              { emoji: "💬", label: "WhatsApp", desc: "Message us to book a time", href: "https://wa.me/254759657590?text=Hi%2C%20I%27d%20like%20to%20book%20a%20SmartProp%20demo", cta: "Open WhatsApp" },
-              { emoji: "📧", label: "Email", desc: "We'll reply within a few hours", href: "mailto:noreply@smartprop.co.ke?subject=SmartProp Demo Request", cta: "Send Email" },
-              { emoji: "📞", label: "Call us", desc: "+254 759 657 590", href: "tel:+254759657590", cta: "Call Now" },
-            ].map(({ emoji, label, desc, href, cta }) => (
+              { emoji: MessageCircleIc, label: "WhatsApp", desc: "Message us to book a time", href: "https://wa.me/254759657590?text=Hi%2C%20I%27d%20like%20to%20book%20a%20SmartProp%20demo", cta: "Open WhatsApp" },
+              { emoji: MailIc, label: "Email", desc: "We'll reply within a few hours", href: "mailto:noreply@smartprop.co.ke?subject=SmartProp Demo Request", cta: "Send Email" },
+              { emoji: PhoneIc, label: "Call us", desc: "+254 759 657 590", href: "tel:+254759657590", cta: "Call Now" },
+            ].map(({ emoji: Emoji, label, desc, href, cta }) => (
               <a key={label} href={href}
                 target={href.startsWith("http") ? "_blank" : undefined}
                 rel={href.startsWith("http") ? "noopener noreferrer" : undefined}
                 className="group flex flex-col items-center gap-3 bg-white/5 hover:bg-emerald-600/20 border border-white/10 hover:border-emerald-500/40 rounded-2xl px-5 py-6 transition-all duration-200 cursor-pointer">
-                <span className="text-3xl">{emoji}</span>
+                <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-700"><Emoji className="h-6 w-6" /></span>
                 <div>
                   <div className="font-semibold text-white text-sm">{label}</div>
                   <div className="text-white/50 text-xs mt-0.5">{desc}</div>

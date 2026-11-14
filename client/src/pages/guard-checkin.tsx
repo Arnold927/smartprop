@@ -13,6 +13,7 @@
  * Optimised for both mobile (guard's phone) and desktop (guard desk).
  */
 
+import { Ban as BanIc, CheckCircle2 as CheckCircle2Ic, AlertTriangle as AlertTriangleIc, Zap as ZapIc } from "lucide-react";
 import { useState, useRef, useEffect, useCallback } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
@@ -244,29 +245,29 @@ function HardwarePanel({ propertyId: externalPropertyId }: HardwarePanelProps) {
   // ── Property picker — shown when no propertyId is available yet ──────────
   if (!propertyId) {
     return (
-      <div className="rounded-xl bg-slate-900 border border-slate-800 p-6 space-y-4">
+      <div className="rounded-xl bg-card border border-border p-6 space-y-4">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-full bg-slate-800 flex items-center justify-center shrink-0">
-            <Cpu className="w-5 h-5 text-slate-400" />
+          <div className="w-10 h-10 rounded-full bg-muted flex items-center justify-center shrink-0">
+            <Cpu className="w-5 h-5 text-muted-foreground" />
           </div>
           <div>
-            <p className="text-sm font-medium text-slate-200">Hardware Integration</p>
-            <p className="text-xs text-slate-400 mt-0.5">Your assigned property will load automatically</p>
+            <p className="text-sm font-medium text-foreground">Hardware Integration</p>
+            <p className="text-xs text-muted-foreground mt-0.5">Your assigned property will load automatically</p>
           </div>
         </div>
 
         {propertiesLoading ? (
-          <div className="flex items-center gap-2 text-slate-500 text-sm py-2">
+          <div className="flex items-center gap-2 text-muted-foreground text-sm py-2">
             <Loader2 className="w-4 h-4 animate-spin" /> Loading your property…
           </div>
         ) : propertyList.length === 0 ? (
-          <p className="text-xs text-slate-500">No property assigned. Contact your administrator.</p>
+          <p className="text-xs text-muted-foreground">No property assigned. Contact your administrator.</p>
         ) : (
           <div className="space-y-2">
-            <label className="text-xs text-slate-400 block">Your assigned property</label>
-            <div className="w-full rounded-lg bg-slate-800 border border-slate-700 text-slate-200 px-3 py-2.5 text-sm flex items-center justify-between">
+            <label className="text-xs text-muted-foreground block">Your assigned property</label>
+            <div className="w-full rounded-lg bg-muted border border-border text-foreground px-3 py-2.5 text-sm flex items-center justify-between">
               <span>{propertyList[0].name}</span>
-              <span className="text-xs text-slate-500 ml-2">Auto-selected</span>
+              <span className="text-xs text-muted-foreground ml-2">Auto-selected</span>
             </div>
           </div>
         )}
@@ -276,9 +277,9 @@ function HardwarePanel({ propertyId: externalPropertyId }: HardwarePanelProps) {
 
   if (hwLoading) {
     return (
-      <div className="rounded-xl bg-slate-900 border border-slate-800 p-8 flex items-center justify-center gap-3">
-        <Loader2 className="w-5 h-5 animate-spin text-slate-500" />
-        <span className="text-slate-400 text-sm">Loading hardware config…</span>
+      <div className="rounded-xl bg-card border border-border p-8 flex items-center justify-center gap-3">
+        <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
+        <span className="text-muted-foreground text-sm">Loading hardware config…</span>
       </div>
     );
   }
@@ -295,29 +296,29 @@ function HardwarePanel({ propertyId: externalPropertyId }: HardwarePanelProps) {
       {/* ── Status card ─────────────────────────────────────────────────── */}
       <div className={`rounded-xl border p-5 ${
         isEnabled
-          ? "bg-emerald-950/30 border-emerald-800"
-          : "bg-slate-900 border-slate-800"
+          ? "bg-emerald-50 dark:bg-emerald-950/30 border-emerald-200 dark:border-emerald-800"
+          : "bg-card border-border"
       }`}>
         <div className="flex items-start justify-between gap-3">
           <div className="flex items-center gap-3">
             <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
-              isEnabled ? "bg-emerald-500/15" : "bg-slate-800"
+              isEnabled ? "bg-emerald-500/15" : "bg-muted"
             }`}>
               {isEnabled
-                ? <Wifi className="w-5 h-5 text-emerald-400" />
-                : <WifiOff className="w-5 h-5 text-slate-500" />
+                ? <Wifi className="w-5 h-5 text-emerald-700 dark:text-emerald-400" />
+                : <WifiOff className="w-5 h-5 text-muted-foreground" />
               }
             </div>
             <div>
               <div className="font-semibold text-sm flex items-center gap-2">
                 Hardware Integration
                 {isEnabled && (
-                  <span className="text-xs font-normal bg-emerald-500/15 text-emerald-400 border border-emerald-700 rounded-full px-2 py-0.5">
+                  <span className="text-xs font-normal bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-700 rounded-full px-2 py-0.5">
                     Active
                   </span>
                 )}
               </div>
-              <div className="text-xs text-slate-400 mt-0.5">
+              <div className="text-xs text-muted-foreground mt-0.5">
                 {isEnabled
                   ? `${hw?.deviceLabel || hw?.vendor || "Device"} · Webhook receiver live`
                   : "Not configured · Software-only mode active"
@@ -340,7 +341,7 @@ function HardwarePanel({ propertyId: externalPropertyId }: HardwarePanelProps) {
               });
               setConfigOpen(v => !v);
             }}
-            className="flex items-center gap-1.5 text-xs text-slate-400 hover:text-white bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-lg px-3 py-2 transition-colors"
+            className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground bg-muted hover:bg-muted/70 border border-border rounded-lg px-3 py-2 transition-colors"
           >
             <Settings className="w-3.5 h-3.5" />
             Configure
@@ -350,9 +351,9 @@ function HardwarePanel({ propertyId: externalPropertyId }: HardwarePanelProps) {
 
         {/* How it works callout — always visible when not configured */}
         {!isEnabled && (
-          <div className="mt-4 rounded-lg bg-slate-800/60 border border-slate-700 p-4 text-xs text-slate-400 space-y-1.5">
-            <div className="flex items-center gap-2 text-slate-300 font-medium mb-1">
-              <Info className="w-3.5 h-3.5 text-blue-400" /> How hardware integration works
+          <div className="mt-4 rounded-lg bg-muted/50 border border-border p-4 text-xs text-muted-foreground space-y-1.5">
+            <div className="flex items-center gap-2 text-foreground/80 font-medium mb-1">
+              <Info className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" /> How hardware integration works
             </div>
             <p>Any physical device (barrier, intercom, ANPR camera) that can POST JSON to a URL can integrate with SmartProp — no code required.</p>
             <p>The webhook endpoint is <strong>vendor-agnostic</strong>. Built-in adapters exist for Hikvision and ZKTeco; all other vendors use the generic adapter.</p>
@@ -363,23 +364,23 @@ function HardwarePanel({ propertyId: externalPropertyId }: HardwarePanelProps) {
 
       {/* ── Config form (collapsible) ────────────────────────────────────── */}
       {configOpen && (
-        <div className="rounded-xl bg-slate-900 border border-slate-800 p-5 space-y-4">
+        <div className="rounded-xl bg-card border border-border p-5 space-y-4">
           <h3 className="text-sm font-semibold flex items-center gap-2">
-            <Cpu className="w-4 h-4 text-slate-400" /> Webhook Configuration
+            <Cpu className="w-4 h-4 text-muted-foreground" /> Webhook Configuration
           </h3>
 
           {isGuardSession && (
-            <div className="rounded-lg bg-amber-950/40 border border-amber-800 p-3 text-xs text-amber-300 flex items-start gap-2">
+            <div className="rounded-lg bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 p-3 text-xs text-amber-700 dark:text-amber-300 flex items-start gap-2">
               <AlertTriangle className="w-3.5 h-3.5 mt-0.5 shrink-0" />
               Guards can view hardware configuration but cannot modify it. Contact your property manager to make changes.
             </div>
           )}
 
           {/* Enable toggle */}
-          <div className="flex items-center justify-between py-2 border-b border-slate-800">
+          <div className="flex items-center justify-between py-2 border-b border-border">
             <div>
               <div className="text-sm font-medium">Enable hardware integration</div>
-              <div className="text-xs text-slate-500 mt-0.5">
+              <div className="text-xs text-muted-foreground mt-0.5">
                 Activates the webhook receiver for this property
               </div>
             </div>
@@ -387,7 +388,7 @@ function HardwarePanel({ propertyId: externalPropertyId }: HardwarePanelProps) {
               type="button"
               onClick={() => setFormState(v => ({ ...v, enabled: !v.enabled }))}
               className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                formState.enabled ? "bg-emerald-600" : "bg-slate-700"
+                formState.enabled ? "bg-emerald-600" : "bg-muted-foreground/30"
               }`}
             >
               <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${
@@ -398,7 +399,7 @@ function HardwarePanel({ propertyId: externalPropertyId }: HardwarePanelProps) {
 
           {/* Vendor */}
           <div>
-            <label className="text-xs text-slate-400 mb-1.5 block">Hardware vendor</label>
+            <label className="text-xs text-muted-foreground mb-1.5 block">Hardware vendor</label>
             <div className="grid grid-cols-3 gap-2">
               {(["hikvision", "zkteco", "generic"] as const).map(v => (
                 <button
@@ -408,33 +409,33 @@ function HardwarePanel({ propertyId: externalPropertyId }: HardwarePanelProps) {
                   className={`rounded-lg py-2.5 text-xs border transition-all capitalize ${
                     formState.vendor === v
                       ? "bg-blue-600 border-blue-500 text-white"
-                      : "bg-slate-800 border-slate-700 text-slate-400 hover:border-slate-500"
+                      : "bg-muted border-border text-muted-foreground hover:border-muted-foreground/40"
                   }`}
                 >
                   {v === "hikvision" ? "Hikvision" : v === "zkteco" ? "ZKTeco" : "Generic / Other"}
                 </button>
               ))}
             </div>
-            <p className="text-xs text-slate-600 mt-1.5">
+            <p className="text-xs text-muted-foreground/70 mt-1.5">
               Generic accepts pre-normalised JSON. All others use vendor-specific adapters.
             </p>
           </div>
 
           {/* Device label */}
           <div>
-            <label className="text-xs text-slate-400 mb-1.5 block">Device label</label>
+            <label className="text-xs text-muted-foreground mb-1.5 block">Device label</label>
             <input
               value={formState.deviceLabel ?? ""}
               onChange={e => setFormState(v => ({ ...v, deviceLabel: e.target.value }))}
               placeholder="e.g. Main Gate Camera"
-              className="w-full rounded-lg bg-slate-800 border border-slate-700 text-white px-3 py-2.5 text-sm placeholder:text-slate-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full rounded-lg bg-muted border border-border text-foreground px-3 py-2.5 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
           </div>
 
           {/* HMAC secret */}
           <div>
-            <label className="text-xs text-slate-400 mb-1.5 block">
-              Webhook secret (HMAC-SHA256) <span className="text-slate-600">— optional but recommended</span>
+            <label className="text-xs text-muted-foreground mb-1.5 block">
+              Webhook secret (HMAC-SHA256) <span className="text-muted-foreground/70">— optional but recommended</span>
             </label>
             <div className="relative">
               <input
@@ -442,29 +443,29 @@ function HardwarePanel({ propertyId: externalPropertyId }: HardwarePanelProps) {
                 value={formState.newSecret ?? ""}
                 onChange={e => setFormState(v => ({ ...v, newSecret: e.target.value }))}
                 placeholder={hw?.webhookSecret ? "Leave blank to keep existing secret" : "Generate or paste a secret key"}
-                className="w-full rounded-lg bg-slate-800 border border-slate-700 text-white px-3 py-2.5 pr-10 text-sm placeholder:text-slate-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full rounded-lg bg-muted border border-border text-foreground px-3 py-2.5 pr-10 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
               <button
                 type="button"
                 onClick={() => setShowSecret(v => !v)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300"
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
               >
                 {showSecret ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
               </button>
             </div>
-            <p className="text-xs text-slate-600 mt-1">
+            <p className="text-xs text-muted-foreground/70 mt-1">
               Set this in your hardware device as X-Webhook-Signature. SmartProp validates every incoming event.
             </p>
           </div>
 
           {/* Notes */}
           <div>
-            <label className="text-xs text-slate-400 mb-1.5 block">Notes (internal)</label>
+            <label className="text-xs text-muted-foreground mb-1.5 block">Notes (internal)</label>
             <input
               value={formState.notes ?? ""}
               onChange={e => setFormState(v => ({ ...v, notes: e.target.value }))}
               placeholder="e.g. Installed 2024, main barrier"
-              className="w-full rounded-lg bg-slate-800 border border-slate-700 text-white px-3 py-2.5 text-sm placeholder:text-slate-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full rounded-lg bg-muted border border-border text-foreground px-3 py-2.5 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
           </div>
 
@@ -494,33 +495,33 @@ function HardwarePanel({ propertyId: externalPropertyId }: HardwarePanelProps) {
 
       {/* ── Webhook URL card (only when enabled) ────────────────────────── */}
       {isEnabled && webhookUrl && (
-        <div className="rounded-xl bg-slate-900 border border-slate-800 p-5 space-y-3">
+        <div className="rounded-xl bg-card border border-border p-5 space-y-3">
           <div className="flex items-center gap-2 text-sm font-medium">
-            <Link className="w-4 h-4 text-blue-400" /> Webhook Endpoint
+            <Link className="w-4 h-4 text-blue-600 dark:text-blue-400" /> Webhook Endpoint
           </div>
-          <div className="rounded-lg bg-slate-950 border border-slate-700 p-3 flex items-center gap-2">
-            <code className="text-xs text-blue-300 flex-1 break-all leading-relaxed">{webhookUrl}</code>
+          <div className="rounded-lg bg-background border border-border p-3 flex items-center gap-2">
+            <code className="text-xs text-blue-600 dark:text-blue-300 flex-1 break-all leading-relaxed">{webhookUrl}</code>
             <button
               onClick={copyWebhook}
-              className="shrink-0 p-1.5 rounded-md hover:bg-slate-800 text-slate-400 hover:text-white transition-colors" aria-label="Copy">
+              className="shrink-0 p-1.5 rounded-md hover:bg-muted text-muted-foreground hover:text-foreground transition-colors" aria-label="Copy">
               <Copy className="w-3.5 h-3.5" />
             </button>
           </div>
-          <p className="text-xs text-slate-500">
-            Point your hardware device to POST events to this URL. Add <code className="text-slate-400">X-Webhook-Signature: sha256=&lt;hmac&gt;</code> for authenticated requests.
+          <p className="text-xs text-muted-foreground">
+            Point your hardware device to POST events to this URL. Add <code className="text-muted-foreground">X-Webhook-Signature: sha256=&lt;hmac&gt;</code> for authenticated requests.
           </p>
 
           {/* Supported payload examples */}
           <details className="group">
-            <summary className="text-xs text-slate-500 hover:text-slate-300 cursor-pointer list-none flex items-center gap-1.5 transition-colors">
+            <summary className="text-xs text-muted-foreground hover:text-foreground cursor-pointer list-none flex items-center gap-1.5 transition-colors">
               <ChevronRight className="w-3 h-3 group-open:rotate-90 transition-transform" />
               View expected payload formats
             </summary>
             <div className="mt-3 space-y-3">
               {hw?.vendor === "generic" || !hw?.vendor ? (
-                <div className="rounded-lg bg-slate-950 border border-slate-700 p-3">
-                  <div className="text-xs text-slate-500 mb-2 font-medium">Generic (pre-normalised)</div>
-                  <pre className="text-xs text-green-300 leading-relaxed overflow-x-auto">{`{
+                <div className="rounded-lg bg-background border border-border p-3">
+                  <div className="text-xs text-muted-foreground mb-2 font-medium">Generic (pre-normalised)</div>
+                  <pre className="text-xs text-green-700 dark:text-green-300 leading-relaxed overflow-x-auto">{`{
   "eventType": "vehicle_entry",
   "plateNumber": "KDA 123A",
   "vehicleType": "car",
@@ -530,9 +531,9 @@ function HardwarePanel({ propertyId: externalPropertyId }: HardwarePanelProps) {
 }`}</pre>
                 </div>
               ) : hw?.vendor === "hikvision" ? (
-                <div className="rounded-lg bg-slate-950 border border-slate-700 p-3">
-                  <div className="text-xs text-slate-500 mb-2 font-medium">Hikvision ISAPI JSON</div>
-                  <pre className="text-xs text-green-300 leading-relaxed overflow-x-auto">{`{
+                <div className="rounded-lg bg-background border border-border p-3">
+                  <div className="text-xs text-muted-foreground mb-2 font-medium">Hikvision ISAPI JSON</div>
+                  <pre className="text-xs text-green-700 dark:text-green-300 leading-relaxed overflow-x-auto">{`{
   "EventNotification": {
     "eventType": "ANPR",
     "dateTime": "2024-01-15T09:30:00Z",
@@ -544,9 +545,9 @@ function HardwarePanel({ propertyId: externalPropertyId }: HardwarePanelProps) {
 }`}</pre>
                 </div>
               ) : (
-                <div className="rounded-lg bg-slate-950 border border-slate-700 p-3">
-                  <div className="text-xs text-slate-500 mb-2 font-medium">ZKTeco BioSecurity JSON</div>
-                  <pre className="text-xs text-green-300 leading-relaxed overflow-x-auto">{`{
+                <div className="rounded-lg bg-background border border-border p-3">
+                  <div className="text-xs text-muted-foreground mb-2 font-medium">ZKTeco BioSecurity JSON</div>
+                  <pre className="text-xs text-green-700 dark:text-green-300 leading-relaxed overflow-x-auto">{`{
   "transaction": {
     "event_type": "0",
     "plate_number": "KDA123A",
@@ -563,26 +564,26 @@ function HardwarePanel({ propertyId: externalPropertyId }: HardwarePanelProps) {
 
       {/* ── Test fire section (only when enabled) ───────────────────────── */}
       {isEnabled && (
-        <div className="rounded-xl bg-slate-900 border border-slate-800 p-5 space-y-3">
+        <div className="rounded-xl bg-card border border-border p-5 space-y-3">
           <div className="flex items-center gap-2 text-sm font-medium">
-            <Zap className="w-4 h-4 text-amber-400" /> Test Integration
+            <Zap className="w-4 h-4 text-amber-700 dark:text-amber-400" /> Test Integration
           </div>
-          <p className="text-xs text-slate-500">
+          <p className="text-xs text-muted-foreground">
             Fire a synthetic vehicle event to verify your webhook pipeline is working end-to-end.
           </p>
           <div>
-            <label className="text-xs text-slate-400 mb-1.5 block">Test plate number</label>
+            <label className="text-xs text-muted-foreground mb-1.5 block">Test plate number</label>
             <input
               value={testPlate}
               onChange={e => setTestPlate(e.target.value.toUpperCase())}
               placeholder="KDA 001A"
-              className="w-full rounded-lg bg-slate-800 border border-slate-700 text-white px-3 py-2 text-sm font-mono uppercase placeholder:text-slate-600 focus:outline-none focus:ring-2 focus:ring-amber-500"
+              className="w-full rounded-lg bg-muted border border-border text-foreground px-3 py-2 text-sm font-mono uppercase placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-amber-500"
             />
           </div>
           <div className="grid grid-cols-2 gap-2">
             <Button
               variant="outline"
-              className="border-emerald-700 text-emerald-400 hover:bg-emerald-950/40 h-10"
+              className="border-emerald-200 dark:border-emerald-700 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 h-10"
               disabled={testMutation.isPending}
               onClick={() => testMutation.mutate("in")}
             >
@@ -593,7 +594,7 @@ function HardwarePanel({ propertyId: externalPropertyId }: HardwarePanelProps) {
             </Button>
             <Button
               variant="outline"
-              className="border-orange-700 text-orange-400 hover:bg-orange-950/40 h-10"
+              className="border-orange-200 dark:border-orange-700 text-orange-600 dark:text-orange-400 hover:bg-orange-50 dark:hover:bg-orange-950/40 h-10"
               disabled={testMutation.isPending}
               onClick={() => testMutation.mutate("out")}
             >
@@ -608,40 +609,40 @@ function HardwarePanel({ propertyId: externalPropertyId }: HardwarePanelProps) {
 
       {/* ── Recent hardware events ───────────────────────────────────────── */}
       {isEnabled && (
-        <div className="rounded-xl bg-slate-900 border border-slate-800 overflow-hidden">
-          <div className="px-5 py-4 border-b border-slate-800 flex items-center justify-between">
+        <div className="rounded-xl bg-card border border-border overflow-hidden">
+          <div className="px-5 py-4 border-b border-border flex items-center justify-between">
             <div className="flex items-center gap-2 text-sm font-medium">
-              <Activity className="w-4 h-4 text-slate-400" /> Hardware Events Today
+              <Activity className="w-4 h-4 text-muted-foreground" /> Hardware Events Today
             </div>
             <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
           </div>
           {recentEvents.length === 0 ? (
             <div className="p-6 text-center">
-              <AlertCircle className="w-8 h-8 text-slate-700 mx-auto mb-2" />
-              <p className="text-xs text-slate-500">No hardware events received today.</p>
-              <p className="text-xs text-slate-600 mt-1">Events appear here automatically when devices POST to the webhook.</p>
+              <AlertCircle className="w-8 h-8 text-muted-foreground/40 mx-auto mb-2" />
+              <p className="text-xs text-muted-foreground">No hardware events received today.</p>
+              <p className="text-xs text-muted-foreground/70 mt-1">Events appear here automatically when devices POST to the webhook.</p>
             </div>
           ) : (
-            <div className="divide-y divide-slate-800">
+            <div className="divide-y divide-border">
               {recentEvents.slice(0, 10).map((ev) => (
                 <div key={ev.id} className="px-5 py-3 flex items-center gap-3">
                   <div className={`w-7 h-7 rounded-full flex items-center justify-center shrink-0 ${
-                    ev.direction === "in" ? "bg-emerald-950/60" : "bg-orange-950/60"
+                    ev.direction === "in" ? "bg-emerald-50 dark:bg-emerald-950/60" : "bg-orange-50 dark:bg-orange-950/60"
                   }`}>
                     {ev.direction === "in"
-                      ? <Car className="w-3.5 h-3.5 text-emerald-400" />
-                      : <LogOut className="w-3.5 h-3.5 text-orange-400" />
+                      ? <Car className="w-3.5 h-3.5 text-emerald-700 dark:text-emerald-400" />
+                      : <LogOut className="w-3.5 h-3.5 text-orange-600 dark:text-orange-400" />
                     }
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="font-mono text-sm font-medium">{ev.plateNumber || "—"}</div>
-                    <div className="text-xs text-slate-500 truncate">{ev.loggedBy}</div>
+                    <div className="text-xs text-muted-foreground truncate">{ev.loggedBy}</div>
                   </div>
-                  <div className="text-xs text-slate-500 shrink-0">{fmtShort(ev.loggedAt)}</div>
+                  <div className="text-xs text-muted-foreground shrink-0">{fmtShort(ev.loggedAt)}</div>
                   <span className={`text-xs px-2 py-0.5 rounded-full border shrink-0 ${
                     ev.direction === "in"
-                      ? "bg-emerald-950/40 text-emerald-400 border-emerald-800"
-                      : "bg-orange-950/40 text-orange-400 border-orange-800"
+                      ? "bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800"
+                      : "bg-orange-50 dark:bg-orange-950/40 text-orange-600 dark:text-orange-400 border-orange-200 dark:border-orange-800"
                   }`}>
                     {ev.direction === "in" ? "IN" : "OUT"}
                   </span>
@@ -653,13 +654,13 @@ function HardwarePanel({ propertyId: externalPropertyId }: HardwarePanelProps) {
       )}
 
       {/* ── Info footer ─────────────────────────────────────────────────── */}
-      <div className="rounded-xl bg-slate-900/50 border border-slate-800/50 p-4 text-xs text-slate-600 space-y-1">
+      <div className="rounded-xl bg-card/50 border border-border/50 p-4 text-xs text-muted-foreground/70 space-y-1">
         <p className="flex items-start gap-1.5">
-          <Info className="w-3 h-3 mt-0.5 shrink-0 text-slate-700" />
-          Hardware integration is <strong className="text-slate-500">optional</strong>. Properties without hardware operate on the software-only flow (QR scan &amp; access codes) without any configuration difference.
+          <Info className="w-3 h-3 mt-0.5 shrink-0 text-muted-foreground/40" />
+          Hardware integration is <strong className="text-muted-foreground">optional</strong>. Properties without hardware operate on the software-only flow (QR scan &amp; access codes) without any configuration difference.
         </p>
         <p className="flex items-start gap-1.5">
-          <Info className="w-3 h-3 mt-0.5 shrink-0 text-slate-700" />
+          <Info className="w-3 h-3 mt-0.5 shrink-0 text-muted-foreground/40" />
           Any device that can POST JSON to a URL integrates with SmartProp. No code changes required on your side.
         </p>
       </div>
@@ -701,10 +702,10 @@ function GatePassPanel({ propertyId }: { propertyId: number | null }) {
   });
 
   function statusColor(s: string) {
-    if (s === "approved" || s === "active") return "bg-emerald-950/40 text-emerald-400 border-emerald-800";
-    if (s === "pending")  return "bg-amber-950/40 text-amber-400 border-amber-800";
-    if (s === "denied" || s === "expired") return "bg-red-950/40 text-red-400 border-red-800";
-    return "bg-slate-800 text-slate-400 border-slate-700";
+    if (s === "approved" || s === "active") return "bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800";
+    if (s === "pending")  return "bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-400 border-amber-200 dark:border-amber-800";
+    if (s === "denied" || s === "expired") return "bg-red-50 dark:bg-red-950/40 text-red-600 dark:text-red-400 border-red-200 dark:border-red-800";
+    return "bg-muted text-muted-foreground border-border";
   }
 
   function passTypeIcon(t: string) {
@@ -715,19 +716,19 @@ function GatePassPanel({ propertyId }: { propertyId: number | null }) {
 
   if (!effectivePropertyId) {
     return (
-      <div className="rounded-xl bg-slate-900 border border-slate-800 p-5 space-y-4">
-        <div className="flex items-center gap-2 text-sm font-medium text-slate-300">
-          <FileText className="w-4 h-4 text-slate-400" /> Gate Passes
+      <div className="rounded-xl bg-card border border-border p-5 space-y-4">
+        <div className="flex items-center gap-2 text-sm font-medium text-foreground/80">
+          <FileText className="w-4 h-4 text-muted-foreground" /> Gate Passes
         </div>
         {propList.length === 0 ? (
-          <p className="text-xs text-slate-500">Complete a visitor check-in first, or ask your manager to assign you to a property.</p>
+          <p className="text-xs text-muted-foreground">Complete a visitor check-in first, or ask your manager to assign you to a property.</p>
         ) : (
           <>
-            <p className="text-xs text-slate-400">Select a property to view gate passes:</p>
+            <p className="text-xs text-muted-foreground">Select a property to view gate passes:</p>
             <div className="space-y-2">
               {propList.map((p) => (
                 <button key={p.id} onClick={() => setLocalPropertyId(p.id)}
-                  className="w-full text-left rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 px-3 py-2.5 text-sm text-white transition-colors">
+                  className="w-full text-left rounded-lg bg-muted hover:bg-muted/70 border border-border px-3 py-2.5 text-sm text-foreground transition-colors">
                   {p.name}
                 </button>
               ))}
@@ -743,13 +744,13 @@ function GatePassPanel({ propertyId }: { propertyId: number | null }) {
       {/* Search bar */}
       <div className="flex gap-2">
         <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
           <input
             value={search}
             onChange={e => setSearch(e.target.value)}
             onKeyDown={e => { if (e.key === "Enter") setSubmitted(search); }}
             placeholder="Search by name or company…"
-            className="w-full rounded-xl bg-slate-800 border border-slate-700 text-white pl-10 pr-3 py-2.5 text-sm placeholder:text-slate-600 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+            className="w-full rounded-xl bg-muted border border-border text-foreground pl-10 pr-3 py-2.5 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-emerald-500"
           />
         </div>
         <button
@@ -760,19 +761,19 @@ function GatePassPanel({ propertyId }: { propertyId: number | null }) {
         </button>
       </div>
 
-      <p className="text-xs text-slate-500">
+      <p className="text-xs text-muted-foreground">
         Look up a gate pass to verify a contractor, delivery, or visitor who presents a printed pass.
       </p>
 
       {/* Results */}
       {isLoading ? (
         <div className="flex items-center justify-center py-10">
-          <Loader2 className="w-5 h-5 animate-spin text-slate-500" />
+          <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
         </div>
       ) : passes.length === 0 ? (
-        <div className="rounded-xl bg-slate-900 border border-slate-800 p-8 text-center">
-          <FileText className="w-8 h-8 text-slate-700 mx-auto mb-2" />
-          <p className="text-xs text-slate-500">
+        <div className="rounded-xl bg-card border border-border p-8 text-center">
+          <FileText className="w-8 h-8 text-muted-foreground/40 mx-auto mb-2" />
+          <p className="text-xs text-muted-foreground">
             {submitted ? "No passes found matching that name." : "Enter a name above to search for a gate pass."}
           </p>
         </div>
@@ -783,36 +784,36 @@ function GatePassPanel({ propertyId }: { propertyId: number | null }) {
               (!p.expectedDeparture || new Date(p.expectedDeparture) >= new Date());
             return (
               <div key={p.id} className={`rounded-xl border p-4 space-y-2 ${
-                isValid ? "bg-emerald-950/20 border-emerald-800" : "bg-slate-900 border-slate-800"
+                isValid ? "bg-emerald-50 dark:bg-emerald-950/20 border-emerald-200 dark:border-emerald-800" : "bg-card border-border"
               }`}>
                 {/* Header row */}
                 <div className="flex items-start justify-between gap-2">
                   <div className="flex items-center gap-2">
                     <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${
-                      isValid ? "bg-emerald-500/15" : "bg-slate-800"
+                      isValid ? "bg-emerald-500/15" : "bg-muted"
                     }`}>
                       {isValid
-                        ? <ShieldCheck className="w-4 h-4 text-emerald-400" />
-                        : <ShieldAlert className="w-4 h-4 text-slate-500" />
+                        ? <ShieldCheck className="w-4 h-4 text-emerald-700 dark:text-emerald-400" />
+                        : <ShieldAlert className="w-4 h-4 text-muted-foreground" />
                       }
                     </div>
                     <div>
                       <div className="font-semibold text-sm">{p.visitorName}</div>
-                      {p.company && <div className="text-xs text-slate-400">{p.company}</div>}
+                      {p.company && <div className="text-xs text-muted-foreground">{p.company}</div>}
                     </div>
                   </div>
                   <div className="flex flex-col items-end gap-1.5 shrink-0">
                     <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border capitalize ${statusColor(p.status)}`}>
                       {p.status}
                     </span>
-                    <span className="flex items-center gap-1 text-[10px] text-slate-500 capitalize">
+                    <span className="flex items-center gap-1 text-[10px] text-muted-foreground capitalize">
                       {passTypeIcon(p.passType)} {p.passType}
                     </span>
                   </div>
                 </div>
 
                 {/* Details */}
-                <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs text-slate-400">
+                <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs text-muted-foreground">
                   {p.purposeOfVisit && (
                     <div className="col-span-2 flex items-start gap-1.5">
                       <Hash className="w-3 h-3 mt-0.5 shrink-0" />
@@ -834,8 +835,8 @@ function GatePassPanel({ propertyId }: { propertyId: number | null }) {
                 {/* Verdict banner */}
                 <div className={`rounded-lg px-3 py-2 text-xs font-semibold flex items-center gap-2 ${
                   isValid
-                    ? "bg-emerald-500/10 text-emerald-400"
-                    : "bg-red-950/40 text-red-400"
+                    ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400"
+                    : "bg-red-50 dark:bg-red-950/40 text-red-600 dark:text-red-400"
                 }`}>
                   {isValid
                     ? <><CheckCircle className="w-3.5 h-3.5" /> Pass is valid — allow entry</>
@@ -902,19 +903,19 @@ function BlacklistPanel({ propertyId }: { propertyId: number | null }) {
 
   if (!blEffectiveId) {
     return (
-      <div className="rounded-xl bg-slate-900 border border-slate-800 p-5 space-y-4">
-        <div className="flex items-center gap-2 text-sm font-medium text-slate-300">
-          <Ban className="w-4 h-4 text-red-400" /> Vehicle Blacklist
+      <div className="rounded-xl bg-card border border-border p-5 space-y-4">
+        <div className="flex items-center gap-2 text-sm font-medium text-foreground/80">
+          <Ban className="w-4 h-4 text-red-600 dark:text-red-400" /> Vehicle Blacklist
         </div>
         {blPropList.length === 0 ? (
-          <p className="text-xs text-slate-500">Complete a visitor check-in first, or ask your manager to assign you to a property.</p>
+          <p className="text-xs text-muted-foreground">Complete a visitor check-in first, or ask your manager to assign you to a property.</p>
         ) : (
           <>
-            <p className="text-xs text-slate-400">Select a property to view the blacklist:</p>
+            <p className="text-xs text-muted-foreground">Select a property to view the blacklist:</p>
             <div className="space-y-2">
               {blPropList.map((p) => (
                 <button key={p.id} onClick={() => setBlLocalPropertyId(p.id)}
-                  className="w-full text-left rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 px-3 py-2.5 text-sm text-white transition-colors">
+                  className="w-full text-left rounded-lg bg-muted hover:bg-muted/70 border border-border px-3 py-2.5 text-sm text-foreground transition-colors">
                   {p.name}
                 </button>
               ))}
@@ -930,15 +931,15 @@ function BlacklistPanel({ propertyId }: { propertyId: number | null }) {
 
       {/* Alert count */}
       {alertCount > 0 && (
-        <div className="rounded-xl bg-red-950/30 border border-red-800 p-4 flex items-center gap-3">
+        <div className="rounded-xl bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800 p-4 flex items-center gap-3">
           <div className="w-10 h-10 rounded-full bg-red-500/15 flex items-center justify-center shrink-0">
-            <AlertTriangle className="w-5 h-5 text-red-400" />
+            <AlertTriangle className="w-5 h-5 text-red-600 dark:text-red-400" />
           </div>
           <div>
-            <div className="font-semibold text-sm text-red-300">
+            <div className="font-semibold text-sm text-red-600 dark:text-red-300">
               {alertCount} blacklisted vehicle{alertCount !== 1 ? "s" : ""} for this property
             </div>
-            <div className="text-xs text-red-400/70 mt-0.5">
+            <div className="text-xs text-red-600/70 dark:text-red-400/70 mt-0.5">
               Deny entry if any of these plates arrive. Report to your manager immediately.
             </div>
           </div>
@@ -946,8 +947,8 @@ function BlacklistPanel({ propertyId }: { propertyId: number | null }) {
       )}
 
       {/* Plate check */}
-      <div className="rounded-xl bg-slate-900 border border-slate-800 p-4 space-y-3">
-        <div className="text-xs font-semibold text-slate-300 flex items-center gap-2">
+      <div className="rounded-xl bg-card border border-border p-4 space-y-3">
+        <div className="text-xs font-semibold text-foreground/80 flex items-center gap-2">
           <Search className="w-3.5 h-3.5" /> Quick Plate Check
         </div>
         <div className="flex gap-2">
@@ -956,7 +957,7 @@ function BlacklistPanel({ propertyId }: { propertyId: number | null }) {
             onChange={e => setPlate(e.target.value.toUpperCase())}
             onKeyDown={e => { if (e.key === "Enter") setCheckPlate(plate.trim()); }}
             placeholder="e.g. KDA 123A"
-            className="flex-1 rounded-xl bg-slate-800 border border-slate-700 text-white px-3 py-2.5 text-sm font-mono uppercase placeholder:text-slate-600 placeholder:normal-case focus:outline-none focus:ring-2 focus:ring-emerald-500"
+            className="flex-1 rounded-xl bg-muted border border-border text-foreground px-3 py-2.5 text-sm font-mono uppercase placeholder:text-muted-foreground placeholder:normal-case focus:outline-none focus:ring-2 focus:ring-emerald-500"
           />
           <button
             onClick={() => setCheckPlate(plate.trim())}
@@ -969,40 +970,40 @@ function BlacklistPanel({ propertyId }: { propertyId: number | null }) {
 
         {/* Check result */}
         {checkLoading && (
-          <div className="flex items-center gap-2 text-slate-500 text-xs">
+          <div className="flex items-center gap-2 text-muted-foreground text-xs">
             <Loader2 className="w-3.5 h-3.5 animate-spin" /> Checking…
           </div>
         )}
         {checkResult && !checkLoading && (
           <div className={`rounded-lg p-3 flex items-start gap-3 ${
             checkResult.blacklisted
-              ? "bg-red-950/40 border border-red-800"
-              : "bg-emerald-950/30 border border-emerald-800"
+              ? "bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800"
+              : "bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800"
           }`}>
             <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 mt-0.5 ${
               checkResult.blacklisted ? "bg-red-500/15" : "bg-emerald-500/15"
             }`}>
               {checkResult.blacklisted
-                ? <Ban className="w-4 h-4 text-red-400" />
-                : <ShieldCheck className="w-4 h-4 text-emerald-400" />
+                ? <Ban className="w-4 h-4 text-red-600 dark:text-red-400" />
+                : <ShieldCheck className="w-4 h-4 text-emerald-700 dark:text-emerald-400" />
               }
             </div>
             <div>
               {checkResult.blacklisted ? (
                 <>
-                  <div className="font-semibold text-sm text-red-300">⛔ BLACKLISTED — Deny entry</div>
-                  <div className="text-xs text-red-400/80 mt-1">
+                  <div className="font-semibold text-sm text-red-600 dark:text-red-300"><BanIc className="inline h-4 w-4 mr-1 -mt-0.5" />BLACKLISTED — Deny entry</div>
+                  <div className="text-xs text-red-600/80 dark:text-red-400/80 mt-1">
                     {checkResult.vehicle?.color} {checkResult.vehicle?.make} {checkResult.vehicle?.model}
                     {checkResult.vehicle?.notes && ` · ${checkResult.vehicle.notes}`}
                   </div>
-                  <div className="text-xs text-red-400/60 mt-0.5">
+                  <div className="text-xs text-red-600/60 dark:text-red-400/60 mt-0.5">
                     Do not allow this vehicle through. Contact your manager immediately.
                   </div>
                 </>
               ) : (
                 <>
-                  <div className="font-semibold text-sm text-emerald-400">✓ Not blacklisted</div>
-                  <div className="text-xs text-slate-400 mt-0.5">This plate is not on the blacklist for this property.</div>
+                  <div className="font-semibold text-sm text-emerald-700 dark:text-emerald-400"><CheckCircle2Ic className="inline h-4 w-4 mr-1 -mt-0.5" />Not blacklisted</div>
+                  <div className="text-xs text-muted-foreground mt-0.5">This plate is not on the blacklist for this property.</div>
                 </>
               )}
             </div>
@@ -1011,41 +1012,41 @@ function BlacklistPanel({ propertyId }: { propertyId: number | null }) {
       </div>
 
       {/* Full watchlist */}
-      <div className="rounded-xl bg-slate-900 border border-slate-800 overflow-hidden">
-        <div className="px-4 py-3 border-b border-slate-800 flex items-center justify-between">
-          <span className="text-xs font-semibold text-slate-300 flex items-center gap-2">
-            <Ban className="w-3.5 h-3.5 text-red-400" /> Blacklisted Vehicles
+      <div className="rounded-xl bg-card border border-border overflow-hidden">
+        <div className="px-4 py-3 border-b border-border flex items-center justify-between">
+          <span className="text-xs font-semibold text-foreground/80 flex items-center gap-2">
+            <Ban className="w-3.5 h-3.5 text-red-600 dark:text-red-400" /> Blacklisted Vehicles
           </span>
           {alertCount > 0 && (
-            <span className="text-[10px] font-bold bg-red-900/60 text-red-400 border border-red-800 rounded-full px-2 py-0.5">
+            <span className="text-[10px] font-bold bg-red-50 dark:bg-red-900/60 text-red-600 dark:text-red-400 border border-red-200 dark:border-red-800 rounded-full px-2 py-0.5">
               {alertCount}
             </span>
           )}
         </div>
         {watchlistLoading ? (
           <div className="flex items-center justify-center py-8">
-            <Loader2 className="w-4 h-4 animate-spin text-slate-500" />
+            <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
           </div>
         ) : watchlist.length === 0 ? (
           <div className="p-8 text-center">
             <ShieldCheck className="w-8 h-8 text-emerald-800 mx-auto mb-2" />
-            <p className="text-xs text-slate-500">No blacklisted vehicles for this property.</p>
+            <p className="text-xs text-muted-foreground">No blacklisted vehicles for this property.</p>
           </div>
         ) : (
-          <div className="divide-y divide-slate-800">
+          <div className="divide-y divide-border">
             {watchlist.map((v: any) => (
               <div key={v.id} className="px-4 py-3 flex items-center gap-3">
-                <div className="w-7 h-7 rounded-full bg-red-950/60 flex items-center justify-center shrink-0">
-                  <Ban className="w-3.5 h-3.5 text-red-400" />
+                <div className="w-7 h-7 rounded-full bg-red-50 dark:bg-red-950/60 flex items-center justify-center shrink-0">
+                  <Ban className="w-3.5 h-3.5 text-red-600 dark:text-red-400" />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <div className="font-mono font-semibold text-sm text-red-300">{v.plateNumber}</div>
-                  <div className="text-xs text-slate-500 truncate capitalize">
+                  <div className="font-mono font-semibold text-sm text-red-600 dark:text-red-300">{v.plateNumber}</div>
+                  <div className="text-xs text-muted-foreground truncate capitalize">
                     {v.color} {v.make} {v.model} · {v.vehicleType}
                   </div>
-                  {v.notes && <div className="text-xs text-slate-600 truncate mt-0.5">{v.notes}</div>}
+                  {v.notes && <div className="text-xs text-muted-foreground/70 truncate mt-0.5">{v.notes}</div>}
                 </div>
-                <span className="text-[10px] font-bold bg-red-950/40 text-red-400 border border-red-900 rounded-full px-2 py-0.5 shrink-0">
+                <span className="text-[10px] font-bold bg-red-50 dark:bg-red-950/40 text-red-600 dark:text-red-400 border border-red-200 dark:border-red-900 rounded-full px-2 py-0.5 shrink-0">
                   DENY
                 </span>
               </div>
@@ -1234,18 +1235,18 @@ export default function GuardCheckin() {
   // ─── Render ─────────────────────────────────────────────────────────────
 
   return (
-    <div className="min-h-screen bg-slate-950 text-white">
+    <div className="min-h-screen bg-background text-foreground">
 
       {/* ── Header ── */}
-      <div className="border-b border-slate-800 bg-slate-900/80 backdrop-blur-sm sticky top-0 z-10">
+      <div className="border-b border-border bg-card/80 backdrop-blur-sm sticky top-0 z-10">
         <div className="max-w-lg mx-auto px-4 py-3 flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <Shield className="w-5 h-5 text-blue-400" />
+            <Shield className="w-5 h-5 text-blue-600 dark:text-blue-400" />
             <span className="font-semibold text-sm tracking-wide">Guard Station</span>
           </div>
           <div className="flex items-center gap-1">
             <div className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
-            <span className="text-xs text-slate-400">Live</span>
+            <span className="text-xs text-muted-foreground">Live</span>
           </div>
         </div>
       </div>
@@ -1253,7 +1254,7 @@ export default function GuardCheckin() {
       <div className="max-w-lg mx-auto px-4 py-6 space-y-4">
 
         {/* ── Top-level tab bar ── */}
-        <div className="grid grid-cols-4 gap-1 bg-slate-900 rounded-xl p-1 border border-slate-800">
+        <div className="grid grid-cols-4 gap-1 bg-card rounded-xl p-1 border border-border">
           {([
             { key: "software",    label: "Scan & Codes", icon: QrCode     },
             { key: "gate-passes", label: "Gate Passes",  icon: FileText   },
@@ -1266,9 +1267,9 @@ export default function GuardCheckin() {
               className={`flex flex-col items-center justify-center gap-1 rounded-lg py-2 px-1 text-xs font-medium transition-all ${
                 topTab === key
                   ? key === "blacklist"
-                    ? "bg-red-900/60 text-red-300 shadow"
-                    : "bg-slate-700 text-white shadow"
-                  : "text-slate-500 hover:text-slate-300"
+                    ? "bg-red-50 dark:bg-red-900/60 text-red-600 dark:text-red-300 shadow"
+                    : "bg-background text-foreground shadow"
+                  : "text-muted-foreground hover:text-foreground"
               }`}
             >
               <Icon className="w-4 h-4" />
@@ -1290,7 +1291,7 @@ export default function GuardCheckin() {
                   className={`flex items-center justify-center gap-2 rounded-xl py-3 px-4 text-sm font-medium transition-all ${
                     mode === "camera"
                       ? "bg-blue-600 text-white shadow-lg shadow-blue-900/50"
-                      : "bg-slate-800 text-slate-400 hover:bg-slate-700"
+                      : "bg-muted text-muted-foreground hover:bg-muted/70"
                   }`}
                 >
                   <Scan className="w-4 h-4" />
@@ -1301,7 +1302,7 @@ export default function GuardCheckin() {
                   className={`flex items-center justify-center gap-2 rounded-xl py-3 px-4 text-sm font-medium transition-all ${
                     mode === "manual"
                       ? "bg-blue-600 text-white shadow-lg shadow-blue-900/50"
-                      : "bg-slate-800 text-slate-400 hover:bg-slate-700"
+                      : "bg-muted text-muted-foreground hover:bg-muted/70"
                   }`}
                 >
                   <Keyboard className="w-4 h-4" />
@@ -1316,16 +1317,16 @@ export default function GuardCheckin() {
                 <button
                   onClick={() => setIsCheckout(false)}
                   className={`text-sm px-4 py-1.5 rounded-full transition-all ${
-                    !isCheckout ? "bg-green-500/20 text-green-400 border border-green-500/30" : "text-slate-500 hover:text-slate-400"
+                    !isCheckout ? "bg-green-500/20 text-green-700 dark:text-green-400 border border-green-500/30" : "text-muted-foreground hover:text-foreground"
                   }`}
                 >
                   Check In
                 </button>
-                <span className="text-slate-700">|</span>
+                <span className="text-muted-foreground/40">|</span>
                 <button
                   onClick={() => setIsCheckout(true)}
                   className={`text-sm px-4 py-1.5 rounded-full transition-all ${
-                    isCheckout ? "bg-orange-500/20 text-orange-400 border border-orange-500/30" : "text-slate-500 hover:text-slate-400"
+                    isCheckout ? "bg-orange-500/20 text-orange-600 dark:text-orange-400 border border-orange-500/30" : "text-muted-foreground hover:text-foreground"
                   }`}
                 >
                   Check Out
@@ -1337,13 +1338,13 @@ export default function GuardCheckin() {
             {mode === "camera" && (
               <div className="space-y-3">
                 {cameraError ? (
-                  <div className="rounded-xl bg-red-950/50 border border-red-800 p-6 text-center">
-                    <XCircle className="w-10 h-10 text-red-400 mx-auto mb-3" />
-                    <p className="text-sm text-red-300">{cameraError}</p>
+                  <div className="rounded-xl bg-red-50 dark:bg-red-950/50 border border-red-200 dark:border-red-800 p-6 text-center">
+                    <XCircle className="w-10 h-10 text-red-600 dark:text-red-400 mx-auto mb-3" />
+                    <p className="text-sm text-red-600 dark:text-red-300">{cameraError}</p>
                     <Button
                       variant="outline"
                       size="sm"
-                      className="mt-4 border-red-700 text-red-400"
+                      className="mt-4 border-red-200 dark:border-red-700 text-red-600 dark:text-red-400"
                       onClick={() => { setCameraError(null); startCamera(); }}
                     >
                       <RefreshCw className="w-3 h-3 mr-1" /> Retry
@@ -1374,7 +1375,7 @@ export default function GuardCheckin() {
                     </div>
 
                     <div className="absolute bottom-3 inset-x-0 text-center">
-                      <span className="text-xs text-white/70 bg-black/50 rounded-full px-3 py-1">
+                      <span className="text-xs text-muted-foreground bg-black/50 rounded-full px-3 py-1">
                         Point camera at visitor QR code
                       </span>
                     </div>
@@ -1382,7 +1383,7 @@ export default function GuardCheckin() {
                 )}
 
                 {checkinMutation.isPending && (
-                  <div className="flex items-center justify-center gap-2 text-blue-400 py-2">
+                  <div className="flex items-center justify-center gap-2 text-blue-600 dark:text-blue-400 py-2">
                     <Loader2 className="w-4 h-4 animate-spin" />
                     <span className="text-sm">Processing...</span>
                   </div>
@@ -1392,12 +1393,12 @@ export default function GuardCheckin() {
 
             {/* ── Manual code entry ── */}
             {mode === "manual" && (
-              <div className="rounded-xl bg-slate-900 border border-slate-800 p-6 space-y-4">
+              <div className="rounded-xl bg-card border border-border p-6 space-y-4">
                 <div className="text-center">
                   <div className="w-12 h-12 rounded-full bg-blue-500/10 border border-blue-500/20 flex items-center justify-center mx-auto mb-3">
-                    <Hash className="w-5 h-5 text-blue-400" />
+                    <Hash className="w-5 h-5 text-blue-600 dark:text-blue-400" />
                   </div>
-                  <p className="text-sm text-slate-400">
+                  <p className="text-sm text-muted-foreground">
                     {isCheckout ? "Enter visitor checkout code" : "Enter visitor access code"}
                   </p>
                 </div>
@@ -1407,7 +1408,7 @@ export default function GuardCheckin() {
                     value={manualCode}
                     onChange={(e) => setManualCode(e.target.value.toUpperCase())}
                     placeholder="VAC-A1B2C3"
-                    className="text-center font-mono text-lg tracking-widest bg-slate-800 border-slate-700 text-white placeholder:text-slate-600 h-14 uppercase"
+                    className="text-center font-mono text-lg tracking-widest bg-muted border-border text-foreground placeholder:text-muted-foreground h-14 uppercase"
                     onKeyDown={(e) => e.key === "Enter" && handleManualSubmit()}
                     autoFocus
                   />
@@ -1434,40 +1435,40 @@ export default function GuardCheckin() {
             {/* ── Vehicle capture ── */}
             {mode === "vehicle-capture" && result?.success && (
               <div className="space-y-4">
-                <div className="rounded-xl bg-green-950/50 border border-green-800 px-5 py-4 flex items-center gap-3">
-                  <CheckCircle className="w-6 h-6 text-green-400 shrink-0" />
+                <div className="rounded-xl bg-green-50 dark:bg-green-950/50 border border-green-200 dark:border-green-800 px-5 py-4 flex items-center gap-3">
+                  <CheckCircle className="w-6 h-6 text-green-700 dark:text-green-400 shrink-0" />
                   <div>
-                    <p className="font-semibold text-green-300">{result.visitor?.visitorName}</p>
-                    <p className="text-xs text-slate-400">
+                    <p className="font-semibold text-green-700 dark:text-green-300">{result.visitor?.visitorName}</p>
+                    <p className="text-xs text-muted-foreground">
                       {result.visitor?.purposeOfVisit}
                       {result.visitor?.unitNumber && ` · Unit ${result.visitor.unitNumber}`}
                     </p>
                   </div>
                 </div>
 
-                <div className="rounded-xl bg-slate-900 border border-slate-800 p-5 space-y-4">
+                <div className="rounded-xl bg-card border border-border p-5 space-y-4">
                   <div className="flex items-center gap-2 mb-1">
-                    <Car className="w-4 h-4 text-slate-400" />
+                    <Car className="w-4 h-4 text-muted-foreground" />
                     <span className="text-sm font-medium">Vehicle Details</span>
                     {result.visitor?.vehiclePlate && (
-                      <span className="ml-auto text-xs text-blue-400 bg-blue-950/40 border border-blue-800 rounded px-2 py-0.5">
+                      <span className="ml-auto text-xs text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-800 rounded px-2 py-0.5">
                         Pre-registered by tenant
                       </span>
                     )}
                   </div>
 
                   <div>
-                    <label className="text-xs text-slate-400 mb-1.5 block">Plate Number</label>
+                    <label className="text-xs text-muted-foreground mb-1.5 block">Plate Number</label>
                     <input
                       value={vehicleForm.plate}
                       onChange={e => setVehicleForm(v => ({ ...v, plate: e.target.value.toUpperCase() }))}
                       placeholder="e.g. KDA 123A"
-                      className="w-full rounded-lg bg-slate-800 border border-slate-700 text-white px-3 py-2.5 text-sm font-mono uppercase placeholder:text-slate-600 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                      className="w-full rounded-lg bg-muted border border-border text-foreground px-3 py-2.5 text-sm font-mono uppercase placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-emerald-500"
                     />
                   </div>
 
                   <div>
-                    <label className="text-xs text-slate-400 mb-1.5 block">Vehicle Type</label>
+                    <label className="text-xs text-muted-foreground mb-1.5 block">Vehicle Type</label>
                     <div className="grid grid-cols-3 gap-2">
                       {["car", "motorcycle", "van", "truck", "bicycle", "other"].map(t => (
                         <button
@@ -1477,7 +1478,7 @@ export default function GuardCheckin() {
                           className={`rounded-lg py-2 text-xs capitalize border transition-all ${
                             vehicleForm.type === t
                               ? "bg-blue-600 border-blue-500 text-white"
-                              : "bg-slate-800 border-slate-700 text-slate-400 hover:border-slate-500"
+                              : "bg-muted border-border text-muted-foreground hover:border-muted-foreground/40"
                           }`}
                         >
                           {t}
@@ -1488,35 +1489,35 @@ export default function GuardCheckin() {
 
                   <div className="grid grid-cols-3 gap-3">
                     <div>
-                      <label className="text-xs text-slate-400 mb-1.5 block">Make</label>
+                      <label className="text-xs text-muted-foreground mb-1.5 block">Make</label>
                       <input
                         value={vehicleForm.make}
                         onChange={e => setVehicleForm(v => ({ ...v, make: e.target.value }))}
                         placeholder="Toyota"
-                        className="w-full rounded-lg bg-slate-800 border border-slate-700 text-white px-3 py-2.5 text-sm placeholder:text-slate-600 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                        className="w-full rounded-lg bg-muted border border-border text-foreground px-3 py-2.5 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-emerald-500"
                       />
                     </div>
                     <div>
-                      <label className="text-xs text-slate-400 mb-1.5 block">Model</label>
+                      <label className="text-xs text-muted-foreground mb-1.5 block">Model</label>
                       <input
                         value={vehicleForm.model}
                         onChange={e => setVehicleForm(v => ({ ...v, model: e.target.value }))}
                         placeholder="Vitz"
-                        className="w-full rounded-lg bg-slate-800 border border-slate-700 text-white px-3 py-2.5 text-sm placeholder:text-slate-600 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                        className="w-full rounded-lg bg-muted border border-border text-foreground px-3 py-2.5 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-emerald-500"
                       />
                     </div>
                     <div>
-                      <label className="text-xs text-slate-400 mb-1.5 block">Color</label>
+                      <label className="text-xs text-muted-foreground mb-1.5 block">Color</label>
                       <input
                         value={vehicleForm.color}
                         onChange={e => setVehicleForm(v => ({ ...v, color: e.target.value }))}
                         placeholder="Silver"
-                        className="w-full rounded-lg bg-slate-800 border border-slate-700 text-white px-3 py-2.5 text-sm placeholder:text-slate-600 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                        className="w-full rounded-lg bg-muted border border-border text-foreground px-3 py-2.5 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-emerald-500"
                       />
                     </div>
                   </div>
 
-                  <p className="text-xs text-slate-500">
+                  <p className="text-xs text-muted-foreground">
                     Make, model and color are optional but recommended for security records.
                   </p>
                 </div>
@@ -1524,7 +1525,7 @@ export default function GuardCheckin() {
                 <button
                   type="button"
                   onClick={() => setMode("result")}
-                  className="w-full text-xs text-slate-500 hover:text-slate-400 py-1 transition-colors"
+                  className="w-full text-xs text-muted-foreground hover:text-foreground py-1 transition-colors"
                 >
                   Visitor has no vehicle — skip
                 </button>
@@ -1566,30 +1567,30 @@ export default function GuardCheckin() {
               <div className="space-y-4">
                 <div className={`rounded-xl p-5 text-center ${
                   result.success
-                    ? "bg-green-950/60 border border-green-700"
-                    : "bg-red-950/60 border border-red-700"
+                    ? "bg-green-50 dark:bg-green-950/60 border border-green-200 dark:border-green-700"
+                    : "bg-red-50 dark:bg-red-950/60 border border-red-200 dark:border-red-700"
                 }`}>
                   {result.success ? (
-                    <CheckCircle className="w-12 h-12 text-green-400 mx-auto mb-2" />
+                    <CheckCircle className="w-12 h-12 text-green-700 dark:text-green-400 mx-auto mb-2" />
                   ) : (
-                    <XCircle className="w-12 h-12 text-red-400 mx-auto mb-2" />
+                    <XCircle className="w-12 h-12 text-red-600 dark:text-red-400 mx-auto mb-2" />
                   )}
-                  <p className={`font-semibold text-lg ${result.success ? "text-green-300" : "text-red-300"}`}>
+                  <p className={`font-semibold text-lg ${result.success ? "text-green-700 dark:text-green-300" : "text-red-600 dark:text-red-300"}`}>
                     {result.success ? t("guardCheckin.accessGranted") : t("guardCheckin.accessDenied")}
                   </p>
-                  <p className="text-sm text-slate-400 mt-1">{result.message}</p>
+                  <p className="text-sm text-muted-foreground mt-1">{result.message}</p>
                 </div>
 
                 {result.visitor && (
-                  <div className="rounded-xl bg-slate-900 border border-slate-800 overflow-hidden">
-                    <div className="px-5 py-4 border-b border-slate-800 flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-full bg-slate-700 flex items-center justify-center">
-                        <User className="w-5 h-5 text-slate-400" />
+                  <div className="rounded-xl bg-card border border-border overflow-hidden">
+                    <div className="px-5 py-4 border-b border-border flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-full bg-muted-foreground/30 flex items-center justify-center">
+                        <User className="w-5 h-5 text-muted-foreground" />
                       </div>
                       <div>
                         <div className="font-semibold">{result.visitor.visitorName}</div>
                         {result.visitor.visitorPhone && (
-                          <div className="text-xs text-slate-400 flex items-center gap-1 mt-0.5">
+                          <div className="text-xs text-muted-foreground flex items-center gap-1 mt-0.5">
                             <Phone className="w-3 h-3" /> {result.visitor.visitorPhone}
                           </div>
                         )}
@@ -1597,21 +1598,21 @@ export default function GuardCheckin() {
                     </div>
 
                     <div className="px-5 py-4 space-y-3 text-sm">
-                      <div className="flex items-start gap-2 text-slate-300">
-                        <Building className="w-4 h-4 text-slate-500 mt-0.5 shrink-0" />
+                      <div className="flex items-start gap-2 text-foreground/80">
+                        <Building className="w-4 h-4 text-muted-foreground mt-0.5 shrink-0" />
                         <span>
                           Visiting <strong>{result.visitor.tenantFirstName} {result.visitor.tenantLastName}</strong>
                           {result.visitor.unitNumber && ` · Unit ${result.visitor.unitNumber}`}
                         </span>
                       </div>
                       {result.visitor.purposeOfVisit && (
-                        <div className="flex items-start gap-2 text-slate-300">
-                          <Hash className="w-4 h-4 text-slate-500 mt-0.5 shrink-0" />
+                        <div className="flex items-start gap-2 text-foreground/80">
+                          <Hash className="w-4 h-4 text-muted-foreground mt-0.5 shrink-0" />
                           <span>{result.visitor.purposeOfVisit}</span>
                         </div>
                       )}
-                      <div className="flex items-start gap-2 text-slate-300">
-                        <Clock className="w-4 h-4 text-slate-500 mt-0.5 shrink-0" />
+                      <div className="flex items-start gap-2 text-foreground/80">
+                        <Clock className="w-4 h-4 text-muted-foreground mt-0.5 shrink-0" />
                         <span>Expected: {fmtTime(result.visitor.expectedArrival)}</span>
                       </div>
                     </div>
@@ -1621,18 +1622,18 @@ export default function GuardCheckin() {
                 {(result.hasVehicle || vehicleForm.plate) && (
                   <div className={`rounded-xl p-4 border ${
                     result.parking?.allocated
-                      ? "bg-emerald-950/40 border-emerald-800"
+                      ? "bg-emerald-50 dark:bg-emerald-950/40 border-emerald-200 dark:border-emerald-800"
                       : result.parking?.requiresManual
-                      ? "bg-amber-950/40 border-amber-800"
-                      : "bg-slate-900 border-slate-800"
+                      ? "bg-amber-50 dark:bg-amber-950/40 border-amber-200 dark:border-amber-800"
+                      : "bg-card border-border"
                   }`}>
                     <div className="flex items-center gap-2 mb-2">
-                      <Car className="w-4 h-4 text-slate-400" />
+                      <Car className="w-4 h-4 text-muted-foreground" />
                       <span className="text-sm font-mono font-medium">
                         {vehicleForm.plate || result.visitor?.vehiclePlate || "Vehicle"}
                       </span>
                       {vehicleForm.make && (
-                        <span className="text-xs text-slate-500">
+                        <span className="text-xs text-muted-foreground">
                           {vehicleForm.color} {vehicleForm.make} {vehicleForm.model}
                         </span>
                       )}
@@ -1640,19 +1641,19 @@ export default function GuardCheckin() {
 
                     {result.parking?.allocated ? (
                       <div>
-                        <p className="text-emerald-400 text-sm font-semibold">
-                          ✓ Parking auto-allocated
+                        <p className="text-emerald-700 dark:text-emerald-400 text-sm font-semibold">
+                          <CheckCircle2Ic className="inline h-3.5 w-3.5 mr-1 -mt-0.5" />Parking auto-allocated
                         </p>
-                        <p className="text-slate-400 text-xs mt-1">
-                          Space <strong className="text-white">{result.parking.spaceNumber}</strong>
+                        <p className="text-muted-foreground text-xs mt-1">
+                          Space <strong className="text-foreground">{result.parking.spaceNumber}</strong>
                           {result.parking.floor && ` · Floor ${result.parking.floor}`}
                           {result.parking.section && ` · Section ${result.parking.section}`}
                         </p>
                       </div>
                     ) : result.parking?.requiresManual ? (
                       <div>
-                        <p className="text-amber-400 text-sm font-semibold mb-2">
-                          ⚠ No spaces auto-found — assign manually
+                        <p className="text-amber-700 dark:text-amber-400 text-sm font-semibold mb-2">
+                          <AlertTriangleIc className="inline h-3.5 w-3.5 mr-1 -mt-0.5" />No spaces auto-found — assign manually
                         </p>
                         <Button
                           size="sm"
@@ -1668,7 +1669,7 @@ export default function GuardCheckin() {
 
                 <Button
                   variant="outline"
-                  className="w-full border-slate-700 text-slate-300 hover:bg-slate-800"
+                  className="w-full border-border text-foreground/80 hover:bg-muted"
                   onClick={resetAll}
                 >
                   <RefreshCw className="w-4 h-4 mr-2" /> Next Visitor
@@ -1682,7 +1683,7 @@ export default function GuardCheckin() {
                 <div className="flex items-center gap-3">
                   <button
                     onClick={() => setMode("result")}
-                    className="text-slate-400 hover:text-white transition-colors"
+                    className="text-muted-foreground hover:text-foreground transition-colors"
                   >
                     ← Back
                   </button>
@@ -1690,9 +1691,9 @@ export default function GuardCheckin() {
                 </div>
 
                 {availableSpaces.length === 0 ? (
-                  <div className="rounded-xl bg-slate-900 border border-slate-800 p-8 text-center">
-                    <ParkingSquare className="w-10 h-10 text-slate-600 mx-auto mb-3" />
-                    <p className="text-slate-400 text-sm">No available spaces found for this property.</p>
+                  <div className="rounded-xl bg-card border border-border p-8 text-center">
+                    <ParkingSquare className="w-10 h-10 text-muted-foreground/70 mx-auto mb-3" />
+                    <p className="text-muted-foreground text-sm">No available spaces found for this property.</p>
                   </div>
                 ) : (
                   <div className="grid grid-cols-2 gap-2">
@@ -1703,18 +1704,18 @@ export default function GuardCheckin() {
                         className={`rounded-xl p-4 text-left border transition-all ${
                           selectedSpaceId === space.id
                             ? "bg-blue-600 border-blue-500"
-                            : "bg-slate-900 border-slate-800 hover:border-slate-600"
+                            : "bg-card border-border hover:border-muted-foreground/40"
                         }`}
                       >
                         <div className="font-mono font-bold text-lg">{space.spaceNumber}</div>
-                        <div className="text-xs text-slate-400 mt-0.5 capitalize">{space.spaceType}</div>
+                        <div className="text-xs text-muted-foreground mt-0.5 capitalize">{space.spaceType}</div>
                         {(space.floor || space.section) && (
-                          <div className="text-xs text-slate-500 mt-0.5">
+                          <div className="text-xs text-muted-foreground mt-0.5">
                             {[space.floor, space.section].filter(Boolean).join(" · ")}
                           </div>
                         )}
                         {space.hasElectricCharging && (
-                          <div className="text-xs text-yellow-400 mt-1">⚡ EV</div>
+                          <div className="text-xs text-yellow-700 dark:text-yellow-400 mt-1 flex items-center gap-1"><ZapIc className="h-3 w-3" />EV</div>
                         )}
                       </button>
                     ))}

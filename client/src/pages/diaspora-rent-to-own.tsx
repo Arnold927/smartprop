@@ -1,4 +1,6 @@
 import { useState, useRef } from "react";
+import { ArrowLeftRight as ArrowLeftRightIc } from "lucide-react";
+import { Building2 as Building2Ic } from "lucide-react";
 import { useLocation } from "wouter";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
@@ -173,7 +175,7 @@ const StatusBadge = ({ status }: { status: string }) => {
       background: stage.color + "22", color: stage.color,
       border: `1px solid ${stage.color}44`,
     }}>
-      {stage.icon} {stage.label}
+      {stage.label}
     </span>
   );
 };
@@ -660,7 +662,7 @@ export default function DiasporaRentToOwn() {
       <div className="flex items-center justify-center h-96">
         <div className="text-center space-y-3 max-w-sm">
           <div className="w-14 h-14 rounded-full bg-amber-50 border border-amber-200 flex items-center justify-center mx-auto">
-            <span className="text-2xl">🏢</span>
+            <Building2Ic className="h-6 w-6 text-amber-600" />
           </div>
           <h2 className="text-lg font-semibold text-foreground">No organisation linked</h2>
           <p className="text-sm text-muted-foreground">Your account is not linked to an organisation. Contact your administrator.</p>
@@ -1112,7 +1114,7 @@ export default function DiasporaRentToOwn() {
                     {/* ── FX section ── */}
                     <div className="rounded-xl border border-emerald-100 dark:border-emerald-900 bg-emerald-50/50 dark:bg-emerald-950/20 p-4 space-y-3">
                       <p className="text-xs font-semibold text-emerald-700 dark:text-emerald-400 flex items-center gap-1.5">
-                        <span className="text-base">💱</span> Exchange Rate &amp; Disbursement
+                        <ArrowLeftRightIc className="h-4 w-4 inline" /> Exchange Rate &amp; Disbursement
                       </p>
 
                       {/* Sender currency + amount */}

@@ -12,6 +12,8 @@
  *  5. Session auto-expires after 12 hours (one shift)
  */
 
+import { CheckCircle2 as CheckCircle2Ic, AlertTriangle as AlertTriangleIc, Zap as ZapIc } from "lucide-react";
+import { PortalHeader } from "@/components/portal-header";
 import { useState, useRef, useEffect, useCallback } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest, ensureArray } from "@/lib/queryClient";
@@ -767,25 +769,21 @@ export default function GatePortal() {
     <div className="min-h-screen bg-background text-foreground flex flex-col">
 
       {/* ── Header ── */}
-      <div className="bg-slate-900 border-b border-slate-700 px-4 py-3 flex items-center justify-between sticky top-0 z-10 text-white">
-        <div className="flex items-center gap-2">
-          <Shield className="w-5 h-5 text-white/90" />
-          <div>
-            <span className="font-semibold text-sm text-white">{t("gatePortal.title")}</span>
-            {session && (
-              <span className="text-xs text-white/60 ml-2">{session.propertyName} · {session.label}</span>
-            )}
-          </div>
-        </div>
-        <div className="flex items-center gap-2">
-          <LanguageToggle variant="full" className="text-white/70 hover:text-white hover:bg-white/10 border border-white/20 h-7 rounded-full px-2 text-xs" />
+      <PortalHeader
+        sticky
+        icon={Shield}
+        maxWidth="max-w-xl"
+        eyebrow={session ? `${session.propertyName} · ${session.label}` : undefined}
+        title={t("gatePortal.title")}
+        actions={<>
+          <LanguageToggle variant="full" className="h-7 rounded-full border border-border px-2 text-xs text-muted-foreground hover:bg-muted hover:text-foreground" />
           {session && (
-            <button onClick={handleLogout} className="text-xs text-white/60 hover:text-white flex items-center gap-1">
+            <button onClick={handleLogout} className="flex items-center gap-1 rounded-full border border-border px-3 py-1 text-xs text-muted-foreground hover:bg-muted hover:text-foreground">
               <LogOut className="w-3.5 h-3.5" /> {t("gatePortal.logout")}
             </button>
           )}
-        </div>
-      </div>
+        </>}
+      />
 
       {/* ── Bottom nav tabs (only when logged in) ── */}
       {session && screen !== "login" && !["vehicle-capture", "result", "parking-manual"].includes(screen) && (
@@ -1241,7 +1239,7 @@ export default function GatePortal() {
                 </div>
                 {result.parking?.allocated ? (
                   <div>
-                    <p className="text-emerald-400 text-sm font-semibold">✓ Parking auto-allocated</p>
+                    <p className="text-emerald-700 dark:text-emerald-400 text-sm font-semibold flex items-center gap-1.5"><CheckCircle2Ic className="h-4 w-4" />Parking auto-allocated</p>
                     <p className="text-muted-foreground text-xs mt-1">
                       Space <strong className="text-white">{result.parking.spaceNumber}</strong>
                       {result.parking.floor && ` · Floor ${result.parking.floor}`}
@@ -1250,7 +1248,7 @@ export default function GatePortal() {
                   </div>
                 ) : result.parking?.requiresManual ? (
                   <div>
-                    <p className="text-amber-400 text-sm font-semibold mb-2">⚠ Assign parking manually</p>
+                    <p className="text-amber-700 dark:text-amber-400 text-sm font-semibold mb-2 flex items-center gap-1.5"><AlertTriangleIc className="h-4 w-4" />Assign parking manually</p>
                     <Button size="sm" className="bg-amber-600 hover:bg-amber-700 text-white w-full"
                       onClick={() => { loadSpaces(); setScreen("parking-manual"); }}>
                       <MapPin className="w-3 h-3 mr-1" /> Choose Space
@@ -1296,7 +1294,7 @@ export default function GatePortal() {
                         {[space.floor, space.section].filter(Boolean).join(" · ")}
                       </div>
                     )}
-                    {space.hasElectricCharging && <div className="text-xs text-yellow-400 mt-1">⚡ EV</div>}
+                    {space.hasElectricCharging && <div className="text-xs text-yellow-700 dark:text-yellow-400 mt-1 flex items-center gap-1"><ZapIc className="h-3 w-3" />EV</div>}
                   </button>
                 ))}
               </div>

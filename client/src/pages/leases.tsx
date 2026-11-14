@@ -13,6 +13,7 @@
  *   Deposit: record received / refund / partial / forfeited
  */
 
+import { AlertTriangle as AlertTriangleIc, Check as CheckIc } from "lucide-react";
 import { tenantOptions, unitOptions, propertyOptions, userOptions, byId } from "@/lib/pickerOptions";
 import { SearchableSelect } from "@/components/ui/searchable-select";
 import { useState, useMemo } from "react";
@@ -256,7 +257,7 @@ function CreateLeaseDialog({ open, onClose }: { open: boolean; onClose: () => vo
       // Show compliance warnings returned by the server
       if (data?.complianceWarnings?.length) {
         data.complianceWarnings.forEach((w: string) =>
-          toast({ title: "⚠️ Compliance Warning", description: w, variant: "destructive", duration: 12000 })
+          toast({ title: "Compliance Warning", description: w, variant: "destructive", duration: 12000 })
         );
       }
       onClose();
@@ -340,7 +341,7 @@ function CreateLeaseDialog({ open, onClose }: { open: boolean; onClose: () => vo
             if (isResidentialTenancy && rent > 0 && deposit > rent * 2) {
               return (
                 <div className="flex items-start gap-2 rounded-md border border-amber-300 bg-amber-50 dark:bg-amber-950/30 dark:border-amber-700 px-3 py-2 text-xs text-amber-800 dark:text-amber-300">
-                  <span className="mt-0.5 shrink-0">⚠️</span>
+                  <AlertTriangleIc className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
                   <span>
                     <strong>Deposit exceeds legal cap.</strong> The Landlord and Tenant Act limits security deposits to
                     2 months' rent for residential tenancies (<strong>KES {(rent * 2).toLocaleString()}</strong>). Entered amount may expose the landlord
@@ -536,7 +537,7 @@ function LeaseDetailSheet({ lease, open, onClose }: { lease: Lease | null; open:
       toast({ title: "Renewal draft created" });
       if (data?.complianceWarnings?.length) {
         data.complianceWarnings.forEach((w: string) =>
-          toast({ title: "⚠️ Compliance Warning", description: w, variant: "destructive", duration: 12000 })
+          toast({ title: "Compliance Warning", description: w, variant: "destructive", duration: 12000 })
         );
       }
       onClose();
@@ -558,7 +559,7 @@ function LeaseDetailSheet({ lease, open, onClose }: { lease: Lease | null; open:
       toast({ title: "Lease terminated" });
       if (data?.complianceWarnings?.length) {
         data.complianceWarnings.forEach((w: string) =>
-          toast({ title: "⚠️ Compliance Warning", description: w, variant: "destructive", duration: 12000 })
+          toast({ title: "Compliance Warning", description: w, variant: "destructive", duration: 12000 })
         );
       }
       onClose();
@@ -628,10 +629,10 @@ function LeaseDetailSheet({ lease, open, onClose }: { lease: Lease | null; open:
                 <div className="bg-muted/50 rounded-lg p-3">
                   <p className="text-[10px] text-muted-foreground uppercase tracking-wide mb-1">Signatures</p>
                   <p className="text-xs">
-                    Tenant: {lease.signedByTenantAt ? <span className="text-emerald-600 font-medium">✓ {fmtDate(lease.signedByTenantAt)}</span> : <span className="text-muted-foreground">Pending</span>}
+                    Tenant: {lease.signedByTenantAt ? <span className="text-emerald-600 font-medium"><CheckIc className="inline h-3 w-3 mr-0.5" />{fmtDate(lease.signedByTenantAt)}</span> : <span className="text-muted-foreground">Pending</span>}
                   </p>
                   <p className="text-xs">
-                    Manager: {lease.signedByManagerAt ? <span className="text-emerald-600 font-medium">✓ {fmtDate(lease.signedByManagerAt)}</span> : <span className="text-muted-foreground">Pending</span>}
+                    Manager: {lease.signedByManagerAt ? <span className="text-emerald-600 font-medium"><CheckIc className="inline h-3 w-3 mr-0.5" />{fmtDate(lease.signedByManagerAt)}</span> : <span className="text-muted-foreground">Pending</span>}
                   </p>
                 </div>
               </div>
@@ -732,7 +733,7 @@ function LeaseDetailSheet({ lease, open, onClose }: { lease: Lease | null; open:
                     if (days < 30) {
                       return (
                         <div className="flex items-start gap-2 rounded-md border border-amber-300 bg-amber-50 dark:bg-amber-950/30 dark:border-amber-700 px-3 py-2 text-xs text-amber-800 dark:text-amber-300">
-                          <span className="shrink-0 mt-0.5">⚠️</span>
+                          <AlertTriangleIc className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
                           <span>
                             <strong>Less than 30 days' notice.</strong> The Landlord and Tenant Act requires
                             30 days' notice for tenancy termination. Ensure you have a legal basis

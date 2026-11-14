@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { Bug as BugIc, Sparkles as SparklesIc, TrendingUp as TrendingUpIc, ThumbsUp as ThumbsUpIc, ThumbsDown as ThumbsDownIc, MessageSquare as MessageSquareIc } from "lucide-react";
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
@@ -164,12 +165,12 @@ export function FeedbackWidget({ children, currentPage, compact = false }: Feedb
  <SelectValue />
  </SelectTrigger>
  <SelectContent>
- <SelectItem value="bug_report">🐛 Bug Report</SelectItem>
- <SelectItem value="feature_request">✨ Feature Request</SelectItem>
- <SelectItem value="improvement">📈 Improvement</SelectItem>
- <SelectItem value="compliment">👍 Compliment</SelectItem>
- <SelectItem value="complaint">👎 Complaint</SelectItem>
- <SelectItem value="general">💬 General</SelectItem>
+ <SelectItem value="bug_report"><span className="flex items-center gap-2"><BugIc className="h-3.5 w-3.5 text-muted-foreground" />Bug Report</span></SelectItem>
+ <SelectItem value="feature_request"><span className="flex items-center gap-2"><SparklesIc className="h-3.5 w-3.5 text-muted-foreground" />Feature Request</span></SelectItem>
+ <SelectItem value="improvement"><span className="flex items-center gap-2"><TrendingUpIc className="h-3.5 w-3.5 text-muted-foreground" />Improvement</span></SelectItem>
+ <SelectItem value="compliment"><span className="flex items-center gap-2"><ThumbsUpIc className="h-3.5 w-3.5 text-muted-foreground" />Compliment</span></SelectItem>
+ <SelectItem value="complaint"><span className="flex items-center gap-2"><ThumbsDownIc className="h-3.5 w-3.5 text-muted-foreground" />Complaint</span></SelectItem>
+ <SelectItem value="general"><span className="flex items-center gap-2"><MessageSquareIc className="h-3.5 w-3.5 text-muted-foreground" />General</span></SelectItem>
  </SelectContent>
  </Select>
  <Select value={feedback.priority} onValueChange={(value) => setFeedback(prev => ({ ...prev, priority: value as any }))}>
@@ -474,7 +475,7 @@ export function QuickFeedbackButton({
  className={`text-xs ${className}`}
  data-testid={`quick-feedback-${type}`}
  >
- {isSubmitting ? '...' : type === 'compliment' ? '👍' : type === 'complaint' ? '👎' : '💬'}
+ {isSubmitting ? '...' : type === 'compliment' ? <ThumbsUpIc className="h-3.5 w-3.5" /> : type === 'complaint' ? <ThumbsDownIc className="h-3.5 w-3.5" /> : <MessageSquareIc className="h-3.5 w-3.5" />}
  </Button>
  );
 }

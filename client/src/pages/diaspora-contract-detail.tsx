@@ -695,7 +695,7 @@ export default function DiasporaContractDetail() {
                         <SelectTrigger><SelectValue placeholder="Select phase" /></SelectTrigger>
                         <SelectContent>
                           {CONSTRUCTION_STAGES.map(s => (
-                            <SelectItem key={s.key} value={s.key}>{s.icon} {s.label}</SelectItem>
+                            <SelectItem key={s.key} value={s.key}>{s.label}</SelectItem>
                           ))}
                         </SelectContent>
                       </Select>
@@ -797,7 +797,7 @@ export default function DiasporaContractDetail() {
                           <div className="flex flex-wrap items-center gap-2 mb-1">
                             <p className="font-semibold text-foreground">{u.updateTitle}</p>
                             <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold border ${stageColor}`}>
-                              {CONSTRUCTION_STAGES.find(s => s.key === u.constructionPhase)?.icon}{" "}
+                              
                               {CONSTRUCTION_STAGES.find(s => s.key === u.constructionPhase)?.label ?? u.constructionPhase}
                             </span>
                           </div>
@@ -920,7 +920,7 @@ export default function DiasporaContractDetail() {
                 <Select name="constructionStatus" defaultValue={contract.constructionStatus}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    {CONSTRUCTION_STAGES.map(s => <SelectItem key={s.key} value={s.key}>{s.icon} {s.label}</SelectItem>)}
+                    {CONSTRUCTION_STAGES.map(s => <SelectItem key={s.key} value={s.key}>{s.label}</SelectItem>)}
                   </SelectContent>
                 </Select>
               </div>

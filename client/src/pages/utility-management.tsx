@@ -1,4 +1,5 @@
 import { tenantOptions, unitOptions, propertyOptions, userOptions, byId } from "@/lib/pickerOptions";
+import { Droplets as DropletsIc, Zap as ZapIc, Flame as FlameIc, Wifi as WifiIc, Trash2 as Trash2Ic, Cog as CogIc, Wrench as WrenchIc } from "lucide-react";
 import { SearchableSelect } from "@/components/ui/searchable-select";
 import { useState, useEffect } from "react";
 import { offlineQueue } from "@/utils/offlineQueue";
@@ -476,15 +477,15 @@ function EditBillDialog({
               <SelectTrigger><SelectValue /></SelectTrigger>
               <SelectContent>
                 {[
-                  { value: "water", label: "💧 Water" },
-                  { value: "electricity", label: "⚡ Electricity" },
-                  { value: "gas", label: "🔥 Gas" },
-                  { value: "internet", label: "📶 Internet / WiFi" },
-                  { value: "waste", label: "🗑️ Waste" },
-                  { value: "generator", label: "⚙️ Generator" },
-                  { value: "other", label: "🔧 Other" },
+                  { value: "water", label: "Water", Icon: DropletsIc },
+                  { value: "electricity", label: "Electricity", Icon: ZapIc },
+                  { value: "gas", label: "Gas", Icon: FlameIc },
+                  { value: "internet", label: "Internet / WiFi", Icon: WifiIc },
+                  { value: "waste", label: "Waste", Icon: Trash2Ic },
+                  { value: "generator", label: "Generator", Icon: CogIc },
+                  { value: "other", label: "Other", Icon: WrenchIc },
                 ].map(t => (
-                  <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>
+                  <SelectItem key={t.value} value={t.value}><span className="flex items-center gap-2">{(t as any).Icon && (() => { const I = (t as any).Icon; return <I className="h-3.5 w-3.5 text-muted-foreground" />; })()}{t.label}</span></SelectItem>
                 ))}
               </SelectContent>
             </Select>

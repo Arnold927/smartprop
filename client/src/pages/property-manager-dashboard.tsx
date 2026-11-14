@@ -10,6 +10,7 @@
  *  ✅ Mobile responsive (sm: breakpoints throughout)
  */
 
+import { PortalHeader, PortalMeta } from "@/components/portal-header";
 import { tenantOptions, unitOptions, propertyOptions, userOptions, byId } from "@/lib/pickerOptions";
 import { SearchableSelect } from "@/components/ui/searchable-select";
 import { useState, useMemo, useEffect } from "react";
@@ -614,7 +615,7 @@ export default function PropertyManagerDashboard() {
     setNotifications(prev => [{ ...n, id: String(Date.now()), read: false }, ...prev].slice(0, 50));
 
   useWsEvent("maintenance:updated", (p: any) => { queryClient.invalidateQueries({ queryKey: ["/api/maintenance-requests"] }); addNotif({ type:"maintenance", title:"Maintenance updated", message:`Request #${p?.id} → ${(p?.status??"").replace(/_/g," ")}`, ts: new Date().toISOString() }); });
-  useWsEvent("payment:confirmed",  (p: any) => { queryClient.invalidateQueries({ queryKey: ["/api/rent-payments"] }); addNotif({ type:"payment", title:"Payment confirmed", message:`${p?.amount ?? ""} received`, ts: new Date().toISOString() }); toast({ title:"Payment confirmed ✓" }); });
+  useWsEvent("payment:confirmed",  (p: any) => { queryClient.invalidateQueries({ queryKey: ["/api/rent-payments"] }); addNotif({ type:"payment", title:"Payment confirmed", message:`${p?.amount ?? ""} received`, ts: new Date().toISOString() }); toast({ title:"Payment confirmed" }); });
   useWsEvent("payment:overdue",    ()       => { queryClient.invalidateQueries({ queryKey: ["/api/rent-payments"] }); addNotif({ type:"payment", title:"Payment overdue", message:"A tenant has an overdue payment", ts: new Date().toISOString() }); toast({ title:"Payment overdue", variant:"destructive" }); });
   useWsEvent("message:new",        (p: any) => { queryClient.invalidateQueries({ queryKey: ["/api/messages"] }); addNotif({ type:"message", title:"New message", message:`From ${p?.fromName??"someone"}`, ts: new Date().toISOString() }); });
   useWsEvent("broadcast",          (p: any) => { addNotif({ type:"system", title:p?.title??"Notice", message:p?.message??"", ts: new Date().toISOString() }); });
@@ -636,44 +637,36 @@ export default function PropertyManagerDashboard() {
   return (
     <div className="min-h-screen bg-background">
       {/* Header */}
-      <div className="bg-slate-900 text-white px-4 sm:px-6 py-5 shadow-lg">
-        <div className="max-w-5xl mx-auto">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="h-12 w-12 rounded-xl bg-card/10 border border-white/20 flex items-center justify-center shadow">
-                <Building className="h-6 w-6 text-white"/>
-              </div>
-              <div>
-                <p className="text-lg font-bold leading-tight">Property Manager</p>
-                <p className="text-white/70 text-sm">{user?.firstName ? `Welcome, ${user.firstName}` : "Operations Dashboard"}</p>
-              </div>
-            </div>
-            <div className="flex items-center gap-2">
-              <button onClick={() => setNotifOpen(!notifOpen)} className="relative p-2 rounded-xl bg-card/10 border border-white/20 hover:bg-card/20 transition-colors" aria-label="Notifications">
-                <Bell className="h-5 w-5 text-white"/>
-                {unread > 0 && <span className="absolute -top-1 -right-1 h-[18px] min-w-[18px] rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center px-0.5 border-2 border-white/20">{unread>9?"9+":unread}</span>}
-              </button>
-              <div className="text-right hidden sm:block">
-                <p className="text-xs text-white/60">{format(new Date(),"EEE, dd MMM yyyy")}</p>
-                <p className="text-xs text-white/60">{occupancyRate}% occupancy</p>
-              </div>
-            </div>
-          </div>
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mt-4">
+      <PortalHeader
+        icon={Building}
+        eyebrow="Property Manager"
+        title={user?.firstName ? `Welcome, ${user.firstName}` : "Operations Dashboard"}
+        meta={<>
+          <PortalMeta>{format(new Date(),"EEE, dd MMM yyyy")}</PortalMeta>
+          <PortalMeta>{occupancyRate}% occupancy</PortalMeta>
+        </>}
+        actions={
+          <button onClick={() => setNotifOpen(!notifOpen)} className="relative rounded-xl border border-border bg-card p-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground" aria-label="Notifications">
+            <Bell className="h-5 w-5"/>
+            {unread > 0 && <span className="absolute -top-1 -right-1 flex h-[18px] min-w-[18px] items-center justify-center rounded-full border-2 border-card bg-red-500 px-0.5 text-[10px] font-bold text-white">{unread > 9 ? "9+" : unread}</span>}
+          </button>
+        }
+        footer={
+          <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
             {[
-              { label:"Properties",  value:String(properties.length),  color:"text-white" },
-              { label:"Tenants",     value:String(activeTenants),       color:"text-white" },
-              { label:"Open Tickets",value:String(openTickets),         color:urgentTickets>0?"text-red-300":"text-white" },
-              { label:"Month Rev.",  value:fmtKES(monthRevenue),        color:"text-emerald-200" },
+              { label:"Properties",  value:String(properties.length), color:"text-foreground" },
+              { label:"Tenants",     value:String(activeTenants),      color:"text-foreground" },
+              { label:"Open Tickets",value:String(openTickets),        color:urgentTickets>0?"text-red-600 dark:text-red-400":"text-foreground" },
+              { label:"Month Rev.",  value:fmtKES(monthRevenue),       color:"text-emerald-700 dark:text-emerald-400" },
             ].map(s=>(
-              <div key={s.label} className="text-center bg-card/10 rounded-lg py-2 px-1">
-                <p className={`text-lg font-bold ${s.color} truncate`}>{s.value}</p>
-                <p className="text-xs text-white/60 mt-0.5">{s.label}</p>
+              <div key={s.label} className="rounded-lg border border-border bg-muted/40 px-1 py-2 text-center">
+                <p className={`truncate text-lg font-bold ${s.color}`}>{s.value}</p>
+                <p className="mt-0.5 text-xs text-muted-foreground">{s.label}</p>
               </div>
             ))}
           </div>
-        </div>
-      </div>
+        }
+      />
 
       {/* Notification drawer */}
       {notifOpen && (

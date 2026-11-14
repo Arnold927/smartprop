@@ -28,6 +28,8 @@
  *   - Everything else: org-scoped (existing APIs), shown as read-only view
  */
 
+import { Building2 as Building2Ic, Lock as LockIc } from "lucide-react";
+import { PortalHeader, PortalMeta } from "@/components/portal-header";
 import { tenantOptions, unitOptions, propertyOptions, userOptions, byId } from "@/lib/pickerOptions";
 import { SearchableSelect } from "@/components/ui/searchable-select";
 import { useState, useMemo, useEffect, useCallback, useRef } from "react";
@@ -359,7 +361,7 @@ function SecurityPanel() {
   const VSTATUS: Record<string, { color: string; bg: string }> = {
     expected:  { color: "text-blue-700 dark:text-blue-300",  bg: "bg-blue-50 dark:bg-blue-950/30 border-blue-200 dark:border-blue-800" },
     arrived:   { color: "text-green-700 dark:text-green-300", bg: "bg-green-50 dark:bg-green-950/30 border-green-200 dark:border-green-800" },
-    departed:  { color: "text-muted-foreground",              bg: "bg-muted border-border" },
+    departed:  { color: "text-muted-foreground",              bg: "bg-card border-border" },
     denied:    { color: "text-red-700 dark:text-red-300",     bg: "bg-red-50 dark:bg-red-950/30 border-red-200 dark:border-red-800" },
   };
 
@@ -800,10 +802,10 @@ function AdminPanel() {
       {/* KPI grid */}
       <div className="grid grid-cols-2 gap-3">
         {[
-          { label: "Properties",     value: properties.length,   color: "text-muted-foreground",  icon: Building,        bg: "bg-muted border-border" },
-          { label: "Active Tenants", value: tenants.filter((t:any)=>t.status==="active").length, color: "text-green-700", icon: Users, bg: "bg-green-50 border-green-200" },
-          { label: "Open Tickets",   value: openTickets,         color: urgentTickets > 0 ? "text-red-700" : "text-amber-700 dark:text-amber-400", icon: Wrench, bg: urgentTickets > 0 ? "bg-red-50 border-red-200" : "bg-amber-50 border-amber-200" },
-          { label: "Active Staff",   value: activeStaff,         color: "text-blue-700 dark:text-blue-300",   icon: HardHat,         bg: "bg-blue-50 border-blue-200" },
+          { label: "Properties",     value: properties.length,   color: "text-muted-foreground",  icon: Building,        bg: "bg-card border-border" },
+          { label: "Active Tenants", value: tenants.filter((t:any)=>t.status==="active").length, color: "text-green-700", icon: Users, bg: "bg-card border-border" },
+          { label: "Open Tickets",   value: openTickets,         color: urgentTickets > 0 ? "text-red-700" : "text-amber-700 dark:text-amber-400", icon: Wrench, bg: urgentTickets > 0 ? "bg-red-50 dark:bg-red-950/30 border-red-200 dark:border-red-900" : "bg-card border-border" },
+          { label: "Active Staff",   value: activeStaff,         color: "text-blue-700 dark:text-blue-300",   icon: HardHat,         bg: "bg-card border-border" },
         ].map(s => (
           <div key={s.label} className={`rounded-xl border p-4 ${s.bg} shadow-sm`}>
             <div className="flex items-center gap-2 mb-1">
@@ -816,7 +818,7 @@ function AdminPanel() {
       </div>
 
       {/* Month revenue */}
-      <div className="bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800 rounded-xl p-4">
+      <div className="bg-card border border-border rounded-xl p-4 shadow-sm">
         <p className="text-xs text-emerald-600 font-semibold uppercase tracking-wide mb-1">This Month's Revenue</p>
         <p className="text-2xl font-semibold text-emerald-700">{fmtKES(monthRevenue)}</p>
         <p className="text-xs text-emerald-500 mt-0.5">{monthPayments.length} payment{monthPayments.length !== 1 ? "s" : ""} received</p>
@@ -1270,7 +1272,7 @@ function HRPanel({ staffProfile }: { staffProfile: any }) {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/time-tracking/active-session"] });
-      toast({ title: "Clocked in ✓", description: `Started at ${format(new Date(), "h:mm a")}` });
+      toast({ title: "Clocked in", description: `Started at ${format(new Date(), "h:mm a")}` });
     },
     onError: (e: any) => toast({ title: e.message ?? "Clock-in failed", variant: "destructive" }),
   });
@@ -1286,7 +1288,7 @@ function HRPanel({ staffProfile }: { staffProfile: any }) {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/time-tracking/active-session"] });
-      toast({ title: "Clocked out ✓", description: `Ended at ${format(new Date(), "h:mm a")}` });
+      toast({ title: "Clocked out", description: `Ended at ${format(new Date(), "h:mm a")}` });
     },
     onError: (e: any) => toast({ title: e.message ?? "Clock-out failed", variant: "destructive" }),
   });
@@ -1881,10 +1883,10 @@ export default function StaffPortal() {
 
   const STAFF_ROLES = ["staff", "caretaker", "admin", "manager"];
   if (!authLoading && user && !STAFF_ROLES.includes(user.role)) {
-    return (<div className="flex items-center justify-center min-h-[60vh] p-6"><div className="text-center max-w-sm space-y-3"><div className="w-14 h-14 rounded-full bg-amber-50 border border-amber-200 flex items-center justify-center mx-auto"><span className="text-2xl">🔒</span></div><h2 className="text-lg font-semibold text-foreground">Access restricted</h2><p className="text-sm text-muted-foreground">The staff portal is for property staff and caretakers.</p></div></div>);
+    return (<div className="flex items-center justify-center min-h-[60vh] p-6"><div className="text-center max-w-sm space-y-3"><div className="w-14 h-14 rounded-full bg-amber-50 border border-amber-200 flex items-center justify-center mx-auto"><LockIc className="h-6 w-6 text-amber-600" /></div><h2 className="text-lg font-semibold text-foreground">Access restricted</h2><p className="text-sm text-muted-foreground">The staff portal is for property staff and caretakers.</p></div></div>);
   }
   if (!authLoading && user && !user.organizationId) {
-    return (<div className="flex items-center justify-center min-h-[60vh] p-6"><div className="text-center max-w-sm space-y-3"><div className="w-14 h-14 rounded-full bg-amber-50 border border-amber-200 flex items-center justify-center mx-auto"><span className="text-2xl">🏢</span></div><h2 className="text-lg font-semibold text-foreground">No organisation linked</h2><p className="text-sm text-muted-foreground">Your account is not linked to an organisation.</p></div></div>);
+    return (<div className="flex items-center justify-center min-h-[60vh] p-6"><div className="text-center max-w-sm space-y-3"><div className="w-14 h-14 rounded-full bg-amber-50 border border-amber-200 flex items-center justify-center mx-auto"><Building2Ic className="h-6 w-6 text-amber-600" /></div><h2 className="text-lg font-semibold text-foreground">No organisation linked</h2><p className="text-sm text-muted-foreground">Your account is not linked to an organisation.</p></div></div>);
   }
 
   return (
@@ -1904,30 +1906,14 @@ export default function StaffPortal() {
         />
       )}
 
-      {/* Role-coloured header — darkens slightly in gray/dark modes */}
-      <div className={`bg-gradient-to-r ${meta.bg}  text-white px-4 py-5 shadow-lg`}>
-        <div className="max-w-4xl mx-auto">
-          <div className="flex items-center justify-between mb-3">
-            <div className="flex items-center gap-3">
-              <div className="h-12 w-12 rounded-xl bg-white/10 border border-white/20 flex items-center justify-center shadow">
-                <meta.icon className="h-6 w-6 text-white" />
-              </div>
-              <div>
-                <p className="text-lg font-bold leading-tight">{fullName}</p>
-                <p className="text-white/70 text-sm capitalize">{[position, department].filter(Boolean).join(" · ")}</p>
-              </div>
-            </div>
-            <div className="text-right flex items-center gap-2">
-              {/* NotificationBell removed — use the bell in the top-bar instead */}
-              {/* <NotificationBell onOpen={() => setNotifOpen(true)} /> */}
-              <div>
-                <Badge className="bg-white/20 text-white border-white/30 text-xs capitalize">{meta.label}</Badge>
-                <p className="text-xs text-white/60 mt-1">{format(new Date(), "EEE, dd MMM")}</p>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
+      <PortalHeader
+        icon={meta.icon}
+        eyebrow={meta.label}
+        title={fullName}
+        maxWidth="max-w-4xl"
+        meta={<PortalMeta className="capitalize">{[position, department].filter(Boolean).join(" · ")}</PortalMeta>}
+        actions={<PortalMeta>{format(new Date(), "EEE, dd MMM")}</PortalMeta>}
+      />
 
       {/* Notification drawer removed — use top-bar bell instead */}
       {/* <NotificationDrawer open={notifOpen} onClose={() => setNotifOpen(false)} /> */}

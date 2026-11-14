@@ -25,6 +25,8 @@
  *   POST /messages                  — send message
  */
 
+import { Building2 as Building2Ic, Lock as LockIc } from "lucide-react";
+import { PortalHeader, PortalChip, PortalMeta } from "@/components/portal-header";
 import { useState, useEffect, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
@@ -164,22 +166,22 @@ const fmtMoney = (amount: number | string | null | undefined, currency = "KES") 
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; icon: any; bg: string; dot: string }> = {
   draft:            { label: "Draft",           color: "text-muted-foreground",   icon: CircleDot,     bg: "bg-muted border-border",    dot: "bg-muted-foreground" },
-  pending_approval: { label: "Pending Approval", color: "text-amber-400",  icon: Clock,          bg: "bg-amber-950/40 border-amber-800/50", dot: "bg-amber-400" },
-  approved:         { label: "Approved",         color: "text-blue-400",   icon: CheckCircle,    bg: "bg-blue-950/40 border-blue-800/50",   dot: "bg-blue-400" },
-  assigned:         { label: "Assigned to You",  color: "text-indigo-400", icon: Briefcase,      bg: "bg-indigo-950/40 border-indigo-800/50", dot: "bg-indigo-400" },
-  in_progress:      { label: "In Progress",      color: "text-amber-400",  icon: Play,           bg: "bg-amber-950/40 border-amber-800/50", dot: "bg-amber-400" },
-  on_hold:          { label: "On Hold",          color: "text-orange-400", icon: AlertTriangle,  bg: "bg-orange-950/40 border-orange-800/50", dot: "bg-orange-400" },
-  completed:        { label: "Completed",        color: "text-emerald-400",icon: Trophy,         bg: "bg-emerald-950/30 border-emerald-800/40", dot: "bg-emerald-400" },
+  pending_approval: { label: "Pending Approval", color: "text-amber-700 dark:text-amber-400",  icon: Clock,          bg: "bg-amber-50 dark:bg-amber-950/40 border-amber-200 dark:border-amber-800/50", dot: "bg-amber-400" },
+  approved:         { label: "Approved",         color: "text-blue-600 dark:text-blue-400",   icon: CheckCircle,    bg: "bg-blue-50 dark:bg-blue-950/40 border-blue-200 dark:border-blue-800/50",   dot: "bg-blue-400" },
+  assigned:         { label: "Assigned to You",  color: "text-indigo-600 dark:text-indigo-400", icon: Briefcase,      bg: "bg-indigo-50 dark:bg-indigo-950/40 border-indigo-200 dark:border-indigo-800/50", dot: "bg-indigo-400" },
+  in_progress:      { label: "In Progress",      color: "text-amber-700 dark:text-amber-400",  icon: Play,           bg: "bg-amber-50 dark:bg-amber-950/40 border-amber-200 dark:border-amber-800/50", dot: "bg-amber-400" },
+  on_hold:          { label: "On Hold",          color: "text-orange-600 dark:text-orange-400", icon: AlertTriangle,  bg: "bg-orange-50 dark:bg-orange-950/40 border-orange-200 dark:border-orange-800/50", dot: "bg-orange-400" },
+  completed:        { label: "Completed",        color: "text-emerald-700 dark:text-emerald-400",icon: Trophy,         bg: "bg-emerald-50 dark:bg-emerald-950/30 border-emerald-200 dark:border-emerald-800/40", dot: "bg-emerald-400" },
   cancelled:        { label: "Cancelled",        color: "text-muted-foreground/70",  icon: XCircle,        bg: "bg-muted/50 border-border",       dot: "bg-muted-foreground/50" },
-  rejected:         { label: "Rejected",         color: "text-red-400",    icon: XCircle,        bg: "bg-red-950/30 border-red-800/40",     dot: "bg-red-400" },
+  rejected:         { label: "Rejected",         color: "text-red-600 dark:text-red-400",    icon: XCircle,        bg: "bg-red-50 dark:bg-red-950/30 border-red-200 dark:border-red-800/40",     dot: "bg-red-400" },
 };
 
 const PRIORITY_COLOR: Record<string, string> = {
   low: "text-muted-foreground bg-muted/60",
-  medium: "text-blue-400 bg-blue-950/40",
-  high: "text-amber-400 bg-amber-950/40",
-  urgent: "text-orange-400 bg-orange-950/40",
-  critical: "text-red-400 bg-red-950/40 font-bold",
+  medium: "text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/40",
+  high: "text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/40",
+  urgent: "text-orange-600 dark:text-orange-400 bg-orange-50 dark:bg-orange-950/40",
+  critical: "text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950/40 font-bold",
 };
 
 // ─── Modals ──────────────────────────────────────────────────────────────────
@@ -203,8 +205,8 @@ function RejectModal({ workOrderId, onClose, onDone }: { workOrderId: number; on
   return (
     <Dialog open onOpenChange={onClose}>
       <DialogContent className="max-w-xl">
-        <DialogHeader><DialogTitle className="flex items-center gap-2 text-red-400"><XCircle className="w-5 h-5" /> Reject Work Order</DialogTitle></DialogHeader>
-        <p className="text-sm text-slate-400">Please explain why you cannot take this job.</p>
+        <DialogHeader><DialogTitle className="flex items-center gap-2 text-red-600 dark:text-red-400"><XCircle className="w-5 h-5" /> Reject Work Order</DialogTitle></DialogHeader>
+        <p className="text-sm text-muted-foreground">Please explain why you cannot take this job.</p>
         <Textarea placeholder="e.g. Unavailable during the required dates…" value={reason} onChange={e => setReason(e.target.value)} className="min-h-[100px]" />
         <DialogFooter>
           <Button variant="ghost" onClick={onClose} className="text-muted-foreground">Cancel</Button>
@@ -228,7 +230,7 @@ function CompleteModal({ workOrderId, currency, onClose, onDone }: { workOrderId
       if (!res.ok) throw new Error((await res.json().catch(() => ({}))).message ?? "Failed");
     },
     onSuccess: () => {
-      toast({ title: "Work order completed! 🎉" });
+      toast({ title: "Work order completed!" });
       qc.invalidateQueries({ queryKey: ["/api/contractor-portal/work-orders"] });
       qc.invalidateQueries({ queryKey: ["/api/contractor-portal/earnings"] });
       qc.invalidateQueries({ queryKey: ["/api/contractor-portal/stats"] });
@@ -238,15 +240,15 @@ function CompleteModal({ workOrderId, currency, onClose, onDone }: { workOrderId
   });
   return (
     <Dialog open onOpenChange={onClose}>
-      <DialogContent className="bg-slate-900 border-slate-700 text-white max-w-xl">
-        <DialogHeader><DialogTitle className="flex items-center gap-2 text-emerald-400"><Trophy className="w-5 h-5" /> Mark as Completed</DialogTitle></DialogHeader>
+      <DialogContent className="max-w-xl">
+        <DialogHeader><DialogTitle className="flex items-center gap-2 text-emerald-700 dark:text-emerald-400"><Trophy className="w-5 h-5" /> Mark as Completed</DialogTitle></DialogHeader>
         <div className="space-y-4">
           <div>
             <label className="text-xs text-muted-foreground mb-1.5 block">Completion Notes *</label>
-            <Textarea placeholder="Describe the work done, materials used…" value={notes} onChange={e => setNotes(e.target.value)} className="bg-slate-800 border-slate-700 text-white min-h-[100px]" />
+            <Textarea placeholder="Describe the work done, materials used…" value={notes} onChange={e => setNotes(e.target.value)} className="bg-background border-border text-foreground min-h-[100px]" />
           </div>
           <div>
-            <label className="text-xs text-slate-400 mb-1.5 block">Actual Cost ({currency}) — optional</label>
+            <label className="text-xs text-muted-foreground mb-1.5 block">Actual Cost ({currency}) — optional</label>
             <Input type="number" placeholder="e.g. 15000" value={cost} onChange={e => setCost(e.target.value)}  />
           </div>
         </div>
@@ -281,20 +283,20 @@ function InvoiceModal({ workOrderId, currency, onClose, onDone }: { workOrderId:
   });
   return (
     <Dialog open onOpenChange={onClose}>
-      <DialogContent className="bg-slate-900 border-slate-700 text-white max-w-xl">
-        <DialogHeader><DialogTitle className="flex items-center gap-2 text-blue-400"><Receipt className="w-5 h-5" /> Submit Invoice</DialogTitle></DialogHeader>
+      <DialogContent className="max-w-xl">
+        <DialogHeader><DialogTitle className="flex items-center gap-2 text-blue-600 dark:text-blue-400"><Receipt className="w-5 h-5" /> Submit Invoice</DialogTitle></DialogHeader>
         <div className="space-y-4">
           <div>
-            <label className="text-xs text-slate-400 mb-1.5 block">Invoice Amount ({currency}) *</label>
-            <Input type="number" placeholder="e.g. 25000" value={amount} onChange={e => setAmount(e.target.value)} className="bg-slate-800 border-slate-700 text-white" />
+            <label className="text-xs text-muted-foreground mb-1.5 block">Invoice Amount ({currency}) *</label>
+            <Input type="number" placeholder="e.g. 25000" value={amount} onChange={e => setAmount(e.target.value)} className="bg-background border-border text-foreground" />
           </div>
           <div>
-            <label className="text-xs text-slate-400 mb-1.5 block">Invoice Reference / Number</label>
-            <Input placeholder="e.g. INV-001" value={ref} onChange={e => setRef(e.target.value)} className="bg-slate-800 border-slate-700 text-white" />
+            <label className="text-xs text-muted-foreground mb-1.5 block">Invoice Reference / Number</label>
+            <Input placeholder="e.g. INV-001" value={ref} onChange={e => setRef(e.target.value)} className="bg-background border-border text-foreground" />
           </div>
           <div>
-            <label className="text-xs text-slate-400 mb-1.5 block">Payment Notes</label>
-            <Textarea placeholder="e.g. Please pay via M-Pesa to 0712 345 678…" value={invoiceNotes} onChange={e => setInvoiceNotes(e.target.value)} className="bg-slate-800 border-slate-700 text-white" />
+            <label className="text-xs text-muted-foreground mb-1.5 block">Payment Notes</label>
+            <Textarea placeholder="e.g. Please pay via M-Pesa to 0712 345 678…" value={invoiceNotes} onChange={e => setInvoiceNotes(e.target.value)} className="bg-background border-border text-foreground" />
           </div>
         </div>
         <DialogFooter>
@@ -318,20 +320,20 @@ function WorkOrderCard({ row, onSelect }: { row: WorkOrderRow; onSelect: (row: W
   const isUrgent = ["urgent", "critical"].includes(workOrder.priority);
 
   return (
-    <button onClick={() => onSelect(row)} className={`w-full text-left rounded-2xl border p-4 transition-all hover:border-slate-500 active:scale-[0.99] ${cfg.bg} ${isUrgent ? "ring-1 ring-orange-500/30" : ""}`}>
+    <button onClick={() => onSelect(row)} className={`w-full text-left rounded-2xl border p-4 transition-all hover:border-muted-foreground/40 active:scale-[0.99] ${cfg.bg} ${isUrgent ? "ring-1 ring-orange-500/30" : ""}`}>
       <div className="flex items-start justify-between gap-3">
         <div className="flex items-start gap-3 flex-1 min-w-0">
-          <div className={`mt-0.5 shrink-0 w-8 h-8 rounded-lg flex items-center justify-center bg-black/30 ${cfg.color}`}>
+          <div className={`mt-0.5 shrink-0 w-8 h-8 rounded-lg flex items-center justify-center bg-muted ${cfg.color}`}>
             <Icon className="w-4 h-4" />
           </div>
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 flex-wrap mb-1">
-              <span className="font-semibold text-sm text-white truncate">{workOrder.title}</span>
+              <span className="font-semibold text-sm text-foreground truncate">{workOrder.title}</span>
               <span className={`text-[10px] rounded-full px-2 py-0.5 font-medium ${priCls}`}>{workOrder.priority}</span>
             </div>
-            <p className="text-xs text-slate-500 font-mono">{workOrder.ticketNumber}</p>
+            <p className="text-xs text-muted-foreground font-mono">{workOrder.ticketNumber}</p>
             {property && (
-              <div className="flex items-center gap-1.5 mt-1.5 text-xs text-slate-400">
+              <div className="flex items-center gap-1.5 mt-1.5 text-xs text-muted-foreground">
                 <Building className="w-3 h-3 shrink-0" />
                 <span className="truncate">{property.name}</span>
                 {unit && <span className="text-muted-foreground">· Unit {unit.unitNumber}</span>}
@@ -340,19 +342,19 @@ function WorkOrderCard({ row, onSelect }: { row: WorkOrderRow; onSelect: (row: W
             <div className="flex items-center gap-3 mt-2 flex-wrap">
               <span className={`text-xs font-medium ${cfg.color}`}>{cfg.label}</span>
               {workOrder.estimatedEndDate && (
-                <span className="text-xs text-slate-500 flex items-center gap-1">
+                <span className="text-xs text-muted-foreground flex items-center gap-1">
                   <Calendar className="w-3 h-3" /> Due {fmtDate(workOrder.estimatedEndDate)}
                 </span>
               )}
               {workOrder.estimatedCost && (
-                <span className="text-xs text-slate-500 flex items-center gap-1">
+                <span className="text-xs text-muted-foreground flex items-center gap-1">
                   <DollarSign className="w-3 h-3" /> {fmtMoney(workOrder.estimatedCost, workOrder.currency)}
                 </span>
               )}
             </div>
           </div>
         </div>
-        <ChevronRight className="w-4 h-4 text-slate-600 shrink-0 mt-2" />
+        <ChevronRight className="w-4 h-4 text-muted-foreground/70 shrink-0 mt-2" />
       </div>
     </button>
   );
@@ -418,37 +420,37 @@ function WorkOrderDetail({ row, onBack }: { row: WorkOrderRow; onBack: () => voi
 
   return (
     <div className="space-y-4">
-      <button onClick={onBack} className="flex items-center gap-1.5 text-slate-400 hover:text-white text-sm transition-colors">
+      <button onClick={onBack} className="flex items-center gap-1.5 text-muted-foreground hover:text-foreground text-sm transition-colors">
         <ChevronLeft className="w-4 h-4" /> Back to work orders
       </button>
 
       {/* Header card */}
       <div className={`rounded-2xl border p-5 ${cfg.bg}`}>
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-full flex items-center justify-center bg-black/30">
+          <div className="w-10 h-10 rounded-full flex items-center justify-center bg-muted">
             <Icon className={`w-5 h-5 ${cfg.color}`} />
           </div>
           <div>
-            <h2 className="font-semibold text-white">{workOrder.title}</h2>
+            <h2 className="font-semibold text-foreground">{workOrder.title}</h2>
             <div className="flex items-center gap-2 mt-0.5">
               <span className={`text-sm font-medium ${cfg.color}`}>{cfg.label}</span>
               <span className="text-muted-foreground">·</span>
-              <span className="text-xs text-slate-500 font-mono">{workOrder.ticketNumber}</span>
+              <span className="text-xs text-muted-foreground font-mono">{workOrder.ticketNumber}</span>
             </div>
           </div>
         </div>
       </div>
 
       {/* Tabs */}
-      <div className="rounded-2xl bg-slate-900 border border-slate-800 overflow-hidden">
-        <div className="flex border-b border-slate-800">
+      <div className="rounded-2xl bg-card border border-border overflow-hidden">
+        <div className="flex border-b border-border">
           {[
             { id: "details",  label: "Details"  },
             { id: "comments", label: `Comments${(comments as WOComment[]).length > 0 ? ` (${(comments as WOComment[]).length})` : ""}` },
             { id: "history",  label: "History"  },
           ].map(t => (
             <button key={t.id} onClick={() => setDetailTab(t.id)}
-              className={`flex-1 py-3 text-xs font-semibold transition-colors border-b-2 ${detailTab === t.id ? "text-amber-400 border-amber-400" : "text-slate-500 border-transparent hover:text-slate-300"}`}>
+              className={`flex-1 py-3 text-xs font-semibold transition-colors border-b-2 ${detailTab === t.id ? "text-emerald-700 dark:text-emerald-400 border-emerald-500" : "text-muted-foreground border-transparent hover:text-foreground"}`}>
               {t.label}
             </button>
           ))}
@@ -456,46 +458,46 @@ function WorkOrderDetail({ row, onBack }: { row: WorkOrderRow; onBack: () => voi
 
         {/* Details tab */}
         {detailTab === "details" && (
-          <div className="divide-y divide-slate-800">
+          <div className="divide-y divide-border">
             <div className="p-4">
-              <p className="text-xs text-slate-500 uppercase tracking-wide mb-2">Description</p>
-              <p className="text-sm text-slate-300 whitespace-pre-wrap">{workOrder.description}</p>
+              <p className="text-xs text-muted-foreground uppercase tracking-wide mb-2">Description</p>
+              <p className="text-sm text-muted-foreground whitespace-pre-wrap">{workOrder.description}</p>
             </div>
             {property && (
               <div className="p-4 flex items-start gap-3">
-                <MapPin className="w-4 h-4 text-slate-500 mt-0.5 shrink-0" />
+                <MapPin className="w-4 h-4 text-muted-foreground mt-0.5 shrink-0" />
                 <div>
-                  <p className="text-sm text-white font-medium">{property.name}</p>
-                  {unit && <p className="text-xs text-slate-400">Unit {unit.unitNumber}</p>}
-                  {property.address && <p className="text-xs text-slate-500 mt-0.5">{property.address}</p>}
+                  <p className="text-sm text-foreground font-medium">{property.name}</p>
+                  {unit && <p className="text-xs text-muted-foreground">Unit {unit.unitNumber}</p>}
+                  {property.address && <p className="text-xs text-muted-foreground mt-0.5">{property.address}</p>}
                 </div>
               </div>
             )}
             {maintenanceRequest && (
               <div className="p-4 flex items-start gap-3">
-                <Package className="w-4 h-4 text-slate-500 mt-0.5 shrink-0" />
+                <Package className="w-4 h-4 text-muted-foreground mt-0.5 shrink-0" />
                 <div>
-                  <p className="text-xs text-slate-500 uppercase tracking-wide">Category</p>
-                  <p className="text-sm text-white capitalize">{maintenanceRequest.category?.replace(/_/g, " ")}</p>
+                  <p className="text-xs text-muted-foreground uppercase tracking-wide">Category</p>
+                  <p className="text-sm text-foreground capitalize">{maintenanceRequest.category?.replace(/_/g, " ")}</p>
                 </div>
               </div>
             )}
             <div className="p-4 grid grid-cols-2 gap-4">
-              <div><p className="text-xs text-slate-500 mb-1">Start Date</p><p className="text-sm text-white">{fmtDate(workOrder.estimatedStartDate ?? workOrder.actualStartDate)}</p></div>
-              <div><p className="text-xs text-slate-500 mb-1">Due Date</p><p className="text-sm text-white">{fmtDate(workOrder.estimatedEndDate)}</p></div>
-              {workOrder.estimatedCost && <div><p className="text-xs text-slate-500 mb-1">Estimated Cost</p><p className="text-sm text-white">{fmtMoney(workOrder.estimatedCost, workOrder.currency)}</p></div>}
-              {workOrder.actualCost && <div><p className="text-xs text-slate-500 mb-1">Actual / Invoice</p><p className="text-sm text-emerald-400 font-medium">{fmtMoney(workOrder.actualCost, workOrder.currency)}</p></div>}
+              <div><p className="text-xs text-muted-foreground mb-1">Start Date</p><p className="text-sm text-foreground">{fmtDate(workOrder.estimatedStartDate ?? workOrder.actualStartDate)}</p></div>
+              <div><p className="text-xs text-muted-foreground mb-1">Due Date</p><p className="text-sm text-foreground">{fmtDate(workOrder.estimatedEndDate)}</p></div>
+              {workOrder.estimatedCost && <div><p className="text-xs text-muted-foreground mb-1">Estimated Cost</p><p className="text-sm text-foreground">{fmtMoney(workOrder.estimatedCost, workOrder.currency)}</p></div>}
+              {workOrder.actualCost && <div><p className="text-xs text-muted-foreground mb-1">Actual / Invoice</p><p className="text-sm text-emerald-700 dark:text-emerald-400 font-medium">{fmtMoney(workOrder.actualCost, workOrder.currency)}</p></div>}
             </div>
             {workOrder.completionNotes && (
               <div className="p-4">
-                <p className="text-xs text-slate-500 uppercase tracking-wide mb-2">Completion Notes</p>
-                <p className="text-sm text-slate-300 whitespace-pre-wrap">{workOrder.completionNotes}</p>
+                <p className="text-xs text-muted-foreground uppercase tracking-wide mb-2">Completion Notes</p>
+                <p className="text-sm text-muted-foreground whitespace-pre-wrap">{workOrder.completionNotes}</p>
               </div>
             )}
             {workOrder.rejectionReason && (
-              <div className="p-4 bg-red-950/20">
-                <p className="text-xs text-red-400 uppercase tracking-wide mb-2">Rejection Reason</p>
-                <p className="text-sm text-slate-300">{workOrder.rejectionReason}</p>
+              <div className="p-4 bg-red-50 dark:bg-red-950/20">
+                <p className="text-xs text-red-600 dark:text-red-400 uppercase tracking-wide mb-2">Rejection Reason</p>
+                <p className="text-sm text-muted-foreground">{workOrder.rejectionReason}</p>
               </div>
             )}
           </div>
@@ -510,12 +512,12 @@ function WorkOrderDetail({ row, onBack }: { row: WorkOrderRow; onBack: () => voi
                 placeholder="Leave a note for the property manager…"
                 value={commentText}
                 onChange={e => setCommentText(e.target.value)}
-                className="bg-slate-800 border-slate-700 text-white placeholder:text-slate-500 resize-none min-h-[80px] text-sm"
+                className="bg-background border-border text-foreground placeholder:text-muted-foreground resize-none min-h-[80px] text-sm"
                 rows={3}
               />
               <Button
                 size="sm"
-                className="w-full bg-amber-500 hover:bg-amber-600 text-black font-semibold h-9"
+                className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-semibold h-9"
                 disabled={!commentText.trim() || commentMut.isPending}
                 onClick={() => commentMut.mutate(commentText)}
               >
@@ -526,18 +528,18 @@ function WorkOrderDetail({ row, onBack }: { row: WorkOrderRow; onBack: () => voi
             {/* Comments list */}
             {(comments as WOComment[]).length === 0 ? (
               <div className="text-center py-6">
-                <MessageSquare className="w-8 h-8 text-slate-700 mx-auto mb-2" />
-                <p className="text-sm text-slate-500">No comments yet. Be the first to leave a note.</p>
+                <MessageSquare className="w-8 h-8 text-muted-foreground/40 mx-auto mb-2" />
+                <p className="text-sm text-muted-foreground">No comments yet. Be the first to leave a note.</p>
               </div>
             ) : (
               <div className="space-y-3">
                 {(comments as WOComment[]).map(c => (
-                  <div key={c.id} className="rounded-xl bg-slate-800/60 p-3">
+                  <div key={c.id} className="rounded-xl bg-muted/50 p-3">
                     <div className="flex items-center justify-between mb-1.5">
-                      <span className="text-xs font-semibold text-white">{c.userName}</span>
-                      <span className="text-[10px] text-slate-500">{fmtDate(c.createdAt)}</span>
+                      <span className="text-xs font-semibold text-foreground">{c.userName}</span>
+                      <span className="text-[10px] text-muted-foreground">{fmtDate(c.createdAt)}</span>
                     </div>
-                    <p className="text-sm text-slate-300 whitespace-pre-wrap">{c.comment}</p>
+                    <p className="text-sm text-muted-foreground whitespace-pre-wrap">{c.comment}</p>
                   </div>
                 ))}
               </div>
@@ -550,8 +552,8 @@ function WorkOrderDetail({ row, onBack }: { row: WorkOrderRow; onBack: () => voi
           <div className="p-4">
             {(updates as WOUpdate[]).length === 0 ? (
               <div className="text-center py-6">
-                <Clock className="w-8 h-8 text-slate-700 mx-auto mb-2" />
-                <p className="text-sm text-slate-500">No status history yet.</p>
+                <Clock className="w-8 h-8 text-muted-foreground/40 mx-auto mb-2" />
+                <p className="text-sm text-muted-foreground">No status history yet.</p>
               </div>
             ) : (
               <div className="space-y-3">
@@ -559,14 +561,14 @@ function WorkOrderDetail({ row, onBack }: { row: WorkOrderRow; onBack: () => voi
                   const ns = STATUS_CONFIG[u.newStatus] ?? STATUS_CONFIG["draft"];
                   const ps = STATUS_CONFIG[u.previousStatus] ?? STATUS_CONFIG["draft"];
                   return (
-                    <div key={u.id} className="rounded-xl bg-slate-800/60 p-3">
+                    <div key={u.id} className="rounded-xl bg-muted/50 p-3">
                       <div className="flex items-center gap-2 flex-wrap mb-1">
-                        <span className={`text-xs px-2 py-0.5 rounded-full bg-slate-700 ${ps.color}`}>{u.previousStatus.replace("_"," ")}</span>
-                        <ChevronRight className="w-3 h-3 text-slate-500" />
-                        <span className={`text-xs px-2 py-0.5 rounded-full bg-slate-700 ${ns.color}`}>{u.newStatus.replace("_"," ")}</span>
+                        <span className={`text-xs px-2 py-0.5 rounded-full bg-muted-foreground/30 ${ps.color}`}>{u.previousStatus.replace("_"," ")}</span>
+                        <ChevronRight className="w-3 h-3 text-muted-foreground" />
+                        <span className={`text-xs px-2 py-0.5 rounded-full bg-muted-foreground/30 ${ns.color}`}>{u.newStatus.replace("_"," ")}</span>
                       </div>
-                      <p className="text-[10px] text-slate-500">{u.updatedBy} · {fmtDate(u.createdAt)}</p>
-                      {u.notes && <p className="text-xs text-slate-400 mt-1">{u.notes}</p>}
+                      <p className="text-[10px] text-muted-foreground">{u.updatedBy} · {fmtDate(u.createdAt)}</p>
+                      {u.notes && <p className="text-xs text-muted-foreground mt-1">{u.notes}</p>}
                     </div>
                   );
                 })}
@@ -589,12 +591,12 @@ function WorkOrderDetail({ row, onBack }: { row: WorkOrderRow; onBack: () => voi
             </Button>
           )}
           {canInvoice && (
-            <Button variant="outline" className="w-full border-slate-700 text-slate-300 hover:bg-slate-800 h-12 rounded-xl" onClick={() => setModal("invoice")}>
+            <Button variant="outline" className="w-full border-border text-muted-foreground hover:bg-muted h-12 rounded-xl" onClick={() => setModal("invoice")}>
               <Receipt className="w-4 h-4 mr-2" /> Submit Invoice
             </Button>
           )}
           {canReject && (
-            <Button variant="ghost" className="w-full text-red-400 hover:bg-red-950/30 hover:text-red-300 h-10 rounded-xl" onClick={() => setModal("reject")}>
+            <Button variant="ghost" className="w-full text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/30 hover:text-red-700 h-10 rounded-xl" onClick={() => setModal("reject")}>
               <XCircle className="w-4 h-4 mr-2" /> Cannot Take This Job
             </Button>
           )}
@@ -640,18 +642,18 @@ function DashboardTab({ profile, workOrders, stats, earnings, onJobsTabSelect, o
   return (
     <div className="space-y-5">
       {/* Availability toggle */}
-      <div className={`rounded-2xl border p-4 flex items-center justify-between ${profile.isAvailable ? "bg-emerald-950/30 border-emerald-800/40" : "bg-slate-900 border-slate-800"}`}>
+      <div className={`rounded-2xl border p-4 flex items-center justify-between ${profile.isAvailable ? "bg-emerald-50 dark:bg-emerald-950/30 border-emerald-200 dark:border-emerald-800/40" : "bg-card border-border"}`}>
         <div className="flex items-center gap-3">
-          <div className={`w-2.5 h-2.5 rounded-full animate-pulse ${profile.isAvailable ? "bg-emerald-400" : "bg-slate-500"}`} />
+          <div className={`w-2.5 h-2.5 rounded-full animate-pulse ${profile.isAvailable ? "bg-emerald-400" : "bg-muted-foreground/30"}`} />
           <div>
-            <p className="text-sm font-medium text-white">{profile.isAvailable ? "Available for work" : "Not available"}</p>
-            <p className="text-xs text-slate-500">Property managers {profile.isAvailable ? "can" : "cannot"} assign new jobs</p>
+            <p className="text-sm font-medium text-foreground">{profile.isAvailable ? "Available for work" : "Not available"}</p>
+            <p className="text-xs text-muted-foreground">Property managers {profile.isAvailable ? "can" : "cannot"} assign new jobs</p>
           </div>
         </div>
         <button
           disabled={availMut.isPending}
           onClick={() => availMut.mutate(!profile.isAvailable)}
-          className={`relative w-12 h-6 rounded-full transition-colors ${profile.isAvailable ? "bg-emerald-500" : "bg-slate-700"} ${availMut.isPending ? "opacity-60" : ""}`}
+          className={`relative w-12 h-6 rounded-full transition-colors ${profile.isAvailable ? "bg-emerald-500" : "bg-muted-foreground/30"} ${availMut.isPending ? "opacity-60" : ""}`}
         >
           <span className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-all shadow ${profile.isAvailable ? "left-7" : "left-1"}`} />
         </button>
@@ -659,23 +661,23 @@ function DashboardTab({ profile, workOrders, stats, earnings, onJobsTabSelect, o
 
       {/* Pending action banner */}
       {pendingWOs.length > 0 && (
-        <div className="rounded-2xl bg-indigo-950/50 border border-indigo-700/50 p-4">
+        <div className="rounded-2xl bg-indigo-50 dark:bg-indigo-950/50 border border-indigo-200 dark:border-indigo-700/50 p-4">
           <div className="flex items-start gap-3">
-            <Bell className="w-5 h-5 text-indigo-400 shrink-0 mt-0.5" />
+            <Bell className="w-5 h-5 text-indigo-600 dark:text-indigo-400 shrink-0 mt-0.5" />
             <div className="flex-1">
-              <p className="text-sm font-semibold text-indigo-300">
+              <p className="text-sm font-semibold text-indigo-800 dark:text-indigo-300">
                 {pendingWOs.length} job{pendingWOs.length > 1 ? "s" : ""} awaiting your response
               </p>
-              <p className="text-xs text-indigo-400/70 mt-0.5">Respond quickly to maintain a good acceptance rate</p>
+              <p className="text-xs text-indigo-600/80 dark:text-indigo-400/70 mt-0.5">Respond quickly to maintain a good acceptance rate</p>
             </div>
-            <button onClick={onJobsTabSelect} className="text-xs text-indigo-400 hover:text-indigo-300 flex items-center gap-1 shrink-0">
+            <button onClick={onJobsTabSelect} className="text-xs text-indigo-700 dark:text-indigo-400 hover:underline flex items-center gap-1 shrink-0">
               View <ArrowRight className="w-3 h-3" />
             </button>
           </div>
           <div className="mt-3 space-y-2">
             {pendingWOs.slice(0, 2).map(r => (
-              <div key={r.workOrder.id} className="flex items-center gap-2 text-xs text-slate-300 bg-indigo-950/40 rounded-lg px-3 py-2">
-                <Briefcase className="w-3.5 h-3.5 text-indigo-400 shrink-0" />
+              <div key={r.workOrder.id} className="flex items-center gap-2 text-xs text-muted-foreground bg-indigo-50 dark:bg-indigo-950/40 rounded-lg px-3 py-2">
+                <Briefcase className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400 shrink-0" />
                 <span className="truncate flex-1">{r.workOrder.title}</span>
                 <span className="text-muted-foreground font-mono shrink-0">{r.workOrder.ticketNumber}</span>
               </div>
@@ -686,28 +688,28 @@ function DashboardTab({ profile, workOrders, stats, earnings, onJobsTabSelect, o
 
       {/* Stats grid */}
       <div className="grid grid-cols-2 gap-3">
-        <div className="rounded-2xl bg-slate-900 border border-slate-800 p-4">
-          <p className="text-xs text-slate-500 mb-1">This Month</p>
-          <p className="text-xl font-bold text-white">{fmtMoney(earnings?.thisMonthEarned ?? 0, earnings?.currency ?? "KES")}</p>
-          <p className="text-xs text-emerald-400 mt-1 flex items-center gap-1"><TrendingUp className="w-3 h-3" /> Earned</p>
+        <div className="rounded-2xl bg-card border border-border p-4">
+          <p className="text-xs text-muted-foreground mb-1">This Month</p>
+          <p className="text-xl font-bold text-foreground">{fmtMoney(earnings?.thisMonthEarned ?? 0, earnings?.currency ?? "KES")}</p>
+          <p className="text-xs text-emerald-700 dark:text-emerald-400 mt-1 flex items-center gap-1"><TrendingUp className="w-3 h-3" /> Earned</p>
         </div>
-        <div className="rounded-2xl bg-slate-900 border border-slate-800 p-4">
-          <p className="text-xs text-slate-500 mb-1">Pending</p>
-          <p className="text-xl font-bold text-amber-400">{fmtMoney(earnings?.pendingPayment ?? 0, earnings?.currency ?? "KES")}</p>
-          <p className="text-xs text-slate-500 mt-1 flex items-center gap-1"><Clock className="w-3 h-3" /> Outstanding</p>
+        <div className="rounded-2xl bg-card border border-border p-4">
+          <p className="text-xs text-muted-foreground mb-1">Pending</p>
+          <p className="text-xl font-bold text-amber-700 dark:text-amber-400">{fmtMoney(earnings?.pendingPayment ?? 0, earnings?.currency ?? "KES")}</p>
+          <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1"><Clock className="w-3 h-3" /> Outstanding</p>
         </div>
-        <div className="rounded-2xl bg-slate-900 border border-slate-800 p-4">
-          <p className="text-xs text-slate-500 mb-1">Rating</p>
+        <div className="rounded-2xl bg-card border border-border p-4">
+          <p className="text-xs text-muted-foreground mb-1">Rating</p>
           <div className="flex items-center gap-1.5">
-            <Star className="w-4 h-4 fill-amber-400 text-amber-400" />
-            <p className="text-xl font-bold text-white">{Number(profile.rating || 0).toFixed(1)}</p>
+            <Star className="w-4 h-4 fill-amber-400 text-amber-700 dark:text-amber-400" />
+            <p className="text-xl font-bold text-foreground">{Number(profile.rating || 0).toFixed(1)}</p>
           </div>
-          <p className="text-xs text-slate-500 mt-1">{profile.completedJobs} jobs done</p>
+          <p className="text-xs text-muted-foreground mt-1">{profile.completedJobs} jobs done</p>
         </div>
-        <div className="rounded-2xl bg-slate-900 border border-slate-800 p-4">
-          <p className="text-xs text-slate-500 mb-1">On-Time Rate</p>
-          <p className="text-xl font-bold text-white">{stats?.onTimeRate != null ? `${stats.onTimeRate}%` : "—"}</p>
-          <p className="text-xs text-slate-500 mt-1 flex items-center gap-1"><Target className="w-3 h-3" /> Completion</p>
+        <div className="rounded-2xl bg-card border border-border p-4">
+          <p className="text-xs text-muted-foreground mb-1">On-Time Rate</p>
+          <p className="text-xl font-bold text-foreground">{stats?.onTimeRate != null ? `${stats.onTimeRate}%` : "—"}</p>
+          <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1"><Target className="w-3 h-3" /> Completion</p>
         </div>
       </div>
 
@@ -715,20 +717,20 @@ function DashboardTab({ profile, workOrders, stats, earnings, onJobsTabSelect, o
       {activeWOs.length > 0 && (
         <div>
           <div className="flex items-center justify-between mb-3">
-            <p className="text-xs text-slate-500 uppercase tracking-wide font-semibold">Active Jobs</p>
-            <button onClick={onJobsTabSelect} className="text-xs text-amber-400 hover:text-amber-300">View all</button>
+            <p className="text-xs text-muted-foreground uppercase tracking-wide font-semibold">Active Jobs</p>
+            <button onClick={onJobsTabSelect} className="text-xs text-amber-700 dark:text-amber-400 hover:text-amber-700">View all</button>
           </div>
           <div className="space-y-2">
             {activeWOs.slice(0, 3).map(r => (
-              <div key={r.workOrder.id} className="rounded-xl bg-amber-950/30 border border-amber-800/40 p-3">
+              <div key={r.workOrder.id} className="rounded-xl bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/40 p-3">
                 <div className="flex items-center gap-2">
-                  <Play className="w-4 h-4 text-amber-400 shrink-0" />
+                  <Play className="w-4 h-4 text-amber-700 dark:text-amber-400 shrink-0" />
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm text-white font-medium truncate">{r.workOrder.title}</p>
-                    <p className="text-xs text-slate-500">{r.property?.name ?? "—"} {r.unit ? `· Unit ${r.unit.unitNumber}` : ""}</p>
+                    <p className="text-sm text-foreground font-medium truncate">{r.workOrder.title}</p>
+                    <p className="text-xs text-muted-foreground">{r.property?.name ?? "—"} {r.unit ? `· Unit ${r.unit.unitNumber}` : ""}</p>
                   </div>
                   {r.workOrder.estimatedEndDate && (
-                    <p className="text-xs text-amber-400 shrink-0">Due {fmtDate(r.workOrder.estimatedEndDate)}</p>
+                    <p className="text-xs text-amber-700 dark:text-amber-400 shrink-0">Due {fmtDate(r.workOrder.estimatedEndDate)}</p>
                   )}
                 </div>
               </div>
@@ -739,8 +741,8 @@ function DashboardTab({ profile, workOrders, stats, earnings, onJobsTabSelect, o
 
       {/* Performance quick stats */}
       {stats && (
-        <div className="rounded-2xl bg-slate-900 border border-slate-800 p-4">
-          <p className="text-xs text-slate-500 uppercase tracking-wide font-semibold mb-4">Performance Overview</p>
+        <div className="rounded-2xl bg-card border border-border p-4">
+          <p className="text-xs text-muted-foreground uppercase tracking-wide font-semibold mb-4">Performance Overview</p>
           <div className="space-y-3">
             {[
               { label: "Completion Rate", value: stats.completionRate, suffix: "%" },
@@ -749,11 +751,11 @@ function DashboardTab({ profile, workOrders, stats, earnings, onJobsTabSelect, o
             ].map(item => (
               <div key={item.label}>
                 <div className="flex justify-between items-center mb-1">
-                  <span className="text-xs text-slate-400">{item.label}</span>
-                  <span className="text-xs font-semibold text-white">{item.value != null ? `${item.value}${item.suffix}` : "—"}</span>
+                  <span className="text-xs text-muted-foreground">{item.label}</span>
+                  <span className="text-xs font-semibold text-foreground">{item.value != null ? `${item.value}${item.suffix}` : "—"}</span>
                 </div>
                 {item.value != null && (
-                  <div className="h-1.5 bg-slate-800 rounded-full overflow-hidden">
+                  <div className="h-1.5 bg-muted rounded-full overflow-hidden">
                     <div className="h-full bg-gradient-to-r from-amber-500 to-emerald-500 rounded-full transition-all" style={{ width: `${item.value}%` }} />
                   </div>
                 )}
@@ -761,28 +763,28 @@ function DashboardTab({ profile, workOrders, stats, earnings, onJobsTabSelect, o
             ))}
           </div>
           {stats.avgTurnaroundDays != null && (
-            <div className="mt-4 pt-4 border-t border-slate-800 flex items-center justify-between">
-              <span className="text-xs text-slate-400">Avg. turnaround</span>
-              <span className="text-sm font-semibold text-white">{stats.avgTurnaroundDays} day{stats.avgTurnaroundDays !== 1 ? "s" : ""}</span>
+            <div className="mt-4 pt-4 border-t border-border flex items-center justify-between">
+              <span className="text-xs text-muted-foreground">Avg. turnaround</span>
+              <span className="text-sm font-semibold text-foreground">{stats.avgTurnaroundDays} day{stats.avgTurnaroundDays !== 1 ? "s" : ""}</span>
             </div>
           )}
         </div>
       )}
 
       {/* Quick link to earnings */}
-      <button onClick={onEarningsTabSelect} className="w-full rounded-2xl bg-gradient-to-r from-emerald-950/50 to-slate-900 border border-emerald-800/30 p-4 flex items-center justify-between hover:border-emerald-700/50 transition-colors">
+      <button onClick={onEarningsTabSelect} className="w-full rounded-2xl bg-gradient-to-r from-emerald-50 dark:from-emerald-950/50 to-card border border-emerald-200 dark:border-emerald-800/30 p-4 flex items-center justify-between hover:border-emerald-300 dark:hover:border-emerald-700/50 transition-colors">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-xl bg-emerald-500/10 flex items-center justify-center">
-            <Banknote className="w-5 h-5 text-emerald-400" />
+            <Banknote className="w-5 h-5 text-emerald-700 dark:text-emerald-400" />
           </div>
           <div className="text-left">
-            <p className="text-sm font-semibold text-white">Total Earnings</p>
-            <p className="text-xs text-slate-500">All time</p>
+            <p className="text-sm font-semibold text-foreground">Total Earnings</p>
+            <p className="text-xs text-muted-foreground">All time</p>
           </div>
         </div>
         <div className="text-right">
-          <p className="text-lg font-bold text-emerald-400">{fmtMoney(earnings?.totalEarned ?? 0, earnings?.currency ?? "KES")}</p>
-          <p className="text-xs text-slate-500 flex items-center gap-1 justify-end">View history <ArrowRight className="w-3 h-3" /></p>
+          <p className="text-lg font-bold text-emerald-700 dark:text-emerald-400">{fmtMoney(earnings?.totalEarned ?? 0, earnings?.currency ?? "KES")}</p>
+          <p className="text-xs text-muted-foreground flex items-center gap-1 justify-end">View history <ArrowRight className="w-3 h-3" /></p>
         </div>
       </button>
     </div>
@@ -812,9 +814,9 @@ function JobsTab({ workOrders, profile }: { workOrders: WorkOrderRow[]; profile:
         {FILTER_OPTIONS.map(f => {
           const count = f === "all" ? workOrders.length : workOrders.filter(r => r.workOrder.status === f).length;
           return (
-            <button key={f} onClick={() => setFilter(f)} className={`shrink-0 rounded-full px-3 py-1.5 text-xs font-medium transition-all ${filter === f ? "bg-amber-500 text-black" : "bg-slate-800 text-slate-400 hover:bg-slate-700"}`}>
+            <button key={f} onClick={() => setFilter(f)} className={`shrink-0 rounded-full px-3 py-1.5 text-xs font-medium transition-all ${filter === f ? "bg-emerald-600 text-white" : "bg-muted text-muted-foreground hover:bg-muted/70"}`}>
               {FILTER_LABELS[f]}
-              {count > 0 && <span className={`ml-1 ${filter === f ? "text-black/70" : "text-slate-500"}`}>({count})</span>}
+              {count > 0 && <span className={`ml-1 ${filter === f ? "text-white/80" : "text-muted-foreground"}`}>({count})</span>}
             </button>
           );
         })}
@@ -822,8 +824,8 @@ function JobsTab({ workOrders, profile }: { workOrders: WorkOrderRow[]; profile:
 
       {/* List */}
       {filtered.length === 0 ? (
-        <div className="rounded-2xl bg-slate-900 border border-slate-800 p-10 text-center">
-          <ClipboardList className="w-10 h-10 text-slate-700 mx-auto mb-3" />
+        <div className="rounded-2xl bg-card border border-border p-10 text-center">
+          <ClipboardList className="w-10 h-10 text-muted-foreground/40 mx-auto mb-3" />
           <p className="text-muted-foreground text-sm">{filter === "all" ? "No work orders assigned yet." : `No ${FILTER_LABELS[filter].toLowerCase()} work orders.`}</p>
         </div>
       ) : (
@@ -838,7 +840,7 @@ function JobsTab({ workOrders, profile }: { workOrders: WorkOrderRow[]; profile:
 // ─── Earnings Tab ─────────────────────────────────────────────────────────────
 
 function EarningsTab({ earnings }: { earnings: EarningsData | undefined }) {
-  if (!earnings) return <div className="flex justify-center py-12"><Loader2 className="w-6 h-6 text-amber-400 animate-spin" /></div>;
+  if (!earnings) return <div className="flex justify-center py-12"><Loader2 className="w-6 h-6 text-amber-700 dark:text-amber-400 animate-spin" /></div>;
 
   const maxEarned = Math.max(...earnings.monthly.map(m => m.earned), 1);
 
@@ -846,28 +848,28 @@ function EarningsTab({ earnings }: { earnings: EarningsData | undefined }) {
     <div className="space-y-5">
       {/* Summary cards */}
       <div className="grid grid-cols-1 gap-3">
-        <div className="rounded-2xl bg-gradient-to-br from-emerald-950/60 to-slate-900 border border-emerald-800/40 p-5">
-          <p className="text-xs text-slate-400 mb-1">Total Earned (All Time)</p>
-          <p className="text-3xl font-bold text-white">{fmtMoney(earnings.totalEarned, earnings.currency)}</p>
-          <p className="text-xs text-emerald-400 mt-1">{earnings.recentTransactions.length} invoiced jobs</p>
+        <div className="rounded-2xl bg-gradient-to-br from-emerald-50 dark:from-emerald-950/60 to-card border border-emerald-200 dark:border-emerald-800/40 p-5">
+          <p className="text-xs text-muted-foreground mb-1">Total Earned (All Time)</p>
+          <p className="text-3xl font-bold text-foreground">{fmtMoney(earnings.totalEarned, earnings.currency)}</p>
+          <p className="text-xs text-emerald-700 dark:text-emerald-400 mt-1">{earnings.recentTransactions.length} invoiced jobs</p>
         </div>
         <div className="grid grid-cols-2 gap-3">
-          <div className="rounded-2xl bg-slate-900 border border-slate-800 p-4">
-            <p className="text-xs text-slate-500 mb-1">This Month</p>
-            <p className="text-xl font-bold text-white">{fmtMoney(earnings.thisMonthEarned, earnings.currency)}</p>
-            <p className="text-xs text-emerald-400 mt-1">Earned</p>
+          <div className="rounded-2xl bg-card border border-border p-4">
+            <p className="text-xs text-muted-foreground mb-1">This Month</p>
+            <p className="text-xl font-bold text-foreground">{fmtMoney(earnings.thisMonthEarned, earnings.currency)}</p>
+            <p className="text-xs text-emerald-700 dark:text-emerald-400 mt-1">Earned</p>
           </div>
-          <div className="rounded-2xl bg-amber-950/30 border border-amber-800/40 p-4">
-            <p className="text-xs text-slate-500 mb-1">Pending</p>
-            <p className="text-xl font-bold text-amber-400">{fmtMoney(earnings.pendingPayment, earnings.currency)}</p>
-            <p className="text-xs text-slate-500 mt-1">Outstanding</p>
+          <div className="rounded-2xl bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/40 p-4">
+            <p className="text-xs text-muted-foreground mb-1">Pending</p>
+            <p className="text-xl font-bold text-amber-700 dark:text-amber-400">{fmtMoney(earnings.pendingPayment, earnings.currency)}</p>
+            <p className="text-xs text-muted-foreground mt-1">Outstanding</p>
           </div>
         </div>
       </div>
 
       {/* Monthly bar chart */}
-      <div className="rounded-2xl bg-slate-900 border border-slate-800 p-4">
-        <p className="text-xs text-slate-500 uppercase tracking-wide font-semibold mb-4">Monthly Earnings</p>
+      <div className="rounded-2xl bg-card border border-border p-4">
+        <p className="text-xs text-muted-foreground uppercase tracking-wide font-semibold mb-4">Monthly Earnings</p>
         <div className="flex items-end gap-1.5 h-32">
           {earnings.monthly.map((m, i) => {
             const pct = (m.earned / maxEarned) * 100;
@@ -876,41 +878,41 @@ function EarningsTab({ earnings }: { earnings: EarningsData | undefined }) {
               <div key={m.month} className="flex-1 flex flex-col items-center gap-1">
                 <div className="w-full flex items-end" style={{ height: "88px" }}>
                   <div
-                    className={`w-full rounded-t-md transition-all ${m.earned > 0 ? (isLast ? "bg-emerald-500" : "bg-slate-600") : "bg-slate-800"}`}
+                    className={`w-full rounded-t-md transition-all ${m.earned > 0 ? (isLast ? "bg-emerald-500" : "bg-muted-foreground/30") : "bg-muted"}`}
                     style={{ height: `${Math.max(pct, m.earned > 0 ? 4 : 0)}%` }}
                     title={`${m.month}: ${fmtMoney(m.earned, earnings.currency)}`}
                   />
                 </div>
-                <p className="text-[9px] text-slate-600 text-center leading-tight">{m.month}</p>
+                <p className="text-[9px] text-muted-foreground/70 text-center leading-tight">{m.month}</p>
               </div>
             );
           })}
         </div>
-        <div className="flex items-center gap-3 mt-3 pt-3 border-t border-slate-800">
+        <div className="flex items-center gap-3 mt-3 pt-3 border-t border-border">
           <div className="w-3 h-3 rounded bg-emerald-500" />
-          <span className="text-xs text-slate-500">Current month</span>
-          <div className="w-3 h-3 rounded bg-slate-600 ml-3" />
-          <span className="text-xs text-slate-500">Previous months</span>
+          <span className="text-xs text-muted-foreground">Current month</span>
+          <div className="w-3 h-3 rounded bg-muted-foreground/30 ml-3" />
+          <span className="text-xs text-muted-foreground">Previous months</span>
         </div>
       </div>
 
       {/* Recent transactions */}
       {earnings.recentTransactions.length > 0 && (
-        <div className="rounded-2xl bg-slate-900 border border-slate-800 overflow-hidden">
-          <div className="px-4 py-3 border-b border-slate-800">
-            <p className="text-xs text-slate-500 uppercase tracking-wide font-semibold">Recent Transactions</p>
+        <div className="rounded-2xl bg-card border border-border overflow-hidden">
+          <div className="px-4 py-3 border-b border-border">
+            <p className="text-xs text-muted-foreground uppercase tracking-wide font-semibold">Recent Transactions</p>
           </div>
-          <div className="divide-y divide-slate-800">
+          <div className="divide-y divide-border">
             {earnings.recentTransactions.map(tx => (
               <div key={tx.id} className="px-4 py-3 flex items-center gap-3">
-                <div className="w-8 h-8 rounded-lg bg-emerald-950/50 flex items-center justify-center shrink-0">
-                  <Receipt className="w-4 h-4 text-emerald-400" />
+                <div className="w-8 h-8 rounded-lg bg-emerald-50 dark:bg-emerald-950/50 flex items-center justify-center shrink-0">
+                  <Receipt className="w-4 h-4 text-emerald-700 dark:text-emerald-400" />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm text-white truncate">{tx.title}</p>
-                  <p className="text-xs text-slate-500">{fmtDate(tx.date)} · {tx.ticketNumber}</p>
+                  <p className="text-sm text-foreground truncate">{tx.title}</p>
+                  <p className="text-xs text-muted-foreground">{fmtDate(tx.date)} · {tx.ticketNumber}</p>
                 </div>
-                <p className="text-sm font-semibold text-emerald-400 shrink-0">{fmtMoney(tx.amount, tx.currency)}</p>
+                <p className="text-sm font-semibold text-emerald-700 dark:text-emerald-400 shrink-0">{fmtMoney(tx.amount, tx.currency)}</p>
               </div>
             ))}
           </div>
@@ -959,13 +961,13 @@ function CalendarTab({ events }: { events: CalendarEvent[] | undefined }) {
   return (
     <div className="space-y-5">
       {/* Month navigator */}
-      <div className="rounded-2xl bg-slate-900 border border-slate-800 p-4">
+      <div className="rounded-2xl bg-card border border-border p-4">
         <div className="flex items-center justify-between mb-4">
-          <button onClick={() => setViewDate(subMonths(viewDate, 1))} className="w-8 h-8 rounded-lg bg-slate-800 hover:bg-slate-700 flex items-center justify-center text-slate-400 hover:text-white transition-colors">
+          <button onClick={() => setViewDate(subMonths(viewDate, 1))} className="w-8 h-8 rounded-lg bg-muted hover:bg-muted/70 flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors">
             <ChevronLeft className="w-4 h-4" />
           </button>
-          <p className="font-semibold text-white">{format(viewDate, "MMMM yyyy")}</p>
-          <button onClick={() => setViewDate(addMonths(viewDate, 1))} className="w-8 h-8 rounded-lg bg-slate-800 hover:bg-slate-700 flex items-center justify-center text-slate-400 hover:text-white transition-colors">
+          <p className="font-semibold text-foreground">{format(viewDate, "MMMM yyyy")}</p>
+          <button onClick={() => setViewDate(addMonths(viewDate, 1))} className="w-8 h-8 rounded-lg bg-muted hover:bg-muted/70 flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors">
             <ChevronRight className="w-4 h-4" />
           </button>
         </div>
@@ -973,7 +975,7 @@ function CalendarTab({ events }: { events: CalendarEvent[] | undefined }) {
         {/* Day headers */}
         <div className="grid grid-cols-7 mb-2">
           {["S", "M", "T", "W", "T", "F", "S"].map((d, i) => (
-            <div key={i} className="text-center text-[10px] text-slate-600 font-medium py-1">{d}</div>
+            <div key={i} className="text-center text-[10px] text-muted-foreground/70 font-medium py-1">{d}</div>
           ))}
         </div>
 
@@ -987,11 +989,11 @@ function CalendarTab({ events }: { events: CalendarEvent[] | undefined }) {
             const today = isToday(day);
             return (
               <div key={key} className={`flex flex-col items-center py-1 rounded-lg ${today ? "bg-amber-500/20" : ""}`}>
-                <span className={`text-xs ${today ? "text-amber-400 font-bold" : "text-slate-400"}`}>{format(day, "d")}</span>
+                <span className={`text-xs ${today ? "text-amber-700 dark:text-amber-400 font-bold" : "text-muted-foreground"}`}>{format(day, "d")}</span>
                 {dayEvents.length > 0 && (
                   <div className="flex gap-0.5 mt-0.5 flex-wrap justify-center">
                     {dayEvents.slice(0, 3).map((ev, i) => (
-                      <div key={i} className={`w-1.5 h-1.5 rounded-full ${STATUS_DOT[ev.status] ?? "bg-slate-500"}`} title={ev.title} />
+                      <div key={i} className={`w-1.5 h-1.5 rounded-full ${STATUS_DOT[ev.status] ?? "bg-muted-foreground/30"}`} title={ev.title} />
                     ))}
                   </div>
                 )}
@@ -1001,11 +1003,11 @@ function CalendarTab({ events }: { events: CalendarEvent[] | undefined }) {
         </div>
 
         {/* Legend */}
-        <div className="flex flex-wrap gap-3 mt-4 pt-4 border-t border-slate-800">
+        <div className="flex flex-wrap gap-3 mt-4 pt-4 border-t border-border">
           {[["bg-indigo-400", "To Do"], ["bg-amber-400", "In Progress"], ["bg-emerald-400", "Completed"]].map(([c, l]) => (
             <div key={l} className="flex items-center gap-1.5">
               <div className={`w-2 h-2 rounded-full ${c}`} />
-              <span className="text-[10px] text-slate-500">{l}</span>
+              <span className="text-[10px] text-muted-foreground">{l}</span>
             </div>
           ))}
         </div>
@@ -1013,11 +1015,11 @@ function CalendarTab({ events }: { events: CalendarEvent[] | undefined }) {
 
       {/* Upcoming jobs */}
       <div>
-        <p className="text-xs text-slate-500 uppercase tracking-wide font-semibold mb-3">Upcoming Jobs</p>
+        <p className="text-xs text-muted-foreground uppercase tracking-wide font-semibold mb-3">Upcoming Jobs</p>
         {upcoming.length === 0 ? (
-          <div className="rounded-2xl bg-slate-900 border border-slate-800 p-8 text-center">
-            <CalendarIcon className="w-8 h-8 text-slate-700 mx-auto mb-2" />
-            <p className="text-sm text-slate-500">No upcoming jobs scheduled</p>
+          <div className="rounded-2xl bg-card border border-border p-8 text-center">
+            <CalendarIcon className="w-8 h-8 text-muted-foreground/40 mx-auto mb-2" />
+            <p className="text-sm text-muted-foreground">No upcoming jobs scheduled</p>
           </div>
         ) : (
           <div className="space-y-2">
@@ -1028,10 +1030,10 @@ function CalendarTab({ events }: { events: CalendarEvent[] | undefined }) {
                   <div className="flex items-start gap-3">
                     <div className={`w-2 h-2 rounded-full mt-1.5 shrink-0 ${cfg.dot}`} />
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm text-white font-medium truncate">{ev.title}</p>
+                      <p className="text-sm text-foreground font-medium truncate">{ev.title}</p>
                       <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-1">
-                        <span className="text-xs text-slate-500">{fmtDate(ev.start)}</span>
-                        {ev.propertyName && <span className="text-xs text-slate-500">{ev.propertyName}{ev.unitNumber ? ` · Unit ${ev.unitNumber}` : ""}</span>}
+                        <span className="text-xs text-muted-foreground">{fmtDate(ev.start)}</span>
+                        {ev.propertyName && <span className="text-xs text-muted-foreground">{ev.propertyName}{ev.unitNumber ? ` · Unit ${ev.unitNumber}` : ""}</span>}
                       </div>
                     </div>
                     <span className={`text-xs shrink-0 ${PRIORITY_COLOR[ev.priority] ?? PRIORITY_COLOR["medium"]} rounded-full px-2 py-0.5`}>{ev.priority}</span>
@@ -1049,23 +1051,23 @@ function CalendarTab({ events }: { events: CalendarEvent[] | undefined }) {
 // ─── Ratings Tab ──────────────────────────────────────────────────────────────
 
 function RatingsTab({ ratings, profile }: { ratings: RatingsData | undefined; profile: Contractor }) {
-  if (!ratings) return <div className="flex justify-center py-12"><Loader2 className="w-6 h-6 text-amber-400 animate-spin" /></div>;
+  if (!ratings) return <div className="flex justify-center py-12"><Loader2 className="w-6 h-6 text-amber-700 dark:text-amber-400 animate-spin" /></div>;
 
   const total = Object.values(ratings.ratingDistribution).reduce((s, v) => s + v, 0);
 
   return (
     <div className="space-y-5">
       {/* Overview */}
-      <div className="rounded-2xl bg-gradient-to-br from-amber-950/40 to-slate-900 border border-amber-800/30 p-5">
+      <div className="rounded-2xl bg-gradient-to-br from-amber-50 dark:from-amber-950/40 to-card border border-amber-200 dark:border-amber-800/30 p-5">
         <div className="flex items-center gap-5">
           <div className="text-center shrink-0">
-            <div className="text-5xl font-bold text-white">{Number(ratings.overallRating).toFixed(1)}</div>
+            <div className="text-5xl font-bold text-foreground">{Number(ratings.overallRating).toFixed(1)}</div>
             <div className="flex items-center justify-center gap-0.5 mt-1.5">
               {Array.from({ length: 5 }).map((_, i) => (
-                <Star key={i} className={`w-4 h-4 ${i < Math.round(Number(ratings.overallRating)) ? "fill-amber-400 text-amber-400" : "text-slate-700"}`} />
+                <Star key={i} className={`w-4 h-4 ${i < Math.round(Number(ratings.overallRating)) ? "fill-amber-400 text-amber-700 dark:text-amber-400" : "text-muted-foreground/40"}`} />
               ))}
             </div>
-            <p className="text-xs text-slate-500 mt-1">{total} rating{total !== 1 ? "s" : ""}</p>
+            <p className="text-xs text-muted-foreground mt-1">{total} rating{total !== 1 ? "s" : ""}</p>
           </div>
           <div className="flex-1">
             {[5, 4, 3, 2, 1].map(star => {
@@ -1073,12 +1075,12 @@ function RatingsTab({ ratings, profile }: { ratings: RatingsData | undefined; pr
               const pct = total > 0 ? (count / total) * 100 : 0;
               return (
                 <div key={star} className="flex items-center gap-2 mb-1.5">
-                  <span className="text-xs text-slate-500 w-3">{star}</span>
-                  <Star className="w-3 h-3 text-amber-400 shrink-0" />
-                  <div className="flex-1 h-1.5 bg-slate-800 rounded-full overflow-hidden">
+                  <span className="text-xs text-muted-foreground w-3">{star}</span>
+                  <Star className="w-3 h-3 text-amber-700 dark:text-amber-400 shrink-0" />
+                  <div className="flex-1 h-1.5 bg-muted rounded-full overflow-hidden">
                     <div className="h-full bg-amber-400 rounded-full" style={{ width: `${pct}%` }} />
                   </div>
-                  <span className="text-xs text-slate-600 w-4 text-right">{count}</span>
+                  <span className="text-xs text-muted-foreground/70 w-4 text-right">{count}</span>
                 </div>
               );
             })}
@@ -1088,34 +1090,34 @@ function RatingsTab({ ratings, profile }: { ratings: RatingsData | undefined; pr
 
       {/* Job stats */}
       <div className="grid grid-cols-2 gap-3">
-        <div className="rounded-2xl bg-slate-900 border border-slate-800 p-4 text-center">
-          <Trophy className="w-5 h-5 text-emerald-400 mx-auto mb-2" />
-          <p className="text-2xl font-bold text-white">{ratings.completedJobs}</p>
-          <p className="text-xs text-slate-500 mt-0.5">Jobs Completed</p>
+        <div className="rounded-2xl bg-card border border-border p-4 text-center">
+          <Trophy className="w-5 h-5 text-emerald-700 dark:text-emerald-400 mx-auto mb-2" />
+          <p className="text-2xl font-bold text-foreground">{ratings.completedJobs}</p>
+          <p className="text-xs text-muted-foreground mt-0.5">Jobs Completed</p>
         </div>
-        <div className="rounded-2xl bg-slate-900 border border-slate-800 p-4 text-center">
-          <Award className="w-5 h-5 text-amber-400 mx-auto mb-2" />
-          <p className="text-2xl font-bold text-white">{ratings.ratingCount}</p>
-          <p className="text-xs text-slate-500 mt-0.5">Jobs Rated</p>
+        <div className="rounded-2xl bg-card border border-border p-4 text-center">
+          <Award className="w-5 h-5 text-amber-700 dark:text-amber-400 mx-auto mb-2" />
+          <p className="text-2xl font-bold text-foreground">{ratings.ratingCount}</p>
+          <p className="text-xs text-muted-foreground mt-0.5">Jobs Rated</p>
         </div>
       </div>
 
       {/* Rated work orders */}
       {ratings.ratedWorkOrders.length > 0 && (
-        <div className="rounded-2xl bg-slate-900 border border-slate-800 overflow-hidden">
-          <div className="px-4 py-3 border-b border-slate-800">
-            <p className="text-xs text-slate-500 uppercase tracking-wide font-semibold">Recent Ratings</p>
+        <div className="rounded-2xl bg-card border border-border overflow-hidden">
+          <div className="px-4 py-3 border-b border-border">
+            <p className="text-xs text-muted-foreground uppercase tracking-wide font-semibold">Recent Ratings</p>
           </div>
-          <div className="divide-y divide-slate-800">
+          <div className="divide-y divide-border">
             {ratings.ratedWorkOrders.map(wo => (
               <div key={wo.id} className="px-4 py-3 flex items-center gap-3">
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm text-white truncate">{wo.title}</p>
-                  <p className="text-xs text-slate-500">{wo.propertyName ?? "—"} · {fmtDate(wo.actualEndDate)}</p>
+                  <p className="text-sm text-foreground truncate">{wo.title}</p>
+                  <p className="text-xs text-muted-foreground">{wo.propertyName ?? "—"} · {fmtDate(wo.actualEndDate)}</p>
                 </div>
                 <div className="flex items-center gap-0.5 shrink-0">
                   {Array.from({ length: 5 }).map((_, i) => (
-                    <Star key={i} className={`w-3.5 h-3.5 ${i < (wo.qualityRating ?? 0) ? "fill-amber-400 text-amber-400" : "text-slate-700"}`} />
+                    <Star key={i} className={`w-3.5 h-3.5 ${i < (wo.qualityRating ?? 0) ? "fill-amber-400 text-amber-700 dark:text-amber-400" : "text-muted-foreground/40"}`} />
                   ))}
                 </div>
               </div>
@@ -1125,8 +1127,8 @@ function RatingsTab({ ratings, profile }: { ratings: RatingsData | undefined; pr
       )}
 
       {ratings.ratingCount === 0 && ratings.completedJobs === 0 && (
-        <div className="rounded-2xl bg-slate-900 border border-slate-800 p-10 text-center">
-          <Star className="w-10 h-10 text-slate-700 mx-auto mb-3" />
+        <div className="rounded-2xl bg-card border border-border p-10 text-center">
+          <Star className="w-10 h-10 text-muted-foreground/40 mx-auto mb-3" />
           <p className="text-muted-foreground/70 text-sm">No ratings yet. Complete your first job to receive feedback.</p>
         </div>
       )}
@@ -1174,19 +1176,19 @@ function MessagesTab({ userId }: { userId: string }) {
   return (
     <div className="space-y-4">
       {/* Compose button */}
-      <Button className="w-full bg-amber-500 hover:bg-amber-600 text-black font-semibold h-11 rounded-xl" onClick={() => setComposeOpen(true)}>
+      <Button className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-semibold h-11 rounded-xl" onClick={() => setComposeOpen(true)}>
         <MessageSquare className="w-4 h-4 mr-2" /> New Message to Property Manager
       </Button>
 
       {/* Compose form */}
       {composeOpen && (
-        <div className="rounded-2xl bg-slate-900 border border-amber-700/40 p-4 space-y-3">
-          <p className="text-sm font-semibold text-white">New Message</p>
-          <Input placeholder="Subject" value={subject} onChange={e => setSubject(e.target.value)} className="bg-slate-800 border-slate-700 text-white placeholder:text-slate-500" />
-          <Textarea placeholder="Write your message…" value={content} onChange={e => setContent(e.target.value)} className="bg-slate-800 border-slate-700 text-white placeholder:text-slate-500 min-h-[100px]" />
+        <div className="rounded-2xl bg-card border border-border p-4 space-y-3">
+          <p className="text-sm font-semibold text-foreground">New Message</p>
+          <Input placeholder="Subject" value={subject} onChange={e => setSubject(e.target.value)} className="bg-background border-border text-foreground placeholder:text-muted-foreground" />
+          <Textarea placeholder="Write your message…" value={content} onChange={e => setContent(e.target.value)} className="bg-background border-border text-foreground placeholder:text-muted-foreground min-h-[100px]" />
           <div className="flex gap-2">
             <Button variant="ghost" className="text-muted-foreground/70" onClick={() => setComposeOpen(false)}>Cancel</Button>
-            <Button className="bg-amber-500 hover:bg-amber-600 text-black font-semibold flex-1" disabled={!content.trim() || sendMut.isPending} onClick={() => sendMut.mutate()}>
+            <Button className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold flex-1" disabled={!content.trim() || sendMut.isPending} onClick={() => sendMut.mutate()}>
               {sendMut.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Send className="w-4 h-4 mr-2" />} Send
             </Button>
           </div>
@@ -1195,30 +1197,30 @@ function MessagesTab({ userId }: { userId: string }) {
 
       {/* Messages list */}
       {isLoading ? (
-        <div className="flex justify-center py-12"><Loader2 className="w-6 h-6 text-amber-400 animate-spin" /></div>
+        <div className="flex justify-center py-12"><Loader2 className="w-6 h-6 text-amber-700 dark:text-amber-400 animate-spin" /></div>
       ) : msgs.length === 0 ? (
-        <div className="rounded-2xl bg-slate-900 border border-slate-800 p-10 text-center">
-          <MessageSquare className="w-10 h-10 text-slate-700 mx-auto mb-3" />
+        <div className="rounded-2xl bg-card border border-border p-10 text-center">
+          <MessageSquare className="w-10 h-10 text-muted-foreground/40 mx-auto mb-3" />
           <p className="text-muted-foreground/70 text-sm">No messages yet. Send a message to your property manager.</p>
         </div>
       ) : (
         <div className="space-y-2">
           {msgs.map(msg => (
-            <div key={msg.id} className={`rounded-2xl border p-4 ${msg.isOwn ? "bg-amber-950/30 border-amber-800/40 ml-4" : "bg-slate-900 border-slate-800 mr-4"}`}>
+            <div key={msg.id} className={`rounded-2xl border p-4 ${msg.isOwn ? "bg-emerald-50 dark:bg-emerald-950/30 border-emerald-200 dark:border-emerald-800/40 ml-4" : "bg-card border-border mr-4"}`}>
               <div className="flex items-start justify-between gap-3 mb-2">
                 <div className="flex items-center gap-2">
-                  <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold ${msg.isOwn ? "bg-amber-500 text-black" : "bg-slate-700 text-slate-300"}`}>
+                  <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold ${msg.isOwn ? "bg-emerald-600 text-white" : "bg-muted-foreground/30 text-muted-foreground"}`}>
                     {(msg.isOwn ? msg.fromName : msg.fromName).charAt(0).toUpperCase()}
                   </div>
                   <div>
-                    <p className="text-xs font-medium text-white">{msg.isOwn ? "You" : msg.fromName}</p>
-                    <p className="text-[10px] text-slate-500">{fmtDate(msg.createdAt)}</p>
+                    <p className="text-xs font-medium text-foreground">{msg.isOwn ? "You" : msg.fromName}</p>
+                    <p className="text-[10px] text-muted-foreground">{fmtDate(msg.createdAt)}</p>
                   </div>
                 </div>
                 {!msg.isRead && !msg.isOwn && <div className="w-2 h-2 rounded-full bg-amber-400 shrink-0 mt-1" />}
               </div>
-              {msg.subject && <p className="text-xs text-slate-400 font-medium mb-1">{msg.subject}</p>}
-              <p className="text-sm text-slate-300 whitespace-pre-wrap">{msg.content}</p>
+              {msg.subject && <p className="text-xs text-muted-foreground font-medium mb-1">{msg.subject}</p>}
+              <p className="text-sm text-muted-foreground whitespace-pre-wrap">{msg.content}</p>
             </div>
           ))}
           <div ref={bottomRef} />
@@ -1345,10 +1347,10 @@ export default function ContractorPortal() {
 
 
   if (!authLoading && user && user.role !== "contractor") {
-    return (<div className="flex items-center justify-center min-h-[60vh] p-6"><div className="text-center max-w-sm space-y-3"><div className="w-14 h-14 rounded-full bg-amber-50 border border-amber-200 flex items-center justify-center mx-auto"><span className="text-2xl">🔒</span></div><h2 className="text-lg font-semibold text-foreground">Access restricted</h2><p className="text-sm text-muted-foreground">This portal is for contractors only.</p></div></div>);
+    return (<div className="flex items-center justify-center min-h-[60vh] p-6"><div className="text-center max-w-sm space-y-3"><div className="w-14 h-14 rounded-full bg-amber-50 border border-amber-200 flex items-center justify-center mx-auto"><LockIc className="h-6 w-6 text-amber-600" /></div><h2 className="text-lg font-semibold text-foreground">Access restricted</h2><p className="text-sm text-muted-foreground">This portal is for contractors only.</p></div></div>);
   }
   if (!authLoading && user && !user.organizationId) {
-    return (<div className="flex items-center justify-center min-h-[60vh] p-6"><div className="text-center max-w-sm space-y-3"><div className="w-14 h-14 rounded-full bg-amber-50 border border-amber-200 flex items-center justify-center mx-auto"><span className="text-2xl">🏢</span></div><h2 className="text-lg font-semibold text-foreground">No organisation linked</h2><p className="text-sm text-muted-foreground">Your account is not linked to an organisation.</p></div></div>);
+    return (<div className="flex items-center justify-center min-h-[60vh] p-6"><div className="text-center max-w-sm space-y-3"><div className="w-14 h-14 rounded-full bg-amber-50 border border-amber-200 flex items-center justify-center mx-auto"><Building2Ic className="h-6 w-6 text-amber-600" /></div><h2 className="text-lg font-semibold text-foreground">No organisation linked</h2><p className="text-sm text-muted-foreground">Your account is not linked to an organisation.</p></div></div>);
   }
 
   return (
@@ -1363,38 +1365,20 @@ export default function ContractorPortal() {
       )}
 
       {/* ── Contractor header ─────────────────────────────────────────── */}
-      <div className="bg-slate-900 text-white px-4 sm:px-6 py-5 border-b border-slate-700">
-        <div className="max-w-5xl mx-auto flex items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <div className="w-11 h-11 rounded-xl bg-white/10 border border-white/20 flex items-center justify-center shrink-0">
-              <Briefcase className="w-5 h-5 text-white" />
-            </div>
-            <div>
-              <p className="text-xs text-white/60 font-medium uppercase tracking-wider">Contractor Portal</p>
-              <h1 className="text-base font-semibold text-white leading-tight">
-                {profile.name ?? user?.firstName ?? "Contractor"}
-              </h1>
-              {profile.specialty && (
-                <p className="text-xs text-white/60 capitalize mt-0.5">{profile.specialty}</p>
-              )}
-            </div>
-          </div>
-          <div className="flex items-center gap-2">
-            <div className="flex items-center gap-1.5 bg-white/10 border border-white/20 text-white/80 text-xs font-medium px-3 py-1.5 rounded-full">
-              <div className={`w-1.5 h-1.5 rounded-full ${profile.isAvailable ? "bg-green-400 animate-pulse" : "bg-slate-400"}`} />
-              {profile.isAvailable ? "Available" : "Unavailable"}
-            </div>
-            {pendingCount > 0 && (
-              <div className="flex items-center gap-1.5 bg-amber-500/20 border border-amber-400/30 text-amber-300 text-xs font-medium px-3 py-1.5 rounded-full">
-                <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
-                {pendingCount} pending {pendingCount === 1 ? "job" : "jobs"}
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
-
-
+      <PortalHeader
+        icon={Briefcase}
+        eyebrow="Contractor Portal"
+        title={profile.name ?? user?.firstName ?? "Contractor"}
+        meta={profile.specialty ? <PortalMeta className="capitalize">{profile.specialty}</PortalMeta> : undefined}
+        actions={<>
+          <PortalChip tone={profile.isAvailable ? "green" : "neutral"} dot pulse={!!profile.isAvailable}>
+            {profile.isAvailable ? "Available" : "Unavailable"}
+          </PortalChip>
+          {pendingCount > 0 && (
+            <PortalChip tone="amber" dot>{pendingCount} pending {pendingCount === 1 ? "job" : "jobs"}</PortalChip>
+          )}
+        </>}
+      />
 
       {/* ── Single-panel layout: pill bar + content, same on all screen sizes ── */}
       <div className="flex-1 flex lg:max-w-5xl lg:mx-auto w-full">

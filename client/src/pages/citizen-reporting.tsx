@@ -9,6 +9,7 @@
  * which already correctly supplies tenantId + unitId.
  */
 
+import { MapPin as MapPinIc } from "lucide-react";
 import { useState, useMemo, useEffect } from "react";
 import { useLocation } from "wouter";
 import { useAuth } from "@/hooks/useAuth";
@@ -380,7 +381,7 @@ function ReportRow({ report, userRole }: { report: any; userRole: string }) {
                   {report.tenant.firstName} {report.tenant.lastName}
                 </span>
               )}
-              {report.property?.name && <span>📍 {report.property.name}</span>}
+              {report.property?.name && <span className="inline-flex items-center gap-1"><MapPinIc className="h-3 w-3" />{report.property.name}</span>}
               {report.unit?.unitNumber && <span>Unit {report.unit.unitNumber}</span>}
               <span className="capitalize">{report.category || "General"}</span>
               <span>#{report.ticketNumber}</span>

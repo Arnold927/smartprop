@@ -98,7 +98,7 @@ export default function RentCollection() {
       return res.json();
     },
     onSuccess: () => {
-      toast({ title: "Payment recorded ✓" });
+      toast({ title: "Payment recorded" });
       queryClient.invalidateQueries({ queryKey: ["/api/rent-payments"] });
       setShowAddModal(false);
       setForm({
@@ -142,7 +142,7 @@ export default function RentCollection() {
       } else {
         downloadCsvTextAsExcel(`rent-payments-${todayStamp()}`, csvText, "Rent payments");
       }
-      toast({ title: "Export downloaded ✓" });
+      toast({ title: "Export downloaded" });
     } catch {
       toast({ title: "Export failed", variant: "destructive" });
     } finally {

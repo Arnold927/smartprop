@@ -15,6 +15,8 @@
  *   PATCH /api/maintenance-requests/:id/feedback — rate resolved request
  */
 
+import { Wrench as WrenchIc, Zap as ZapIc, Snowflake as SnowflakeIc, Hammer as HammerIc, Paintbrush as PaintbrushIc, Sparkles as SparklesIc, Leaf as LeafIc, Plug as PlugIc, Lock as LockIc, ClipboardList as ClipboardListIc, Moon as MoonIc } from "lucide-react";
+import { PortalHeader, PortalChip, PortalMeta } from "@/components/portal-header";
 import { renderWhatsAppText } from "@/lib/whatsapp-text";
 import { useState, useMemo, useEffect, useRef } from "react";
 import { useLocation } from "wouter";
@@ -792,7 +794,7 @@ function NotificationPrefsCard() {
         </div>
 
         <p className="text-xs text-muted-foreground bg-muted/50 rounded-lg px-3 py-2">
-          🌙 Quiet hours (21:00 – 07:00 EAT): non-urgent notifications are held until morning.
+          <MoonIc className="inline h-3.5 w-3.5 mr-1 -mt-0.5" />Quiet hours (21:00 – 07:00 EAT): non-urgent notifications are held until morning.
           Urgent alerts (overdue rent, lease termination) are always delivered immediately.
         </p>
       </CardContent>
@@ -859,7 +861,7 @@ function ProfileTab({
         const err = await r.json().catch(() => ({}));
         throw new Error((err as any).message ?? "Save failed");
       }
-      toast({ title: "✓ Profile updated" });
+      toast({ title: "Profile updated" });
     } catch (err: any) {
       // Rollback: put old values back
       onUpdated({ phone: tenant?.phone ?? "", email: tenant?.email ?? "" });
@@ -2246,7 +2248,7 @@ export default function TenantPortal({ tenantId, initialTenantData }: TenantPort
 
   // Online/offline detection
   useEffect(() => {
-    const up   = () => { setIsOnline(true);  toast({ title: "Back online ✓" }); };
+    const up   = () => { setIsOnline(true);  toast({ title: "Back online" }); };
     const down = () => { setIsOnline(false); toast({ title: "No connection", description: "Some features may be limited.", variant: "destructive" }); };
     window.addEventListener("online",  up);
     window.addEventListener("offline", down);
@@ -2267,7 +2269,7 @@ export default function TenantPortal({ tenantId, initialTenantData }: TenantPort
 
   useWsEvent("payment:confirmed", () => {
     queryClient.invalidateQueries({ queryKey: ["/api/rent-payments"] });
-    toast({ title: "Payment confirmed ✓", description: "Your payment has been received." });
+    toast({ title: "Payment confirmed", description: "Your payment has been received." });
   });
 
   useWsEvent("broadcast", (payload: any) => {
@@ -2507,7 +2509,7 @@ export default function TenantPortal({ tenantId, initialTenantData }: TenantPort
       return r.json();
     },
     onSuccess: (created) => {
-      toast({ title: "✓ Request submitted", description: `Ticket #${created.ticketNumber ?? created.id} logged. You'll be notified of updates.` });
+      toast({ title: "Request submitted", description: `Ticket #${created.ticketNumber ?? created.id} logged. You'll be notified of updates.` });
       repairForm.reset();
       queryClient.invalidateQueries({ queryKey: ["/api/maintenance-requests"] });
       setActiveTab("repairs");
@@ -2542,7 +2544,7 @@ export default function TenantPortal({ tenantId, initialTenantData }: TenantPort
       return r.json();
     },
     onSuccess: () => {
-      toast({ title: "✓ Message sent", description: "Your property manager will respond shortly." });
+      toast({ title: "Message sent", description: "Your property manager will respond shortly." });
       refetchMessages();
     },
     onError: () => toast({ title: "Could not send message", variant: "destructive" }),
@@ -2650,91 +2652,55 @@ export default function TenantPortal({ tenantId, initialTenantData }: TenantPort
       )}
 
       {/* ── Header ─────────────────────────────────────────────────────────── */}
-      <div className="bg-slate-900 text-white px-4 sm:px-6 py-4 sm:py-6 border-b border-white/10">
-        <div className="max-w-5xl mx-auto">
-          <div className="flex items-start justify-between flex-wrap gap-4">
-            <div className="flex items-center gap-4 min-w-0 max-w-full">
-              <div className="w-12 h-12 shrink-0 rounded-2xl bg-white/10 backdrop-blur-sm border border-white/20 flex items-center justify-center">
-                <span className="text-xl font-semibold text-white">
-                  {tenant?.firstName?.[0]}{tenant?.lastName?.[0]}
-                </span>
-              </div>
-              <div className="min-w-0">
-                <p className="text-white/60 text-xs font-medium uppercase tracking-wider mb-0.5">{t("tenantPortal.title")}</p>
-                <h1 className="text-xl font-semibold text-white break-words">
-                  {t("tenantPortal.welcome")}, {tenant?.firstName}
-                </h1>
-                <div className="flex items-center gap-3 mt-1 flex-wrap">
-                  {unitNumber && (
-                    <span className="flex items-center gap-1 text-white/70 text-xs">
-                      <Building className="w-3 h-3" /> Unit {unitNumber}
-                    </span>
-                  )}
-                  {tenant?.leaseEndDate && (
-                    <span className="flex items-center gap-1 text-white/70 text-xs">
-                      <Calendar className="w-3 h-3" /> Lease ends {fmtDate(tenant.leaseEndDate)}
-                    </span>
-                  )}
-                  {tenant?.email && (
-                    <span className="hidden sm:flex items-center gap-1 text-white/70 text-xs">
-                      <Mail className="w-3 h-3" /> {tenant.email}
-                    </span>
-                  )}
-                </div>
-              </div>
+      <PortalHeader
+        avatar={`${tenant?.firstName?.[0] ?? ""}${tenant?.lastName?.[0] ?? ""}`}
+        eyebrow={t("tenantPortal.title")}
+        title={<>{t("tenantPortal.welcome")}, {tenant?.firstName}</>}
+        meta={<>
+          {unitNumber && <PortalMeta icon={Building}>Unit {unitNumber}</PortalMeta>}
+          {tenant?.leaseEndDate && <PortalMeta icon={Calendar}>Lease ends {fmtDate(tenant.leaseEndDate)}</PortalMeta>}
+          {tenant?.email && <PortalMeta icon={Mail} className="hidden sm:inline-flex">{tenant.email}</PortalMeta>}
+        </>}
+        actions={
+          <div className={`${activeTab === "dashboard" ? "flex" : "hidden sm:flex"} flex-wrap items-center gap-2`}>
+            <LanguageToggle variant="full" className="h-7 rounded-full border border-border px-2 text-xs text-muted-foreground hover:bg-muted hover:text-foreground" />
+            {unreadMessages > 0 && (
+              <PortalChip tone="blue" icon={Bell} onClick={() => setActiveTab("messages")}>
+                {unreadMessages} new message{unreadMessages > 1 ? "s" : ""}
+              </PortalChip>
+            )}
+            {overduePayments.length > 0 && (
+              <PortalChip tone="red" icon={AlertTriangle} onClick={() => setActiveTab("payments")}>
+                {overduePayments.length} overdue
+              </PortalChip>
+            )}
+            {urgentRequests.length > 0 && (
+              <PortalChip tone="orange" icon={Wrench} onClick={() => setActiveTab("repairs")}>
+                {urgentRequests.length} urgent
+              </PortalChip>
+            )}
+            <PortalChip tone="green" dot pulse>Active tenant</PortalChip>
+          </div>
+        }
+        footer={tenant?.leaseStartDate && tenant?.leaseEndDate ? (
+          <div className={`${activeTab === "dashboard" ? "block" : "hidden sm:block"} mt-4 border-t border-border pt-4`}>
+            <div className="mb-1.5 flex items-center justify-between text-xs text-muted-foreground">
+              <span>Lease progress</span>
+              <span>{leasePct}% elapsed · {leaseEndDays !== null && leaseEndDays > 0 ? `${leaseEndDays} days remaining` : leaseEndDays === 0 ? "Ends today" : "Expired"}</span>
             </div>
-
-            {/* Status chips + language toggle (on phones only on the home tab, so other tabs start with their content) */}
-            <div className={`${activeTab === "dashboard" ? "flex" : "hidden sm:flex"} items-center gap-2 flex-wrap`}>
-              <LanguageToggle variant="full" className="text-white/80 hover:text-white hover:bg-white/10 border border-white/20 rounded-full px-2 h-7 text-xs" />
-              {unreadMessages > 0 && (
-                <button onClick={() => setActiveTab("messages")}
-                  className="flex items-center gap-1.5 bg-blue-500/20 border border-blue-400/30 text-blue-200 text-xs font-medium px-3 py-1.5 rounded-full hover:bg-blue-500/30 transition-colors">
-                  <Bell className="w-3 h-3" /> {unreadMessages} new message{unreadMessages > 1 ? "s" : ""}
-                </button>
-              )}
-              {overduePayments.length > 0 && (
-                <button onClick={() => setActiveTab("payments")}
-                  className="flex items-center gap-1.5 bg-red-500/20 border border-red-400/30 text-red-200 text-xs font-medium px-3 py-1.5 rounded-full hover:bg-red-500/30 transition-colors">
-                  <AlertTriangle className="w-3 h-3" /> {overduePayments.length} overdue
-                </button>
-              )}
-              {urgentRequests.length > 0 && (
-                <button onClick={() => setActiveTab("repairs")}
-                  className="flex items-center gap-1.5 bg-orange-500/20 border border-orange-400/30 text-orange-200 text-xs font-medium px-3 py-1.5 rounded-full hover:bg-orange-500/30 transition-colors">
-                  <Wrench className="w-3 h-3" /> {urgentRequests.length} urgent
-                </button>
-              )}
-              <div className="flex items-center gap-1.5 bg-white/10 border border-white/20 text-white/80 text-xs font-medium px-3 py-1.5 rounded-full">
-                <div className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
-                Active tenant
-              </div>
+            <div className="h-1.5 overflow-hidden rounded-full bg-muted">
+              <div
+                className={`h-full rounded-full transition-all ${leasePct > 85 ? "bg-red-500" : leasePct > 70 ? "bg-amber-500" : "bg-emerald-500"}`}
+                style={{ width: `${leasePct}%` }}
+              />
+            </div>
+            <div className="mt-1 flex items-center justify-between text-[11px] text-muted-foreground/70">
+              <span>{fmtDate(tenant.leaseStartDate)}</span>
+              <span>{fmtDate(tenant.leaseEndDate)}</span>
             </div>
           </div>
-
-          {/* Lease progress bar */}
-          {tenant?.leaseStartDate && tenant?.leaseEndDate && (
-            <div className={`${activeTab === "dashboard" ? "block" : "hidden sm:block"} mt-5 pt-4 border-t border-white/10`}>
-              <div className="flex items-center justify-between text-xs text-white/60 mb-1.5">
-                <span>Lease progress</span>
-                <span>{leasePct}% elapsed · {leaseEndDays !== null && leaseEndDays > 0 ? `${leaseEndDays} days remaining` : leaseEndDays === 0 ? "Ends today" : "Expired"}</span>
-              </div>
-              <div className="h-1.5 bg-white/10 rounded-full overflow-hidden">
-                <div
-                  className={`h-full rounded-full transition-all ${
-                    leasePct > 85 ? "bg-red-400" : leasePct > 70 ? "bg-yellow-400" : "bg-green-400"
-                  }`}
-                  style={{ width: `${leasePct}%` }}
-                />
-              </div>
-              <div className="flex items-center justify-between text-[11px] text-white/40 mt-1">
-                <span>{fmtDate(tenant.leaseStartDate)}</span>
-                <span>{fmtDate(tenant.leaseEndDate)}</span>
-              </div>
-            </div>
-          )}
-        </div>
-      </div>
+        ) : undefined}
+      />
 
       {/* ── Content ─────────────────────────────────────────────────────────── */}
       <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
@@ -3189,18 +3155,18 @@ export default function TenantPortal({ tenantId, initialTenantData }: TenantPort
                             <FormControl><SelectTrigger className="h-9"><SelectValue placeholder="Select category" /></SelectTrigger></FormControl>
                             <SelectContent>
                               {[
-                                { value: "plumbing",    label: "🔧 Plumbing" },
-                                { value: "electrical",  label: "⚡ Electrical" },
-                                { value: "hvac",        label: "❄️ HVAC / Air Conditioning" },
-                                { value: "carpentry",   label: "🪚 Carpentry / Fixtures" },
-                                { value: "painting",    label: "🎨 Painting / Walls" },
-                                { value: "cleaning",    label: "🧹 Cleaning" },
-                                { value: "landscaping", label: "🌿 Landscaping" },
-                                { value: "appliance",   label: "🏠 Appliance" },
-                                { value: "security",    label: "🔒 Security / Locks" },
-                                { value: "other",       label: "📋 Other" },
+                                { value: "plumbing", label: "Plumbing", Icon: WrenchIc },
+                                { value: "electrical", label: "Electrical", Icon: ZapIc },
+                                { value: "hvac", label: "HVAC / Air Conditioning", Icon: SnowflakeIc },
+                                { value: "carpentry", label: "Carpentry / Fixtures", Icon: HammerIc },
+                                { value: "painting", label: "Painting / Walls", Icon: PaintbrushIc },
+                                { value: "cleaning", label: "Cleaning", Icon: SparklesIc },
+                                { value: "landscaping", label: "Landscaping", Icon: LeafIc },
+                                { value: "appliance", label: "Appliance", Icon: PlugIc },
+                                { value: "security", label: "Security / Locks", Icon: LockIc },
+                                { value: "other", label: "Other", Icon: ClipboardListIc },
                               ].map(c => (
-                                <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>
+                                <SelectItem key={c.value} value={c.value}><span className="flex items-center gap-2">{c.Icon && <c.Icon className="h-3.5 w-3.5 text-muted-foreground" />}{c.label}</span></SelectItem>
                               ))}
                             </SelectContent>
                           </Select>
@@ -3213,10 +3179,10 @@ export default function TenantPortal({ tenantId, initialTenantData }: TenantPort
                           <Select onValueChange={field.onChange} value={field.value}>
                             <FormControl><SelectTrigger className="h-9"><SelectValue /></SelectTrigger></FormControl>
                             <SelectContent>
-                              <SelectItem value="low">🟢 Low — not urgent</SelectItem>
-                              <SelectItem value="medium">🟡 Medium — needs attention soon</SelectItem>
-                              <SelectItem value="high">🟠 High — significant impact</SelectItem>
-                              <SelectItem value="urgent">🔴 Urgent — immediate danger or major leak</SelectItem>
+                              <SelectItem value="low"><span className="flex items-center gap-2"><span className="h-2 w-2 rounded-full bg-emerald-500" />Low — not urgent</span></SelectItem>
+                              <SelectItem value="medium"><span className="flex items-center gap-2"><span className="h-2 w-2 rounded-full bg-yellow-400" />Medium — needs attention soon</span></SelectItem>
+                              <SelectItem value="high"><span className="flex items-center gap-2"><span className="h-2 w-2 rounded-full bg-orange-500" />High — significant impact</span></SelectItem>
+                              <SelectItem value="urgent"><span className="flex items-center gap-2"><span className="h-2 w-2 rounded-full bg-red-500" />Urgent — immediate danger or major leak</span></SelectItem>
                             </SelectContent>
                           </Select>
                           <FormMessage />
