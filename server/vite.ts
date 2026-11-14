@@ -72,11 +72,30 @@ export function serveStatic(app: Express) {
     );
   }
 
-  app.use(express.static(distPath, { maxAge: "1y", etag: true }));
+  // Caching rules (this matters: a stale index.html points at JS files that a newer deploy has removed):
+  //   /assets/*  → hashed file names, never change → cache for a year
+  //   everything else (index.html, sw.js, manifest, icons) → always revalidate
+  app.use(express.static(distPath, {
+    etag: true,
+    setHeaders: (res, filePath) => {
+      const inAssets = filePath.includes(`${path.sep}assets${path.sep}`);
+      res.setHeader("Cache-Control", inAssets ? "public, max-age=31536000, immutable" : "no-cache");
+    },
+  }));
 
-  // SPA fallback - all non-API routes serve index.html
+  // A missing file must be a real 404. Answering with index.html (the SPA page) makes the browser try to run
+  // HTML as JavaScript, which surfaces as "Failed to fetch dynamically imported module" and can't be told apart
+  // from a network problem. A 404 lets the app detect a stale build and reload itself.
+  const FILE_EXT = /\.(js|mjs|css|map|png|jpe?g|gif|webp|svg|ico|woff2?|ttf|json|txt|mp4|webm|pdf)$/i;
+  app.use("/assets", (_req, res) => {
+    res.status(404).set("Cache-Control", "no-store").type("text/plain").send("Not found");
+  });
+
+  // SPA fallback - all other non-API routes serve index.html (never cached)
   app.use("*", (req, res, next) => {
     if (req.originalUrl.startsWith("/api")) return next();
+    if (FILE_EXT.test(req.originalUrl.split("?")[0])) return res.status(404).set("Cache-Control", "no-store").type("text/plain").send("Not found");
+    res.set("Cache-Control", "no-cache");
     res.sendFile(path.resolve(distPath, "index.html"));
   });
 }

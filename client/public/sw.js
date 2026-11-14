@@ -22,8 +22,8 @@
  *     Fields: method, url, headers, body, timestamp, retries, tag
  */
 
-const CACHE_SHELL   = 'smartprop-shell-v3';
-const CACHE_API     = 'smartprop-api-v3';
+const CACHE_SHELL   = 'smartprop-shell-v4';   // v4: drops any cache entry that was an HTML page stored under a .js/.css name
+const CACHE_API     = 'smartprop-api-v4';
 const OFFLINE_URL   = '/offline.html';
 const SYNC_TAG      = 'smartprop-sync';
 const DB_NAME       = 'smartprop-offline';
@@ -265,7 +265,10 @@ self.addEventListener('fetch', (event) => {
       caches.match(request).then(cached => {
         if (cached) return cached;
         return fetch(request).then(response => {
-          if (response.ok) {
+          // Never store an HTML page under a script/style name (what a server returns for a missing file):
+          // cache-first would then serve it forever and the page could never recover.
+          const type = response.headers.get('content-type') || '';
+          if (response.ok && !/text\/html/i.test(type)) {
             // Clone SYNCHRONOUSLY, right now — caches.open() below is async,
             // and by the time it resolves the original response's body may
             // already be mid-consumption by the browser (which we `return`
@@ -282,7 +285,9 @@ self.addEventListener('fetch', (event) => {
 
   // ── Navigation (HTML) — network-first, cached shell fallback ────────────
   event.respondWith(
-    fetch(request)
+    // 'no-cache' = always ask the server whether the page changed, so a copy kept by the browser,
+    // a mobile-network proxy or an old deploy can't hand out an index.html that points at removed files.
+    fetch(request, { cache: 'no-cache' })
       .then(response => {
         if (response.ok) {
           const responseToCache = response.clone(); // same fix — clone synchronously

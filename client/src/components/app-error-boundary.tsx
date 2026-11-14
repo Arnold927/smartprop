@@ -20,17 +20,32 @@ interface State {
 const STALE_CHUNK = /dynamically imported module|Importing a module script failed|Loading chunk|Loading CSS chunk|error loading dynamically/i;
 const RELOAD_KEY = "sp_chunk_reload_at";
 
-function tryAutoReload(error: Error): boolean {
+/**
+ * Reload to a URL no cache has seen (adds ?_v=timestamp). A plain reload can be answered by a stale copy of the
+ * page kept by the browser or a mobile-network proxy, which then fails the same way again.
+ */
+export function reloadFresh() {
+  const url = new URL(window.location.href);
+  url.searchParams.set("_v", String(Date.now()));
+  window.location.replace(url.toString());
+}
+
+/** Once per tab per minute (so a real outage can't cause a reload loop). Returns true when a reload was started. */
+export function reloadOnStaleBuild(): boolean {
   try {
-    if (!STALE_CHUNK.test(String(error?.message ?? error))) return false;
     const last = Number(sessionStorage.getItem(RELOAD_KEY) ?? 0);
     if (Date.now() - last < 60_000) return false;
     sessionStorage.setItem(RELOAD_KEY, String(Date.now()));
-    window.location.reload();
+    reloadFresh();
     return true;
   } catch {
     return false;
   }
+}
+
+function tryAutoReload(error: Error): boolean {
+  if (!STALE_CHUNK.test(String(error?.message ?? error))) return false;
+  return reloadOnStaleBuild();
 }
 
 export class AppErrorBoundary extends Component<Props, State> {
@@ -48,7 +63,7 @@ export class AppErrorBoundary extends Component<Props, State> {
   }
 
   private handleReload = () => {
-    window.location.reload();
+    reloadFresh();
   };
 
   private handleReset = () => {
