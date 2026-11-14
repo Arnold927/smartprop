@@ -50,6 +50,8 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { apiRequest, ensureArray, uploadWithAuth } from "@/lib/queryClient";
+import { runAction, rateRequest, canReopen, apiErrorMessage } from "@/lib/maintenance-flow";
+import { ReasonDialog } from "@/components/maintenance/reason-dialog";
 import { format, differenceInDays, addDays, isAfter, isBefore } from "date-fns";
 import TenantWhatsAppChat from "./tenant-whatsapp-chat";
 import TenantVisitorPanel from "@/components/tenant-visitor-panel";
@@ -82,7 +84,8 @@ const fmtDateTime = (d: string | Date | null | undefined) => {
 // ─── Status / priority configs (static, no translation needed for display) ───
 
 const MAINT_STATUS_CONFIG: Record<string, { label: string; cls: string; icon: any }> = {
-  pending:     { label: "Pending",     cls: "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200",   icon: Clock },
+  pending_approval: { label: "Awaiting approval", cls: "bg-violet-100 text-violet-800 dark:bg-violet-900 dark:text-violet-200", icon: Clock },
+  pending:     { label: "Received",    cls: "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200",   icon: Clock },
   assigned:    { label: "Assigned",    cls: "bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200", icon: User },
   in_progress: { label: "In Progress", cls: "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200", icon: Wrench },
   completed:   { label: "Completed",   cls: "bg-emerald-50 text-emerald-700 border border-emerald-200", icon: CheckCircle },
@@ -556,24 +559,37 @@ function MaintenanceCard({ req }: { req: any }) {
   const isUrgent = req.priority === "urgent" && !isResolved;
 
   const feedbackMutation = useMutation({
-    mutationFn: async () => {
-      const r = await apiRequest(`/api/maintenance-requests/${req.id}/feedback`, {
-        method: "PATCH",
-        data: { rating, comments: ratingComment },
-      });
-      if (!r.ok) throw new Error("Failed");
-      return r.json();
-    },
+    mutationFn: async () => rateRequest(req.id, rating, ratingComment.trim() || undefined),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/maintenance-requests"] });
       setShowRating(false);
       toast({ title: "Thank you for your feedback!" });
     },
-    onError: () => toast({ title: "Could not submit rating", variant: "destructive" }),
+    onError: (e) => {
+      // e.g. "You've already rated this request." — refresh so the card shows the rating that's on file.
+      queryClient.invalidateQueries({ queryKey: ["/api/maintenance-requests"] });
+      toast({ title: "Could not submit rating", description: apiErrorMessage(e), variant: "destructive" });
+    },
   });
 
+  // Withdraw (before anyone is assigned) and reopen (when it isn't actually fixed) — same workflow the team uses.
+  const [reasonFor, setReasonFor] = useState<null | "cancel" | "reopen">(null);
+  const moveMutation = useMutation({
+    mutationFn: async ({ action, reason }: { action: "cancel" | "reopen"; reason?: string }) => runAction(req.id, action, { reason }),
+    onSuccess: (_d, v) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/maintenance-requests"] });
+      setReasonFor(null);
+      toast({ title: v.action === "cancel" ? "Request withdrawn" : "Request reopened", description: v.action === "reopen" ? "We'll follow up on it." : undefined });
+    },
+    onError: (e) => toast({ title: "Couldn't update the request", description: apiErrorMessage(e), variant: "destructive" }),
+  });
+  const canWithdraw = req.status === "pending" || req.status === "pending_approval";
+  const showReopen = isResolved && canReopen(req);
+  const steps = ["Received", "Assigned", "In progress", "Done"];
+  const stepIdx = req.status === "completed" ? 3 : req.status === "in_progress" ? 2 : req.status === "assigned" ? 1 : 0;
+
   return (
-    <div className={`rounded-2xl border overflow-hidden transition-all ${
+    <div data-testid="repair-card" className={`rounded-2xl border overflow-hidden transition-all ${
       isUrgent ? "border-red-300 dark:border-red-700 shadow-sm shadow-red-100 dark:shadow-red-900/30" :
       isResolved ? "border-green-200 dark:border-green-800" :
       req.status === "in_progress" ? "border-yellow-200 dark:border-yellow-800" :
@@ -610,6 +626,31 @@ function MaintenanceCard({ req }: { req: any }) {
           </button>
         </div>
 
+        {/* Where is it? */}
+        {req.status !== "cancelled" && req.status !== "pending_approval" && (
+          <div className="mt-3 flex items-center gap-1" data-testid="progress-steps" aria-label={`Progress: ${steps[stepIdx]}`}>
+            {steps.map((label, i) => (
+              <div key={label} className="flex-1">
+                <div className={`h-1.5 rounded-full ${i <= stepIdx ? (isResolved ? "bg-green-500" : "bg-primary") : "bg-muted"}`} />
+                <p className={`text-[10px] mt-1 ${i === stepIdx ? "font-semibold text-foreground" : "text-muted-foreground"}`}>{label}</p>
+              </div>
+            ))}
+          </div>
+        )}
+        {req.status === "pending_approval" && (
+          <p className="mt-2 text-xs text-violet-700 dark:text-violet-300">This one needs the owner/manager's approval before work can be arranged — we'll tell you as soon as it's decided.</p>
+        )}
+        {req.status === "cancelled" && req.rejectionReason && (
+          <p className="mt-2 text-xs text-red-700 dark:text-red-300">Not approved: {req.rejectionReason}</p>
+        )}
+        {(req.technicianName || req.scheduledDate) && ["assigned", "in_progress"].includes(req.status) && (
+          <p className="mt-2 text-xs text-muted-foreground">
+            {req.technicianName ? <>👷 {req.technicianName}</> : null}
+            {req.technicianName && req.scheduledDate ? " · " : ""}
+            {req.scheduledDate ? <>📅 Visit {fmtDate(req.scheduledDate)}</> : null}
+          </p>
+        )}
+
         {/* Rate resolved request */}
         {isResolved && !req.satisfactionRating && !showRating && (
           <button onClick={() => setShowRating(true)}
@@ -623,7 +664,48 @@ function MaintenanceCard({ req }: { req: any }) {
             <span className="text-xs text-muted-foreground">Your rating</span>
           </div>
         )}
+        {showRating && isResolved && (
+          <div className="mt-3 p-4 bg-green-50 dark:bg-green-950/40 rounded-xl border border-green-200 dark:border-green-800 space-y-3">
+            <p className="text-sm font-semibold text-green-800 dark:text-green-200">
+              How satisfied are you with the resolution?
+            </p>
+            <StarRating value={rating} onChange={setRating} />
+            <Textarea
+              placeholder="Optional: tell us how we did…" rows={2} value={ratingComment}
+              onChange={e => setRatingComment(e.target.value)} className="text-sm bg-white dark:bg-card" />
+            <div className="flex gap-2">
+              <Button size="sm" className="bg-green-600 hover:bg-green-700 text-white"
+                disabled={rating === 0 || feedbackMutation.isPending}
+                onClick={() => feedbackMutation.mutate()}>
+                {feedbackMutation.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : "Submit Feedback"}
+              </Button>
+              <Button size="sm" variant="outline" onClick={() => setShowRating(false)}>Cancel</Button>
+            </div>
+          </div>
+        )}
+
+        {(canWithdraw || showReopen) && (
+          <div className="mt-3 flex gap-2 flex-wrap">
+            {canWithdraw && (
+              <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => setReasonFor("cancel")} data-testid="withdraw-request">Withdraw request</Button>
+            )}
+            {showReopen && (
+              <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => setReasonFor("reopen")} data-testid="reopen-request">Not fixed? Reopen</Button>
+            )}
+          </div>
+        )}
       </div>
+      <ReasonDialog
+        open={reasonFor !== null}
+        onOpenChange={(o) => { if (!o) setReasonFor(null); }}
+        title={reasonFor === "reopen" ? "What's still wrong?" : "Withdraw this request?"}
+        description={reasonFor === "reopen" ? "We'll send the technician back. You can reopen within 14 days of completion." : "Use this if you no longer need the repair. You can always raise a new request."}
+        confirmLabel={reasonFor === "reopen" ? "Reopen request" : "Withdraw request"}
+        required={reasonFor === "reopen"}
+        destructive={reasonFor === "cancel"}
+        busy={moveMutation.isPending}
+        onConfirm={(reason) => reasonFor && moveMutation.mutate({ action: reasonFor, reason })}
+      />
 
       {expanded && (
         <div className="border-t border-border bg-muted/30 p-4 space-y-3">
@@ -633,7 +715,7 @@ function MaintenanceCard({ req }: { req: any }) {
               { label: "Priority",     value: req.priority, className: `capitalize font-medium ${priorityCfg.cls}` },
               { label: "Submitted",    value: fmtDate(req.createdAt) },
               { label: "Last updated", value: fmtDate(req.updatedAt) },
-              req.assignedTo ? { label: "Assigned to", value: req.assignedTo } : null,
+              req.technicianName ? { label: "Assigned to", value: req.technicianName } : null,
               req.estimatedCompletion ? { label: "Est. completion", value: fmtDate(req.estimatedCompletion) } : null,
             ].filter(Boolean).map((row: any) => (
               <div key={row.label}>
@@ -656,25 +738,6 @@ function MaintenanceCard({ req }: { req: any }) {
             </div>
           )}
 
-          {showRating && isResolved && (
-            <div className="p-4 bg-green-50 dark:bg-green-950/40 rounded-xl border border-green-200 dark:border-green-800 space-y-3">
-              <p className="text-sm font-semibold text-green-800 dark:text-green-200">
-                How satisfied are you with the resolution?
-              </p>
-              <StarRating value={rating} onChange={setRating} />
-              <Textarea
-                placeholder="Optional: tell us how we did…" rows={2} value={ratingComment}
-                onChange={e => setRatingComment(e.target.value)} className="text-sm bg-white dark:bg-card" />
-              <div className="flex gap-2">
-                <Button size="sm" className="bg-green-600 hover:bg-green-700 text-white"
-                  disabled={rating === 0 || feedbackMutation.isPending}
-                  onClick={() => feedbackMutation.mutate()}>
-                  {feedbackMutation.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : "Submit Feedback"}
-                </Button>
-                <Button size="sm" variant="outline" onClick={() => setShowRating(false)}>Cancel</Button>
-              </div>
-            </div>
-          )}
         </div>
       )}
     </div>
@@ -1978,7 +2041,10 @@ function RatingsTab({ tenantId }: { tenantId: number }) {
       toast({ title: "Rating submitted!", description: "Thank you for your feedback." });
       queryClient.invalidateQueries({ queryKey: ["/api/ratings/targets"] });
     },
-    onError: () => toast({ title: "Could not submit rating", variant: "destructive" }),
+    onError: (e) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/ratings/targets"] });
+      toast({ title: "Could not submit rating", description: apiErrorMessage(e), variant: "destructive" });
+    },
   });
 
   const ratingLabel = (n: number) => ["", "Poor", "Fair", "Good", "Very Good", "Excellent"][n] ?? "";
@@ -2032,6 +2098,16 @@ function RatingsTab({ tenantId }: { tenantId: number }) {
                     )}
                   </div>
 
+                  {alreadyRated ? (
+                    <div className="space-y-1" data-testid="rated-readonly">
+                      <div className="flex items-center gap-3">
+                        <StarRating value={mr.satisfactionRating} readonly />
+                        <span className="text-xs text-muted-foreground">{ratingLabel(mr.satisfactionRating)}</span>
+                      </div>
+                      {mr.satisfactionComments && <p className="text-xs text-muted-foreground italic">“{mr.satisfactionComments}”</p>}
+                      <p className="text-[11px] text-muted-foreground">Thanks — your rating is on file. If it isn't fixed, reopen the request from the Repairs tab.</p>
+                    </div>
+                  ) : (
                   <div className="space-y-2">
                     <div className="flex items-center gap-3">
                       <StarRating
@@ -2067,9 +2143,10 @@ function RatingsTab({ tenantId }: { tenantId: number }) {
                       }
                     >
                       {submitMutation.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5 mr-1.5" />}
-                      {alreadyRated ? "Update Rating" : "Submit Rating"}
+                      Submit Rating
                     </Button>
                   </div>
+                  )}
                 </CardContent>
               </Card>
             );
@@ -2513,7 +2590,7 @@ export default function TenantPortal({ tenantId, initialTenantData }: TenantPort
       if (!tenant?.unitId) throw new Error("NO_UNIT");
       const r = await apiRequest("/api/maintenance-requests", {
         method: "POST",
-        data: { ...data, tenantId, unitId: tenant.unitId, currency: "KES", status: "pending" },
+        data: { ...data, tenantId, unitId: tenant.unitId, currency: "KES" },
       });
       if (!r.ok) {
         const err = await r.json().catch(() => ({}));

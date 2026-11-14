@@ -208,8 +208,10 @@ export function useWsQuerySync() {
   const queryClient = useQueryClient();
 
   useWsEvent("maintenance:updated", () => {
-    queryClient.invalidateQueries({ queryKey: ["/api/maintenance-requests"] });
+    // The list AND any open request page / approvals queue (their keys start with the same path).
+    queryClient.invalidateQueries({ predicate: (q) => typeof q.queryKey[0] === "string" && (["/api/maintenance-requests", "/api/landlord-portal/maintenance"].some((p) => (q.queryKey[0] as string).startsWith(p))) });
     queryClient.invalidateQueries({ queryKey: ["/api/contractor-portal/work-orders"] });
+    queryClient.invalidateQueries({ queryKey: ["/api/ratings/targets"] });
   });
 
   useWsEvent("payment:confirmed", () => {

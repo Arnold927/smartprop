@@ -22,6 +22,7 @@ import { db } from "../db";
 import { authenticateJWT } from "../middleware/auth";
 import { requireOrg }   from "../middleware/requireOrg";
 import { requireOwner } from "../middleware/requireOwner";
+import { transition, actorFromReq, WorkflowError } from "../services/maintenance-workflow";
 import { storage } from "../storage";
 import {
   properties,
@@ -1460,7 +1461,7 @@ router.get("/maintenance/pending-approval", authenticateJWT, requireOrg, require
         approvedBy:    maintenanceRequests.approvedBy,
         approvedDate:  maintenanceRequests.approvedDate,
         rejectionReason: maintenanceRequests.rejectionReason,
-        internalNotes: maintenanceRequests.internalNotes,
+        currency:      maintenanceRequests.currency,
         createdAt:     maintenanceRequests.createdAt,
         propertyName:  properties.name,
         unitNumber:    units.unitNumber,
@@ -1470,9 +1471,10 @@ router.get("/maintenance/pending-approval", authenticateJWT, requireOrg, require
       .leftJoin(properties, eq(units.propertyId, properties.id))
       .where(and(
         inArray(units.propertyId, propertyIds),
-        eq(maintenanceRequests.approvalRequired, true),
+        // Waiting for a decision — requests already decided disappear from this list.
+        eq(maintenanceRequests.status, "pending_approval"),
       ))
-      .orderBy(desc(maintenanceRequests.createdAt));
+      .orderBy(maintenanceRequests.createdAt);
 
     return res.json(rows);
   } catch (err) {
@@ -1482,49 +1484,25 @@ router.get("/maintenance/pending-approval", authenticateJWT, requireOrg, require
 });
 
 // PATCH /api/landlord-portal/maintenance/:id/approve
+// Same workflow as everywhere else: only a request that is waiting for approval can be decided, and only on
+// a property this owner owns (before this, any owner could decide any request by id).
 router.patch("/maintenance/:id/approve", authenticateJWT, requireOrg, requireOwner, async (req: any, res) => {
   try {
-    const userId = req.user.userId || req.user.id;
     const id = parseInt(req.params.id);
     const { action, rejectionReason, notes } = req.body; // action: "approve" | "reject"
-
     if (!["approve", "reject"].includes(action)) {
       return res.status(400).json({ message: "action must be 'approve' or 'reject'" });
     }
     if (action === "reject" && !rejectionReason?.trim()) {
       return res.status(400).json({ message: "rejectionReason is required when rejecting" });
     }
-
-    const patch: any = {
-      approvedBy:   userId,
-      approvedDate: new Date(),
-      internalNotes: notes || null,
-    };
-
-    if (action === "approve") {
-      patch.status = "assigned";
-      patch.rejectionReason = null;
-    } else {
-      patch.status = "cancelled";
-      patch.rejectionReason = rejectionReason.trim();
-    }
-
-    const [updated] = await db
-      .update(maintenanceRequests)
-      .set(patch)
-      .where(eq(maintenanceRequests.id, id))
-      .returning();
-
-    // Send notification to property manager
-    try {
-      const userId = String(req.user.userId || req.user.id);
-      const fromName = `${req.user.firstName ?? ""} ${req.user.lastName ?? ""}`.trim() || "Landlord";
-      const [reqRow] = await db.select({ ticketNumber: maintenanceRequests.ticketNumber }).from(maintenanceRequests).where(eq(maintenanceRequests.id, id)).limit(1);
-      if (reqRow) await sendApprovalNotification(req.user.organizationId, userId, fromName, reqRow.ticketNumber, action, rejectionReason);
-    } catch { /* non-fatal */ }
-
+    const updated = await transition(id, action, actorFromReq(req), {
+      comments: (action === "approve" ? notes : rejectionReason)?.trim() || undefined,
+      reason: rejectionReason?.trim() || undefined,
+    });
     return res.json(updated);
-  } catch (err) {
+  } catch (err: any) {
+    if (err instanceof WorkflowError) return res.status(err.httpStatus).json({ message: err.message, code: err.code });
     console.error("Landlord maintenance approve PATCH:", err);
     return res.status(500).json({ message: "Failed to update approval" });
   }

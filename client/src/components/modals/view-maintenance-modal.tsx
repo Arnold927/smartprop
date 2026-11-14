@@ -115,7 +115,9 @@ export default function ViewMaintenanceModal({ isOpen, onClose, request }: ViewM
   const { data: workOrdersData } = useQuery({
     queryKey: ["/api/work-orders", request?.id],
     queryFn: () => apiJson(`/api/work-orders?maintenanceRequestId=${request!.id}`),
-    enabled: isOpen && !!request?.id,
+    // Only a job sent to an external contractor has a work order (created when it's assigned to them).
+    enabled: isOpen && !!request?.id && !!(request as any)?.contractorId,
+    retry: false,
   });
   // apiJson returns the parsed body directly — handle both array and { results: [] } shapes
   const linkedWorkOrder = Array.isArray(workOrdersData)
@@ -386,27 +388,18 @@ export default function ViewMaintenanceModal({ isOpen, onClose, request }: ViewM
               Close
             </Button>
             <div className="flex items-center gap-2">
-              <Button
-                size="sm"
-                variant="outline"
-                className={cn(
-                  "h-8 text-xs",
-                  linkedWorkOrder
-                    ? "border-emerald-200 text-emerald-700 hover:bg-emerald-50"
-                    : "opacity-40 cursor-not-allowed"
-                )}
-                disabled={!linkedWorkOrder}
-                title={linkedWorkOrder
-                  ? "View the work order for this request"
-                  : "No work order yet — submit a new request to auto-generate one"
-                }
-                onClick={() => {
-                  if (linkedWorkOrder) { onClose(); navigate(`/work-orders/${linkedWorkOrder.id}`); }
-                }}
-              >
-                <ClipboardList className="w-3.5 h-3.5 mr-1.5" />
-                {linkedWorkOrder ? "Work Order" : "No Work Order"}
-              </Button>
+              {linkedWorkOrder && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-8 text-xs border-emerald-200 text-emerald-700 hover:bg-emerald-50"
+                  title="The contractor's work order for this request"
+                  onClick={() => { onClose(); navigate(`/work-orders/${linkedWorkOrder.id}`); }}
+                >
+                  <ClipboardList className="w-3.5 h-3.5 mr-1.5" />
+                  Contractor work order
+                </Button>
+              )}
               <Button
                 size="sm"
                 className="h-8 bg-emerald-600 hover:bg-emerald-700 text-white text-xs"

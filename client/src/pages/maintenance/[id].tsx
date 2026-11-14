@@ -22,12 +22,14 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { apiRequest, ensureArray } from "@/lib/queryClient";
+import { apiErrorMessage } from "@/lib/maintenance-flow";
 import { useToast } from "@/hooks/use-toast";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import StatusBadge from "@/components/ui/status-badge";
 import { Progress } from "@/components/ui/progress";
 import { WorkOrderCostModal } from "@/components/work-order-cost-modal";
+import { RequestActionsCard } from "@/components/maintenance/request-actions-card";
 import { PageShell, PageHeader, SectionCard, SPBadge, EmptyState, PrimaryButton, SecondaryButton, FilterBar, SPTable, SPAvatar, StatTile, StatsGrid, KESAmount, ActionMenu, ConfirmDialog } from "@/components/ui/sp-ui";
 
 interface MaintenanceRequest {
@@ -40,7 +42,7 @@ interface MaintenanceRequest {
   propertyId?: number;
   category: string;
   priority: "low" | "medium" | "high" | "urgent";
-  status: "pending" | "assigned" | "in_progress" | "completed" | "cancelled";
+  status: "pending" | "pending_approval" | "assigned" | "in_progress" | "completed" | "cancelled";
   estimatedCost?: string;
   actualCost?: string;
   currency?: string;
@@ -391,22 +393,22 @@ export default function MaintenanceDetails() {
   // Delete request mutation
   const deleteRequestMutation = useMutation({
     mutationFn: async () => {
-      const response = await apiRequest(`/api/maintenance-requests/${id}`, {
-        method: "DELETE",
-      });
-      return response.json();
+      // The server answers 204 (no body) — don't try to parse one.
+      await apiRequest(`/api/maintenance-requests/${id}`, { method: "DELETE" });
+      return true;
     },
     onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/maintenance-requests"] });
       toast({
         title: "Success",
         description: "Maintenance request deleted successfully",
       });
       setLocation("/maintenance");
     },
-    onError: () => {
+    onError: (e: any) => {
       toast({
-        title: "Error",
-        description: "Failed to delete maintenance request",
+        title: "Couldn't delete the request",
+        description: apiErrorMessage(e, "Failed to delete maintenance request"),
         variant: "destructive",
       });
     },
@@ -850,171 +852,16 @@ export default function MaintenanceDetails() {
 
         {/* Right Column - Sidebar */}
         <div className="space-y-6">
-          {/* Status & Actions */}
-          <Card className="border-border">
-            <CardHeader>
-              <CardTitle>Status & Actions</CardTitle>
-              {isAssigned(request) && (
-                <CardDescription className="flex items-center space-x-2">
-                  <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200" >
-                    <User className="h-3 w-3 mr-1" />
-                    Assigned
-                  </Badge>
-                  <span className="text-sm text-muted-foreground">
-                    to {assignedStaffOf(request)?.firstName || "Technician"}
-                  </span>
-                </CardDescription>
-              )}
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {/* Update Status */}
-              <div>
-                <Label htmlFor="status">Update Status</Label>
-                <Select
-                  value={request.status}
-                  onValueChange={(value) => handleStatusChange(value)}
-                  disabled={updateStatusMutation.isPending}
-                >
-                  <SelectTrigger className="border-border">
-                    <SelectValue placeholder="Select status" />
-                  </SelectTrigger>
-                  <SelectContent className="border-border shadow-md">
-                    <SelectItem value="pending">Pending</SelectItem>
-                    <SelectItem value="assigned">Assigned</SelectItem>
-                    <SelectItem value="in_progress">In Progress</SelectItem>
-                    <SelectItem value="completed">Completed</SelectItem>
-                    <SelectItem value="cancelled">Cancelled</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              {/* Assign Technician */}
-              {/* BUG 6 FIX: use "assigned" (valid enum) not "scheduled" */}
-              <div>
-                <Label htmlFor="assignedTo">
-                  Assign Technician
-                  {isAssigned(request) && (
-                    <span className="ml-2 text-xs font-normal text-green-600">
-                      ✓ Currently assigned
-                    </span>
-                  )}
-                </Label>
-
-                <TechnicianSelect
-                  value={request.technicianId ?? assignedStaffOf(request)?.id ?? null}
-                  disabled={assignTechnician.isPending}
-                  onChange={(id) => assignTechnician.mutate({ requestId: request.id, technicianId: id })}
-                  placeholder="Select who will do the work"
-                  className="border-border"
-                />
-
-                {canAddTech && (
-                  <div className="mt-2 flex items-center justify-between">
-                    <Button variant="ghost" size="sm" className="h-7 text-xs gap-1" onClick={() => setAddTechOpen(true)}>
-                      <UserPlus className="h-3 w-3" /> Add a technician
-                    </Button>
-                    {isAssigned(request) && (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="h-7 text-xs text-red-600 hover:text-red-700 hover:bg-red-50"
-                        onClick={() => assignTechnician.mutate({ requestId: request.id, technicianId: null })}
-                        disabled={assignTechnician.isPending}
-                      >
-                        <XCircle className="h-3 w-3 mr-1" />
-                        Unassign Technician
-                      </Button>
-                    )}
-                  </div>
-                )}
-                <AddTeamMemberDialog
-                  open={addTechOpen}
-                  onOpenChange={setAddTechOpen}
-                  onCreated={(sid) => assignTechnician.mutate({ requestId: request.id, technicianId: sid })}
-                />
-
-                {isLoadingStaff && (
-                  <p className="text-xs text-muted-foreground mt-1">Loading staff members...</p>
-                )}
-              </div>
-
-              {/* Schedule Visit Button */}
-              <Button
-                className="w-full bg-emerald-600 hover:bg-emerald-700 border-blue-600"
-                onClick={() => {
-                  toast({
-                    title: "Schedule Visit",
-                    description: "This feature will be implemented soon",
-                  });
-                }}
-              >
-                <Calendar className="h-4 w-4 mr-2" />
-                Schedule Visit
-              </Button>
-
-              {/* Update Cost Button */}
-              {/* BUG 7 FIX: Only show the modal when we have resolved a real work order ID.
-                  The modal receives workOrderId (the linked work order) not request.id
-                  (the maintenance request). If no work order is linked yet, disable the button. */}
-              <Button
-                variant="outline"
-                onClick={() => setIsModalOpen(true)}
-                disabled={workOrderId === null}
-                title={workOrderId === null ? "No linked work order found" : undefined}
-                className="w-full border-border hover:bg-muted hover:border-border transition-colors"
-              >
-                Update Cost
-                {workOrderId === null && (
-                  <span className="ml-2 text-xs text-muted-foreground">(no work order)</span>
-                )}
-              </Button>
-
-              {/* Approval Section (if needed) */}
-              {request.status === "pending" && (
-                <>
-                  <Separator className="my-2 bg-muted" />
-                  <div className="space-y-2">
-                    <Label className="text-sm font-medium text-foreground">Quick Approval</Label>
-                    <div className="flex space-x-2">
-                      <Button
-                        variant="outline"
-                        className="flex-1 border-green-200 text-green-700 hover:bg-green-50 hover:border-green-300"
-                        onClick={() => {
-                          const amount = prompt("Enter approved amount:", request.estimatedCost || "0");
-                          if (amount !== null) {
-                            approveRequestMutation.mutate({
-                              approvalStatus: "approved",
-                              approvedAmount: amount,
-                              comments: "Approved via quick action"
-                            });
-                          }
-                        }}
-                        disabled={approveRequestMutation.isPending}
-                      >
-                        Approve
-                      </Button>
-                      <Button
-                        variant="outline"
-                        className="flex-1 border-red-200 text-red-700 hover:bg-red-50 hover:border-red-300"
-                        onClick={() => {
-                          const reason = prompt("Reason for rejection:");
-                          if (reason !== null) {
-                            approveRequestMutation.mutate({
-                              approvalStatus: "rejected",
-                              comments: reason
-                            });
-                          }
-                        }}
-                        disabled={approveRequestMutation.isPending}
-                      >
-                        Reject
-                      </Button>
-                    </div>
-                  </div>
-                </>
-              )}
-            </CardContent>
-          </Card>
+          {/* Status & Actions — only the moves that are valid right now, for this person */}
+          <RequestActionsCard
+            request={request as any}
+            role={user?.role}
+            userId={user?.id}
+            assigneeName={(() => { const st = assignedStaffOf(request); return st ? `${st.firstName} ${st.lastName}`.trim() : (request as any).technicianName ?? null; })()}
+            canAddTech={canAddTech}
+            linkedWorkOrderId={workOrderId}
+            onOpenCostBreakdown={() => setIsModalOpen(true)}
+          />
           {/* Related Tenant */}
           <Card className="border-border">
             <CardHeader>

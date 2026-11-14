@@ -19,6 +19,8 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/useAuth";
 import { useWsEvent } from "@/hooks/useWebSocket";
 import { apiRequest, ensureArray } from "@/lib/queryClient";
+import { availableActions, runAction, apiErrorMessage } from "@/lib/maintenance-flow";
+import { ReasonDialog } from "@/components/maintenance/reason-dialog";
 import { useDashboardSummary } from "@/hooks/useDashboardSummary";
 import { useToast } from "@/hooks/use-toast";
 import { format, formatDistanceToNow, isToday } from "date-fns";
@@ -51,7 +53,8 @@ const fmtKES = (n: any) => `KES ${Math.round(Number(n ?? 0)).toLocaleString("en-
 
 // ─── Status / Priority configs ────────────────────────────────────────────────
 const MAINT_STATUS: Record<string, { label: string; color: string; bg: string; border: string; icon: any }> = {
-  pending:     { label: "Pending",     color: "text-blue-600 dark:text-blue-400",   bg: "bg-blue-50 dark:bg-blue-950/30",   border: "border-blue-200 dark:border-blue-800",   icon: Clock },
+  pending_approval: { label: "Awaiting approval", color: "text-violet-600 dark:text-violet-400", bg: "bg-violet-50 dark:bg-violet-950/30", border: "border-violet-200 dark:border-violet-800", icon: Clock },
+  pending:     { label: "Open",        color: "text-blue-600 dark:text-blue-400",   bg: "bg-blue-50 dark:bg-blue-950/30",   border: "border-blue-200 dark:border-blue-800",   icon: Clock },
   assigned:    { label: "Assigned",    color: "text-purple-600 dark:text-purple-400", bg: "bg-purple-50 dark:bg-purple-950/30", border: "border-purple-200 dark:border-purple-800", icon: User },
   in_progress: { label: "In Progress", color: "text-amber-600 dark:text-amber-400", bg: "bg-amber-50 dark:bg-amber-950/30",  border: "border-amber-200 dark:border-amber-800",  icon: Play },
   completed:   { label: "Completed",   color: "text-green-600 dark:text-green-400", bg: "bg-green-50 dark:bg-green-950/30",  border: "border-green-200 dark:border-green-800",  icon: CheckCircle2 },
@@ -96,22 +99,22 @@ function MaintenancePanel() {
 
   const assignMutation = useAssignTechnician();
 
+  // One workflow for every screen: Start / Complete are real actions (timestamps + tenant & manager notified),
+  // approve / reject use the approval route (only admins, managers and the property owner may decide).
+  const { user: me } = useAuth() as any;
   const statusMutation = useMutation({
-    mutationFn: async ({ id, status }: { id: number; status: string }) => {
-      const r = await apiRequest(`/api/maintenance-requests/${id}`, { method: "PATCH", data: { status } });
-      return r.json();
-    },
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["/api/maintenance-requests"] }); toast({ title: "Status updated" }); },
-    onError: () => toast({ title: "Update failed", variant: "destructive" }),
+    mutationFn: async ({ id, action }: { id: number; action: "start" | "complete" }) => runAction(id, action),
+    onSuccess: (_d, v) => { queryClient.invalidateQueries({ queryKey: ["/api/maintenance-requests"] }); toast({ title: v.action === "start" ? "Work started" : "Marked complete — the tenant has been asked for feedback" }); },
+    onError: (e) => toast({ title: "Couldn't update the request", description: apiErrorMessage(e), variant: "destructive" }),
   });
-
+  const [rejecting, setRejecting] = useState<any | null>(null);
   const approveMutation = useMutation({
-    mutationFn: async ({ id, action }: { id: number; action: "approve" | "reject" }) => {
-      const r = await apiRequest(`/api/maintenance-requests/${id}/approve`, { method: "PATCH", data: { action } });
+    mutationFn: async ({ id, action, reason }: { id: number; action: "approve" | "reject"; reason?: string }) => {
+      const r = await apiRequest(`/api/maintenance-requests/${id}/approve`, { method: "POST", data: { approvalStatus: action === "approve" ? "approved" : "rejected", comments: reason } });
       return r.json();
     },
-    onSuccess: (_, v) => { queryClient.invalidateQueries({ queryKey: ["/api/maintenance-requests"] }); toast({ title: v.action === "approve" ? "Approved" : "Rejected" }); },
-    onError: () => toast({ title: "Action failed", variant: "destructive" }),
+    onSuccess: (_, v) => { queryClient.invalidateQueries({ queryKey: ["/api/maintenance-requests"] }); setRejecting(null); toast({ title: v.action === "approve" ? "Approved — ready to assign" : "Rejected — the tenant has been told" }); },
+    onError: (e) => toast({ title: "Couldn't record the decision", description: apiErrorMessage(e), variant: "destructive" }),
   });
 
   const counts = useMemo(() => ({
@@ -168,7 +171,8 @@ function MaintenancePanel() {
             const st = MAINT_STATUS[req.status] ?? MAINT_STATUS.pending;
             const pr = PRIORITY[req.priority ?? "medium"] ?? PRIORITY.medium;
             const isExp = expandedId === req.id;
-            const needsApproval = req.approvalRequired && req.status === "pending";
+            const acts = availableActions(req, { role: me?.role, userId: me?.id });
+            const needsApproval = req.status === "pending_approval";
             return (
               <div key={req.id} className={`rounded-xl border ${st.bg} ${st.border}`}>
                 <button className="w-full text-left p-3" onClick={() => setExpandedId(isExp ? null : req.id)}>
@@ -194,13 +198,14 @@ function MaintenancePanel() {
                 {isExp && (
                   <div className="px-3 pb-3 pt-2 border-t border-border/40 space-y-3">
                     {req.description && <p className="text-sm text-foreground/80">{req.description}</p>}
-                    {needsApproval && (
+                    {needsApproval && acts.includes("approve") && (
                       <div className="flex gap-2">
-                        <Button size="sm" className="text-xs h-7 bg-green-600 hover:bg-green-700 text-white" onClick={() => approveMutation.mutate({ id: req.id, action: "approve" })}><Check className="h-3 w-3 mr-1" />Approve</Button>
-                        <Button size="sm" variant="outline" className="text-xs h-7 border-red-300 dark:border-red-800 text-red-600 dark:text-red-400" onClick={() => approveMutation.mutate({ id: req.id, action: "reject" })}><X className="h-3 w-3 mr-1" />Reject</Button>
+                        <Button size="sm" className="text-xs h-7 bg-green-600 hover:bg-green-700 text-white" disabled={approveMutation.isPending} onClick={() => approveMutation.mutate({ id: req.id, action: "approve" })}><Check className="h-3 w-3 mr-1" />Approve</Button>
+                        <Button size="sm" variant="outline" className="text-xs h-7 border-red-300 dark:border-red-800 text-red-600 dark:text-red-400" onClick={() => setRejecting(req)}><X className="h-3 w-3 mr-1" />Reject</Button>
                       </div>
                     )}
-                    {!["completed","cancelled"].includes(req.status) && (
+                    {needsApproval && !acts.includes("approve") && <p className="text-xs text-violet-700 dark:text-violet-300">Waiting for approval before it can be assigned.</p>}
+                    {!needsApproval && !["completed","cancelled"].includes(req.status) && (
                       <TechnicianSelect
                         value={req.technicianId ?? null}
                         disabled={assignMutation.isPending}
@@ -209,14 +214,17 @@ function MaintenancePanel() {
                         className="h-8 text-xs bg-background"
                       />
                     )}
-                    {!["completed","cancelled"].includes(req.status) && (
+                    {(acts.includes("start") || acts.includes("complete")) && (
                       <div className="flex gap-2 flex-wrap">
-                        {req.status !== "in_progress" && (
-                          <Button size="sm" variant="outline" className="text-xs h-7 border-amber-300 dark:border-amber-800 text-amber-700 dark:text-amber-400" onClick={() => statusMutation.mutate({ id: req.id, status: "in_progress" })}><Play className="h-3 w-3 mr-1" />Start</Button>
+                        {acts.includes("start") && (
+                          <Button size="sm" variant="outline" disabled={statusMutation.isPending} className="text-xs h-7 border-amber-300 dark:border-amber-800 text-amber-700 dark:text-amber-400" onClick={() => statusMutation.mutate({ id: req.id, action: "start" })}><Play className="h-3 w-3 mr-1" />Start</Button>
                         )}
-                        <Button size="sm" className="text-xs h-7 bg-green-600 hover:bg-green-700 text-white" onClick={() => statusMutation.mutate({ id: req.id, status: "completed" })}><Check className="h-3 w-3 mr-1" />Complete</Button>
+                        {acts.includes("complete") && (
+                          <Button size="sm" disabled={statusMutation.isPending} className="text-xs h-7 bg-green-600 hover:bg-green-700 text-white" onClick={() => statusMutation.mutate({ id: req.id, action: "complete" })}><Check className="h-3 w-3 mr-1" />Complete</Button>
+                        )}
                       </div>
                     )}
+                    {req.status === "pending" && <p className="text-[11px] text-muted-foreground">Assign someone above — work can start once it has an assignee.</p>}
                   </div>
                 )}
               </div>
@@ -224,6 +232,17 @@ function MaintenancePanel() {
           })}
         </div>
       )}
+      <ReasonDialog
+        open={!!rejecting}
+        onOpenChange={(o) => { if (!o) setRejecting(null); }}
+        title="Reject this request?"
+        description="The tenant is told it wasn't approved, with your reason."
+        confirmLabel="Reject request"
+        required
+        destructive
+        busy={approveMutation.isPending}
+        onConfirm={(reason) => rejecting && approveMutation.mutate({ id: rejecting.id, action: "reject", reason })}
+      />
     </div>
   );
 }

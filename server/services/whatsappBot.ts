@@ -28,6 +28,7 @@ import { db }              from "../db";
 import { tenants, rentPayments, maintenanceRequests, units, organizations, userNotificationPreferences } from "@shared/schema";
 import { eq, and, desc, sql } from "drizzle-orm";
 import { whatsappService } from "../whatsapp";
+import { sanitizeNewRequest, announceNewRequest } from "./maintenance-workflow";
 
 const log = (msg: string) => console.log(`[WhatsAppBot] ${msg}`);
 
@@ -121,6 +122,7 @@ interface TenantContext {
   mpesaPaybill: string | null;
   currency: string;
   unitNumber: string | null;
+  unitId: number | null;
 }
 
 async function getTenantContext(phone: string): Promise<TenantContext | null> {
@@ -163,6 +165,7 @@ async function getTenantContext(phone: string): Promise<TenantContext | null> {
       mpesaPaybill: null,                       // extend from org settings if needed
       currency:     row.currency ?? "KES",
       unitNumber:   row.unitNumber ?? null,
+      unitId:       row.unitId ?? null,
     };
   } catch (err) {
     log(`getTenantContext error for ${phone}: ${err}`);
@@ -275,24 +278,31 @@ async function handleMaintenance(ctx: TenantContext, description: string): Promi
     ].join("\n");
   }
 
-  // Create a maintenance request in the DB
+  // Create a maintenance request in the DB — the same way the app does: it starts at the beginning of the
+  // workflow, and the team that oversees the property is told. (This used to insert a row with no unit,
+  // which the database refuses — the failure was swallowed and the tenant was still told "Ticket logged".)
+  if (!ctx.unitId) {
+    return [
+      `🔧 *We couldn't log that*`,
+      ``,
+      `Hi ${name}, your account isn't linked to a unit yet, so we can't open a ticket from here. Please contact the office and they'll sort it out.`,
+      ``,
+      `– ${ctx.orgName}`,
+    ].join("\n");
+  }
   try {
-    const ticket = await db
+    const fields = await sanitizeNewRequest({
+      tenantId: ctx.tenantId, unitId: ctx.unitId,
+      title: description.slice(0, 100), description,
+      priority: "medium", category: "other", currency: ctx.currency,
+    });
+    const [created] = await db
       .insert(maintenanceRequests)
-      .values({
-        organizationId: ctx.orgId,
-        tenantId:       ctx.tenantId,
-        unitId:         null,                          // will be filled by manager if needed
-        title:          description.slice(0, 100),
-        description,
-        status:         "pending",
-        priority:       "medium",
-        category:       "other",
-        ticketNumber:   `WA-${Date.now().toString().slice(-6)}`,
-        source:         "whatsapp",
-      } as any)
-      .returning({ ticketNumber: maintenanceRequests.ticketNumber })
-      .catch(() => null);
+      .values({ ...fields, ticketNumber: `WA-${Date.now().toString(36).toUpperCase()}` } as any)
+      .returning();
+    if (!created) throw new Error("insert returned nothing");
+    announceNewRequest(created, { id: "", role: "tenant", organizationId: ctx.orgId, system: true }).catch(() => {});
+    const ticket = [{ ticketNumber: created.ticketNumber }];
 
     const ticketNum = ticket?.[0]?.ticketNumber ?? "pending";
 

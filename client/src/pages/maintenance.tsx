@@ -12,6 +12,8 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import { apiRequest, ensureArray } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { availableActions, runAction, apiErrorMessage, type FlowAction } from "@/lib/maintenance-flow";
+import { ReasonDialog } from "@/components/maintenance/reason-dialog";
 import QueryError from "@/components/query-error";
 import { useIsMobile } from "@/hooks/use-mobile";
 import {
@@ -52,6 +54,7 @@ interface MaintenanceRequest {
  status: string;
  assignedTo?: string;
  technicianId?: number | null;
+ contractorId?: number | null;
  estimatedCost?: string;
  category?: string;
  createdAt: string;
@@ -275,29 +278,31 @@ function MobileMaintenanceCard({
   r,
   onView,
   onEdit,
-  onComplete,
+  onAction,
   onApprove,
   onAssign,
   canActProp,
+  viewer,
 }: {
   r: MaintenanceRequest;
   onView: () => void;
   onEdit: () => void;
-  onComplete: () => void;
+  onAction: (a: FlowAction) => void;
   onApprove: () => void;
   onAssign: () => void;
   canActProp: boolean;
+  viewer: { role?: string | null; userId?: string | null };
 }) {
   const [isSheetOpen, setIsSheetOpen] = useState(false);
-  const canComplete = r.status !== "completed" && r.status !== "cancelled";
-  const needsApproval = r.status === "pending_approval";
-
+  const acts = canActProp ? availableActions(r, viewer) : [];
   const actions = [
     { label: "View Details", icon: Eye, onClick: onView },
     { label: "Edit Request", icon: Edit, onClick: onEdit },
-    ...(canActProp && canComplete && !needsApproval ? [{ label: r.technicianId ? "Re-assign technician" : "Assign technician", icon: Wrench, onClick: onAssign }] : []),
-    ...(needsApproval && canActProp ? [{ label: "Approve / Reject", icon: ShieldCheck, onClick: onApprove, className: "text-violet-600" }] : []),
-    ...(canComplete && !needsApproval && canActProp ? [{ label: "Mark as Completed", icon: CheckCircle, onClick: onComplete, className: "text-green-600" }] : []),
+    ...(acts.includes("approve") ? [{ label: "Approve / Reject", icon: ShieldCheck, onClick: onApprove, className: "text-violet-600" }] : []),
+    ...(acts.includes("assign") ? [{ label: r.technicianId || r.contractorId ? "Re-assign" : "Assign technician", icon: Wrench, onClick: onAssign }] : []),
+    ...(acts.includes("start") ? [{ label: "Start work", icon: Wrench, onClick: () => onAction("start"), className: "text-blue-600" }] : []),
+    ...(acts.includes("complete") ? [{ label: "Mark as Completed", icon: CheckCircle, onClick: () => onAction("complete"), className: "text-green-600" }] : []),
+    ...(acts.includes("cancel") ? [{ label: "Cancel request", icon: Edit, onClick: () => onAction("cancel"), className: "text-red-600" }] : []),
   ];
 
   return (
@@ -379,16 +384,25 @@ export default function Maintenance() {
  });
  const requests: MaintenanceRequest[] = Array.isArray(raw) ? raw : (raw?.results ?? []);
 
- const updateMutation = useMutation({
- mutationFn: async ({ id, status }: { id: number; status: string }) => {
- await apiRequest(`/api/maintenance-requests/${id}`, { method: "PUT", data: { status } });
- },
- onSuccess: () => {
+ // Every move goes through the same server workflow (rules, timestamps, notifications) — the server's
+ // reason is shown when it says no (e.g. "Assign someone before work can start").
+ const actionMutation = useMutation({
+ mutationFn: async ({ id, action, reason }: { id: number; action: "start" | "pause" | "complete" | "cancel" | "reopen"; reason?: string }) => runAction(id, action, { reason }),
+ onSuccess: (_d, v) => {
  queryClient.invalidateQueries({ queryKey: ["/api/maintenance-requests"] });
- toast({ title: "Request updated" });
+ toast({ title: v.action === "complete" ? "Marked complete — the tenant has been asked for feedback" : v.action === "cancel" ? "Request cancelled" : "Request updated" });
+ setCancelTarget(null);
  },
- onError: () => toast({ title: "Update failed", variant: "destructive" }),
+ onError: (e) => toast({ title: "Couldn't update the request", description: apiErrorMessage(e), variant: "destructive" }),
  });
+ const [cancelTarget, setCancelTarget] = useState<MaintenanceRequest | null>(null);
+ const viewer = { role: user?.role, userId: user?.id };
+ const doAction = (r: MaintenanceRequest, a: FlowAction) => {
+ if (a === "cancel") return setCancelTarget(r);
+ if (a === "approve") return openApproval(r);
+ if (a === "assign" || a === "unassign") return setAssignTarget(r);
+ actionMutation.mutate({ id: r.id, action: a as any });
+ };
 
  const stats = {
  open: requests.filter(r => ["pending","assigned"].includes(r.status)).length,
@@ -458,11 +472,11 @@ export default function Maintenance() {
  // Bulk workflow moves. Requests awaiting approval are skipped on purpose —
  // approval has its own dialog (approve/reject with a reason).
  const bulkMove = useMutation({
- mutationFn: async ({ ids, status }: { ids: number[]; status: string }) => {
- const res = await Promise.allSettled(ids.map(id => apiRequest(`/api/maintenance-requests/${id}`, { method: "PUT", data: { status } })));
+ mutationFn: async ({ ids, action }: { ids: number[]; action: "start" | "complete" }) => {
+ const res = await Promise.allSettled(ids.map(id => runAction(id, action)));
  return { ok: res.filter(r => r.status === "fulfilled").length, failed: res.filter(r => r.status === "rejected").length };
  },
- onSuccess: ({ ok, failed }, v) => {
+ onSuccess: ({ ok, failed }) => {
  queryClient.invalidateQueries({ queryKey: ["/api/maintenance-requests"] });
  toast({ title: `${ok} request${ok === 1 ? "" : "s"} updated`, description: failed ? `${failed} could not be updated` : undefined, variant: failed ? "destructive" : undefined });
  selection.clear();
@@ -602,10 +616,11 @@ export default function Maintenance() {
  r={r}
  onView={() => { setSelected(r); setIsViewOpen(true); }}
  onEdit={() => { setSelected(r); setIsEditOpen(true); }}
- onComplete={() => updateMutation.mutate({ id: r.id, status: "completed" })}
+ onAction={(a) => doAction(r, a)}
  onApprove={() => openApproval(r)}
  onAssign={() => setAssignTarget(r)}
  canActProp={canAct}
+ viewer={viewer}
  />
  ))}
  </>
@@ -689,28 +704,36 @@ export default function Maintenance() {
  <Edit className="w-4 h-4 mr-2" />Edit
  </DropdownMenuItem>
  <DropdownMenuSeparator />
- {canAct && r.status === "pending_approval" && (
+ {canAct && (() => {
+ const acts = availableActions(r, viewer);
+ return (<>
+ {acts.includes("approve") && (
  <DropdownMenuItem className="text-violet-600" onClick={() => openApproval(r)}>
  <ShieldCheck className="w-4 h-4 mr-2" />Approve / Reject
  </DropdownMenuItem>
  )}
- {canAct && r.status !== "completed" && r.status !== "pending_approval" && (
- <DropdownMenuItem className="text-green-600"
- onClick={() => updateMutation.mutate({ id: r.id, status: "completed" })}>
- <CheckCircle className="w-4 h-4 mr-2" />Mark complete
- </DropdownMenuItem>
- )}
- {canAct && r.status !== "completed" && r.status !== "cancelled" && r.status !== "pending_approval" && (
+ {acts.includes("assign") && (
  <DropdownMenuItem onClick={() => setAssignTarget(r)}>
- <Wrench className="w-4 h-4 mr-2" />{r.technicianId ? "Re-assign technician" : "Assign technician"}
+ <Wrench className="w-4 h-4 mr-2" />{r.technicianId || r.contractorId ? "Re-assign" : "Assign technician"}
  </DropdownMenuItem>
  )}
- {canAct && r.status === "pending" && (
- <DropdownMenuItem className="text-blue-600"
- onClick={() => updateMutation.mutate({ id: r.id, status: "in_progress" })}>
+ {acts.includes("start") && (
+ <DropdownMenuItem className="text-blue-600" onClick={() => doAction(r, "start")}>
  <Wrench className="w-4 h-4 mr-2" />Start work
  </DropdownMenuItem>
  )}
+ {acts.includes("complete") && (
+ <DropdownMenuItem className="text-green-600" onClick={() => doAction(r, "complete")}>
+ <CheckCircle className="w-4 h-4 mr-2" />Mark complete
+ </DropdownMenuItem>
+ )}
+ {acts.includes("cancel") && (
+ <DropdownMenuItem className="text-red-600" onClick={() => doAction(r, "cancel")}>
+ <Edit className="w-4 h-4 mr-2" />Cancel request
+ </DropdownMenuItem>
+ )}
+ </>);
+ })()}
  </DropdownMenuContent>
  </DropdownMenu>
  </td>
@@ -738,16 +761,16 @@ export default function Maintenance() {
  </div>
 
  <BulkBar count={selection.count} noun="request" onClear={selection.clear}>
- {canAct && movable(["pending", "assigned"]).length > 0 && (
+ {canAct && movable(["assigned"]).length > 0 && (
  <Button size="sm" variant="outline" disabled={bulkMove.isPending}
- onClick={() => bulkMove.mutate({ ids: movable(["pending", "assigned"]).map(r => r.id), status: "in_progress" })}>
- <Wrench className="w-3.5 h-3.5 mr-1.5" />Start work ({movable(["pending", "assigned"]).length})
+ onClick={() => bulkMove.mutate({ ids: movable(["assigned"]).map(r => r.id), action: "start" })}>
+ <Wrench className="w-3.5 h-3.5 mr-1.5" />Start work ({movable(["assigned"]).length})
  </Button>
  )}
- {canAct && movable(["pending", "assigned", "in_progress"]).length > 0 && (
+ {canAct && movable(["assigned", "in_progress"]).length > 0 && (
  <Button size="sm" disabled={bulkMove.isPending}
- onClick={() => bulkMove.mutate({ ids: movable(["pending", "assigned", "in_progress"]).map(r => r.id), status: "completed" })}>
- <CheckCircle className="w-3.5 h-3.5 mr-1.5" />Mark complete ({movable(["pending", "assigned", "in_progress"]).length})
+ onClick={() => bulkMove.mutate({ ids: movable(["assigned", "in_progress"]).map(r => r.id), action: "complete" })}>
+ <CheckCircle className="w-3.5 h-3.5 mr-1.5" />Mark complete ({movable(["assigned", "in_progress"]).length})
  </Button>
  )}
  <ExportMenu label="Export selected" onPdf={() => exportPdf(selection.selectedItems)} onExcel={() => exportExcel(selection.selectedItems)} />
@@ -757,6 +780,16 @@ export default function Maintenance() {
  onSuccess={() => { queryClient.invalidateQueries({ queryKey: ["/api/maintenance-requests"] }); setIsAddOpen(false); }} />}
  <ViewMaintenanceModal isOpen={isViewOpen} onClose={() => setIsViewOpen(false)} request={selected} />
  <EditMaintenanceModal isOpen={isEditOpen} onClose={() => setIsEditOpen(false)} request={selected} />
+ <ReasonDialog
+ open={!!cancelTarget}
+ onOpenChange={(o) => { if (!o) setCancelTarget(null); }}
+ title="Cancel this request?"
+ description="The tenant and anyone assigned will be told. The record stays in the history."
+ confirmLabel="Cancel request"
+ destructive
+ busy={actionMutation.isPending}
+ onConfirm={(reason) => cancelTarget && actionMutation.mutate({ id: cancelTarget.id, action: "cancel", reason })}
+ />
  <AssignTechnicianDialog request={assignTarget} onOpenChange={(o) => { if (!o) setAssignTarget(null); }} />
  <ApprovalDialog request={selected} open={isApprovalOpen} onOpenChange={setIsApprovalOpen} />
  </div>

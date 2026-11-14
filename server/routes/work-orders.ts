@@ -8,6 +8,7 @@
  *  4. PUT /:id and DELETE /:id are org-scoped to prevent cross-org mutations.
  *  5. Sub-resource routes (comments, tasks, etc.) also verify org ownership.
  */
+import { syncFromWorkOrder } from "../services/maintenance-workflow";
 import { Router } from "express";
 import { db } from "../db";
 import { workOrders, maintenanceRequests, tenants, units, properties, contractors, propertyExpenses } from "@shared/schema";
@@ -271,6 +272,13 @@ router.put("/:id", authenticateJWT, requireOrg, auditLog("work_order", "UPDATE")
         // Non-fatal: log but don't fail the work order update
         console.error("[finance] Auto-expense creation failed (non-fatal):", expErr);
       }
+    }
+
+    // A work order linked to a maintenance request closes that request too when it's marked completed.
+    if (isNowComplete && (workOrder as any)?.maintenanceRequestId) {
+      await syncFromWorkOrder(id, "complete", `${req.user.firstName ?? ""} ${req.user.lastName ?? ""}`.trim() || "A team member", {
+        ...(validated.actualCost ? { actualCost: String(validated.actualCost) } : {}),
+      }).catch((e) => console.warn("[work-orders] request sync failed:", e));
     }
 
     res.json(workOrder);

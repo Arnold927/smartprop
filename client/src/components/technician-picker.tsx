@@ -110,17 +110,18 @@ export function useAssignTechnician(onDone?: () => void) {
   const { toast } = useToast();
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async ({ requestId, technicianId }: { requestId: number; technicianId: number | null }) => {
+    mutationFn: async ({ requestId, technicianId, contractorId }: { requestId: number; technicianId?: number | null; contractorId?: number }) => {
       const r = await apiRequest(`/api/maintenance-requests/${requestId}/assign-technician`, {
         method: "PATCH",
-        data: { technicianId },
+        data: contractorId ? { contractorId } : { technicianId: technicianId ?? null },
       });
       return r.json();
     },
     onSuccess: (_d, v) => {
       qc.invalidateQueries({ queryKey: ["/api/maintenance-requests"] });
       qc.invalidateQueries({ queryKey: [`/api/maintenance-requests/${v.requestId}`] });
-      toast({ title: v.technicianId ? "Technician assigned" : "Technician removed" });
+      qc.invalidateQueries({ queryKey: ["/api/work-orders"] });
+      toast({ title: v.contractorId ? "Sent to the contractor" : v.technicianId ? "Technician assigned" : "Technician removed" });
       onDone?.();
     },
     onError: (e: any) => toast({ title: "Couldn't assign", description: errMsg(e), variant: "destructive" }),
@@ -257,11 +258,20 @@ export function AddTeamMemberDialog({
 /** "Assign technician" dialog for one request (list pages, mobile cards). */
 export function AssignTechnicianDialog({
   request, onOpenChange,
-}: { request: { id: number; title?: string; technicianId?: number | null } | null; onOpenChange: (o: boolean) => void }) {
+}: { request: { id: number; title?: string; technicianId?: number | null; contractorId?: number | null } | null; onOpenChange: (o: boolean) => void }) {
   const [addOpen, setAddOpen] = useState(false);
   const assign = useAssignTechnician(() => onOpenChange(false));
   const { user } = useAuth() as any;
   const canAdd = ["landlord", "admin", "manager"].includes(user?.role);
+  // External contractors work from their own portal (they get the job as a work order). Only the team that
+  // manages contractors can pick one.
+  const canContract = ["platform_admin", "admin", "manager", "staff"].includes(user?.role);
+  const { data: contractorList = [] } = useQuery<any[]>({
+    queryKey: ["/api/contractors", "for-assign"],
+    enabled: !!request && canContract,
+    retry: false,
+    queryFn: async () => { const r = await apiRequest("/api/contractors"); const d = await r.json(); return Array.isArray(d) ? d : []; },
+  });
 
   return (
     <>
@@ -286,6 +296,26 @@ export function AssignTechnicianDialog({
           {request?.technicianId ? (
             <p className="text-[11px] text-muted-foreground flex items-center gap-1"><UserX className="h-3 w-3" /> Pick "Unassign" in the list to take them off.</p>
           ) : null}
+          {canContract && contractorList.length > 0 && (
+            <div className="space-y-1.5 border-t pt-3">
+              <Label className="text-xs text-muted-foreground">Or send it to an external contractor</Label>
+              <Select
+                value={request?.contractorId ? String(request.contractorId) : ""}
+                onValueChange={(v) => request && assign.mutate({ requestId: request.id, contractorId: Number(v) })}
+                disabled={assign.isPending}
+              >
+                <SelectTrigger className="w-full" data-testid="contractor-select"><SelectValue placeholder="Choose a contractor" /></SelectTrigger>
+                <SelectContent className="max-h-[260px]">
+                  {contractorList.map((c: any) => (
+                    <SelectItem key={c.id} value={String(c.id)} disabled={c.isAvailable === false}>
+                      {c.name || c.companyName} <span className="text-muted-foreground capitalize">· {c.specialty}{c.isAvailable === false ? " · unavailable" : ""}</span>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-[11px] text-muted-foreground">They get the job as a work order in their portal and can accept or decline it.</p>
+            </div>
+          )}
         </DialogContent>
       </Dialog>
       <AddTeamMemberDialog

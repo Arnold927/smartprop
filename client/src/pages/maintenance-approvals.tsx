@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
+import { apiErrorMessage } from "@/lib/maintenance-flow";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -143,10 +144,11 @@ export default function MaintenanceApprovals() {
       setComments("");
       setApprovedAmount("");
     },
-    onError: () => {
+    onError: (e: unknown) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/maintenance-requests/approvals"] });
       toast({
         title: "Update failed",
-        description: "Could not process the approval. Please try again.",
+        description: apiErrorMessage(e, "Could not process the approval. Please try again."),
         variant: "destructive"
       });
     },

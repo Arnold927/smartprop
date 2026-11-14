@@ -65,7 +65,7 @@ router.get("/metrics", authenticateJWT, requireOrg, async (req: any, res) => {
       .where(
         and(
           eq(tenants.organizationId, orgId),
-          inArray(maintenanceRequests.status, ["pending", "assigned"]),
+          inArray(maintenanceRequests.status, ["pending", "pending_approval", "assigned"]),
         ),
       );
 
@@ -95,23 +95,21 @@ router.get("/metrics", authenticateJWT, requireOrg, async (req: any, res) => {
         ),
       );
 
-    // ── completed work-order tasks rate (completed / total for this org) ──────
-    // workOrders has no propertyId — scope via maintenanceRequestId → maintenanceRequests → units → properties
-    const [woStats] = await db
+    // ── maintenance completion rate: completed / (all requests that weren't cancelled) ──────────────────
+    // (Used to be measured on work orders, but a work order now exists only for jobs sent to an external contractor.)
+    const [reqStats] = await db
       .select({
         total:     count(),
-        completed: sql<string>`SUM(CASE WHEN ${workOrders.status} = 'completed' THEN 1 ELSE 0 END)`,
+        completed: sql<string>`SUM(CASE WHEN ${maintenanceRequests.status} = 'completed' THEN 1 ELSE 0 END)`,
       })
-      .from(workOrders)
-      .leftJoin(maintenanceRequests, eq(workOrders.maintenanceRequestId, maintenanceRequests.id))
-      .leftJoin(units, eq(maintenanceRequests.unitId, units.id))
-      .leftJoin(properties, eq(units.propertyId, properties.id))
-      .where(eq(properties.organizationId, orgId));
+      .from(maintenanceRequests)
+      .innerJoin(units, eq(maintenanceRequests.unitId, units.id))
+      .where(and(eq(units.organizationId, orgId), sql`${maintenanceRequests.status} <> 'cancelled'`));
 
-    const woTotal     = Number(woStats?.total ?? 0);
-    const woCompleted = Number(woStats?.completed ?? 0);
+    const reqTotal     = Number(reqStats?.total ?? 0);
+    const reqCompleted = Number(reqStats?.completed ?? 0);
     const completedTasksRate =
-      woTotal > 0 ? Math.round((woCompleted / woTotal) * 100) : 0;
+      reqTotal > 0 ? Math.round((reqCompleted / reqTotal) * 100) : 0;
 
     res.json({
       // original fields (unchanged shape — no breaking change)

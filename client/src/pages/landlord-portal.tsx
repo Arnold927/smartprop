@@ -205,7 +205,8 @@ const PRIORITY_CONFIG: Record<string, { label: string; bg: string; text: string 
 };
 
 const STATUS_CONFIG: Record<string, { label: string; variant: "outline" | "secondary" | "destructive" }> = {
-  pending:     { label: "Pending",     variant: "outline"     },
+  pending_approval: { label: "Awaiting approval", variant: "outline" },
+  pending:     { label: "Open",        variant: "outline"     },
   assigned:    { label: "Assigned",    variant: "outline"     },
   in_progress: { label: "In Progress", variant: "secondary"   },
   completed:   { label: "Completed",   variant: "secondary"   },
@@ -1922,8 +1923,8 @@ export default function LandlordPortal({ ownerId }: LandlordPortalProps) {
   // ── Maintenance approvals query ───────────────────────────────────────────────
   const { data: pendingApprovals = [], isLoading: approvalsLoading, refetch: refetchApprovals } = useQuery<any[]>({
     queryKey: ["/api/landlord-portal/maintenance/pending-approval", ownerId],
-    enabled: activeTab === "approvals",
-    staleTime: 60_000,
+    enabled: activeTab === "approvals" || activeTab === "dashboard", // the dashboard banner needs the count
+    staleTime: 15_000,
     queryFn: async () => {
       const url = buildOwnerUrl("/api/landlord-portal/maintenance/pending-approval", ownerId);
       const res = await apiRequest(url);
@@ -2373,6 +2374,18 @@ export default function LandlordPortal({ ownerId }: LandlordPortalProps) {
           {/* ── Executive Summary ── */}
           <TabsContent value="dashboard" className="space-y-8 animate-in fade-in duration-500">
             {/* Action items banner */}
+            {pendingApprovals.length > 0 && (
+              <button onClick={() => setActiveTab("approvals")} data-testid="approvals-banner" className="w-full flex items-center gap-3 p-4 rounded-2xl bg-violet-50 dark:bg-violet-950/30 border border-violet-200 dark:border-violet-800 text-left hover:border-violet-400 transition-all group">
+                <div className="w-10 h-10 rounded-xl bg-violet-100 dark:bg-violet-900/50 flex items-center justify-center shrink-0">
+                  <ShieldCheck className="w-5 h-5 text-violet-600" />
+                </div>
+                <div className="flex-1">
+                  <p className="font-semibold text-violet-900 dark:text-violet-200 text-sm">{pendingApprovals.length} repair{pendingApprovals.length > 1 ? "s" : ""} waiting for your approval</p>
+                  <p className="text-xs text-violet-700 dark:text-violet-300 mt-0.5">Work can't be assigned until you approve or decline</p>
+                </div>
+                <ChevronRight className="w-4 h-4 text-violet-400 group-hover:text-violet-600 transition-colors" />
+              </button>
+            )}
             {((dashboardData?.leasesExpiringSoon ?? 0) > 0 || (dashboardData?.currentVacancies ?? 0) > 0) && (
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 {(dashboardData?.leasesExpiringSoon ?? 0) > 0 && (
@@ -3906,7 +3919,7 @@ export default function LandlordPortal({ ownerId }: LandlordPortalProps) {
                               <div className="space-y-1.5">
                                 <label className="text-xs font-medium text-muted-foreground">Internal Notes (optional)</label>
                                 <Textarea rows={2} className="text-sm" placeholder="Add notes for the property manager…"
-                                  value={approvalNotes[req.id] ?? req.internalNotes ?? ""}
+                                  value={approvalNotes[req.id] ?? ""}
                                   onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setApprovalNotes(prev => ({ ...prev, [req.id]: e.target.value }))}
                                 />
                               </div>

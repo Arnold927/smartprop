@@ -147,7 +147,7 @@ export function ManagementKPIGrid({ metrics, loading }: ManagementKPIGridProps) 
           variant={metrics.completedTasksRate >= 80 ? "success" : "warning"}
           icon={<Zap className="h-5 w-5" />}
           trend={metrics.completedTasksRate >= 80 ? "up" : "down"}
-          subtitle="Work-order completion rate"
+          subtitle="Maintenance requests completed"
         />
       </div>
     </div>

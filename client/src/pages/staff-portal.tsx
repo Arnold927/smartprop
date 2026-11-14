@@ -37,6 +37,8 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/useAuth";
 import { useDarkModeContext } from "@/context/DarkModeContext";
 import { apiRequest, ensureArray } from "@/lib/queryClient";
+import { runAction, apiErrorMessage } from "@/lib/maintenance-flow";
+import { CompleteDialog } from "@/components/maintenance/request-actions-card";
 import { useToast } from "@/hooks/use-toast";
 import { useWsEvent } from "@/hooks/useWebSocket";
 import { format, formatDistanceToNow, isToday, isPast, startOfDay, endOfDay } from "date-fns";
@@ -188,11 +190,12 @@ function MaintenancePanel({ user, staffProfile }: { user: any; staffProfile: any
   const mine = useMemo(() => {
     const uid = String(user?.id ?? "");
     const sid = staffProfile?.id;
-    const filtered = all.filter((r: any) =>
+    // Only the jobs handed to this person — never everyone's (the old fallback showed the whole company's
+    // requests whenever nothing was assigned yet).
+    return all.filter((r: any) =>
       (r.assignedTo && String(r.assignedTo) === uid) ||
       (sid && r.technicianId && Number(r.technicianId) === Number(sid))
     );
-    return filtered.length > 0 ? filtered : all; // graceful fallback
   }, [all, user, staffProfile]);
 
   const displayed = useMemo(() => {
@@ -201,14 +204,21 @@ function MaintenancePanel({ user, staffProfile }: { user: any; staffProfile: any
     return mine;
   }, [mine, statusFilter]);
 
+  // Start / complete / pause go through the workflow (timestamps, tenant + manager notified); notes are a plain save.
   const updateMutation = useMutation({
-    mutationFn: async ({ id, patch }: { id: number; patch: any }) => {
-      const r = await apiRequest(`/api/maintenance-requests/${id}`, { method: "PATCH", data: patch });
+    mutationFn: async (v: { id: number; action?: "start" | "pause" | "complete"; notes?: string; cost?: string; patch?: any }) => {
+      if (v.action) return runAction(v.id, v.action, { technicianNotes: v.notes, actualCost: v.cost || undefined });
+      const r = await apiRequest(`/api/maintenance-requests/${v.id}`, { method: "PATCH", data: v.patch });
       return r.json();
     },
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["/api/maintenance-requests"] }); toast({ title: "Updated" }); },
-    onError: () => toast({ title: "Update failed", variant: "destructive" }),
+    onSuccess: (_d, v) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/maintenance-requests"] });
+      setCompleting(null);
+      toast({ title: v.action === "start" ? "Work started — the tenant has been told" : v.action === "complete" ? "Job completed — the tenant has been asked to rate it" : v.action === "pause" ? "Paused" : "Saved" });
+    },
+    onError: (e) => toast({ title: "Couldn't update the job", description: apiErrorMessage(e), variant: "destructive" }),
   });
+  const [completing, setCompleting] = useState<any | null>(null);
 
   return (
     <div className="space-y-4">
@@ -244,20 +254,26 @@ function MaintenancePanel({ user, staffProfile }: { user: any; staffProfile: any
       ) : displayed.length === 0 ? (
         <div className="text-center py-12 text-muted-foreground">
           <ClipboardList className="h-10 w-10 mx-auto mb-2 opacity-30" />
-          <p className="text-sm">No {statusFilter === "active" ? "active " : ""}work orders assigned to you</p>
+          <p className="text-sm">No {statusFilter === "active" ? "active " : ""}jobs assigned to you</p>
+          {statusFilter === "active" && <p className="text-xs mt-1">When a manager assigns you a job it shows up here and in your notifications.</p>}
         </div>
       ) : (
         <div className="space-y-3">
           {displayed.map((req: any) => (
-            <WorkOrderCard key={req.id} req={req} onUpdate={(id, patch) => updateMutation.mutate({ id, patch })} />
+            <WorkOrderCard key={req.id} req={req} busy={updateMutation.isPending}
+              onAction={(id, action) => action === "complete" ? setCompleting(req) : updateMutation.mutate({ id, action })}
+              onSaveNotes={(id, notes) => updateMutation.mutate({ id, patch: { technicianNotes: notes } })} />
           ))}
         </div>
       )}
+      <CompleteDialog open={!!completing} onOpenChange={(o) => { if (!o) setCompleting(null); }} busy={updateMutation.isPending}
+        currency={completing?.currency ?? "KES"} defaultCost={completing?.actualCost ?? ""}
+        onConfirm={(notes, cost) => completing && updateMutation.mutate({ id: completing.id, action: "complete", notes: notes || undefined, cost })} />
     </div>
   );
 }
 
-function WorkOrderCard({ req, onUpdate }: { req: any; onUpdate: (id: number, patch: any) => void }) {
+function WorkOrderCard({ req, onAction, onSaveNotes, busy }: { req: any; onAction: (id: number, action: "start" | "pause" | "complete") => void; onSaveNotes: (id: number, notes: string) => void; busy?: boolean }) {
   const [expanded, setExpanded] = useState(false);
   const [notes, setNotes] = useState(req.technicianNotes ?? "");
   const status = MAINT_STATUS[req.status] ?? MAINT_STATUS.pending;
@@ -296,18 +312,20 @@ function WorkOrderCard({ req, onUpdate }: { req: any; onUpdate: (id: number, pat
           {req.description && <p className="text-sm text-foreground/80">{req.description}</p>}
           {!isDone && (
             <div className="flex gap-2 flex-wrap">
-              {req.status !== "in_progress" && (
-                <Button size="sm" variant="outline" className="text-xs border-amber-300 text-amber-700 dark:text-amber-400 hover:bg-amber-50 h-7" onClick={() => onUpdate(req.id, { status: "in_progress" })}><Play className="h-3 w-3 mr-1" />Start</Button>
+              {req.status === "assigned" && (
+                <Button size="sm" variant="outline" disabled={busy} className="text-xs border-amber-300 text-amber-700 dark:text-amber-400 hover:bg-amber-50 h-7" onClick={() => onAction(req.id, "start")} data-testid="staff-start"><Play className="h-3 w-3 mr-1" />Start</Button>
               )}
-              <Button size="sm" className="text-xs bg-green-600 hover:bg-green-700 text-white h-7" onClick={() => onUpdate(req.id, { status: "completed" })}><Check className="h-3 w-3 mr-1" />Complete</Button>
-              <Button size="sm" variant="outline" className="text-xs border-orange-300 text-orange-700 h-7" onClick={() => onUpdate(req.id, { status: "on_hold" })}><Pause className="h-3 w-3 mr-1" />Hold</Button>
+              <Button size="sm" disabled={busy} className="text-xs bg-green-600 hover:bg-green-700 text-white h-7" onClick={() => onAction(req.id, "complete")} data-testid="staff-complete"><Check className="h-3 w-3 mr-1" />Complete</Button>
+              {req.status === "in_progress" && (
+                <Button size="sm" variant="outline" disabled={busy} className="text-xs border-orange-300 text-orange-700 h-7" onClick={() => onAction(req.id, "pause")} data-testid="staff-pause"><Pause className="h-3 w-3 mr-1" />Pause</Button>
+              )}
             </div>
           )}
           <div>
             <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1">My Notes</p>
             <Textarea value={notes} onChange={e => setNotes(e.target.value)} placeholder="Parts needed, findings, time spent..." className="text-sm bg-background border-input min-h-[64px] resize-none" disabled={isDone} />
             {!isDone && (
-              <Button size="sm" className="mt-2 h-7 text-xs" onClick={() => onUpdate(req.id, { technicianNotes: notes })}><Check className="h-3 w-3 mr-1" />Save Notes</Button>
+              <Button size="sm" className="mt-2 h-7 text-xs" disabled={busy} onClick={() => onSaveNotes(req.id, notes)}><Check className="h-3 w-3 mr-1" />Save Notes</Button>
             )}
           </div>
         </div>

@@ -310,9 +310,11 @@ export function registerModularRoutes(app: Express) {
   mount(app, "/api/mpesa-transactions",                mpesaTransactionsGuardRouter); // org+ownership scoping (must be before mpesaRouter)
   mount(app, "/api/mpesa-transactions",                mpesaRouter);
   mount(app, "/api/maintenance-requests",              maintenanceListRouter);
+  // Actions (/approvals, /:id/assign-technician, /:id/start …) come BEFORE the bare /:id routes — otherwise
+  // GET /approvals is swallowed by GET /:id (and 500s on the non-numeric id).
+  mount(app, "/api/maintenance-requests",              maintenanceActionsRouter);
   mount(app, "/api/maintenance-requests",              maintenanceItemGuardRouter); // GET/PUT/PATCH/DELETE /:id org+role scoping (must be before maintenanceRouter)
   mount(app, "/api/maintenance-requests",              maintenanceRouter);
-  mount(app, "/api/maintenance-requests",              maintenanceActionsRouter);
   // More specific payment-config prefixes MUST be mounted before the bare
   // "/api/payment-config": Express matches by prefix in order, so the admin/
   // manager/staff guard on the bare prefix used to answer 403 for tenants

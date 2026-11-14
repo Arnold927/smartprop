@@ -8,31 +8,13 @@ import { authenticateJWT } from '../middleware/auth';
 import { requireOrg } from '../middleware/requireOrg';
 import { notifyTenant } from '../services/notifyTenant';
 import { storage } from '../storage';
-import { exceedsApprovalThreshold } from './maintenance-item-guard';
+import { sanitizeNewRequest, announceNewRequest, actorFromReq } from '../services/maintenance-workflow';
 import { 
-  maintenanceRequests, contractors, tenants, units, properties,
+  maintenanceRequests, contractors, tenants, units, properties, staffMembers,
   projects, projectTasks, projectMilestones,
   insertMaintenanceRequestSchema, insertContractorSchema,
   insertProjectSchema, insertProjectTaskSchema, insertProjectMilestoneSchema
 } from '@shared/schema';
-
-/** Auto-create a linked work order for a newly created maintenance request. */
-async function autoCreateWorkOrder(maintenanceRequest: any, createdByUserId: string) {
-  try {
-    await storage.createWorkOrder({
-      maintenanceRequestId: maintenanceRequest.id,
-      workOrderType: 'maintenance',
-      title: maintenanceRequest.title,
-      description: maintenanceRequest.description ?? '',
-      priority: maintenanceRequest.priority ?? 'medium',
-      status: 'pending_approval',
-      estimatedCost: maintenanceRequest.estimatedCost ?? undefined,
-      createdBy: createdByUserId,
-    } as any);
-  } catch (err) {
-    console.warn('[maintenance] auto-create work order failed:', err);
-  }
-}
 
 type AnyZodObject = ZodObject<any, any, any, any, any>;
 
@@ -95,6 +77,20 @@ maintenanceListRouter.get('/', authenticateJWT, requireOrg, async (req: any, res
         tenantId: maintenanceRequests.tenantId,
         unitId: maintenanceRequests.unitId,
         technicianId: maintenanceRequests.technicianId,
+        contractorId: maintenanceRequests.contractorId,
+        scheduledDate: maintenanceRequests.scheduledDate,
+        assignedDate: maintenanceRequests.assignedDate,
+        startedDate: maintenanceRequests.startedDate,
+        completedAt: maintenanceRequests.completedAt,
+        approvalRequired: maintenanceRequests.approvalRequired,
+        rejectionReason: maintenanceRequests.rejectionReason,
+        actualCost: maintenanceRequests.actualCost,
+        technicianNotes: maintenanceRequests.technicianNotes,
+        satisfactionRating: maintenanceRequests.satisfactionRating,
+        satisfactionComments: maintenanceRequests.satisfactionComments,
+        feedbackDate: maintenanceRequests.feedbackDate,
+        technicianFirstName: staffMembers.first_name,
+        technicianLastName: staffMembers.last_name,
         tenantFirstName: tenants.firstName,
         tenantLastName: tenants.lastName,
         tenantEmail: tenants.email,
@@ -121,6 +117,7 @@ maintenanceListRouter.get('/', authenticateJWT, requireOrg, async (req: any, res
       ))
       .leftJoin(tenants, eq(maintenanceRequests.tenantId, tenants.id))
       .leftJoin(properties, eq(units.propertyId, properties.id))
+      .leftJoin(staffMembers, eq(maintenanceRequests.technicianId, staffMembers.id))
       .orderBy(desc(maintenanceRequests.createdAt));
 
     const results = rows.map(r => ({
@@ -132,9 +129,24 @@ maintenanceListRouter.get('/', authenticateJWT, requireOrg, async (req: any, res
       priority: r.priority,
       status: r.status,
       assignedTo: r.assignedTo,
+      technicianId: r.technicianId,
       estimatedCost: r.estimatedCost,
       createdAt: r.createdAt,
       tenantId: r.tenantId,
+      contractorId: r.contractorId,
+      scheduledDate: r.scheduledDate,
+      assignedDate: r.assignedDate,
+      startedDate: r.startedDate,
+      completedAt: r.completedAt,
+      approvalRequired: r.approvalRequired,
+      rejectionReason: r.rejectionReason,
+      actualCost: r.actualCost,
+      // Internal working notes stay with the team.
+      technicianNotes: role === 'tenant' ? undefined : r.technicianNotes,
+      satisfactionRating: r.satisfactionRating,
+      satisfactionComments: r.satisfactionComments,
+      feedbackDate: r.feedbackDate,
+      technicianName: [r.technicianFirstName, r.technicianLastName].filter(Boolean).join(' ') || null,
       tenant: (r.tenantFirstName || r.tenantLastName)
         ? { id: r.tenantId, firstName: r.tenantFirstName ?? '', lastName: r.tenantLastName ?? '', email: r.tenantEmail ?? '' }
         : null,
@@ -154,20 +166,6 @@ const maintenanceRouter = createCRUDRouter({
   table: maintenanceRequests,
   insertSchema: insertMaintenanceRequestSchema as unknown as AnyZodObject,
   organizationScoped: true,
-  preCreateMiddleware: [
-    async (req: any, _res, next) => {
-      // A request filed with an estimated cost already above the property's
-      // PM agreement threshold starts in pending_approval, same gate as
-      // maintenance-item-guard.ts applies when a cost is added later via
-      // an update instead. Only overrides when the caller hasn't already
-      // set an explicit status themselves.
-      if (!req.body.status && req.body.estimatedCost != null && req.body.unitId != null) {
-        const needsApproval = await exceedsApprovalThreshold(req.body.unitId, req.body.estimatedCost);
-        if (needsApproval) req.body.status = "pending_approval";
-      }
-      next();
-    },
-  ],
 });
 
 const contractorRouter = createCRUDRouter({
@@ -259,15 +257,24 @@ maintenanceListRouter.post('/', authenticateJWT, requireOrg, async (req: any, re
     }
   }
 
+  // A new request always starts at the beginning of the workflow. Status, approval flags, assignee,
+  // timestamps and ratings are owned by the workflow, so anything the client sent for them is dropped,
+  // and a cost above the property's approval threshold sends it to pending_approval (flagged).
+  try {
+    req.body = await sanitizeNewRequest(req.body ?? {});
+  } catch (e) {
+    console.error('[maintenance] sanitizeNewRequest failed:', e);
+    return res.status(500).json({ message: 'Failed to create maintenance request' });
+  }
+
   // Delegate to the CRUD router by calling next() — this runs the actual insert.
   // We intercept the response to send the WhatsApp after the DB write.
   // Technique: wrap res.json to capture the created object.
   const origJson = res.json.bind(res);
   res.json = function (body: any) {
-    // After CRUD router sends 201, auto-create a work order and fire WhatsApp notification (non-blocking)
+    // After the CRUD router sends 201: tell the team who oversee it, and the tenant (non-blocking)
     if (res.statusCode === 201 && body?.id) {
-      const createdByUserId = String((req as any).user?.userId ?? (req as any).user?.id ?? '');
-      autoCreateWorkOrder(body, createdByUserId);
+      announceNewRequest(body, actorFromReq(req)).catch(() => {});
       if (body.tenantId) {
         notifyTenant(body.tenantId, {
           type:         'maintenance_opened',

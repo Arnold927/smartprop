@@ -37,6 +37,7 @@ import { requireOrg } from "../middleware/requireOrg";
 import { storage } from "../storage";
 import { notifyNewMessage } from "../ws";
 import { pushNotification } from "./notifications";
+import { syncFromWorkOrder } from "../services/maintenance-workflow";
 
 const router = Router();
 const auth = [authenticateJWT as any, requireOrg as any];
@@ -230,6 +231,9 @@ router.patch("/work-orders/:id/accept", ...auth, async (req: any, res: any) => {
     const [updated] = await db.update(workOrders).set({ status: "in_progress", actualStartDate: new Date(), updatedAt: new Date() }).where(eq(workOrders.id, row.workOrder.id)).returning();
     res.json({ message: "Work order accepted", workOrder: updated });
 
+    // Keep the maintenance request in step: the job is now in progress.
+    syncFromWorkOrder(row.workOrder.id, "start", contractor.name || contractor.companyName).catch((e) => console.warn("[contractor-portal] request sync failed:", e));
+
     // Notify manager + tenant (non-blocking)
     notifyWorkOrderEvent(row.workOrder.id, req.user.organizationId, {
       managerTitle:   "Work order accepted",
@@ -258,6 +262,9 @@ router.patch("/work-orders/:id/reject", ...auth, async (req: any, res: any) => {
       return res.status(400).json({ message: `Cannot reject a work order with status '${row.workOrder.status}'` });
     const [updated] = await db.update(workOrders).set({ status: "rejected", rejectionReason: reason.trim(), contractorId: null, updatedAt: new Date() }).where(eq(workOrders.id, row.workOrder.id)).returning();
     res.json({ message: "Work order rejected", workOrder: updated });
+
+    // The job goes back to the manager to hand to someone else.
+    syncFromWorkOrder(row.workOrder.id, "unassign", contractor.name || contractor.companyName, { reason: reason.trim() }).catch((e) => console.warn("[contractor-portal] request sync failed:", e));
 
     // Notify manager + tenant (non-blocking)
     notifyWorkOrderEvent(row.workOrder.id, req.user.organizationId, {
@@ -290,6 +297,13 @@ router.patch("/work-orders/:id/complete", ...auth, async (req: any, res: any) =>
     if (actualCost !== undefined && !isNaN(Number(actualCost))) updateData.actualCost = String(actualCost);
     const [updated] = await db.update(workOrders).set(updateData).where(eq(workOrders.id, row.workOrder.id)).returning();
     await db.update(contractors).set({ completedJobs: (contractor.completedJobs ?? 0) + 1 }).where(eq(contractors.id, contractor.id));
+
+    // Complete the maintenance request itself (stamps completed_at, tells the tenant to rate) — the contractor
+    // finishing a work order used to leave the request open forever.
+    await syncFromWorkOrder(row.workOrder.id, "complete", contractor.name || contractor.companyName, {
+      technicianNotes: completionNotes.trim(),
+      ...(updateData.actualCost ? { actualCost: updateData.actualCost } : {}),
+    }).catch((e) => console.warn("[contractor-portal] request sync failed:", e));
 
     // Notify manager + tenant immediately (non-blocking, runs in background after response)
     const _notifyComplete = () => notifyWorkOrderEvent(row.workOrder.id, req.user.organizationId, {

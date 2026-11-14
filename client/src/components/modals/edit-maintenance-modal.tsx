@@ -1,4 +1,4 @@
-import { SearchableSelect } from "@/components/ui/searchable-select";
+import { apiErrorMessage } from "@/lib/maintenance-flow";
 import React from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -56,8 +56,6 @@ const editMaintenanceSchema = z.object({
  title: z.string().min(1, "Title is required"),
  description: z.string().min(1, "Description is required"),
  priority: z.enum(["low", "medium", "high", "urgent"]),
- status: z.enum(["pending", "in_progress", "completed", "cancelled"]),
- assignedTo: z.string().optional(),
  estimatedCost: z.string().optional(),
  actualCost: z.string().optional(),
 });
@@ -68,19 +66,12 @@ export default function EditMaintenanceModal({ isOpen, onClose, request }: EditM
  const { toast } = useToast();
  const queryClient = useQueryClient();
 
- const { data: contractors = [] } = useQuery({
- queryKey: ["/api/contractors"],
- enabled: isOpen,
- });
-
  const form = useForm<EditMaintenanceFormData>({
  resolver: zodResolver(editMaintenanceSchema),
  defaultValues: {
  title: request?.title || "",
  description: request?.description || "",
  priority: (request?.priority as any) || "medium",
- status: (request?.status as any) || "pending",
- assignedTo: request?.assignedTo || "unassigned",
  estimatedCost: request?.estimatedCost || "",
  actualCost: request?.actualCost || "",
  },
@@ -93,8 +84,6 @@ export default function EditMaintenanceModal({ isOpen, onClose, request }: EditM
  title: request.title,
  description: request.description,
  priority: request.priority as any,
- status: request.status as any,
- assignedTo: request.assignedTo || "unassigned",
  estimatedCost: request.estimatedCost || "",
  actualCost: request.actualCost || "",
  });
@@ -108,22 +97,23 @@ export default function EditMaintenanceModal({ isOpen, onClose, request }: EditM
  ...data,
  estimatedCost: data.estimatedCost && data.estimatedCost.trim() !== "" ? data.estimatedCost.trim() : undefined,
  actualCost: data.actualCost && data.actualCost.trim() !== "" ? data.actualCost.trim() : undefined,
- assignedTo: data.assignedTo === "unassigned" || !data.assignedTo ? undefined : data.assignedTo,
  };
  return await apiRequest(`/api/maintenance-requests/${request.id}`, { method: "PUT", data: payload });
  },
- onSuccess: () => {
+ onSuccess: async (res: any) => {
  queryClient.invalidateQueries({ queryKey: ["/api/maintenance-requests"] });
+ const updated = await res?.json?.().catch(() => null);
+ const gated = updated?.status === "pending_approval" && request?.status !== "pending_approval";
  toast({
- title: "Success",
- description: "Maintenance request updated successfully.",
+ title: gated ? "Sent for approval" : "Success",
+ description: gated ? "That cost is above the property's approval limit, so the owner/manager has to approve it first." : "Maintenance request updated successfully.",
  });
  onClose();
  },
  onError: (error: any) => {
  toast({
  title: "Error",
- description: error.message || "Failed to update maintenance request.",
+ description: apiErrorMessage(error, "Failed to update maintenance request."),
  variant: "destructive",
  });
  },
@@ -211,53 +201,9 @@ export default function EditMaintenanceModal({ isOpen, onClose, request }: EditM
  )}
  />
 
- <FormField
- control={form.control}
- name="status"
- render={({ field }) => (
- <FormItem>
- <FormLabel>Status</FormLabel>
- <Select onValueChange={field.onChange} defaultValue={field.value}>
- <FormControl>
- <SelectTrigger>
- <SelectValue placeholder="Select status" />
- </SelectTrigger>
- </FormControl>
- <SelectContent>
- <SelectItem value="pending">Pending</SelectItem>
- <SelectItem value="in_progress">In Progress</SelectItem>
- <SelectItem value="completed">Completed</SelectItem>
- <SelectItem value="cancelled">Cancelled</SelectItem>
- </SelectContent>
- </Select>
- <FormMessage />
- </FormItem>
- )}
- />
-
- <FormField
- control={form.control}
- name="assignedTo"
- render={({ field }) => (
- <FormItem>
- <FormLabel>Assign to Contractor</FormLabel>
- <SearchableSelect
-   onValueChange={field.onChange}
-   value={field.value}
-   placeholder="Select contractor"
-   searchPlaceholder="Search contractors or specialty…"
-   options={[
-     { value: "unassigned", label: "Unassigned" },
-     ...(contractors as Array<{id: number, name: string, specialty: string}>).map((c) => ({ value: c.name, label: c.name, description: c.specialty })),
-   ]}
- />
- <FormDescription>
- Assign this request to a contractor
- </FormDescription>
- <FormMessage />
- </FormItem>
- )}
- />
+ <p className="md:col-span-2 text-xs text-muted-foreground rounded-md bg-muted/50 px-3 py-2">
+ Status and assignment aren't edited here — use the request's own actions (assign, start, complete, cancel) so the tenant and team are told and the timestamps are recorded.
+ </p>
 
  <FormField
  control={form.control}
@@ -276,7 +222,7 @@ export default function EditMaintenanceModal({ isOpen, onClose, request }: EditM
  )}
  />
 
- {form.watch("status") === "completed" && (
+ {request && ["in_progress", "completed"].includes(request.status) && (
  <FormField
  control={form.control}
  name="actualCost"

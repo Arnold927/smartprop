@@ -26,8 +26,10 @@ import {
   maintenanceRequests,
   caretakers,
   users,
+  staffMembers,
 } from "@shared/schema";
-import { eq, and, desc, sql, inArray } from "drizzle-orm";
+import { eq, and, desc, sql, inArray, or } from "drizzle-orm";
+import { rateRequest, actorFromReq, WorkflowError } from "../services/maintenance-workflow";
 import { authenticateJWT } from "../middleware/auth";
 import { requireOrg } from "../middleware/requireOrg";
 import { z } from "zod";
@@ -212,80 +214,16 @@ router.post("/maintenance", async (req: any, res) => {
 
     const { maintenanceRequestId, rating, title, comment } = schema.parse(req.body);
 
-    // Verify the maintenance request belongs to this tenant and is completed
-    const [mr] = await db
-      .select()
-      .from(maintenanceRequests)
-      .where(
-        and(
-          eq(maintenanceRequests.id, maintenanceRequestId),
-          eq(maintenanceRequests.tenantId, tenant.id),
-          eq(maintenanceRequests.status, "completed"),
-        )
-      )
-      .limit(1);
-
-    if (!mr) {
-      return res.status(404).json({
-        message: "Maintenance request not found, not yours, or not yet completed",
-      });
-    }
-
-    // Also update the satisfaction_rating on the maintenance request itself
-    await db
-      .update(maintenanceRequests)
-      .set({
-        satisfactionRating: rating,
-        satisfactionComments: comment,
-        feedbackDate: new Date(),
-      })
-      .where(eq(maintenanceRequests.id, maintenanceRequestId));
-
-    // Upsert into tenant_reviews (one review per request)
-    const existing = await db
-      .select({ id: tenantReviews.id })
-      .from(tenantReviews)
-      .where(
-        and(
-          eq(tenantReviews.tenantId, tenant.id),
-          eq(tenantReviews.reviewType, "maintenance"),
-          // store the maintenance request id in the unitId column as a workaround
-          // since tenantReviews doesn't have a maintenanceRequestId column
-          eq(tenantReviews.propertyId, maintenanceRequestId),
-        )
-      )
-      .limit(1);
-
-    let review;
-    if (existing.length > 0) {
-      [review] = await db
-        .update(tenantReviews)
-        .set({
-          rating,
-          title: title ?? null,
-          comment: comment ?? null,
-          updatedAt: new Date(),
-        })
-        .where(eq(tenantReviews.id, existing[0].id))
-        .returning();
-    } else {
-      [review] = await db
-        .insert(tenantReviews)
-        .values({
-          tenantId: tenant.id,
-          reviewType: "maintenance",
-          propertyId: maintenanceRequestId, // repurposed to store which request
-          rating,
-          title: title ?? null,
-          comment: comment ?? null,
-          status: "pending",
-          isPublic: false,
-        })
-        .returning();
-    }
-
-    res.json({ success: true, review });
+    // One rating path for the whole app: the tenant's rating lives on the maintenance request itself
+    // (same as the "Rate this resolution" card) — completed requests only, once, by the tenant who raised it.
+    // It used to be mirrored into tenant_reviews with the request id stored in property_id, which broke on the
+    // foreign key and made the same job rateable twice.
+    const request = await rateRequest(maintenanceRequestId, actorFromReq(req), {
+      rating, comments: [title?.trim(), comment?.trim()].filter(Boolean).join(" — ") || undefined,
+    });
+    res.json({ success: true, request });
   } catch (err) {
+    if (err instanceof WorkflowError) return res.status(err.httpStatus).json({ message: err.message, code: err.code });
     if (err instanceof z.ZodError) {
       return res.status(400).json({ message: "Invalid data", errors: err.errors });
     }
@@ -676,6 +614,12 @@ router.get("/my-maintenance-feedback", async (req: any, res) => {
     }
 
     const userId = req.user.id; // UUID
+    // A job reaches a person by user id (assignedTo) or by their staff record (technicianId) — match both.
+    const staffRows = req.user.email
+      ? await db.select({ id: staffMembers.id }).from(staffMembers)
+          .where(and(sql`lower(${staffMembers.email}) = lower(${req.user.email})`, eq(staffMembers.organization_id, req.user.organizationId)))
+      : [];
+    const staffIds = staffRows.map((r) => r.id);
 
     // Completed maintenance requests assigned to this staff member that have a rating
     const ratedJobs = await db
@@ -689,7 +633,9 @@ router.get("/my-maintenance-feedback", async (req: any, res) => {
       .from(maintenanceRequests)
       .where(
         and(
-          eq(maintenanceRequests.assignedTo, userId),
+          staffIds.length
+            ? or(eq(maintenanceRequests.assignedTo, userId), inArray(maintenanceRequests.technicianId, staffIds))
+            : eq(maintenanceRequests.assignedTo, userId),
           eq(maintenanceRequests.status, "completed"),
         )
       )
