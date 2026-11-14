@@ -838,6 +838,11 @@ export default function GatePortal() {
                   <option key={p.id} value={String(p.id)}>{p.name}</option>
                 ))}
               </select>
+              {properties.length === 0 && !propertyId && (
+                <p className="text-xs text-amber-700 dark:text-amber-400">
+                  No property selected. Open the gate link your manager sent for your property (it ends in <span className="font-mono">?p=…</span>).
+                </p>
+              )}
             </div>
 
             {/* PIN input — individual digit boxes */}
