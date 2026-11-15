@@ -176,16 +176,22 @@ export default function Reports() {
 
   // ── Overview strip stats — filtered by the selected period ────────────────
 
-  const collected = useMemo(() =>
-    allPayments
-      .filter(p => {
-        if (!["paid", "completed"].includes(p.status)) return false;
-        const t = p.createdAt ? new Date(p.createdAt).getTime() : null;
-        return t !== null && t >= since.getTime() && t <= until.getTime();
-      })
-      .reduce((s, p) => s + Number(p.amount ?? 0), 0),
-    [allPayments, since, until]
-  );
+  // "Collected" = rent actually received in the period. The server works it out from receipts (so part
+  // payments count when they are paid) — the same figure the Financial and Rent-collection reports show.
+  const { data: collectedData } = useQuery<{ totalCollected?: number }>({
+    queryKey: ["/api/reports/generate", "rent-collection-tile", period, isCustom ? customStart : "", isCustom ? customEnd : ""],
+    queryFn: async () => {
+      const r = await apiRequest("/api/reports/generate", {
+        method: "POST",
+        data: { reportType: "rent-collection", period, ...(isCustom ? { startDate: customStart, endDate: customEnd } : {}) },
+      });
+      const json = await r.json();
+      return (json?.data ?? json) as { totalCollected?: number };
+    },
+    staleTime: 60 * 1000,
+    enabled: isManager && customRangeValid,
+  });
+  const collected = Number(collectedData?.totalCollected ?? 0);
 
   const openMaint = useMemo(() =>
     allMaint.filter(r => {
@@ -211,13 +217,15 @@ export default function Reports() {
   );
 
   // Filtered counts for export labels — reflects what will actually be in the CSV
-  const filteredPaymentsCount = useMemo(() =>
-    allPayments.filter(p => {
-      const t = p.createdAt ? new Date(p.createdAt).getTime() : null;
-      return t !== null && t >= since.getTime() && t <= until.getTime();
-    }).length,
-    [allPayments, since, until]
-  );
+  // The payments export lists invoices by DUE date, so count them the same way.
+  const filteredPaymentsCount = useMemo(() => {
+    const ymd = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    const from = ymd(since), to = ymd(until);
+    return allPayments.filter(p => {
+      const d = p.dueDate ? String(p.dueDate).slice(0, 10) : null;
+      return d !== null && d >= from && d <= to;
+    }).length;
+  }, [allPayments, since, until]);
 
   const filteredTenantsCount = useMemo(() =>
     allTenants.filter(t => {
@@ -340,18 +348,18 @@ export default function Reports() {
     {
       type: "financial",
       title: "Financial report",
-      description: `Revenue, expenses & net income · ${periodLabel}`,
+      description: `Rent received, approved expenses & net income · ${periodLabel}`,
       icon: DollarSign,
       color: "bg-green-50 dark:bg-green-950",
       iconColor: "text-green-600",
       renderResult: (d: any) => (
         <div className="space-y-1">
-          <StatRow label="Total revenue"    value={fmt(d.totalRevenue  ?? 0)} color="text-green-700" />
+          <StatRow label="Rent received"    value={fmt(d.totalRevenue  ?? 0)} color="text-green-700" />
           <StatRow label="Total expenses"   value={fmt(d.totalExpenses ?? 0)} color="text-red-600" />
           <StatRow label="Net income"       value={fmt(d.netIncome     ?? 0)} color={(d.netIncome ?? 0) >= 0 ? "text-green-700" : "text-red-600"} />
-          <StatRow label="Pending payments" value={fmt(d.totalPending  ?? 0)} color="text-amber-600" />
+          <StatRow label="Still to collect" value={fmt(d.totalPending  ?? 0)} color="text-amber-600" />
           <StatRow label="Overdue amount"   value={fmt(d.totalOverdue  ?? 0)} color="text-red-500" />
-          <StatRow label="Paid count"       value={d.paymentCount      ?? 0} />
+          <StatRow label="Payments received" value={d.paymentCount     ?? 0} />
         </div>
       ),
     },
@@ -408,10 +416,11 @@ export default function Reports() {
       iconColor: "text-purple-600",
       renderResult: (d: any) => (
         <div className="space-y-1">
-          <StatRow label="Total collected" value={fmt(d.totalCollected ?? 0)} color="text-green-700" />
+          <StatRow label="Rent received"   value={fmt(d.totalCollected ?? 0)} color="text-green-700" />
           <StatRow label="Overdue amount"  value={fmt(d.totalOverdue   ?? 0)} color="text-red-600" />
           <StatRow label="Collection rate" value={`${d.collectionRate  ?? 0}%`} color={(d.collectionRate ?? 0) >= 90 ? "text-green-700" : "text-amber-600"} />
-          <StatRow label="Paid payments"   value={d.paymentCount       ?? 0} />
+          <StatRow label="Payments received" value={d.paymentCount     ?? 0} />
+          {d.totalBilled != null && <StatRow label="Billed (due in period)" value={fmt(d.totalBilled)} />}
           <StatRow label="Overdue count"   value={d.overdueCount       ?? 0} color={(d.overdueCount ?? 0) > 0 ? "text-red-500" : "text-foreground"} />
           {d.byMethod?.filter((m: any) => m.count > 0).map((m: any) => (
             <StatRow key={m.method} label={m.method.toUpperCase()} value={`${m.count} · ${fmt(m.amount)}`} />

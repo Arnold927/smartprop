@@ -22,12 +22,11 @@ ALTER TABLE service_charges
   -- equal | floor_area | unit_type | shares
   ADD COLUMN IF NOT EXISTS ledger_code      varchar(20),     -- ARMA chart-of-accounts code
   ADD COLUMN IF NOT EXISTS demand_notice_sent boolean DEFAULT false,
-  ADD COLUMN IF NOT EXISTS demand_notice_date  date,
-  ADD COLUMN IF NOT EXISTS financial_year_start month_int CHECK (financial_year_start BETWEEN 1 AND 12);
+  ADD COLUMN IF NOT EXISTS demand_notice_date  date;
 
--- Drop the CHECK constraint if the domain doesn't exist, use integer instead
-ALTER TABLE service_charges
-  DROP COLUMN IF EXISTS financial_year_start;
+-- Financial year start month (1-12). Added separately and idempotently: an earlier
+-- version of this script referenced a non-existent `month_int` domain, which made the
+-- whole ALTER above fail on a fresh database.
 ALTER TABLE service_charges
   ADD COLUMN IF NOT EXISTS financial_year_start integer DEFAULT 1 CHECK (financial_year_start BETWEEN 1 AND 12);
 

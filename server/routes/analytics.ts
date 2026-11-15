@@ -24,6 +24,7 @@ import {
 import { eq, and, gte, lte, count, sql, avg, sum, desc } from "drizzle-orm";
 import { authenticateJWT } from "../middleware/auth";
 import { requireOrg } from "../middleware/requireOrg";
+import { rentReceivedBetween, rentReceivedByMonth, rentOutstanding, rentCollectionSummary, todayEAT, round2 } from "../services/rent-ledger";
 
 const router = Router();
 const auth = [authenticateJWT as any, requireOrg as any];
@@ -38,6 +39,22 @@ function timeframeDates(tf: string): { from: Date; prev: Date } {
   return { from, prev };
 }
 
+// Money is reported as CASH RECEIVED (receipts by payment date — see services/rent-ledger.ts),
+// the same definition the dashboards and owner statements use. These helpers work in EAT
+// calendar days so a period never straddles a UTC/EAT midnight.
+const addDays = (ymd: string, n: number) => {
+  const [y, m, d] = ymd.split("-").map(Number);
+  return new Date(Date.UTC(y, m - 1, d + n)).toISOString().slice(0, 10);
+};
+function periodDays(tf: string) {
+  const days = tf === "7d" ? 7 : tf === "90d" ? 90 : tf === "1y" ? 365 : 30;
+  const to = todayEAT();
+  const from = addDays(to, -(days - 1));
+  const prevTo = addDays(from, -1);
+  const prevFrom = addDays(prevTo, -(days - 1));
+  return { days, from, to, prevFrom, prevTo };
+}
+
 function pctChange(current: number, previous: number): string {
   if (previous === 0) return current > 0 ? "+100" : "0";
   const pct = ((current - previous) / previous) * 100;
@@ -49,89 +66,49 @@ function pctChange(current: number, previous: number): string {
 router.get("/financial", ...auth, async (req: any, res: any) => {
   try {
     const orgId: number = req.user.organizationId;
-    const { from, prev } = timeframeDates(String(req.query.timeframe ?? "30d"));
+    const P = periodDays(String(req.query.timeframe ?? "30d"));
 
-    // Revenue (paid rent payments) — current vs previous period
-    const revQuery = async (start: Date, end: Date) =>
-      db.select({ total: sql<string>`COALESCE(SUM(${rentPayments.amount}), 0)` })
-        .from(rentPayments)
-        .leftJoin(tenants, eq(rentPayments.tenantId, tenants.id))
-        .where(and(
-          eq(tenants.organizationId, orgId),
-          eq(rentPayments.status, "paid"),
-          gte(rentPayments.createdAt, start),
-          lte(rentPayments.createdAt, end),
-        ));
-
-    const [[curRev], [prevRev]] = await Promise.all([
-      revQuery(from, new Date()),
-      revQuery(prev, from),
+    // Revenue = rent cash received in the period (a part payment counts when it is paid,
+    // not when the invoice was created or fully settled) — current vs previous period.
+    const [totalRevenue, prevRevenue] = await Promise.all([
+      rentReceivedBetween({ orgId }, P.from, P.to),
+      rentReceivedBetween({ orgId }, P.prevFrom, P.prevTo),
     ]);
 
-    const totalRevenue = Number(curRev?.total ?? 0);
-    const prevRevenue  = Number(prevRev?.total ?? 0);
-
-    // Expenses (current period)
+    // Expenses: only approved / paid ones are real costs (pending and rejected are not),
+    // bounded on both sides of the period.
     const [expResult] = await db
       .select({ total: sql<string>`COALESCE(SUM(${expenses.amount}), 0)` })
       .from(expenses)
       .leftJoin(properties, eq(expenses.propertyId, properties.id))
       .where(and(
         eq(properties.organizationId, orgId),
-        gte(expenses.expenseDate, from),
+        sql`${expenses.status} IN ('approved', 'paid')`,
+        sql`${expenses.expenseDate}::date BETWEEN ${P.from}::date AND ${P.to}::date`,
       )).catch(() => [{ total: "0" }]);
 
-    const totalExpenses = Number(expResult?.total ?? 0);
-    const netIncome     = totalRevenue - totalExpenses;
-    const profitMargin  = totalRevenue > 0
-      ? Math.round((netIncome / totalRevenue) * 100)
-      : 0;
+    const totalExpenses = round2(Number(expResult?.total ?? 0));
+    const netIncome     = round2(totalRevenue - totalExpenses);
+    const profitMargin  = totalRevenue > 0 ? Math.round((netIncome / totalRevenue) * 100) : 0;
 
-    // Overdue rent count
-    const [overdueResult] = await db
-      .select({ count: count() })
-      .from(rentPayments)
-      .leftJoin(tenants, eq(rentPayments.tenantId, tenants.id))
-      .where(and(eq(tenants.organizationId, orgId), eq(rentPayments.status, "overdue")));
+    // Overdue = invoices still owing money past due (counted by balance, not by full amount)
+    const overdue = await rentOutstanding({ orgId }, ["overdue"]);
 
-    // Collection rate
-    const [totalInvoiced] = await db
-      .select({ count: count() })
-      .from(rentPayments)
-      .leftJoin(tenants, eq(rentPayments.tenantId, tenants.id))
-      .where(and(eq(tenants.organizationId, orgId), gte(rentPayments.createdAt, from)));
+    // Collection rate = rent actually paid against invoices that fell due in the period ÷ rent billed,
+    // capped at 100%. A part-paid invoice counts only for what was paid, never as "paid".
+    const summary = await rentCollectionSummary({ orgId }, P.from, P.to);
+    const collectionRate = summary.collectionRate;
 
-    const [totalPaid] = await db
-      .select({ count: count() })
-      .from(rentPayments)
-      .leftJoin(tenants, eq(rentPayments.tenantId, tenants.id))
-      .where(and(
-        eq(tenants.organizationId, orgId),
-        eq(rentPayments.status, "paid"),
-        gte(rentPayments.createdAt, from),
-      ));
-
-    const invoicedCount = Number(totalInvoiced?.count ?? 0);
-    const paidCount     = Number(totalPaid?.count ?? 0);
-    const collectionRate = invoicedCount > 0
-      ? Math.round((paidCount / invoicedCount) * 100)
-      : 0;
-
-    // Monthly revenue trend (last 6 months)
-    const monthlyTrend = await db
-      .select({
-        month: sql<string>`TO_CHAR(${rentPayments.createdAt}, 'Mon')`,
-        revenue: sql<string>`COALESCE(SUM(${rentPayments.amount}), 0)`,
-      })
-      .from(rentPayments)
-      .leftJoin(tenants, eq(rentPayments.tenantId, tenants.id))
-      .where(and(
-        eq(tenants.organizationId, orgId),
-        eq(rentPayments.status, "paid"),
-        gte(rentPayments.createdAt, new Date(Date.now() - 180 * 86_400_000)),
-      ))
-      .groupBy(sql`TO_CHAR(${rentPayments.createdAt}, 'Mon'), DATE_TRUNC('month', ${rentPayments.createdAt})`)
-      .orderBy(sql`DATE_TRUNC('month', ${rentPayments.createdAt})`);
+    // Monthly cash trend (last 6 calendar months incl. this one), zero-filled so a quiet month shows as 0
+    const today = todayEAT();
+    const startMonth = (() => { const [y, m] = today.split("-").map(Number); const d = new Date(Date.UTC(y, m - 1 - 5, 1)); return d.toISOString().slice(0, 10); })();
+    const byMonth = await rentReceivedByMonth({ orgId }, startMonth, today);
+    const monthlyTrend = Array.from({ length: 6 }, (_, i) => {
+      const [y, m] = startMonth.split("-").map(Number);
+      const d = new Date(Date.UTC(y, m - 1 + i, 1));
+      const key = d.toISOString().slice(0, 7);
+      return { month: d.toLocaleString("en-US", { month: "short", timeZone: "UTC" }), revenue: byMonth[key] ?? 0 };
+    });
 
     res.json({
       totalRevenue,
@@ -141,11 +118,9 @@ router.get("/financial", ...auth, async (req: any, res: any) => {
       netIncome,
       profitMargin,
       collectionRate,
-      overdueCount: Number(overdueResult?.count ?? 0),
-      monthlyTrend: monthlyTrend.map(r => ({
-        month: r.month,
-        revenue: Number(r.revenue),
-      })),
+      overdueCount: overdue.count,
+      overdueAmount: overdue.total,
+      monthlyTrend,
     });
   } catch (err: any) {
     console.error("[Analytics/financial]", err);
@@ -159,8 +134,9 @@ router.get("/tenants", ...auth, async (req: any, res: any) => {
   try {
     const orgId: number = req.user.organizationId;
     const { from } = timeframeDates(String(req.query.timeframe ?? "30d"));
+    const P = periodDays(String(req.query.timeframe ?? "30d"));
 
-    const [[unitStats], [newTenants], [activeLeases], paymentPerf] = await Promise.all([
+    const [[unitStats], [newTenants], [activeLeases], collection] = await Promise.all([
       db.select({
         total:    count(),
         occupied: sql<string>`SUM(CASE WHEN ${units.isOccupied} = true THEN 1 ELSE 0 END)`,
@@ -174,21 +150,16 @@ router.get("/tenants", ...auth, async (req: any, res: any) => {
         .where(and(eq(tenants.organizationId, orgId), eq(leases.status, "active")))
         .catch(() => [{ count: 0 }]),
 
-      db.select({
-        status: rentPayments.status,
-        count:  count(),
-      }).from(rentPayments).leftJoin(tenants, eq(rentPayments.tenantId, tenants.id))
-        .where(and(eq(tenants.organizationId, orgId), gte(rentPayments.createdAt, from)))
-        .groupBy(rentPayments.status),
+      // Payment performance = share of the rent billed in the period (invoices due in it) that has
+      // actually been paid — the same collection rate the financial analytics and reports show.
+      rentCollectionSummary({ orgId }, P.from, P.to),
     ]);
 
     const totalUnits   = Number(unitStats?.total ?? 0);
     const occupied     = Number(unitStats?.occupied ?? 0);
     const occupancyRate = totalUnits > 0 ? Math.round((occupied / totalUnits) * 100) : 0;
 
-    const paidCount  = Number(paymentPerf.find((r: any) => r.status === "paid")?.count ?? 0);
-    const totalPmts  = paymentPerf.reduce((s: number, r: any) => s + Number(r.count), 0);
-    const paymentPerformance = totalPmts > 0 ? Math.round((paidCount / totalPmts) * 100) : 0;
+    const paymentPerformance = collection.collectionRate;
 
     const totalTenants = Number((await db.select({ count: count() }).from(tenants)
       .where(eq(tenants.organizationId, orgId)))[0]?.count ?? 0);
@@ -334,15 +305,8 @@ router.get("/property", ...auth, async (req: any, res: any) => {
           occupied: sql<string>`SUM(CASE WHEN ${units.isOccupied} = true THEN 1 ELSE 0 END)`,
         }).from(units).where(eq(units.propertyId, p.id)),
 
-        db.select({ total: sql<string>`COALESCE(SUM(${rentPayments.amount}), 0)` })
-          .from(rentPayments)
-          .leftJoin(tenants, eq(rentPayments.tenantId, tenants.id))
-          .leftJoin(units, eq(tenants.unitId, units.id))
-          .where(and(
-            eq(units.propertyId, p.id),
-            eq(rentPayments.status, "paid"),
-            gte(rentPayments.createdAt, new Date(Date.now() - 30 * 86_400_000)),
-          )).catch(() => [{ total: "0" }]),
+        // cash received this calendar month at this property
+        rentReceivedBetween([p.id], `${todayEAT().slice(0, 7)}-01`, todayEAT()).then((t) => [{ total: String(t) }]),
       ]);
 
       const totalUnits = Number(unitStat?.total ?? 0);

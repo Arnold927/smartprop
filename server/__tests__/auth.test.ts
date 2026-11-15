@@ -7,7 +7,7 @@
  *   - Login with unknown email → 401
  *   - Refresh token → 200 + new accessToken
  *   - Logout revokes token → subsequent refresh → 401
- *   - Password policy enforcement on signup
+ *   - Public signup closed; password policy enforced on change/reset password
  *   - Account lockout after 10 failed attempts
  */
 
@@ -128,35 +128,51 @@ describe("POST /api/auth/refresh", () => {
 });
 
 describe("Password policy", () => {
-  it("rejects signup with a weak password (no uppercase)", async () => {
+  // Public self-service signup is closed once any organisation exists (accounts are
+  // created by admins), so the policy is exercised on the routes that stay reachable:
+  // change-password (authenticated) and reset-password (public, token based).
+  async function bearer() {
+    const r = await supertest(app).post("/api/auth/login").send({ email: TEST_EMAIL, password: TEST_PASSWORD });
+    return `Bearer ${r.body.accessToken}`;
+  }
+
+  it("public signup is closed once an organisation exists", async () => {
     const res = await supertest(app).post("/api/auth/signup").send({
-      email: `weak-${Date.now()}@test.local`,
-      password: "alllowercase1!",
-      firstName: "Test", lastName: "User",
-      organizationName: "Weak Org",
+      email: `closed-${Date.now()}@test.local`, password: "SecurePass1!",
+      firstName: "Test", lastName: "User", organizationName: "Closed Org",
     });
+    expect(res.status).toBe(403);
+    expect(res.body.message).toMatch(/registration is disabled/i);
+  });
+
+  const weak: Array<[string, string, RegExp]> = [
+    ["no uppercase", "alllowercase1!", /uppercase/i],
+    ["no number", "NoNumberHere!", /number/i],
+    ["no special character", "NoSpecial1", /special/i],
+    ["too short", "Sh1!", /8 characters/i],
+  ];
+
+  for (const [label, pw, msg] of weak) {
+    it(`change-password rejects a weak password (${label})`, async () => {
+      const res = await supertest(app).post("/api/auth/change-password")
+        .set("Authorization", await bearer())
+        .send({ currentPassword: TEST_PASSWORD, newPassword: pw });
+      expect(res.status).toBe(400);
+      expect(res.body.message).toMatch(msg);
+    });
+  }
+
+  it("reset-password rejects a weak password before looking at the token", async () => {
+    const res = await supertest(app).post("/api/auth/reset-password")
+      .send({ token: "does-not-matter", password: "alllowercase1!" });
     expect(res.status).toBe(400);
     expect(res.body.message).toMatch(/uppercase/i);
   });
 
-  it("rejects signup with a weak password (no special char)", async () => {
-    const res = await supertest(app).post("/api/auth/signup").send({
-      email: `weak2-${Date.now()}@test.local`,
-      password: "NoSpecial1",
-      firstName: "Test", lastName: "User",
-      organizationName: "Weak Org 2",
-    });
-    expect(res.status).toBe(400);
-    expect(res.body.message).toMatch(/special/i);
-  });
-
-  it("rejects signup with a short password", async () => {
-    const res = await supertest(app).post("/api/auth/signup").send({
-      email: `short-${Date.now()}@test.local`,
-      password: "Sh1!",
-      firstName: "Test", lastName: "User",
-      organizationName: "Short Org",
-    });
-    expect(res.status).toBe(400);
+  it("change-password refuses a wrong current password even with a strong new one", async () => {
+    const res = await supertest(app).post("/api/auth/change-password")
+      .set("Authorization", await bearer())
+      .send({ currentPassword: "WrongPass1!", newPassword: "BrandNewPass1!" });
+    expect(res.status).toBe(401);
   });
 });

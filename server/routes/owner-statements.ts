@@ -37,7 +37,7 @@ import { format, startOfMonth, endOfMonth, getDaysInMonth } from "date-fns";
 import { maxSequenceSuffix, withNumberRetry } from "../utils/sequenceNumber";
 import { authenticateJWT } from "../middleware/auth";
 import { requireOrg }      from "../middleware/requireOrg";
-import { rentBalances }    from "../services/rent-ledger";
+import { rentBalances, rentCashRows } from "../services/rent-ledger";
 
 const router = Router();
 const auth   = [authenticateJWT as any, requireOrg as any];
@@ -327,23 +327,7 @@ router.post("/generate", ...auth, async (req: any, res: any) => {
     // 4. Money actually received this month. One receipt per payment, so part payments and
     //    multi-instalment invoices are counted when the cash arrived (the old query only saw invoices
     //    that were fully paid and ignored everything else).
-    const payments = tenantIds.length > 0
-      ? await db
-          .select({
-            id:            paymentReceipts.id,
-            tenantId:      paymentReceipts.tenantId,
-            amount:        paymentReceipts.amount,
-            paidDate:      paymentReceipts.paymentDate,
-            paymentMethod: paymentReceipts.paymentMethod,
-          })
-          .from(paymentReceipts)
-          .innerJoin(rentPayments, eq(paymentReceipts.paymentId, rentPayments.id))
-          .where(and(
-            inArray(paymentReceipts.tenantId, tenantIds),
-            gte(paymentReceipts.paymentDate, format(periodStart, "yyyy-MM-dd")),
-            lte(paymentReceipts.paymentDate, format(periodEnd,   "yyyy-MM-dd")),
-          ))
-      : [];
+    const payments = await rentCashRows(propertyId, format(periodStart, "yyyy-MM-dd"), format(periodEnd, "yyyy-MM-dd"));
 
     const grossRent = Math.round(payments.reduce((s, p) => s + money(p.amount), 0) * 100) / 100;
 

@@ -42,6 +42,7 @@ import {
   enforcePropertyLimit,
 } from "../middleware/billing";
 import { storage } from "../storage";
+import { rentCollectionSummary, rentCashRows } from "../services/rent-ledger";
 
 type AnyZodObject = ZodObject<any, any, any, any, any>;
 
@@ -499,52 +500,21 @@ propertyCRUDRouter.get("/:id/full", authenticateJWT, requireOrg, async (req: any
     const monthStart = new Date(Date.UTC(now.getFullYear(), now.getMonth(), 1)).toISOString().split("T")[0];
     const monthEnd   = new Date(Date.UTC(now.getFullYear(), now.getMonth() + 1, 0)).toISOString().split("T")[0];
 
-    const safeSelect = {
-      id:        rentPayments.id,
-      tenantId:  rentPayments.tenantId,
-      amount:    rentPayments.amount,
-      currency:  rentPayments.currency,
-      dueDate:   rentPayments.dueDate,
-      paidDate:  rentPayments.paidDate,
-      status:    rentPayments.status,
-    };
-
-    const thisMonthPayments = tenantIds.length > 0
-      ? await db
-          .select(safeSelect)
-          .from(rentPayments)
-          .where(
-            and(
-              inArray(rentPayments.tenantId, tenantIds),
-              eq(rentPayments.status, "paid"),
-              sql`${rentPayments.paidDate} >= ${monthStart}`,
-              sql`${rentPayments.paidDate} <= ${monthEnd}`,
-            )
-          )
-      : [];
-
-    // All payments for collection rate calculation (last 12 months)
-    const twelveMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 11, 1).toISOString().split("T")[0];
-    const last12Payments  = tenantIds.length > 0
-      ? await db
-          .select(safeSelect)
-          .from(rentPayments)
-          .where(
-            and(
-              inArray(rentPayments.tenantId, tenantIds),
-              sql`${rentPayments.dueDate} >= ${twelveMonthsAgo}`,
-            )
-          )
-      : [];
-
-    const paidLast12   = last12Payments.filter(p => p.status === "paid");
-    const collectionRate = last12Payments.length > 0
-      ? Math.round((paidLast12.length / last12Payments.length) * 100) : 0;
-
-    const collectedThisMonth = thisMonthPayments.reduce((s, p) => s + Number(p.amount ?? 0), 0);
-    const pendingThisMonth   = last12Payments
-      .filter(p => p.status !== "paid" && p.dueDate >= monthStart && p.dueDate <= monthEnd)
-      .reduce((s, p) => s + Number(p.amount ?? 0), 0);
+    // Money for this property, on the same definitions as the dashboards: "collected" is cash received this
+    // month (part payments count when paid), "pending" is what is still owed on this month's invoices, and
+    // the collection rate is paid ÷ billed over the last 12 months.
+    const twelveMonthsAgo = new Date(Date.UTC(now.getFullYear(), now.getMonth() - 11, 1)).toISOString().split("T")[0];
+    const [thisMonthCash, monthSummary, yearSummary] = await Promise.all([
+      rentCashRows(propertyId, monthStart, monthEnd),
+      rentCollectionSummary({ propertyIds: [propertyId] }, monthStart, monthEnd),
+      rentCollectionSummary({ propertyIds: [propertyId] }, twelveMonthsAgo, monthEnd),
+    ]);
+    const thisMonthPayments = thisMonthCash.map(c => ({
+      id: c.id, tenantId: c.tenantId, amount: String(c.amount), paidDate: c.paidDate, status: "paid",
+    }));
+    const collectedThisMonth = monthSummary.received;
+    const pendingThisMonth   = Math.round((monthSummary.pending.total + monthSummary.overdue.total) * 100) / 100;
+    const collectionRate     = yearSummary.collectionRate;
 
     const occupiedCount   = propUnits.filter(u => u.isOccupied).length;
     const totalUnitsCount = propUnits.length;
@@ -566,7 +536,7 @@ propertyCRUDRouter.get("/:id/full", authenticateJWT, requireOrg, async (req: any
         collectedThisMonth,
         pendingThisMonth,
         collectionRate,
-        totalInvoicedThisMonth: collectedThisMonth + pendingThisMonth,
+        totalInvoicedThisMonth: monthSummary.billed,
       },
     });
   } catch (error) {

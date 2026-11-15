@@ -5,6 +5,10 @@
  *
  * Endpoints:
  *   GET  /api/billing/plans            → list available plans (public)
+ *
+ * plans / callback / webhook live on `billingPublicRouter` (mounted WITHOUT the JWT guard:
+ * Pesapal's server and the customer's redirected browser carry no SmartProp token).
+ * status / checkout live on the default export, mounted behind JWT + role guard.
  *   GET  /api/billing/status           → current org subscription status (auth required)
  *   POST /api/billing/checkout         → create a Pesapal order, return redirect URL
  *   GET  /api/billing/callback         → Pesapal redirects here after payment
@@ -15,16 +19,18 @@ import { Router } from "express";
 import { z } from "zod";
 import { db } from "../db.js";
 import { organizations } from "@shared/schema";
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { authenticateJWT } from "../middleware/auth.js";
 import { requireOrg } from "../middleware/requireOrg.js";
 import {
   submitOrder,
   getTransactionStatus,
+  isPesapalConfigured,
 } from "../services/pesapal.js";
 import { randomUUID } from "crypto";
 
 const router = Router();
+export const billingPublicRouter = Router();
 
 // ── Plan catalogue ─────────────────────────────────────────────────────────────
 // Adjust prices and limits to match your actual pricing.
@@ -71,7 +77,7 @@ export const PLANS = [
 type PlanId = (typeof PLANS)[number]["id"];
 
 // ── GET /api/billing/plans ─────────────────────────────────────────────────────
-router.get("/plans", (_req, res) => {
+billingPublicRouter.get("/plans", (_req, res) => {
   res.json(PLANS);
 });
 
@@ -123,6 +129,10 @@ router.post("/checkout", authenticateJWT as any, requireOrg as any, async (req: 
   const plan = PLANS.find((p) => p.id === parsed.data.planId);
   if (!plan) return res.status(400).json({ message: "Plan not found" });
 
+  if (!isPesapalConfigured()) {
+    return res.status(503).json({ message: "Online payment is not configured yet. Please contact support to change your plan." });
+  }
+
   try {
     // Fetch org + user for billing details
     const [org] = await db
@@ -144,7 +154,8 @@ router.post("/checkout", authenticateJWT as any, requireOrg as any, async (req: 
       billingEmail: req.user.email,
       billingFirstName: req.user.firstName ?? org.name,
       billingLastName: req.user.lastName ?? "",
-      callbackUrl: `${appUrl}/billing/callback?ref=${encodeURIComponent(merchantReference)}&plan=${plan.id}&orgId=${orgId}`,
+      // Pesapal appends OrderTrackingId; the API verifies it, then redirects to /billing?success=1
+      callbackUrl: `${appUrl}/api/billing/callback`,
     });
 
     // Persist tracking id so the webhook can look it up
@@ -177,8 +188,8 @@ router.post("/checkout", authenticateJWT as any, requireOrg as any, async (req: 
 // ── GET /api/billing/callback ──────────────────────────────────────────────────
 // Pesapal redirects the user's browser here after payment.
 // We verify the status server-side and update the org, then redirect to the app.
-router.get("/callback", async (req, res) => {
-  const { OrderTrackingId, OrderMerchantReference, OrderNotificationType } = req.query as Record<string, string>;
+billingPublicRouter.get("/callback", async (req, res) => {
+  const { OrderTrackingId } = req.query as Record<string, string>;
   const appUrl = process.env.APP_URL ?? "http://localhost:5173";
 
   if (!OrderTrackingId) {
@@ -186,7 +197,7 @@ router.get("/callback", async (req, res) => {
   }
 
   try {
-    await activateSubscriptionIfPaid(OrderTrackingId, OrderMerchantReference);
+    await activateSubscriptionIfPaid(OrderTrackingId);
     res.redirect(`${appUrl}/billing?success=1`);
   } catch (err) {
     console.error("[billing] callback error:", err);
@@ -197,11 +208,15 @@ router.get("/callback", async (req, res) => {
 // ── POST /api/billing/webhook ──────────────────────────────────────────────────
 // Pesapal IPN — fires asynchronously when a payment status changes.
 // Pesapal expects a 200 response with the IPN response JSON.
-router.post("/webhook", async (req, res) => {
+billingPublicRouter.post("/webhook", async (req, res) => {
   const { OrderTrackingId, OrderMerchantReference, OrderNotificationType } =
     req.body as Record<string, string>;
 
   console.log("[billing] IPN received:", { OrderTrackingId, OrderMerchantReference, OrderNotificationType });
+
+  if (!OrderTrackingId) {
+    return res.status(400).json({ message: "OrderTrackingId is required" });
+  }
 
   // Acknowledge Pesapal immediately (they will retry if we don't respond quickly)
   res.json({
@@ -212,53 +227,65 @@ router.post("/webhook", async (req, res) => {
   });
 
   // Then process async
-  if (OrderTrackingId) {
-    activateSubscriptionIfPaid(OrderTrackingId, OrderMerchantReference).catch((err) =>
-      console.error("[billing] async IPN processing error:", err)
-    );
-  }
+  activateSubscriptionIfPaid(OrderTrackingId).catch((err) =>
+    console.error("[billing] async IPN processing error:", err)
+  );
 });
 
-// ── Shared helper ──────────────────────────────────────────────────────────────
-async function activateSubscriptionIfPaid(
-  orderTrackingId: string,
-  merchantReference?: string
-) {
+// ── Shared helpers ─────────────────────────────────────────────────────────────
+
+/** The org whose checkout created this tracking id (stored server-side at checkout). */
+async function findOrgByTrackingId(orderTrackingId: string) {
+  const [org] = await db
+    .select()
+    .from(organizations)
+    .where(sql`(${organizations.features})::jsonb -> 'pendingOrder' ->> 'orderTrackingId' = ${orderTrackingId}`)
+    .limit(1);
+  return org ?? null;
+}
+
+/**
+ * Verify the order with Pesapal and activate the plan. This route is reachable without a
+ * SmartProp token, so nothing in the request is trusted: the organisation and plan come
+ * from the order we stored at checkout, and the paid amount must cover the plan price.
+ * Idempotent — a repeat IPN for an already-activated order does nothing.
+ */
+async function activateSubscriptionIfPaid(orderTrackingId: string) {
+  const org = await findOrgByTrackingId(orderTrackingId);
+  if (!org) {
+    console.warn("[billing] no pending order for tracking id, ignoring:", orderTrackingId);
+    return;
+  }
+
   const status = await getTransactionStatus(orderTrackingId);
   console.log("[billing] transaction status:", status);
 
   if (status.status !== "Completed") {
     console.log(`[billing] payment not completed (${status.status}), skipping activation`);
-
     if (status.status === "Failed" || status.status === "Invalid") {
-      // Mark subscription as past_due if payment failed
-      await markSubscriptionByTrackingId(orderTrackingId, "past_due");
+      await db
+        .update(organizations)
+        .set({ subscriptionStatus: "past_due", updatedAt: new Date() })
+        .where(eq(organizations.id, org.id));
     }
     return;
   }
 
-  // Extract orgId from merchant reference: "SP-{orgId}-{planId}-{ts}"
-  const ref = merchantReference ?? "";
-  const parts = ref.split("-");
-  if (parts.length < 3 || parts[0] !== "SP") {
-    console.error("[billing] could not parse merchant reference:", ref);
-    return;
-  }
-
-  const orgId = parseInt(parts[1], 10);
-  const planId = parts[2] as PlanId;
-
-  if (isNaN(orgId)) {
-    console.error("[billing] invalid orgId in reference:", ref);
-    return;
-  }
-
-  const plan = PLANS.find((p) => p.id === planId);
+  const features = (org.features as Record<string, any>) ?? {};
+  const pending = features.pendingOrder;
+  const plan = PLANS.find((p) => p.id === pending?.planId);
   if (!plan) {
-    console.error("[billing] unknown planId in reference:", planId);
+    console.error("[billing] unknown planId on pending order:", pending?.planId);
     return;
   }
 
+  const paid = Number(status.amount);
+  if (Number.isFinite(paid) && paid + 0.001 < plan.priceKes) {
+    console.error(`[billing] amount ${paid} is below the ${plan.id} price ${plan.priceKes}; not activating`);
+    return;
+  }
+
+  const { pendingOrder: _done, ...rest } = features;
   await db
     .update(organizations)
     .set({
@@ -266,29 +293,12 @@ async function activateSubscriptionIfPaid(
       subscriptionStatus: "active",
       maxProperties: plan.maxProperties,
       maxUsers: plan.maxUsers,
+      features: { ...rest, lastOrder: { ...pending, paidAt: new Date().toISOString() } },
       updatedAt: new Date(),
     })
-    .where(eq(organizations.id, orgId));
+    .where(eq(organizations.id, org.id));
 
-  console.log(`[billing] org ${orgId} upgraded to plan ${plan.id}`);
-}
-
-async function markSubscriptionByTrackingId(
-  orderTrackingId: string,
-  status: string
-) {
-  // We stored the tracking id in the features blob; look it up
-  const orgs = await db.select().from(organizations);
-  for (const org of orgs) {
-    const features = (org.features as Record<string, any>) ?? {};
-    if (features.pendingOrder?.orderTrackingId === orderTrackingId) {
-      await db
-        .update(organizations)
-        .set({ subscriptionStatus: status, updatedAt: new Date() })
-        .where(eq(organizations.id, org.id));
-      break;
-    }
-  }
+  console.log(`[billing] org ${org.id} upgraded to plan ${plan.id}`);
 }
 
 export default router;

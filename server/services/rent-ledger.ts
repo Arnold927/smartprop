@@ -308,19 +308,19 @@ export function validPaidDate(s: string): boolean {
 // "Income" for an owner is the money that actually arrived, on the day it arrived — one receipt per payment. Invoices
 // that were settled BEFORE receipts existed (older data) have no receipt row, so they count in full at their paid date.
 
-export type CashScope = { propertyIds: number[] } | { orgId: number };
-const scopeJoin   = (sc: CashScope) => ("orgId" in sc ? sql`` : sql`join units u on u.id = t.unit_id`);
-const scopeFilter = (sc: CashScope) => ("orgId" in sc ? sql`t.organization_id = ${sc.orgId}` : sql`u.property_id in (${sql.join(sc.propertyIds.map(i => sql`${i}`), sql`, `)})`);
+export type CashScope = { propertyIds: number[] } | { orgId: number } | { all: true };
+const scopeJoin   = (sc: CashScope) => ("propertyIds" in sc ? sql`join units u on u.id = t.unit_id` : sql``);
+const scopeFilter = (sc: CashScope) => ("orgId" in sc ? sql`t.organization_id = ${sc.orgId}` : "propertyIds" in sc ? sql`u.property_id in (${sql.join(sc.propertyIds.map(i => sql`${i}`), sql`, `)})` : sql`true`);
 const RENT_CASH_SQL = (sc: CashScope) => sql`
-  select d, amt from (
-    select r.payment_date::date as d, r.amount::numeric as amt
+  select d, amt, m, org from (
+    select r.payment_date::date as d, r.amount::numeric as amt, r.payment_method as m, t.organization_id as org
       from payment_receipts r
       join rent_payments rp on rp.id = r.payment_id
       join tenants t on t.id = rp.tenant_id
       ${scopeJoin(sc)}
      where ${scopeFilter(sc)}
     union all
-    select coalesce(rp.paid_date, rp.due_date)::date as d, rp.amount::numeric as amt
+    select coalesce(rp.paid_date, rp.due_date)::date as d, rp.amount::numeric as amt, rp.payment_method as m, t.organization_id as org
       from rent_payments rp
       join tenants t on t.id = rp.tenant_id
       ${scopeJoin(sc)}
@@ -362,4 +362,110 @@ export async function rentOutstanding(scope: number[] | CashScope, onlyStatus?: 
     ) b`);
   const row = (r.rows ?? r)[0];
   return { total: round2(money(row?.total)), count: Number(row?.n ?? 0) };
+}
+
+
+export interface RentCollectionSummary {
+  /** Cash received in the period (receipts by payment date; legacy settled invoices at their paid date). */
+  received: number;
+  /** Number of payments (receipts) behind `received`. */
+  paymentCount: number;
+  /** Cash received by payment method. */
+  byMethod: Array<{ method: string; count: number; amount: number }>;
+  /** Rent billed: invoices whose DUE DATE falls in the period (cancelled/void excluded). */
+  billed: number;
+  /** How much of `billed` has actually been paid so far (per invoice, capped at the invoice amount). */
+  collectedOfBilled: number;
+  /** collectedOfBilled ÷ billed, 0–100 (0 when nothing was billed). */
+  collectionRate: number;
+  /** Balances still owing on invoices due in the period, by status bucket. */
+  pending: { total: number; count: number };
+  overdue: { total: number; count: number };
+}
+
+/**
+ * One definition of "how rent collection went" for a period, shared by analytics, the report
+ * generator and the scheduled reports so they can never disagree with the dashboards.
+ */
+export async function rentCollectionSummary(scope: CashScope, from: string, to: string): Promise<RentCollectionSummary> {
+  const empty: RentCollectionSummary = { received: 0, paymentCount: 0, byMethod: [], billed: 0, collectedOfBilled: 0, collectionRate: 0, pending: { total: 0, count: 0 }, overdue: { total: 0, count: 0 } };
+  if (emptyScope(scope)) return empty;
+
+  const cash: any = await db.execute(sql`
+    select lower(coalesce(m, 'unknown')) as method, count(*) as n, coalesce(sum(amt), 0) as total
+      from (${RENT_CASH_SQL(scope)}) x
+     where d between ${from}::date and ${to}::date
+     group by 1 order by 3 desc`);
+  const byMethod = ((cash.rows ?? cash) as any[]).map(r => ({ method: String(r.method), count: Number(r.n), amount: round2(money(r.total)) }));
+
+  const bill: any = await db.execute(sql`
+    select coalesce(sum(inv.amt), 0) as billed,
+           coalesce(sum(least(inv.amt, inv.got)), 0) as collected,
+           coalesce(sum(case when inv.status in ('pending','partial') then greatest(inv.amt - inv.got, 0) else 0 end), 0) as pending_total,
+           count(*) filter (where inv.status in ('pending','partial') and inv.amt - inv.got > 0.005) as pending_n,
+           coalesce(sum(case when inv.status = 'overdue' then greatest(inv.amt - inv.got, 0) else 0 end), 0) as overdue_total,
+           count(*) filter (where inv.status = 'overdue' and inv.amt - inv.got > 0.005) as overdue_n
+      from (
+        select rp.status, rp.amount::numeric as amt,
+               coalesce((select sum(r.amount) from payment_receipts r where r.payment_id = rp.id),
+                        case when rp.status in ('paid','completed') then rp.amount::numeric else 0 end) as got
+          from rent_payments rp
+          join tenants t on t.id = rp.tenant_id
+          ${scopeJoin(scope)}
+         where ${scopeFilter(scope)}
+           and rp.due_date::date between ${from}::date and ${to}::date
+           and coalesce(rp.status, '') not in ('cancelled', 'void')
+      ) inv`);
+  const b = (bill.rows ?? bill)[0] ?? {};
+  const billed = round2(money(b.billed));
+  const collectedOfBilled = round2(money(b.collected));
+  return {
+    received: round2(byMethod.reduce((a, r) => a + r.amount, 0)),
+    paymentCount: byMethod.reduce((a, r) => a + r.count, 0),
+    byMethod,
+    billed,
+    collectedOfBilled,
+    collectionRate: billed > 0 ? Math.min(100, Math.round((collectedOfBilled / billed) * 100)) : 0,
+    pending: { total: round2(money(b.pending_total)), count: Number(b.pending_n ?? 0) },
+    overdue: { total: round2(money(b.overdue_total)), count: Number(b.overdue_n ?? 0) },
+  };
+}
+
+export interface RentCashRow { id: number; tenantId: number; amount: number; paidDate: string; paymentMethod: string | null }
+
+/**
+ * Every rent payment received at one property in [from, to] (YYYY-MM-DD), one row per payment:
+ * receipts by payment date, plus legacy invoices settled before receipts existed (at their paid date).
+ * Includes tenants who have since moved out — cash that arrived in the period belongs in its statement.
+ */
+export async function rentCashRows(propertyId: number, from: string, to: string): Promise<RentCashRow[]> {
+  const r: any = await db.execute(sql`
+    select id, tenant_id, amt, d, m from (
+      select r.id as id, rp.tenant_id, r.amount::numeric as amt, r.payment_date::date as d, r.payment_method as m
+        from payment_receipts r
+        join rent_payments rp on rp.id = r.payment_id
+        join tenants t on t.id = rp.tenant_id
+        join units u on u.id = t.unit_id
+       where u.property_id = ${propertyId}
+      union all
+      select -rp.id as id, rp.tenant_id, rp.amount::numeric as amt, coalesce(rp.paid_date, rp.due_date)::date as d, rp.payment_method as m
+        from rent_payments rp
+        join tenants t on t.id = rp.tenant_id
+        join units u on u.id = t.unit_id
+       where u.property_id = ${propertyId}
+         and rp.status in ('paid', 'completed')
+         and not exists (select 1 from payment_receipts r where r.payment_id = rp.id)
+    ) cash
+    where d between ${from}::date and ${to}::date
+    order by d, id`);
+  return ((r.rows ?? r) as any[]).map(x => ({
+    id: Number(x.id), tenantId: Number(x.tenant_id), amount: round2(money(x.amt)),
+    paidDate: new Date(x.d).toISOString().slice(0, 10), paymentMethod: x.m ?? null,
+  }));
+}
+
+/** Rent cash received per organisation in [from, to] — for the platform admin overview. */
+export async function rentReceivedByOrg(from: string, to: string): Promise<Map<number, number>> {
+  const r: any = await db.execute(sql`select org, sum(amt) as total from (${RENT_CASH_SQL({ all: true })}) x where d between ${from}::date and ${to}::date group by org`);
+  return new Map(((r.rows ?? r) as any[]).map(x => [Number(x.org), round2(money(x.total))]));
 }

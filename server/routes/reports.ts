@@ -14,6 +14,7 @@ import {
   maintenanceRequests, propertyExpenses, serviceCharges,
 } from "@shared/schema";
 import { eq, and, gte, lte, sql } from "drizzle-orm";
+import { rentCollectionSummary, rentReceivedBetween, rentBalances, todayEAT, round2 } from "../services/rent-ledger";
 
 const router = Router();
 
@@ -61,6 +62,33 @@ function resolveDateRange(body: any): { since: Date; until: Date } {
   return { since, until };
 }
 
+/**
+ * Money reports work in EAT calendar days (YYYY-MM-DD), not server-local Dates, so a period
+ * never shifts with the server's timezone. Custom dates win over the period keyword.
+ */
+function resolveDayRange(body: any): { from: string; to: string } {
+  const { period = "month", startDate, endDate } = body ?? {};
+  const today = todayEAT();
+  const [y, m, d] = today.split("-").map(Number);
+  const iso = (dt: Date) => dt.toISOString().slice(0, 10);
+  let from: string;
+  switch (period) {
+    case "week":    from = iso(new Date(Date.UTC(y, m - 1, d - 7))); break;
+    case "quarter": from = iso(new Date(Date.UTC(y, Math.floor((m - 1) / 3) * 3, 1))); break;
+    case "year":    from = iso(new Date(Date.UTC(y, 0, 1))); break;
+    default:        from = iso(new Date(Date.UTC(y, m - 1, 1)));
+  }
+  const day = (v: any) => (typeof v === "string" && /^\d{4}-\d{2}-\d{2}/.test(v) ? v.slice(0, 10) : null);
+  return { from: day(startDate) ?? from, to: day(endDate) ?? today };
+}
+
+/** CSV cell: doubles quotes and defuses spreadsheet formulas (=, +, -, @ at the start). */
+function cell(v: unknown): string {
+  let t = v == null ? "" : String(v);
+  if (/^[=+\-@]/.test(t)) t = "'" + t;
+  return `"${t.replace(/"/g, '""')}"`;
+}
+
 /** JS-side filter: is this record's createdAt within [since, until]? */
 function inRange(createdAt: Date | string | null | undefined, since: Date, until: Date): boolean {
   if (!createdAt) return false;
@@ -80,40 +108,21 @@ router.post("/generate", authenticateJWT, requireOrg, async (req: any, res) => {
 
       // ── financial ──────────────────────────────────────────────────────────
       case "financial": {
-        // Fetch all payments for this org
-        const pays = await db
-          .select()
-          .from(rentPayments)
-          .leftJoin(tenants, eq(rentPayments.tenantId, tenants.id))
-          .where(eq(tenants.organizationId, orgId));
+        // Revenue is CASH RECEIVED in the period (receipts by payment date), the same definition as the
+        // dashboards and owner statements. Pending / overdue are the balances still owed on invoices that
+        // fell due in the period — a part-paid invoice contributes only what is left on it.
+        const { from, to } = resolveDayRange(req.body);
+        const sum = await rentCollectionSummary({ orgId }, from, to);
 
-        const allPays = pays.map(r => r.rent_payments);
-
-        // FIX: inPeriod applied to ALL period-specific stats
-        const inPeriod = allPays.filter(p => inRange(p.createdAt, since, until));
-
-        const totalRevenue = inPeriod
-          .filter(p => ["paid", "completed"].includes(p.status ?? ""))
-          .reduce((s, p) => s + Number(p.amount ?? 0), 0);
-
-        // FIX: pending/overdue also scoped to the selected period
-        const totalPending = inPeriod
-          .filter(p => ["pending", "processing"].includes(p.status ?? ""))
-          .reduce((s, p) => s + Number(p.amount ?? 0), 0);
-
-        const totalOverdue = inPeriod
-          .filter(p => p.status === "overdue")
-          .reduce((s, p) => s + Number(p.amount ?? 0), 0);
-
-        // FIX: expenses use both gte(since) AND lte(until) for correct bounds
+        // Only approved / paid expenses are real costs; bounded by the expense date.
         const [expResult] = await db
           .select({ total: sql<string>`COALESCE(SUM(${propertyExpenses.amount}), 0)` })
           .from(propertyExpenses)
           .leftJoin(properties, eq(propertyExpenses.propertyId, properties.id))
           .where(and(
             eq(properties.organizationId, orgId),
-            gte(propertyExpenses.createdAt, since),
-            lte(propertyExpenses.createdAt, until),
+            sql`${propertyExpenses.status} IN ('approved', 'paid')`,
+            sql`${propertyExpenses.expenseDate}::date BETWEEN ${from}::date AND ${to}::date`,
           ));
 
         const [svcResult] = await db
@@ -122,21 +131,23 @@ router.post("/generate", authenticateJWT, requireOrg, async (req: any, res) => {
           .leftJoin(properties, eq(serviceCharges.propertyId, properties.id))
           .where(and(
             eq(properties.organizationId, orgId),
-            gte(serviceCharges.createdAt, since),
-            lte(serviceCharges.createdAt, until),
+            sql`${serviceCharges.createdAt}::date BETWEEN ${from}::date AND ${to}::date`,
           ));
 
-        const totalExpenses = Number(expResult?.total ?? 0) + Number(svcResult?.total ?? 0);
+        const totalRevenue  = sum.received;
+        const totalExpenses = round2(Number(expResult?.total ?? 0) + Number(svcResult?.total ?? 0));
 
         return res.json({
           data: {
             title: "Financial Report",
             totalRevenue,
             totalExpenses,
-            netIncome: totalRevenue - totalExpenses,
-            totalPending,
-            totalOverdue,
-            paymentCount: inPeriod.filter(p => ["paid", "completed"].includes(p.status ?? "")).length,
+            netIncome: round2(totalRevenue - totalExpenses),
+            totalPending: sum.pending.total,
+            totalOverdue: sum.overdue.total,
+            paymentCount: sum.paymentCount,
+            periodStart: from,
+            periodEnd: to,
           },
         });
       }
@@ -274,40 +285,21 @@ router.post("/generate", authenticateJWT, requireOrg, async (req: any, res) => {
 
       // ── rent-collection ────────────────────────────────────────────────────
       case "rent-collection": {
-        const pays = await db
-          .select()
-          .from(rentPayments)
-          .leftJoin(tenants, eq(rentPayments.tenantId, tenants.id))
-          .where(eq(tenants.organizationId, orgId));
-
-        const allPays  = pays.map(r => r.rent_payments);
-        const inPeriod = allPays.filter(p => inRange(p.createdAt, since, until));
-
-        const paidPays       = inPeriod.filter(p => ["paid", "completed"].includes(p.status ?? ""));
-        const totalCollected = paidPays.reduce((s, p) => s + Number(p.amount ?? 0), 0);
-        const overduePays    = inPeriod.filter(p => p.status === "overdue");
-        const totalOverdue   = overduePays.reduce((s, p) => s + Number(p.amount ?? 0), 0);
-        const totalExpected  = totalCollected + totalOverdue;
-        const collectionRate = totalExpected > 0 ? Math.round((totalCollected / totalExpected) * 100) : 100;
-
-        const methodMap: Record<string, { count: number; amount: number }> = {};
-        for (const p of paidPays) {
-          const m = (p.paymentMethod ?? "unknown").toLowerCase();
-          if (!methodMap[m]) methodMap[m] = { count: 0, amount: 0 };
-          methodMap[m].count++;
-          methodMap[m].amount += Number(p.amount ?? 0);
-        }
-        const byMethod = Object.entries(methodMap).map(([method, v]) => ({ method, ...v }));
+        const { from, to } = resolveDayRange(req.body);
+        const sum = await rentCollectionSummary({ orgId }, from, to);
 
         return res.json({
           data: {
             title: "Rent Collection Report",
-            totalCollected,
-            totalOverdue,
-            collectionRate,
-            paymentCount:  paidPays.length,
-            overdueCount:  overduePays.length,
-            byMethod,
+            totalCollected: sum.received,           // cash received in the period
+            totalOverdue:   sum.overdue.total,      // still owed on overdue invoices due in the period
+            totalBilled:    sum.billed,             // invoices falling due in the period
+            collectionRate: sum.billed > 0 ? sum.collectionRate : 100,
+            paymentCount:   sum.paymentCount,
+            overdueCount:   sum.overdue.count,
+            byMethod:       sum.byMethod,
+            periodStart: from,
+            periodEnd: to,
           },
         });
       }
@@ -376,6 +368,10 @@ router.get("/export/:type", authenticateJWT, requireOrg, async (req: any, res) =
 
     switch (type) {
       case "payments": {
+        // Rent invoices falling due in the range, with what has been paid and what is left on each.
+        const { from, to } = resolveDayRange({
+          period: req.query.period, startDate: req.query.startDate, endDate: req.query.endDate,
+        });
         const rows = await db
           .select({
             id:              rentPayments.id,
@@ -392,16 +388,22 @@ router.get("/export/:type", authenticateJWT, requireOrg, async (req: any, res) =
           .leftJoin(tenants, eq(rentPayments.tenantId, tenants.id))
           .where(and(
             eq(tenants.organizationId, orgId),
-            gte(rentPayments.createdAt, since),
-            lte(rentPayments.createdAt, until),
+            sql`${rentPayments.dueDate}::date BETWEEN ${from}::date AND ${to}::date`,
           ))
-          .orderBy(rentPayments.createdAt);
+          .orderBy(rentPayments.dueDate);
+
+        const bal = await rentBalances(rows.map(r => ({ id: r.id, amount: r.amount, status: r.status })));
 
         csv = [
-          "ID,Tenant,Amount,Status,Due Date,Method,Invoice,Created",
-          ...rows.map(r =>
-            `"${r.id}","${r.tenantFirstName ?? ""} ${r.tenantLastName ?? ""}","${r.amount}","${r.status}","${r.dueDate ?? ""}","${r.paymentMethod ?? ""}","${r.invoiceNumber ?? ""}","${r.createdAt ?? ""}"`
-          ),
+          "ID,Tenant,Amount,Paid,Balance,Status,Due Date,Method,Invoice,Created",
+          ...rows.map(r => {
+            const b = bal.get(r.id);
+            return [
+              r.id, `${r.tenantFirstName ?? ""} ${r.tenantLastName ?? ""}`.trim(), r.amount,
+              b?.paidAmount ?? 0, b?.balance ?? Number(r.amount),
+              r.status, r.dueDate ?? "", r.paymentMethod ?? "", r.invoiceNumber ?? "", r.createdAt ?? "",
+            ].map(cell).join(",");
+          }),
         ].join("\n");
         break;
       }
@@ -456,15 +458,18 @@ router.get("/export/:type", authenticateJWT, requireOrg, async (req: any, res) =
           .from(tenants)
           .where(eq(tenants.organizationId, orgId));
 
-        const payRows = await db
-          .select()
-          .from(rentPayments)
-          .leftJoin(tenants, eq(rentPayments.tenantId, tenants.id))
-          .where(eq(tenants.organizationId, orgId));
+        // Cash received per property over the selected window (receipts by payment date)
+        const { from: cashFrom, to: cashTo } = resolveDayRange({
+          period: req.query.period, startDate: req.query.startDate, endDate: req.query.endDate,
+        });
+        const collectedBy = new Map<number, number>();
+        await Promise.all(propRows.map(async p => {
+          collectedBy.set(p.id, await rentReceivedBetween([p.id], cashFrom, cashTo));
+        }));
 
         // Reuse date-string comparison for lease date fields
-        const sinceStr = since.toISOString().split("T")[0];
-        const untilStr = until.toISOString().split("T")[0];
+        const sinceStr = cashFrom;
+        const untilStr = cashTo;
 
         const activeDuringPeriod = (t: { leaseStartDate?: string | null; leaseEndDate?: string | null }): boolean => {
           const start = t.leaseStartDate?.slice(0, 10) ?? null;
@@ -486,15 +491,7 @@ router.get("/export/:type", authenticateJWT, requireOrg, async (req: any, res) =
             const activeTenants = tenantRows.filter(t => t.unitId !== null && unitIds.has(t.unitId!) && activeDuringPeriod(t)).length;
             const occupiedNow   = pUnits.filter(u => u.isOccupied).length;
             const occPct        = pUnits.length > 0 ? Math.round((occupiedNow / pUnits.length) * 100) : 0;
-            const collected     = payRows
-              .map(r => r.rent_payments)
-              .filter(pay => {
-                const tenantRow = tenantRows.find(t => t.id === pay.tenantId);
-                return tenantRow && tenantRow.unitId !== null && unitIds.has(tenantRow.unitId!) &&
-                  ["paid", "completed"].includes(pay.status ?? "") &&
-                  inRange(pay.createdAt, since, until);
-              })
-              .reduce((s, pay) => s + Number(pay.amount ?? 0), 0);
+            const collected     = collectedBy.get(p.id) ?? 0;
             return `"${p.id}","${p.name ?? ""}","${p.address ?? ""}","${pUnits.length}","${occupiedNow}","${occPct}%","${activeTenants}","${Math.round(collected)}","${fmtDate(p.createdAt)}"`;
           }),
         ].join("\n");

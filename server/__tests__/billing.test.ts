@@ -121,10 +121,12 @@ describe("GET /api/billing/status", () => {
   it("200 with admin token — response has expected shape", async () => {
     const res = await authedGet(app, "/api/billing/status", ctx.adminToken);
     // May be 200 (org has trial/free status) or handled gracefully
-    expect([200, 404]).toContain(res.status);
-    if (res.status === 200) {
-      expect(res.body).toHaveProperty("plan");
-    }
+    expect(res.status).toBe(200);
+    expect(res.body).toHaveProperty("subscriptionPlan");
+    expect(res.body).toHaveProperty("subscriptionStatus");
+    expect(res.body).toHaveProperty("maxProperties");
+    expect(res.body).toHaveProperty("maxUsers");
+    expect(res.body).toHaveProperty("planDetails");
   });
 
   it("tenant role cannot access billing status → 403", async () => {
@@ -158,9 +160,10 @@ describe("POST /api/billing/checkout", () => {
       planId:      "growth",
       callbackUrl: "https://test.example.com/callback",
     });
-    // In test env, Pesapal credentials are absent → 503 is correct/expected
-    // In a fully configured env, 200 with redirectUrl
-    expect([200, 503, 400]).toContain(res.status);
+    // Pesapal credentials are absent in the test env → 503 with a clear message.
+    // In a fully configured env, 200 with redirectUrl. Never a 500.
+    expect([200, 503]).toContain(res.status);
+    if (res.status === 503) expect(res.body.message).toMatch(/not configured/i);
     if (res.status === 200) {
       expect(res.body).toHaveProperty("redirectUrl");
       expect(typeof res.body.redirectUrl).toBe("string");
@@ -175,11 +178,25 @@ describe("POST /api/billing/checkout", () => {
 
 describe("POST /api/billing/webhook", () => {
 
-  it("missing OrderTrackingId → 400", async () => {
+  it("is reachable without a SmartProp token (Pesapal sends none)", async () => {
+    const res = await supertest(app)
+      .post("/api/billing/webhook")
+      .send({ OrderTrackingId: "x-" + Date.now(), OrderMerchantReference: "ref-001", OrderNotificationType: "IPNCHANGE" });
+    expect(res.status).not.toBe(401);
+    expect(res.status).not.toBe(403);
+  });
+
+  it("missing OrderTrackingId → exactly 400", async () => {
     const res = await supertest(app)
       .post("/api/billing/webhook")
       .send({ OrderMerchantReference: "ref-001" /* no OrderTrackingId */ });
-    expect(res.status).toBeGreaterThanOrEqual(400);
+    expect(res.status).toBe(400);
+  });
+
+  it("browser callback without a tracking id redirects back to the app (no token needed)", async () => {
+    const res = await supertest(app).get("/api/billing/callback").redirects(0);
+    expect(res.status).toBe(302);
+    expect(res.headers.location).toMatch(/\/billing\?error=missing_tracking_id/);
   });
 
   it("unknown OrderTrackingId → 200 (idempotent — don't crash on stale webhooks)", async () => {
@@ -191,7 +208,19 @@ describe("POST /api/billing/webhook", () => {
         OrderNotificationType:  "IPNCHANGE",
       });
     // Should ACK gracefully, not 500
-    expect(res.status).toBeLessThan(500);
+    expect(res.status).toBe(200);
+  });
+
+  it("a webhook cannot activate a plan for an order we never created", async () => {
+    const before = await supertest(app).get("/api/billing/status").set("Authorization", `Bearer ${ctx.adminToken}`);
+    await supertest(app).post("/api/billing/webhook").send({
+      OrderTrackingId: "forged-" + Date.now(),
+      OrderMerchantReference: `SP-${ctx.orgId}-enterprise-${Date.now()}`,
+      OrderNotificationType: "IPNCHANGE",
+    });
+    await new Promise((r) => setTimeout(r, 300));
+    const after = await supertest(app).get("/api/billing/status").set("Authorization", `Bearer ${ctx.adminToken}`);
+    expect(after.body.subscriptionPlan).toBe(before.body.subscriptionPlan);
   });
 
 });

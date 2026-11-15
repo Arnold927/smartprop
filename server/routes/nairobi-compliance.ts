@@ -53,6 +53,7 @@ import {
 import { eq, and, desc, asc, gte, lte, sql, sum } from "drizzle-orm";
 import { authenticateJWT } from "../middleware/auth";
 import { requireOrg } from "../middleware/requireOrg";
+import { rentReceivedBetween } from "../services/rent-ledger";
 
 const router = Router();
 const auth = [authenticateJWT as any, requireOrg as any];
@@ -327,7 +328,10 @@ router.put("/kra/profile/:userId", ...auth, async (req: any, res: any) => {
 router.get("/kra/returns/:userId", ...auth, async (req: any, res: any) => {
   try {
     const userId = req.params.userId;
-    let query = db.select().from(kraRentalReturns).where(eq(kraRentalReturns.landlordUserId, userId)) as any;
+    let query = db.select().from(kraRentalReturns).where(and(
+      eq(kraRentalReturns.landlordUserId, userId),
+      eq(kraRentalReturns.organizationId, req.user.organizationId),   // never another organisation's returns
+    )) as any;
     const rows = await query.orderBy(desc(kraRentalReturns.returnYear), desc(kraRentalReturns.returnMonth));
     res.json(rows);
   } catch (err: any) { res.status(500).json({ message: err.message }); }
@@ -348,27 +352,20 @@ router.post("/kra/returns/generate", ...auth, async (req: any, res: any) => {
     const periodStart = new Date(year, month - 1, 1);
     const periodEnd   = new Date(year, month, 0, 23, 59, 59);
 
-    // Sum paid rent payments for this property in the period.
-    // rentPayments has no organizationId/propertyId/paymentDate columns — join
-    // through tenants → units to filter by property and organisation, and use
-    // paidDate (the actual column name in the schema).
-    const periodStartStr = periodStart.toISOString().slice(0, 10);
-    const periodEndStr   = periodEnd.toISOString().slice(0, 10);
+    // Gross rent = rent actually RECEIVED in the period (receipts by payment date; a part payment counts
+    // when it is paid). MRI is charged on rent received, so an invoice that is only part-paid, or settled
+    // in a later month, must not be reported in this one. The property must belong to the caller's org.
+    if (!propertyId || !Number.isInteger(Number(year)) || !(Number(month) >= 1 && Number(month) <= 12)) {
+      return res.status(400).json({ message: "propertyId, year and a month between 1 and 12 are required" });
+    }
+    const [ownProp] = await db.select({ id: properties.id }).from(properties)
+      .where(and(eq(properties.id, Number(propertyId)), eq(properties.organizationId, orgId))).limit(1);
+    if (!ownProp) return res.status(404).json({ message: "Property not found" });
 
-    const [result] = await db
-      .select({ total: sql<string>`COALESCE(SUM(${rentPayments.amount}), 0)` })
-      .from(rentPayments)
-      .innerJoin(tenants, eq(rentPayments.tenantId, tenants.id))
-      .innerJoin(units,   eq(tenants.unitId, units.id))
-      .where(and(
-        eq(tenants.organizationId, orgId),
-        eq(units.propertyId, propertyId),
-        eq(rentPayments.status, "paid"),
-        gte(rentPayments.paidDate, periodStartStr),
-        lte(rentPayments.paidDate, periodEndStr),
-      ));
-
-    const grossRent = Number(result?.total ?? 0);
+    const pad = (n: number) => String(n).padStart(2, "0");
+    const periodStartStr = `${year}-${pad(month)}-01`;
+    const periodEndStr   = `${year}-${pad(month)}-${pad(new Date(Date.UTC(Number(year), Number(month), 0)).getUTCDate())}`;
+    const grossRent = await rentReceivedBetween([Number(propertyId)], periodStartStr, periodEndStr);
 
     // Get KRA profile for rates
     const [kra] = await db
@@ -445,9 +442,20 @@ router.post("/kra/returns/generate", ...auth, async (req: any, res: any) => {
 // PATCH /api/compliance/kra/returns/:id  (mark filed, add ack ref)
 router.patch("/kra/returns/:id", ...auth, async (req: any, res: any) => {
   try {
-    const patch: any = { ...req.body, updatedAt: new Date() };
-    if (req.body.status === "filed" && !req.body.filedAt) patch.filedAt = new Date();
-    const [updated] = await db.update(kraRentalReturns).set(patch).where(eq(kraRentalReturns.id, parseInt(req.params.id))).returning();
+    // Only the filing fields can be changed here — the computed figures (gross rent, WHT, VAT, net) come
+    // from the generator, and the row must belong to the caller's organisation.
+    const patch: any = { updatedAt: new Date() };
+    for (const k of ["status", "filedAt", "acknowledgementRef", "notes", "deductionNotes"]) {
+      if (req.body[k] !== undefined) patch[k] = k === "filedAt" && req.body[k] ? new Date(req.body[k]) : req.body[k];
+    }
+    if (patch.status !== undefined && !["draft", "filed", "acknowledged"].includes(patch.status)) {
+      return res.status(400).json({ message: "status must be draft, filed or acknowledged" });
+    }
+    if (patch.status === "filed" && !patch.filedAt) patch.filedAt = new Date();
+    const [updated] = await db.update(kraRentalReturns).set(patch)
+      .where(and(eq(kraRentalReturns.id, parseInt(req.params.id)), eq(kraRentalReturns.organizationId, req.user.organizationId)))
+      .returning();
+    if (!updated) return res.status(404).json({ message: "Return not found" });
     res.json(updated);
   } catch (err: any) { res.status(500).json({ message: err.message }); }
 });

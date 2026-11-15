@@ -49,6 +49,11 @@ async function getAccessToken(): Promise<string> {
 // ── IPN registration (call once at startup) ────────────────────────────────────
 let _ipnId: string | null = null;
 
+/** True when the Pesapal credentials and IPN URL needed to take a payment are all set. */
+export function isPesapalConfigured(): boolean {
+  return Boolean(process.env.PESAPAL_CONSUMER_KEY && process.env.PESAPAL_CONSUMER_SECRET && process.env.PESAPAL_IPN_URL);
+}
+
 export async function ensureIpnRegistered(): Promise<string> {
   if (_ipnId) return _ipnId;
 

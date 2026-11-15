@@ -52,7 +52,7 @@ import {
 import { broadcastToOrg } from "../ws";
 import { authenticateJWT } from "../middleware/auth";
 import { auditLog } from "../middleware/auditLog";
-import billingRouter from "./billing";
+import billingRouter, { billingPublicRouter } from "./billing";
 import {
   utilityProvidersRouter,
   utilityAccountsRouter,
@@ -165,6 +165,8 @@ export function registerModularRoutes(app: Express) {
   // (a router matches on the URL AFTER its mount point, so it has to be mounted — wrapping it in app.post() left the full
   // path in place, no route matched, and every confirmation was answered with 401 by the login guard further down.)
   app.use("/api/mpesa", mpesaWebhookRouter);
+  // Pesapal: plan catalogue, browser callback and IPN carry no SmartProp token
+  app.use("/api/billing", billingPublicRouter);
 
 
   // Public short-term stay marketplace + direct-link booking — the one

@@ -38,6 +38,7 @@ import {
 } from "@shared/schema";
 import { eq, and, gte, lte, inArray, sql } from "drizzle-orm";
 import { format, startOfMonth, endOfMonth, subMonths } from "date-fns";
+import { rentCashRows } from "./rent-ledger";
 import { sendOwnerStatementEmail, StatementEmailData } from "../lib/ownerStatementEmail";
 import { maxSequenceSuffix, withNumberRetry } from "../utils/sequenceNumber";
 
@@ -178,24 +179,9 @@ async function generateStatement(
   const tenantIds     = propTenants.map(t => t.id);
   const occupiedUnits = propTenants.length;
 
-  const payments = tenantIds.length > 0
-    ? await db
-        .select({
-          id:            rentPayments.id,
-          tenantId:      rentPayments.tenantId,
-          amount:        rentPayments.amount,
-          paidDate:      rentPayments.paidDate,
-          paymentMethod: rentPayments.paymentMethod,
-          status:        rentPayments.status,
-        })
-        .from(rentPayments)
-        .where(and(
-          inArray(rentPayments.tenantId, tenantIds),
-          inArray(rentPayments.status, ["paid", "completed"]),
-          gte(rentPayments.paidDate, format(periodStart, "yyyy-MM-dd")),
-          lte(rentPayments.paidDate, format(periodEnd,   "yyyy-MM-dd")),
-        ))
-    : [];
+  // Cash actually received in the month (receipts by payment date — part payments and tenants who
+  // have since moved out included), the same definition as the dashboards and owner statements.
+  const payments = await rentCashRows(propertyId, format(periodStart, "yyyy-MM-dd"), format(periodEnd, "yyyy-MM-dd"));
 
   const grossRent = payments.reduce((s, p) => s + money(p.amount), 0);
 

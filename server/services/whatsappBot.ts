@@ -25,9 +25,10 @@
  */
 
 import { db }              from "../db";
-import { tenants, rentPayments, maintenanceRequests, units, organizations, userNotificationPreferences } from "@shared/schema";
+import { tenants, rentPayments, paymentReceipts, maintenanceRequests, units, organizations, userNotificationPreferences } from "@shared/schema";
 import { eq, and, desc, sql } from "drizzle-orm";
 import { whatsappService } from "../whatsapp";
+import { rentBalances } from "./rent-ledger";
 import { sanitizeNewRequest, announceNewRequest } from "./maintenance-workflow";
 
 const log = (msg: string) => console.log(`[WhatsAppBot] ${msg}`);
@@ -176,7 +177,9 @@ async function getTenantContext(phone: string): Promise<TenantContext | null> {
 // ── Intent handlers ───────────────────────────────────────────────────────────
 
 async function handleBalance(ctx: TenantContext): Promise<string> {
-  const payments = await db
+  // Every unsettled invoice (not just the first five) — and what is still owed on each: a part-paid
+  // invoice counts only for its remaining balance, exactly as the tenant portal shows it.
+  const open = await db
     .select({
       id:      rentPayments.id,
       amount:  rentPayments.amount,
@@ -187,11 +190,15 @@ async function handleBalance(ctx: TenantContext): Promise<string> {
     .where(
       and(
         eq(rentPayments.tenantId, ctx.tenantId),
-        sql`${rentPayments.status} IN ('pending', 'overdue')`
+        sql`${rentPayments.status} IN ('pending', 'overdue', 'partial')`
       )
     )
-    .orderBy(rentPayments.dueDate)
-    .limit(5);
+    .orderBy(rentPayments.dueDate);
+
+  const bal = await rentBalances(open);
+  const payments = open
+    .map(p => ({ ...p, balance: bal.get(p.id)?.balance ?? Number(p.amount ?? 0) }))
+    .filter(p => p.balance > 0.005);
 
   const name = ctx.firstName;
 
@@ -207,7 +214,7 @@ async function handleBalance(ctx: TenantContext): Promise<string> {
     ].join("\n");
   }
 
-  const total = payments.reduce((sum, p) => sum + Number(p.amount ?? 0), 0);
+  const total = payments.reduce((sum, p) => sum + p.balance, 0);
   const next  = payments[0];
   const overdue = payments.filter(p => p.status === "overdue");
 
@@ -221,7 +228,7 @@ async function handleBalance(ctx: TenantContext): Promise<string> {
   }
 
   lines.push(`📌 Total outstanding: *${fmtKES(total, ctx.currency)}*`);
-  lines.push(`📅 Next due: *${fmtDate(next.dueDate)}* — ${fmtKES(next.amount, ctx.currency)}`);
+  lines.push(`📅 Next due: *${fmtDate(next.dueDate)}* — ${fmtKES(next.balance, ctx.currency)}`);
 
   if (ctx.mpesaPaybill) {
     lines.push(``, `💳 *Pay via M-Pesa Paybill: ${ctx.mpesaPaybill}*`);
@@ -389,23 +396,36 @@ async function handleStatus(ctx: TenantContext): Promise<string> {
 async function handleReceipt(ctx: TenantContext): Promise<string> {
   const name = ctx.firstName;
 
-  const [last] = await db
+  // The latest payment actually received (one receipt per payment, so a part payment is a receipt of its
+  // own amount); older invoices settled before receipts existed are the fallback.
+  let [last]: Array<{ amount: string; paidDate: string | null; paymentMethod: string | null; reference: string | null; invoiceNumber: string | null }> = await db
     .select({
-      amount:        rentPayments.amount,
-      paidDate:      rentPayments.paidDate,
-      paymentMethod: rentPayments.paymentMethod,
+      amount:        paymentReceipts.amount,
+      paidDate:      paymentReceipts.paymentDate,
+      paymentMethod: paymentReceipts.paymentMethod,
       reference:     rentPayments.mpesaTransactionId,
       invoiceNumber: rentPayments.invoiceNumber,
     })
-    .from(rentPayments)
-    .where(
-      and(
-        eq(rentPayments.tenantId, ctx.tenantId),
-        eq(rentPayments.status, "paid")
-      )
-    )
-    .orderBy(desc(rentPayments.paidDate))
+    .from(paymentReceipts)
+    .innerJoin(rentPayments, eq(paymentReceipts.paymentId, rentPayments.id))
+    .where(eq(paymentReceipts.tenantId, ctx.tenantId))
+    .orderBy(desc(paymentReceipts.paymentDate), desc(paymentReceipts.id))
     .limit(1);
+
+  if (!last) {
+    [last] = await db
+      .select({
+        amount:        rentPayments.amount,
+        paidDate:      rentPayments.paidDate,
+        paymentMethod: rentPayments.paymentMethod,
+        reference:     rentPayments.mpesaTransactionId,
+        invoiceNumber: rentPayments.invoiceNumber,
+      })
+      .from(rentPayments)
+      .where(and(eq(rentPayments.tenantId, ctx.tenantId), sql`${rentPayments.status} IN ('paid', 'completed')`))
+      .orderBy(desc(rentPayments.paidDate))
+      .limit(1);
+  }
 
   if (!last) {
     return [

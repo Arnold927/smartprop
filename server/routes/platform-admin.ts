@@ -15,16 +15,10 @@
  *                                   counts and revenue figures
  * GET /organizations/:id/properties — properties within one specific org
  *
- * Revenue definition: sum of rent payments + utility bills with
- * status = 'paid', by amount. This is the most complete measure available
- * across all payment methods (M-Pesa, bank transfer, cash) — every fully
- * settled payment gets marked 'paid' regardless of how it was collected.
- * 'partial' status rows are counted as $0 here, not estimated — the
- * paidAmount/balanceDue columns that would track partial amounts exist on
- * rent_payments but are never actually written by any code path (found
- * earlier this session), so there's nothing reliable to sum for those.
- * This means revenue is a slight undercount wherever partial payments
- * exist, never an overcount.
+ * Revenue definition: rent CASH RECEIVED (receipts by payment date, so part
+ * payments count when they are paid — see services/rent-ledger.ts) plus utility
+ * bills with status = 'paid', by amount. Settled payments are counted however
+ * they were collected (M-Pesa, bank transfer, cash).
  */
 
 import { Router } from "express";
@@ -36,6 +30,7 @@ import { authenticateJWT } from "../middleware/auth";
 import { countsTowardUserLimit } from "../middleware/billing";
 import { z } from "zod";
 import { PLANS } from "./billing";
+import { rentReceivedByOrg } from "../services/rent-ledger";
 import { issueInvite, deliverInvite, InviteConflictError } from "../utils/invites";
 
 const router = Router();
@@ -105,20 +100,12 @@ router.get("/organizations", async (req: any, res: any) => {
       .where(countsTowardUserLimit)   // same rule the plan limit enforces: team seats, not tenant/contractor logins
       .groupBy(users.organizationId);
 
-    // Rent revenue — all-time and for the selected month, by org (via tenantId -> tenants.organizationId)
-    const rentAllTime = await db
-      .select({ organizationId: tenants.organizationId, total: sql<number>`COALESCE(SUM(${rentPayments.amount}::numeric), 0)` })
-      .from(rentPayments)
-      .innerJoin(tenants, eq(rentPayments.tenantId, tenants.id))
-      .where(eq(rentPayments.status, "paid"))
-      .groupBy(tenants.organizationId);
-
-    const rentThisMonth = await db
-      .select({ organizationId: tenants.organizationId, total: sql<number>`COALESCE(SUM(${rentPayments.amount}::numeric), 0)` })
-      .from(rentPayments)
-      .innerJoin(tenants, eq(rentPayments.tenantId, tenants.id))
-      .where(and(eq(rentPayments.status, "paid"), gte(rentPayments.paidDate, monthStart), lt(rentPayments.paidDate, monthEnd)))
-      .groupBy(tenants.organizationId);
+    // Rent revenue = cash received (receipts by payment date), all-time and for the selected month, by org.
+    // Part payments count as they are paid; legacy invoices settled before receipts existed count at paid date.
+    const monthFrom = String(monthStart).slice(0, 10);
+    const monthTo   = new Date(new Date(monthEnd).getTime() - 86_400_000).toISOString().slice(0, 10); // monthEnd is exclusive
+    const rentAllTimeMap = await rentReceivedByOrg("1900-01-01", "2999-12-31");
+    const rentMonthMap   = await rentReceivedByOrg(monthFrom, monthTo);
 
     // Utility revenue — same shape. utilityBills.amount is a varchar column
     // (not numeric), so the ::numeric cast here isn't just defensive, it's
@@ -139,8 +126,6 @@ router.get("/organizations", async (req: any, res: any) => {
 
     const propCountMap = new Map(propertyCounts.map(r => [r.organizationId, Number(r.count)]));
     const userCountMap = new Map(userCounts.map(r => [r.organizationId, Number(r.count)]));
-    const rentAllTimeMap = new Map(rentAllTime.map(r => [r.organizationId, Number(r.total)]));
-    const rentMonthMap = new Map(rentThisMonth.map(r => [r.organizationId, Number(r.total)]));
     const utilAllTimeMap = new Map(utilAllTime.map(r => [r.organizationId, Number(r.total)]));
     const utilMonthMap = new Map(utilThisMonth.map(r => [r.organizationId, Number(r.total)]));
 

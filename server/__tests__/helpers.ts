@@ -52,6 +52,10 @@ export interface TestContext {
 export async function setupTestData(): Promise<TestContext> {
   // 1. Organisation
   const slug = `test-org-${randomUUID().slice(0, 8)}`;
+  // Every call gets its own logins, so two contexts in one file are two genuinely separate organisations
+  // (with shared emails the second login resolved to the first user and isolation tests proved nothing).
+  const adminEmail  = `test-admin-${slug}@smartprop-test.local`;
+  const tenantEmail = `test-tenant-${slug}@smartprop-test.local`;
   const [org] = await db.insert(organizations).values({
     name: `Test Org ${slug}`,
     slug,
@@ -63,7 +67,7 @@ export async function setupTestData(): Promise<TestContext> {
   const adminHash = await bcrypt.hash(TEST_PASSWORD, 10);
   const [adminUser] = await db.insert(users).values({
     id:             randomUUID(),
-    email:          TEST_ADMIN_EMAIL,
+    email:          adminEmail,
     passwordHash:   adminHash,
     firstName:      "Test",
     lastName:       "Admin",
@@ -94,7 +98,7 @@ export async function setupTestData(): Promise<TestContext> {
   const tenantHash = await bcrypt.hash(TEST_PASSWORD, 10);
   const [tenantUser] = await db.insert(users).values({
     id:             randomUUID(),
-    email:          TEST_TENANT_EMAIL,
+    email:          tenantEmail,
     passwordHash:   tenantHash,
     firstName:      "Test",
     lastName:       "Tenant",
@@ -109,7 +113,7 @@ export async function setupTestData(): Promise<TestContext> {
     userId:         tenantUser.id,
     firstName:      "Test",
     lastName:       "Tenant",
-    email:          TEST_TENANT_EMAIL,
+    email:          tenantEmail,
     unitId:         unit.id,
     monthlyRent:    "50000",
     currency:       "KES",
@@ -118,8 +122,8 @@ export async function setupTestData(): Promise<TestContext> {
 
   // 7. Get tokens via login endpoint
   const app = await getApp();
-  const adminLogin  = await supertest(app).post("/api/auth/login").send({ email: TEST_ADMIN_EMAIL,  password: TEST_PASSWORD });
-  const tenantLogin = await supertest(app).post("/api/auth/login").send({ email: TEST_TENANT_EMAIL, password: TEST_PASSWORD });
+  const adminLogin  = await supertest(app).post("/api/auth/login").send({ email: adminEmail,  password: TEST_PASSWORD });
+  const tenantLogin = await supertest(app).post("/api/auth/login").send({ email: tenantEmail, password: TEST_PASSWORD });
 
   return {
     orgId,
