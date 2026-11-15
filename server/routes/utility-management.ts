@@ -54,6 +54,8 @@ import {
 import { eq, inArray, and, lte, sql } from "drizzle-orm";
 import { authenticateJWT } from "../middleware/auth.js";
 import { requireOrg } from "../middleware/requireOrg.js";
+import { applyPayment, paidToDate, receiptsFor, PaymentRuleError, money, round2, todayEAT, validPaidDate, EPS } from "../services/rent-ledger";
+import { paymentReceipts, mpesaTransactions } from "@shared/schema";
 
 // ── Utility Providers ──────────────────────────────────────────────────────────
 export const utilityProvidersRouter = Router();
@@ -374,6 +376,11 @@ utilityBillsRouter.post("/", async (req: any, res: any) => {
     if (!accountId || !billingPeriodStart || !billingPeriodEnd || !dueDate || !amount) {
       return res.status(400).json({ message: "accountId, billingPeriodStart, billingPeriodEnd, dueDate, and amount are required" });
     }
+    if (!(money(amount) > 0)) return res.status(400).json({ message: "amount must be a number greater than zero" });
+    const okDay = (v: any) => !Number.isNaN(new Date(v).getTime());
+    if (!okDay(billingPeriodStart) || !okDay(billingPeriodEnd) || !okDay(dueDate)) return res.status(400).json({ message: "billingPeriodStart, billingPeriodEnd and dueDate must be valid dates" });
+    if (new Date(billingPeriodEnd) < new Date(billingPeriodStart)) return res.status(400).json({ message: "The billing period ends before it starts" });
+    if (status && !["pending", "paid", "overdue", "disputed"].includes(status)) return res.status(400).json({ message: "status must be pending, paid, overdue or disputed" });
 
     // Verify the account's property belongs to the caller's org (and, for a
     // landlord, to them specifically) — previously any accountId was
@@ -419,17 +426,59 @@ utilityBillsRouter.put("/:id", async (req: any, res: any) => {
     const access = await resolveBillOwnership(id, req.user.organizationId, req.user.role ?? "", req.user.id);
     if (!access.allowed) return res.status(404).json({ message: "Bill not found" });
 
-    // Fetch the CURRENT status before updating, so we can detect a real
-    // pending→paid (or paid→other) transition rather than re-firing on
-    // every edit of an already-paid bill.
-    const [before] = await db.select({ status: utilityBills.status }).from(utilityBills).where(eq(utilityBills.id, id)).limit(1);
-    const wasPaid = before?.status === "paid";
+    const [before] = await db.select().from(utilityBills).where(eq(utilityBills.id, id)).limit(1);
+    if (!before) return res.status(404).json({ message: "Bill not found" });
+    const wasPaid = before.status === "paid";
+    const isRepair = before.utilityType === "repair";
 
     const {
       billNumber, billingPeriodStart, billingPeriodEnd, dueDate,
       amount, currency, unitsConsumed, unitRate, previousReading, currentReading,
       status, paidDate, paymentMethod, notes,
     } = req.body;
+
+    if (status !== undefined && !["pending", "paid", "overdue", "disputed"].includes(status)) return res.status(400).json({ message: "status must be pending, paid, overdue or disputed" });
+    const okDay = (v: any) => !Number.isNaN(new Date(v).getTime());
+    for (const [k, v] of Object.entries({ billingPeriodStart, billingPeriodEnd, dueDate, paidDate })) {
+      if (v && !okDay(v)) return res.status(400).json({ message: `${k} must be a valid date` });
+    }
+
+    // ── the amount ─────────────────────────────────────────────────────────────
+    const amountChanging = amount !== undefined && amount !== null && amount !== "" && money(amount) !== money(before.amount);
+    if (amountChanging) {
+      if (!(money(amount) > 0)) return res.status(400).json({ message: "amount must be a number greater than zero" });
+      if (isRepair) return res.status(409).json({ message: "A repair charge follows the cost on its maintenance request — change the cost there and this bill is updated for you." });
+      if (wasPaid) return res.status(409).json({ message: "This bill is already paid, so its amount is locked." });
+      const paid = await paidToDate({ kind: "utility", id });
+      if (paid > 0 && money(amount) <= paid + EPS) return res.status(409).json({ message: `Part of this bill has already been paid (${before.currency ?? "KES"} ${paid.toLocaleString("en-KE")}). The amount cannot be set to less than that.` });
+    }
+
+    // ── the status ─────────────────────────────────────────────────────────────
+    const becomingPaid = status === "paid" && !wasPaid;
+    const reversing = wasPaid && status !== undefined && status !== "paid";
+    let paymentResult: Awaited<ReturnType<typeof applyPayment>> | null = null;
+
+    if (becomingPaid && before.tenantId) {
+      // A bill billed to a tenant is settled through the ledger: the balance still owed is received as one payment, with a
+      // receipt — not by flipping a flag (which left the receipts and "paid to date" saying nothing was ever paid).
+      const day = (paidDate ? String(paidDate).slice(0, 10) : "") || todayEAT();
+      if (!validPaidDate(day)) return res.status(400).json({ message: "The payment date must be a real date, not in the future." });
+      const paid = await paidToDate({ kind: "utility", id });
+      const owed = round2(money(amountChanging ? amount : before.amount) - paid);
+      if (owed > EPS) {
+        try {
+          paymentResult = await applyPayment({ target: { kind: "utility", id }, amount: owed, method: String(paymentMethod ?? "cash").toLowerCase(), paidDate: day, actorUserId: req.user.id, allowOverpay: false });
+        } catch (e) {
+          if (e instanceof PaymentRuleError) return res.status(e.code === "ALREADY_PAID" ? 409 : 400).json({ message: e.message });
+          throw e;
+        }
+      }
+    }
+    if (reversing) {
+      // The payment was recorded in error: take its receipts back out so "paid to date" is honest again.
+      await db.delete(paymentReceipts).where(eq(paymentReceipts.paymentId, -id));
+    }
+
     const [updated] = await db
       .update(utilityBills)
       .set({
@@ -437,16 +486,17 @@ utilityBillsRouter.put("/:id", async (req: any, res: any) => {
         billingPeriodStart: billingPeriodStart ? new Date(billingPeriodStart) : undefined,
         billingPeriodEnd: billingPeriodEnd ? new Date(billingPeriodEnd) : undefined,
         dueDate: dueDate ? new Date(dueDate) : undefined,
-        amount: amount ? String(amount) : undefined,
+        amount: amountChanging ? String(amount) : undefined,
         currency,
         unitsConsumed,
         unitRate,
         previousReading,
         currentReading,
         status,
-        paidDate: paidDate ? new Date(paidDate) : null,
-        paymentMethod,
-        notes,
+        // the paid date is only touched when the caller says so, or the bill goes back to unpaid (it used to be wiped by EVERY edit)
+        paidDate: reversing ? null : (paidDate ? new Date(paidDate) : undefined),
+        paymentMethod: reversing ? null : paymentMethod,
+        notes: paymentResult ? undefined : notes,
       })
       .where(eq(utilityBills.id, id))
       .returning();
@@ -455,13 +505,11 @@ utilityBillsRouter.put("/:id", async (req: any, res: any) => {
     const isNowPaid = updated.status === "paid";
 
     // ── Sync to the general expense ledger ──────────────────────────────────
-    // Only for account-linked bills (a common-area cost the property owner
-    // actually pays) — not tenant-direct bills, which are billed to the
-    // tenant and aren't a property operating expense.
-    if (access.accountId) {
+    // Only for a bill the property OWNER pays (an account-linked provider bill with no tenant on it). A bill billed to a
+    // tenant is income to recover, not a property operating expense — but the sender links tenant bills to the unit's
+    // account too, so "has an account" is not enough to tell them apart (paying a tenant's water bill used to book an expense).
+    if (access.accountId && !before.tenantId) {
       if (isNowPaid && !wasPaid) {
-        // Guard against double-creation if this bill is somehow marked
-        // paid twice in a row (e.g. two quick edits).
         const [existingExpense] = await db
           .select({ id: propertyExpenses.id })
           .from(propertyExpenses)
@@ -495,8 +543,6 @@ utilityBillsRouter.put("/:id", async (req: any, res: any) => {
           } as any);
         }
       } else if (!isNowPaid && wasPaid) {
-        // Payment was reversed — remove the expense so the ledger doesn't
-        // keep a cost that's no longer actually paid.
         await db.delete(propertyExpenses).where(eq(propertyExpenses.utilityBillId, id));
       }
     }
@@ -514,6 +560,17 @@ utilityBillsRouter.delete("/:id", async (req: any, res: any) => {
     const access = await resolveBillOwnership(id, req.user.organizationId, req.user.role ?? "", req.user.id);
     if (!access.allowed) return res.status(404).json({ message: "Bill not found" });
 
+    const [bill] = await db.select().from(utilityBills).where(eq(utilityBills.id, id)).limit(1);
+    if (!bill) return res.status(404).json({ message: "Bill not found" });
+    if (bill.utilityType === "repair") {
+      return res.status(409).json({ message: "A repair charge belongs to its maintenance request. Withdraw it from the request (Charge tenant → off) instead of deleting it here." });
+    }
+    const paid = await paidToDate({ kind: "utility", id });
+    if (bill.status === "paid" || paid > 0) {
+      return res.status(409).json({ message: "Money has already been received against this bill, so it cannot be deleted. Reverse the payment first if it was recorded in error." });
+    }
+    // unfinished M-Pesa attempts point at the bill — clear them so the delete is not refused by the database
+    await db.delete(mpesaTransactions).where(and(eq(mpesaTransactions.utilityBillId, id), sql`${mpesaTransactions.status} <> 'completed'`));
     await db.delete(utilityBills).where(eq(utilityBills.id, id));
     res.json({ success: true });
   } catch (err) {
@@ -522,13 +579,26 @@ utilityBillsRouter.delete("/:id", async (req: any, res: any) => {
   }
 });
 
+/** Property ids of the caller's organisation. recurring_charges and billing_cycles have no organisation column of their own —
+ *  they hang off a property — and none of the routes below checked that: every organisation could read, edit, delete and
+ *  GENERATE INVOICES FROM every other organisation's charges. */
+async function orgPropertyIds(req: any): Promise<number[]> {
+  const rows = await db.select({ id: properties.id }).from(properties).where(eq(properties.organizationId, req.user.organizationId));
+  return rows.map(r => r.id);
+}
+async function propertyInOrg(req: any, propertyId: unknown): Promise<boolean> {
+  const id = parseInt(String(propertyId));
+  return Number.isFinite(id) && (await orgPropertyIds(req)).includes(id);
+}
+
 // ── Recurring Charges ──────────────────────────────────────────────────────────
 export const recurringChargesRouter = Router();
 recurringChargesRouter.use(authenticateJWT as any, requireOrg as any);
 
-recurringChargesRouter.get("/", async (_req: any, res: any) => {
+recurringChargesRouter.get("/", async (req: any, res: any) => {
   try {
-    const charges = await db.select().from(recurringCharges).orderBy(recurringCharges.createdAt);
+    const propIds = await orgPropertyIds(req);
+    const charges = propIds.length ? await db.select().from(recurringCharges).where(inArray(recurringCharges.propertyId, propIds)).orderBy(recurringCharges.createdAt) : [];
     // Normalize field names to match frontend interface
     const normalized = charges.map((c: any) => ({
       ...c,
@@ -545,11 +615,12 @@ recurringChargesRouter.get("/", async (_req: any, res: any) => {
 
 recurringChargesRouter.get("/:id", async (req: any, res: any) => {
   try {
-    const [charge] = await db
+    const propIds = await orgPropertyIds(req);
+    const [charge] = propIds.length ? await db
       .select()
       .from(recurringCharges)
-      .where(eq(recurringCharges.id, parseInt(req.params.id)))
-      .limit(1);
+      .where(and(eq(recurringCharges.id, parseInt(req.params.id)), inArray(recurringCharges.propertyId, propIds)))
+      .limit(1) : [];
     if (!charge) return res.status(404).json({ message: "Recurring charge not found" });
     res.json({ ...charge, chargeName: (charge as any).name, chargeType: (charge as any).type, nextChargeDate: (charge as any).nextBillDate });
   } catch (err) {
@@ -566,6 +637,12 @@ recurringChargesRouter.post("/", async (req: any, res: any) => {
     const resolvedNextBillDate = nextChargeDate || nextBillDate;
     if (!propertyId || !resolvedName || !resolvedType || !amount || !frequency || !startDate || !resolvedNextBillDate) {
       return res.status(400).json({ message: "propertyId, name/chargeName, type/chargeType, amount, frequency, startDate, and nextBillDate/nextChargeDate are required" });
+    }
+    if (!(await propertyInOrg(req, propertyId))) return res.status(404).json({ message: "Property not found" });
+    if (!(money(amount) > 0)) return res.status(400).json({ message: "amount must be a number greater than zero" });
+    if (unitId) {
+      const [u] = await db.select({ propertyId: units.propertyId }).from(units).where(eq(units.id, parseInt(unitId))).limit(1);
+      if (!u || u.propertyId !== parseInt(propertyId)) return res.status(400).json({ message: "That unit does not belong to the property" });
     }
     const [created] = await db
       .insert(recurringCharges)
@@ -596,6 +673,9 @@ recurringChargesRouter.put("/:id", async (req: any, res: any) => {
   try {
     const id = parseInt(req.params.id);
     const { chargeName, name, chargeType, type, amount, currency, frequency, startDate, endDate, nextChargeDate, nextBillDate, isActive, autoGenerate, description } = req.body;
+    const [own] = await db.select({ propertyId: recurringCharges.propertyId }).from(recurringCharges).where(eq(recurringCharges.id, id)).limit(1);
+    if (!own || !(await propertyInOrg(req, own.propertyId))) return res.status(404).json({ message: "Recurring charge not found" });
+    if (amount !== undefined && amount !== "" && !(money(amount) > 0)) return res.status(400).json({ message: "amount must be a number greater than zero" });
     const [updated] = await db
       .update(recurringCharges)
       .set({
@@ -624,6 +704,8 @@ recurringChargesRouter.put("/:id", async (req: any, res: any) => {
 recurringChargesRouter.delete("/:id", async (req: any, res: any) => {
   try {
     const id = parseInt(req.params.id);
+    const [own] = await db.select({ propertyId: recurringCharges.propertyId }).from(recurringCharges).where(eq(recurringCharges.id, id)).limit(1);
+    if (!own || !(await propertyInOrg(req, own.propertyId))) return res.status(404).json({ message: "Recurring charge not found" });
     await db.delete(recurringCharges).where(eq(recurringCharges.id, id));
     res.json({ success: true });
   } catch (err) {
@@ -636,9 +718,10 @@ recurringChargesRouter.delete("/:id", async (req: any, res: any) => {
 export const billingCyclesRouter = Router();
 billingCyclesRouter.use(authenticateJWT as any, requireOrg as any);
 
-billingCyclesRouter.get("/", async (_req: any, res: any) => {
+billingCyclesRouter.get("/", async (req: any, res: any) => {
   try {
-    const cycles = await db.select().from(billingCycles).orderBy(billingCycles.createdAt);
+    const propIds = await orgPropertyIds(req);
+    const cycles = propIds.length ? await db.select().from(billingCycles).where(inArray(billingCycles.propertyId, propIds)).orderBy(billingCycles.createdAt) : [];
     // Normalize: frontend expects cycleName, startDate, endDate, status
     const normalized = cycles.map((c: any) => ({
       ...c,
@@ -656,11 +739,12 @@ billingCyclesRouter.get("/", async (_req: any, res: any) => {
 
 billingCyclesRouter.get("/:id", async (req: any, res: any) => {
   try {
-    const [cycle] = await db
+    const propIds = await orgPropertyIds(req);
+    const [cycle] = propIds.length ? await db
       .select()
       .from(billingCycles)
-      .where(eq(billingCycles.id, parseInt(req.params.id)))
-      .limit(1);
+      .where(and(eq(billingCycles.id, parseInt(req.params.id)), inArray(billingCycles.propertyId, propIds)))
+      .limit(1) : [];
     if (!cycle) return res.status(404).json({ message: "Billing cycle not found" });
     res.json({ ...cycle, cycleName: (cycle as any).name, status: (cycle as any).isActive ? "active" : "inactive" });
   } catch (err) {
@@ -676,6 +760,7 @@ billingCyclesRouter.post("/", async (req: any, res: any) => {
     if (!propertyId || !resolvedName || !type || !frequency || !billingDay || !dueDay) {
       return res.status(400).json({ message: "propertyId, name/cycleName, type, frequency, billingDay, and dueDay are required" });
     }
+    if (!(await propertyInOrg(req, propertyId))) return res.status(404).json({ message: "Property not found" });
     const [created] = await db
       .insert(billingCycles)
       .values({
@@ -702,6 +787,8 @@ billingCyclesRouter.put("/:id", async (req: any, res: any) => {
   try {
     const id = parseInt(req.params.id);
     const { cycleName, name, type, frequency, billingDay, dueDay, graceDay, lateFeeAmount, lateFeeType, isActive } = req.body;
+    const [own] = await db.select({ propertyId: billingCycles.propertyId }).from(billingCycles).where(eq(billingCycles.id, id)).limit(1);
+    if (!own || !(await propertyInOrg(req, own.propertyId))) return res.status(404).json({ message: "Billing cycle not found" });
     const [updated] = await db
       .update(billingCycles)
       .set({
@@ -728,6 +815,8 @@ billingCyclesRouter.put("/:id", async (req: any, res: any) => {
 billingCyclesRouter.delete("/:id", async (req: any, res: any) => {
   try {
     const id = parseInt(req.params.id);
+    const [own] = await db.select({ propertyId: billingCycles.propertyId }).from(billingCycles).where(eq(billingCycles.id, id)).limit(1);
+    if (!own || !(await propertyInOrg(req, own.propertyId))) return res.status(404).json({ message: "Billing cycle not found" });
     await db.delete(billingCycles).where(eq(billingCycles.id, id));
     res.json({ success: true });
   } catch (err) {
@@ -745,16 +834,18 @@ generateInvoicesRouter.post("/generate-invoices", async (req: any, res: any) => 
   try {
     const now = new Date();
 
-    // Find all active recurring charges that are due
-    const dueCharges = await db
+    // Find this organisation's active recurring charges that are due (it used to take EVERY organisation's)
+    const propIds = await orgPropertyIds(req);
+    const dueCharges = propIds.length ? await db
       .select()
       .from(recurringCharges)
       .where(
         and(
           eq(recurringCharges.isActive, true),
+          inArray(recurringCharges.propertyId, propIds),
           lte(recurringCharges.nextBillDate, now)
         )
-      );
+      ) : [];
 
     if (dueCharges.length === 0) {
       return res.json([]);

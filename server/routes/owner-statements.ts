@@ -27,7 +27,7 @@ import { Router }    from "express";
 import { db }        from "../db";
 import {
   pmAgreements, ownerStatements,
-  properties, units, tenants, rentPayments, propertyExpenses,
+  properties, units, tenants, rentPayments, paymentReceipts, propertyExpenses,
   users, organizations,
 } from "@shared/schema";
 import {
@@ -37,6 +37,7 @@ import { format, startOfMonth, endOfMonth, getDaysInMonth } from "date-fns";
 import { maxSequenceSuffix, withNumberRetry } from "../utils/sequenceNumber";
 import { authenticateJWT } from "../middleware/auth";
 import { requireOrg }      from "../middleware/requireOrg";
+import { rentBalances }    from "../services/rent-ledger";
 
 const router = Router();
 const auth   = [authenticateJWT as any, requireOrg as any];
@@ -232,7 +233,7 @@ router.get("/", ...auth, async (req: any, res: any) => {
 });
 
 // GET /api/owner-statements/:id
-router.get("/:id", ...auth, async (req: any, res: any) => {
+router.get("/:id(\\d+)", ...auth, async (req: any, res: any) => {
   try {
     const isLandlord = req.user.role === "landlord";
     const userId     = req.user.id as string;
@@ -323,27 +324,28 @@ router.post("/generate", ...auth, async (req: any, res: any) => {
     const tenantIds     = propTenants.map(t => t.id);
     const occupiedUnits = propTenants.length;
 
-    // 4. Confirmed rent payments this month
+    // 4. Money actually received this month. One receipt per payment, so part payments and
+    //    multi-instalment invoices are counted when the cash arrived (the old query only saw invoices
+    //    that were fully paid and ignored everything else).
     const payments = tenantIds.length > 0
       ? await db
           .select({
-            id:            rentPayments.id,
-            tenantId:      rentPayments.tenantId,
-            amount:        rentPayments.amount,
-            paidDate:      rentPayments.paidDate,
-            paymentMethod: rentPayments.paymentMethod,
-            status:        rentPayments.status,
+            id:            paymentReceipts.id,
+            tenantId:      paymentReceipts.tenantId,
+            amount:        paymentReceipts.amount,
+            paidDate:      paymentReceipts.paymentDate,
+            paymentMethod: paymentReceipts.paymentMethod,
           })
-          .from(rentPayments)
+          .from(paymentReceipts)
+          .innerJoin(rentPayments, eq(paymentReceipts.paymentId, rentPayments.id))
           .where(and(
-            inArray(rentPayments.tenantId, tenantIds),
-            inArray(rentPayments.status, ["paid", "completed"]),
-            gte(rentPayments.paidDate, format(periodStart, "yyyy-MM-dd")),
-            lte(rentPayments.paidDate, format(periodEnd,   "yyyy-MM-dd")),
+            inArray(paymentReceipts.tenantId, tenantIds),
+            gte(paymentReceipts.paymentDate, format(periodStart, "yyyy-MM-dd")),
+            lte(paymentReceipts.paymentDate, format(periodEnd,   "yyyy-MM-dd")),
           ))
       : [];
 
-    const grossRent = payments.reduce((s, p) => s + money(p.amount), 0);
+    const grossRent = Math.round(payments.reduce((s, p) => s + money(p.amount), 0) * 100) / 100;
 
     // 5. Expenses (deductible based on agreement rules)
     const expenseCategories: string[] = [];
@@ -382,7 +384,7 @@ router.post("/generate", ...auth, async (req: any, res: any) => {
       .reduce((s, e) => s + money(e.amount), 0);
 
     // 6. PM fee
-    const pmFee = computePmFee(agreement, grossRent, occupiedUnits);
+    const pmFee = Math.round(computePmFee(agreement, grossRent, occupiedUnits) * 100) / 100;
 
     // 7. Totals
     const totalIncome      = grossRent;
@@ -494,7 +496,7 @@ router.post("/generate", ...auth, async (req: any, res: any) => {
 });
 
 // PATCH /api/owner-statements/:id/approve
-router.patch("/:id/approve", ...auth, async (req: any, res: any) => {
+router.patch("/:id(\\d+)/approve", ...auth, async (req: any, res: any) => {
   if (!["admin", "manager"].includes(req.user.role)) {
     return res.status(403).json({ message: "Only admins and managers can approve statements." });
   }
@@ -513,7 +515,7 @@ router.patch("/:id/approve", ...auth, async (req: any, res: any) => {
 });
 
 // PATCH /api/owner-statements/:id/mark-disbursed
-router.patch("/:id/mark-disbursed", ...auth, async (req: any, res: any) => {
+router.patch("/:id(\\d+)/mark-disbursed", ...auth, async (req: any, res: any) => {
   if (!["admin", "manager"].includes(req.user.role)) {
     return res.status(403).json({ message: "Only admins and managers can mark statements as disbursed." });
   }
@@ -604,6 +606,7 @@ router.get("/rent-roll", ...auth, async (req: any, res: any) => {
     const monthPayments = tenantIds.length > 0
       ? await db
           .select({
+            id:            rentPayments.id,
             tenantId:      rentPayments.tenantId,
             amount:        rentPayments.amount,
             status:        rentPayments.status,
@@ -619,13 +622,25 @@ router.get("/rent-roll", ...auth, async (req: any, res: any) => {
       : [];
 
     const tenantMap  = Object.fromEntries(activeTenants.map(t => [t.unitId, t]));
-    const paymentMap = Object.fromEntries(monthPayments.map(p => [p.tenantId, p]));
+    // Money received / still owed per tenant for the month's invoices (part payments included).
+    const bal = await rentBalances(monthPayments.map(p => ({ id: p.id, amount: p.amount, status: p.status })));
+    const paymentMap: Record<number, { invoiced: number; received: number; balance: number; paidDate: any; paymentMethod: any }> = {};
+    for (const p of monthPayments) {
+      const b = bal.get(p.id) ?? { paidAmount: 0, balance: Number(p.amount) };
+      const cur = paymentMap[p.tenantId] ?? { invoiced: 0, received: 0, balance: 0, paidDate: null, paymentMethod: null };
+      cur.invoiced += Number(p.amount); cur.received += b.paidAmount; cur.balance += b.balance;
+      if (p.paidDate && (!cur.paidDate || p.paidDate > cur.paidDate)) { cur.paidDate = p.paidDate; cur.paymentMethod = p.paymentMethod; }
+      paymentMap[p.tenantId] = cur;
+    }
 
     const rentRoll = allUnits.map(u => {
       const tenant  = tenantMap[u.unitId]  ?? null;
       const payment = tenant ? (paymentMap[tenant.id] ?? null) : null;
       const rent    = Number(tenant?.monthlyRent ?? u.monthlyRent ?? 0);
-      const paid    = payment && ["paid", "completed"].includes(payment.status ?? "");
+      const received = Math.round((payment?.received ?? 0) * 100) / 100;
+      const owed     = payment ? Math.round(payment.balance * 100) / 100 : (u.isOccupied ? rent : 0);
+      const paid     = !!payment && owed <= 0.01;
+      const partial  = !paid && received > 0.01;
 
       return {
         propertyId:     u.propertyId,
@@ -644,11 +659,11 @@ router.get("/rent-roll", ...auth, async (req: any, res: any) => {
         leaseEnd:       tenant?.leaseEndDate   ?? null,
         depositHeld:    Number(tenant?.securityDeposit ?? 0),
         // Payment this month
-        paymentStatus:  paid ? "paid" : u.isOccupied ? "unpaid" : "vacant",
-        amountPaid:     paid ? Number(payment?.amount ?? 0) : 0,
+        paymentStatus:  paid ? "paid" : partial ? "partial" : u.isOccupied ? "unpaid" : "vacant",
+        amountPaid:     received,
         paidDate:       payment?.paidDate ?? null,
         paymentMethod:  payment?.paymentMethod ?? null,
-        arrearsAmount:  paid ? 0 : u.isOccupied ? rent : 0,
+        arrearsAmount:  paid || !u.isOccupied ? 0 : owed,
       };
     });
 
@@ -660,6 +675,7 @@ router.get("/rent-roll", ...auth, async (req: any, res: any) => {
       totalCollected:  rentRoll.reduce((s, r) => s + r.amountPaid, 0),
       totalArrears:    rentRoll.reduce((s, r) => s + r.arrearsAmount, 0),
       paidCount:       rentRoll.filter(r => r.paymentStatus === "paid").length,
+      partialCount:    rentRoll.filter(r => r.paymentStatus === "partial").length,
       unpaidCount:     rentRoll.filter(r => r.paymentStatus === "unpaid").length,
     };
 

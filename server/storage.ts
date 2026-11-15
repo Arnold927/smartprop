@@ -1055,14 +1055,21 @@ private async recalcUnitOccupancy(unitId: number) {
 
   // Update your createRentPayment method in storage.ts
 async createRentPayment(payment: InsertRentPayment): Promise<RentPayment> {
-  // Generate invoice number if not provided
-  const paymentWithInvoice = {
-    ...payment,
-    invoiceNumber: payment.invoiceNumber || await this.generateInvoiceNumber(),
-  };
-  
-  const [newPayment] = await db.insert(rentPayments).values(paymentWithInvoice).returning();
-  return newPayment;
+  // A number the caller chose is used as given (a duplicate is the caller's error → unique violation).
+  if (payment.invoiceNumber) {
+    const [row] = await db.insert(rentPayments).values(payment).returning();
+    return row;
+  }
+  // A generated number can race with another request creating an invoice at the same moment — retry on the unique violation.
+  for (let attempt = 0; ; attempt++) {
+    try {
+      const [row] = await db.insert(rentPayments).values({ ...payment, invoiceNumber: await this.generateInvoiceNumber() }).returning();
+      return row;
+    } catch (e: any) {
+      const dup = e?.code === '23505' || e?.cause?.code === '23505';
+      if (!dup || attempt >= 5) throw e;
+    }
+  }
 }
 
   async updateRentPayment(id: number, payment: Partial<InsertRentPayment>): Promise<RentPayment> {
@@ -1303,31 +1310,19 @@ async getUpcomingPayments(daysAhead: number = 30): Promise<any[]> {
 }
 
 async generateInvoiceNumber(): Promise<string> {
-  const year = new Date().getFullYear();
-  const month = (new Date().getMonth() + 1).toString().padStart(2, '0');
-  
-  // Get the last invoice number for this month
-  const lastPayment = await db
-    .select()
+  // Next free number for this month = highest existing INV-YYYYMM-n + 1. (It used to take the LAST CREATED invoice's
+  // number and add one — a hand-numbered invoice, or one created out of order, made it re-issue a number that already
+  // existed, and the insert then failed with a 500.)
+  const now = new Date(Date.now() + 3 * 3600_000); // Nairobi calendar month
+  const year = now.getUTCFullYear();
+  const month = (now.getUTCMonth() + 1).toString().padStart(2, '0');
+  const prefix = `INV-${year}${month}-`;
+  const [row] = await db
+    .select({ max: sql<number | null>`max(((regexp_match(${rentPayments.invoiceNumber}, '^INV-[0-9]{6}-([0-9]+)$'))[1])::int)` })
     .from(rentPayments)
-    .where(
-      and(
-        gte(rentPayments.createdAt, new Date(`${year}-${month}-01`)),
-        lte(rentPayments.createdAt, new Date(`${year}-${month}-31`))
-      )
-    )
-    .orderBy(desc(rentPayments.createdAt))
-    .limit(1);
-  
-  let sequence = 1;
-  if (lastPayment.length > 0 && lastPayment[0].invoiceNumber) {
-    const lastNumber = lastPayment[0].invoiceNumber.split('-').pop();
-    if (lastNumber) {
-      sequence = parseInt(lastNumber) + 1;
-    }
-  }
-  
-  return `INV-${year}${month}-${sequence.toString().padStart(4, '0')}`;
+    .where(sql`${rentPayments.invoiceNumber} LIKE ${prefix + '%'}`);
+  const sequence = Number(row?.max ?? 0) + 1;
+  return `${prefix}${sequence.toString().padStart(4, '0')}`;
 }
 
   // Maintenance request operations
@@ -3272,23 +3267,32 @@ async deleteWorkOrderCharge(id: number) {
 
     if (orgTenantIds.length === 0) return [];
 
-    // Fetch ALL overdue payments, grouped by tenant
-    const overdueRentPayments = await db
+    // Fetch ALL past-due unsettled invoices (pending, overdue AND part-paid), grouped by tenant.
+    // The old query only looked at status='pending' and used the full invoice amount, so overdue/partial
+    // invoices vanished from arrears and part payments were never deducted.
+    const { rentBalances } = await import("./services/rent-ledger");
+    const overdueRows = await db
       .select({
+        id:        rentPayments.id,
         tenantId:  rentPayments.tenantId,
         dueDate:   rentPayments.dueDate,
         amount:    rentPayments.amount,
+        status:    rentPayments.status,
         currency:  rentPayments.currency,
       })
       .from(rentPayments)
       .where(and(
-        eq(rentPayments.status, 'pending'),
+        inArray(rentPayments.status, ['pending', 'overdue', 'partial']),
         sql`${rentPayments.dueDate} < ${currentDate}`,
         inArray(rentPayments.tenantId, orgTenantIds)
       ))
       .orderBy(rentPayments.tenantId, rentPayments.dueDate);
+    const balMap = await rentBalances(overdueRows.map(r => ({ id: r.id, amount: r.amount, status: r.status })));
+    const overdueRentPayments = overdueRows
+      .map(r => ({ ...r, amount: String(balMap.get(r.id)?.balance ?? Number(r.amount ?? 0)) }))
+      .filter(r => Number(r.amount) > 0.01);
 
-    // Group by tenant and sum all overdue amounts
+    // Group by tenant and sum all overdue balances
     const byTenant = new Map<number, { totalAmount: number; currency: string; oldestDueDate: Date; latestDueDate: Date; count: number }>();
     for (const p of overdueRentPayments) {
       const tid = p.tenantId!;
@@ -3309,6 +3313,15 @@ async deleteWorkOrderCharge(id: number) {
         });
       }
     }
+
+    // Tenants who have paid up: close their active arrears (nothing used to do this).
+    const stillOwing = Array.from(byTenant.keys());
+    await db.update(arrears).set({ status: 'resolved', outstandingAmount: '0', updatedAt: new Date() } as any).where(and(
+      eq(arrears.organizationId, orgId),
+      eq(arrears.status, 'active'),
+      sql`${arrears.notes} like '%payment(s) overdue totalling%'`, // only records this detector wrote — never a manager's manual entry
+      stillOwing.length ? sql`${arrears.tenantId} not in (${sql.join(stillOwing.map(i => sql`${i}`), sql`, `)})` : sql`true`,
+    ));
 
     const arrearsRecords: Arrears[] = [];
 
@@ -3384,13 +3397,13 @@ async deleteWorkOrderCharge(id: number) {
   }
 
   // Payment Reminders
-  async getPaymentReminders(status?: string): Promise<PaymentReminder[]> {
+  async getPaymentReminders(status?: string, organizationId?: number): Promise<PaymentReminder[]> {
+    const conds: any[] = [];
+    if (status) conds.push(eq(paymentReminders.status, status));
+    // tenants carry the organisation — without this every organisation saw every other organisation's reminders
+    if (organizationId) conds.push(sql`${paymentReminders.tenantId} in (select id from tenants where organization_id = ${organizationId})`);
     let query: any = db.select().from(paymentReminders).orderBy(desc(paymentReminders.scheduledFor));
-    
-    if (status) {
-      query = query.where(eq(paymentReminders.status, status));
-    }
-    
+    if (conds.length) query = query.where(and(...conds));
     return await query;
   }
 

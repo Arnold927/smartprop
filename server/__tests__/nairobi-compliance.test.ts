@@ -17,6 +17,7 @@
  *   - All routes return 401 without auth token
  */
 
+import supertest from "supertest";
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { createApp } from "../app";
 import { setupTestData, cleanupTestData, authedGet, authedPost, authedPut, authedPatch, type TestContext } from "./helpers";
@@ -36,8 +37,6 @@ afterAll(async () => {
 // ── Auth guard checks ─────────────────────────────────────────────────────────
 
 describe("Compliance routes — unauthenticated → 401", () => {
-  const { default: supertest } = await import("supertest").catch(() => ({ default: null }));
-
   const protectedRoutes = [
     { method: "GET",  path: `/api/compliance/kra/profile/someuser` },
     { method: "GET",  path: `/api/compliance/stamp-duty` },
@@ -48,7 +47,6 @@ describe("Compliance routes — unauthenticated → 401", () => {
 
   for (const route of protectedRoutes) {
     it(`${route.method} ${route.path} → 401`, async () => {
-      if (!supertest) return; // skip if supertest unavailable
       const req = supertest(app)[route.method.toLowerCase() as "get"](route.path);
       const res = await req;
       expect(res.status).toBe(401);

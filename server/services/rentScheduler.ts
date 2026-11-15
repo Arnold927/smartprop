@@ -221,6 +221,12 @@ export async function sendOverdueRentReminders(): Promise<number> {
     return 0;
   }
 
+  // What each invoice has actually received comes from the receipts ledger. (This used to read a "partial:NNN" note that
+  // nothing writes any more, so every reminder for a part-paid invoice claimed nothing had been paid.)
+  const { rentBalances } = await import('./rent-ledger');
+  const balances = await rentBalances(overduePayments.map(p => ({ id: p.id, amount: p.amount, status: p.status })));
+  const paidOf = (p: { id: number }) => balances.get(p.id)?.paidAmount ?? 0;
+
   const byTenant = new Map<number, typeof overduePayments>();
   for (const p of overduePayments) {
     if (!byTenant.has(p.tenantId)) byTenant.set(p.tenantId, []);
@@ -261,9 +267,7 @@ export async function sendOverdueRentReminders(): Promise<number> {
     const historical = sorted.slice(1);
 
     const invoiceAmount = parseFloat(String(current.amount ?? 0));
-    const paidAmount = current.status === 'partial'
-      ? (() => { const m = (current.notes ?? '').match(/partial:([\d.]+)/); return m ? parseFloat(m[1]) : 0; })()
-      : 0;
+    const paidAmount = paidOf(current);
 
     const currency = info.currency ?? current.currency ?? 'KES';
     const daysOverdue = Math.floor(
@@ -271,10 +275,7 @@ export async function sendOverdueRentReminders(): Promise<number> {
     );
     const totalOutstanding = invoices.reduce((sum, inv) => {
       const amt  = parseFloat(String(inv.amount ?? 0));
-      const paid = inv.status === 'partial'
-        ? (() => { const m = (inv.notes ?? '').match(/partial:([\d.]+)/); return m ? parseFloat(m[1]) : 0; })()
-        : 0;
-      return sum + (amt - paid);
+      return sum + Math.max(0, amt - paidOf(inv));
     }, 0);
 
     // ── Email ─────────────────────────────────────────────────────────────
@@ -294,9 +295,7 @@ export async function sendOverdueRentReminders(): Promise<number> {
           paidAmount,
           outstandingInvoices: historical.map(inv => {
             const ia = parseFloat(String(inv.amount ?? 0));
-            const ip = inv.status === 'partial'
-              ? (() => { const m = (inv.notes ?? '').match(/partial:([\d.]+)/); return m ? parseFloat(m[1]) : 0; })()
-              : 0;
+            const ip = paidOf(inv);
             return {
               invoiceNumber: inv.invoiceNumber ?? `PAY-${inv.id}`,
               amount: ia, paidAmount: ip, dueDate: inv.dueDate!,

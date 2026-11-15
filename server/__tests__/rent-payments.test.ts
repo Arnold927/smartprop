@@ -48,7 +48,7 @@ describe("POST /api/rent-payments", () => {
 
     expect(res.status).toBe(201);
     expect(res.body.tenantId).toBe(ctx.tenantId);
-    expect(res.body.amount).toBe("50000");
+    expect(Number(res.body.amount)).toBe(50000); // numeric(…,2) comes back as "50000.00"
     expect(res.body.status).toBe("paid");
     createdPaymentId = res.body.id;
   });
@@ -56,7 +56,8 @@ describe("POST /api/rent-payments", () => {
   it("payment appears in GET /api/rent-payments", async () => {
     const res = await authedGet(app, `/api/rent-payments?tenantId=${ctx.tenantId}`, ctx.adminToken);
     expect(res.status).toBe(200);
-    const payments = res.body as Array<{ id: number }>;
+    // the list is paginated: { count, next, previous, results }
+    const payments = (Array.isArray(res.body) ? res.body : res.body.results) as Array<{ id: number }>;
     const found = payments.some(p => p.id === createdPaymentId);
     expect(found).toBe(true);
   });

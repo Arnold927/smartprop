@@ -41,7 +41,7 @@ import reportsRouter from "./reports";
 import whatsappRouter from "./whatsapp";
 import uploadRouter from "./upload";
 import mediaRouter from "./media";
-import mpesaActionsRouter from "./mpesa-actions";
+import mpesaActionsRouter, { mpesaWebhookRouter } from "./mpesa-actions";
 import {
   contractorCategoriesRouter,
   serviceContractsRouter,
@@ -162,9 +162,9 @@ export function registerModularRoutes(app: Express) {
 
   // Safaricom M-Pesa webhooks — no JWT. Safaricom sends no Authorization header.
   // Security: validate via payload structure; lock down by IP at the network/proxy layer.
-  app.post("/api/mpesa/callback",         (req, res, next) => mpesaActionsRouter(req, res, next));
-  app.post("/api/mpesa/c2b/confirmation", (req, res, next) => mpesaActionsRouter(req, res, next));
-  app.post("/api/mpesa/c2b/validation",  (req, res, next) => mpesaActionsRouter(req, res, next));
+  // (a router matches on the URL AFTER its mount point, so it has to be mounted — wrapping it in app.post() left the full
+  // path in place, no route matched, and every confirmation was answered with 401 by the login guard further down.)
+  app.use("/api/mpesa", mpesaWebhookRouter);
 
 
   // Public short-term stay marketplace + direct-link booking — the one

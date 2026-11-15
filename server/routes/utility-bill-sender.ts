@@ -28,6 +28,7 @@ import {
 import { eq, and, inArray } from "drizzle-orm";
 import { authenticateJWT } from "../middleware/auth.js";
 import { requireOrg } from "../middleware/requireOrg.js";
+import { utilityBalances } from "../services/rent-ledger";
 import {
   sendUtilityBillEmail,
   sendBulkUtilityBillEmails,
@@ -77,6 +78,28 @@ function generateBillNumber(): string {
 
 function isoNow(): string {
   return new Date().toISOString();
+}
+
+const validDay = (v: unknown) => typeof v === "string" && /^\d{4}-\d{2}-\d{2}/.test(v) && !Number.isNaN(new Date(v).getTime());
+const r2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100;
+const finite = (v: unknown) => v !== null && v !== "" && Number.isFinite(Number(v));
+
+/** Shared checks for the bill header (type, rate, period, due date). Returns a message, or null when fine. */
+function billHeaderError(b: { utilityType: unknown; unitCost: unknown; billingPeriodStart: unknown; billingPeriodEnd: unknown; dueDate: unknown }): string | null {
+  if (typeof b.utilityType !== "string" || !b.utilityType.trim() || b.utilityType.length > 30) return "utilityType is required (e.g. water, electricity).";
+  if (!finite(b.unitCost) || Number(b.unitCost) <= 0) return "unitCost must be a number greater than zero.";
+  if (!validDay(b.billingPeriodStart) || !validDay(b.billingPeriodEnd) || !validDay(b.dueDate)) return "billingPeriodStart, billingPeriodEnd and dueDate must be valid dates.";
+  if (new Date(b.billingPeriodEnd as string) < new Date(b.billingPeriodStart as string)) return "The billing period ends before it starts.";
+  if (new Date(b.dueDate as string) < new Date(b.billingPeriodStart as string)) return "The due date is before the billing period starts.";
+  return null;
+}
+
+/** Has this tenant already been billed for this utility and period? (a double click used to bill them twice) */
+async function alreadyBilled(tenantId: number, utilityType: string, start: string, end: string): Promise<boolean> {
+  const rows = await db.select({ id: utilityBills.id }).from(utilityBills)
+    .where(and(eq(utilityBills.tenantId, tenantId), eq(utilityBills.utilityType, utilityType), eq(utilityBills.billingPeriodStart, new Date(start)), eq(utilityBills.billingPeriodEnd, new Date(end))))
+    .limit(1);
+  return rows.length > 0;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -162,9 +185,14 @@ utilityBillSenderRouter.post("/send-email", managerOnly as any, async (req: any,
       });
     }
 
+    if (!finite(previousReading) || !finite(currentReading) || Number(previousReading) < 0) {
+      return res.status(400).json({ message: "Meter readings must be numbers." });
+    }
     if (Number(currentReading) < Number(previousReading)) {
       return res.status(400).json({ message: "currentReading must be >= previousReading" });
     }
+    const headerErr = billHeaderError({ utilityType, unitCost, billingPeriodStart, billingPeriodEnd, dueDate });
+    if (headerErr) return res.status(400).json({ message: headerErr });
 
     // Fetch tenant with unit and property
     const tenantConditions = [eq(tenants.id, Number(tenantId)), eq(tenants.organizationId, orgId)];
@@ -210,9 +238,13 @@ utilityBillSenderRouter.post("/send-email", managerOnly as any, async (req: any,
     // Compute bill
     const prev = Number(previousReading);
     const curr = Number(currentReading);
-    const consumed = curr - prev;
+    const consumed = r2(curr - prev);
     const rate = Number(unitCost);
-    const total = consumed * rate;
+    const total = r2(consumed * rate);
+    if (!(total > 0)) return res.status(400).json({ message: "No consumption between the two readings, so there is nothing to bill." });
+    if (await alreadyBilled(tenant.id, utilityType, billingPeriodStart, billingPeriodEnd)) {
+      return res.status(409).json({ message: `This tenant has already been billed for ${utilityType} for that period.` });
+    }
     const billCurrency = currency || tenant.currency || "KES";
     const billNumber = generateBillNumber();
 
@@ -245,7 +277,7 @@ utilityBillSenderRouter.post("/send-email", managerOnly as any, async (req: any,
         billingPeriodStart: new Date(billingPeriodStart),
         billingPeriodEnd: new Date(billingPeriodEnd),
         dueDate: new Date(dueDate),
-        amount: String(total),
+        amount: total.toFixed(2),
         currency: billCurrency,
         unitsConsumed: String(consumed),
         unitRate: String(rate),
@@ -262,11 +294,16 @@ utilityBillSenderRouter.post("/send-email", managerOnly as any, async (req: any,
         .returning();
       savedBill = bill;
     } catch (dbErr) {
-      // Non-fatal: log and continue — email will still be sent
-      console.warn("[utility-bill-sender] Could not persist bill to DB:", dbErr);
+      // The bill must exist in the system before the tenant is told about it: an emailed bill that is not on their
+      // portal cannot be paid or reconciled. (This used to log a warning and email a bill that did not exist.)
+      console.error("[utility-bill-sender] Could not save the bill — nothing was sent:", dbErr);
+      return res.status(500).json({ message: "The bill could not be saved, so it was not sent. Please try again." });
     }
 
-    // Send email
+    // The bill is already saved and visible on the tenant's portal, so an email problem (provider not configured, bad
+    // address) must not look like a failed billing run — report it separately and let the manager resend.
+    let emailSent = true; let emailError: string | null = null;
+    try {
     await sendUtilityBillEmail({
       to: tenant.email,
       tenantFirstName: tenant.firstName,
@@ -287,13 +324,19 @@ utilityBillSenderRouter.post("/send-email", managerOnly as any, async (req: any,
       meterNumber,
       notes,
     });
+    } catch (mailErr: any) {
+      emailSent = false; emailError = mailErr?.message ?? "Email could not be sent";
+      console.warn("[utility-bill-sender] bill saved but email failed:", emailError);
+    }
 
     return res.json({
       success: true,
       billNumber,
       totalAmount: total,
       currency: billCurrency,
-      sentTo: tenant.email,
+      sentTo: emailSent ? tenant.email : null,
+      emailSent,
+      emailError,
       savedBillId: savedBill?.id ?? null,
     });
   } catch (err: any) {
@@ -329,6 +372,8 @@ utilityBillSenderRouter.post("/send-bulk", managerOnly as any, async (req: any, 
         message: "utilityType, unitCost, billingPeriodStart, billingPeriodEnd, and dueDate are required",
       });
     }
+    const bulkHeaderErr = billHeaderError({ utilityType, unitCost, billingPeriodStart, billingPeriodEnd, dueDate });
+    if (bulkHeaderErr) return res.status(400).json({ message: bulkHeaderErr });
 
     if (!Array.isArray(readings) || readings.length === 0) {
       return res.status(400).json({ message: "readings array with at least one entry is required" });
@@ -338,6 +383,9 @@ utilityBillSenderRouter.post("/send-bulk", managerOnly as any, async (req: any, 
     for (const r of readings) {
       if (!r.tenantId || r.previousReading == null || r.currentReading == null) {
         return res.status(400).json({ message: "Each reading must have tenantId, previousReading, and currentReading" });
+      }
+      if (!finite(r.previousReading) || !finite(r.currentReading) || Number(r.previousReading) < 0) {
+        return res.status(400).json({ message: `Meter readings must be numbers (tenant ${r.tenantId}).` });
       }
       if (Number(r.currentReading) < Number(r.previousReading)) {
         return res.status(400).json({ message: `currentReading must be >= previousReading for tenant ${r.tenantId}` });
@@ -370,18 +418,22 @@ utilityBillSenderRouter.post("/send-bulk", managerOnly as any, async (req: any, 
     const rate = Number(unitCost);
     const billCurrency = currency || "KES";
 
-    // Build payloads
+    // Build payloads. A row that cannot or should not be billed is reported back in `skipped` instead of vanishing.
     const bulkPayloads: BulkPayload[] = [];
     const persistJobs: Promise<any>[] = [];
+    const skipped: Array<{ tenantId: number; reason: string }> = [];
+    const savedOk = new Set<number>();
 
     for (const r of readings) {
       const tenant = tenantMap.get(Number(r.tenantId));
-      if (!tenant) continue;
+      if (!tenant) { skipped.push({ tenantId: Number(r.tenantId), reason: "Tenant not found in your organisation" }); continue; }
 
       const prev = Number(r.previousReading);
       const curr = Number(r.currentReading);
-      const consumed = curr - prev;
-      const total = consumed * rate;
+      const consumed = r2(curr - prev);
+      const total = r2(consumed * rate);
+      if (!(total > 0)) { skipped.push({ tenantId: tenant.id, reason: "No consumption — nothing to bill" }); continue; }
+      if (await alreadyBilled(tenant.id, utilityType, billingPeriodStart, billingPeriodEnd)) { skipped.push({ tenantId: tenant.id, reason: "Already billed for this period" }); continue; }
       const billNumber = generateBillNumber();
 
       bulkPayloads.push({
@@ -429,7 +481,7 @@ utilityBillSenderRouter.post("/send-bulk", managerOnly as any, async (req: any, 
             billingPeriodStart: new Date(billingPeriodStart),
             billingPeriodEnd: new Date(billingPeriodEnd),
             dueDate: new Date(dueDate),
-            amount: String(total),
+            amount: total.toFixed(2),
             currency: billCurrency,
             unitsConsumed: String(consumed),
             unitRate: String(rate),
@@ -440,16 +492,18 @@ utilityBillSenderRouter.post("/send-bulk", managerOnly as any, async (req: any, 
           };
           if (accountId) insertValues.accountId = accountId;
           await db.insert(utilityBills).values(insertValues as any);
-        })().catch((e) => console.warn("[utility-bill-sender] bulk DB persist error:", e));
+          savedOk.add(tenant.id);
+        })().catch((e) => console.error("[utility-bill-sender] bulk DB persist error — this tenant will not be emailed:", e));
         persistJobs.push(job);
       }
     }
 
-    // Send all emails
-    const results = await sendBulkUtilityBillEmails(bulkPayloads);
-
-    // Wait for DB writes
+    // Save first, THEN email: a tenant must never be told about a bill that does not exist in the system.
     await Promise.allSettled(persistJobs);
+    const toSend = bulkPayloads.filter((p) => savedOk.has(p.tenantId));
+    for (const p of bulkPayloads) if (!savedOk.has(p.tenantId)) skipped.push({ tenantId: p.tenantId, reason: "The bill could not be saved" });
+
+    const results = await sendBulkUtilityBillEmails(toSend);
 
     const succeeded = results.filter((r) => r.success).length;
     const failed = results.filter((r) => !r.success).length;
@@ -458,6 +512,7 @@ utilityBillSenderRouter.post("/send-bulk", managerOnly as any, async (req: any, 
       total: results.length,
       succeeded,
       failed,
+      skipped,
       results,
     });
   } catch (err: any) {
@@ -539,7 +594,9 @@ utilityBillSenderRouter.get("/my-bills", async (req: any, res: any) => {
       (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
     );
 
-    return res.json(all);
+    // part payments: what has been paid and what is still owed (a part-paid bill stays pending until it is settled)
+    const bal = await utilityBalances(all as any);
+    return res.json(all.map((b: any) => ({ ...b, ...(bal.get(b.id) ?? { paidAmount: 0, balance: Number(b.amount) || 0 }) })));
   } catch (err) {
     console.error("[utility-bill-sender] GET /my-bills:", err);
     return res.status(500).json({ message: "Failed to fetch utility bills" });

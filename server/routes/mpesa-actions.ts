@@ -22,12 +22,15 @@ import { Router }          from 'express';
 import { z }               from 'zod';
 import { db }              from '../db';
 import { rentPayments, tenants, mpesaTransactions, utilityBills, tenantShortBookings, tenantShortRentals, users } from '@shared/schema';
-import { eq, and, or, like, gte, lte, isNull }     from 'drizzle-orm';
+import { eq, and, or, like, gte, lte, isNull, inArray, ne, asc, desc, sql } from 'drizzle-orm';
 import { authenticateJWT } from '../middleware/auth';
 import { safaricomIpOnly } from '../middleware/safaricomIp';
 import { getMPesaService, isMpesaConfigured, createMPesaServiceForOverrides } from '../services/mpesa';
 import { storage }         from '../storage';
 import { notifyPaymentConfirmed } from '../ws';
+import { applyPayment, rentBalance, utilityBalances, round2, money, todayEAT, EPS, PaymentRuleError } from '../services/rent-ledger';
+import { pushNotification } from './notifications';
+import { submitInvoice } from '../services/etims';
 import { sendBookingConfirmationEmail, sendNewBookingAlertEmail } from '../lib/email';
 import { whatsappService } from '../whatsapp';
 import { resolvePaymentConfigForTenantId } from '../utils/resolvePaymentConfig';
@@ -35,20 +38,44 @@ import { buildRentAccountReference, buildUtilityAccountReference, parseAccountRe
 
 const router = Router();
 
+/**
+ * The three Safaricom webhooks live on their OWN router, mounted with NO login in routes/index.ts.
+ * They used to be registered as app.post('/api/mpesa/callback', (req,res,next) => router(req,res,next)) — but a router
+ * matches on the part of the URL AFTER its mount point, and app.post() leaves the full URL in place, so none of the three
+ * paths ever matched and every Safaricom confirmation fell through to the login guard and got a 401. Tenants were charged
+ * and the app never found out. Mounting this router at /api/mpesa makes '/callback' mean /api/mpesa/callback.
+ */
+export const mpesaWebhookRouter = Router();
+
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
 const fmtKES = (n: number | string) =>
   `KES ${Number(n).toLocaleString('en-KE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
+/** M-Pesa's TransactionDate / TransTime is yyyymmddHHmmss; fall back to an ISO date, then to today (Nairobi). */
+function mpesaDay(raw: string | number | undefined | null): string {
+  const t = String(raw ?? '');
+  const m = t.match(/^(\d{4})(\d{2})(\d{2})/);
+  if (m) return `${m[1]}-${m[2]}-${m[3]}`;
+  const iso = t.match(/^(\d{4}-\d{2}-\d{2})/);
+  return iso ? iso[1] : todayEAT();
+}
+
+/** Tell the organisation's managers about something that needs a human (an unmatched / over-paid M-Pesa payment). */
+async function alertManagers(orgId: number | null | undefined, title: string, message: string) {
+  if (!orgId) return;
+  try {
+    const rows = await db.select({ id: users.id }).from(users).where(and(eq(users.organizationId, orgId), inArray(users.role, ['admin', 'manager'])));
+    for (const u of rows) pushNotification(u.id, { type: 'payment', title, message, ts: new Date().toISOString(), link: '/rent-collection' });
+  } catch (e) { console.warn('[M-Pesa] manager alert failed:', e); }
+}
+
 /**
- * Central reconciliation handler called from both STK and C2B routes.
+ * Central reconciliation, called by the STK callback, the C2B confirmation, the status sweep and the manager's manual match.
  *
- * Responsibilities:
- *   - Idempotency check on mpesaReceiptNumber (prevents double-credit)
- *   - Partial vs full payment detection
- *   - Marks rentPayment status correctly (paid / partial)
- *   - Fires WebSocket event for real-time dashboard update
- *   - Sends WhatsApp receipt to tenant
+ * All the arithmetic lives in services/rent-ledger.ts (applyPayment): one receipt per payment, unique on the M-Pesa receipt
+ * code — so the same confirmation arriving twice is applied once — a part payment leaves the invoice/bill open, the full
+ * amount closes it, an overpayment is recorded for the manager, and rent receipts reach the general ledger.
  */
 export async function reconcilePayment(opts: {
   rentPaymentId:        number | null | undefined;
@@ -65,203 +92,93 @@ export async function reconcilePayment(opts: {
     phoneNumber, transactionDate, mpesaTransactionDbId, callbackSource,
   } = opts;
 
-  // ── 1. Idempotency guard ──────────────────────────────────────────────────
-  // Safaricom sometimes sends the same callback multiple times.
-  // Only the first processing of a receipt number takes effect.
-  const existing = await db
-    .select({ id: mpesaTransactions.id })
-    .from(mpesaTransactions)
-    .where(
-      and(
-        eq(mpesaTransactions.mpesaReceiptNumber, mpesaReceiptNumber),
-        eq(mpesaTransactions.status, 'completed'),
-      )
-    )
+  // A DIFFERENT row already carries this receipt code (Safaricom re-sent a C2B confirmation, which creates a new row each time).
+  const same = await db.select({ id: mpesaTransactions.id }).from(mpesaTransactions)
+    .where(and(eq(mpesaTransactions.mpesaReceiptNumber, mpesaReceiptNumber), eq(mpesaTransactions.status, 'completed'), ne(mpesaTransactions.id, mpesaTransactionDbId)))
     .limit(1);
-
-  if (existing.length > 0 && existing[0].id !== mpesaTransactionDbId) {
-    console.warn(`[M-Pesa] Duplicate callback ignored — receipt ${mpesaReceiptNumber} already processed (db id ${existing[0].id})`);
+  if (same.length > 0) {
+    console.warn(`[M-Pesa] Duplicate callback ignored — receipt ${mpesaReceiptNumber} already processed (db id ${same[0].id})`);
+    await storage.updateMpesaTransaction(mpesaTransactionDbId, { status: 'duplicate' } as any);
     return;
   }
 
-  // Mark our record as completed regardless of invoice match
-  await storage.updateMpesaTransaction(mpesaTransactionDbId, {
-    status:            'completed',
-    mpesaReceiptNumber,
-    transactionDate,
-  });
+  await storage.updateMpesaTransaction(mpesaTransactionDbId, { status: 'completed', mpesaReceiptNumber, transactionDate });
 
-  // ── 2a. Utility bill payment path ────────────────────────────────────────
-  if (utilityBillId && !rentPaymentId) {
-    const [ubill] = await db
-      .select()
-      .from(utilityBills)
-      .where(eq(utilityBills.id, utilityBillId))
-      .limit(1);
+  const target = rentPaymentId ? ({ kind: 'rent', id: rentPaymentId } as const)
+    : utilityBillId ? ({ kind: 'utility', id: utilityBillId } as const) : null;
 
-    if (!ubill) {
-      console.error(`[M-Pesa] utilityBillId ${utilityBillId} not found in db`);
-      return;
-    }
-
-    // Mark the utility bill as paid
-    await db
-      .update(utilityBills)
-      .set({
-        status: 'paid',
-        paidDate: new Date(),
-        paymentMethod: 'mpesa',
-        notes: [ubill.notes, `M-Pesa ${mpesaReceiptNumber}: KES ${amount} on ${transactionDate}`]
-          .filter(Boolean).join(' | '),
-      })
-      .where(eq(utilityBills.id, utilityBillId));
-
-    // Notify tenant via WebSocket so their portal updates in real time
-    if ((ubill as any).tenantId) {
-      const [tenantRow] = await db
-        .select({ organizationId: tenants.organizationId, firstName: tenants.firstName, phone: tenants.phone })
-        .from(tenants)
-        .where(eq(tenants.id, (ubill as any).tenantId))
-        .limit(1);
-
-      if (tenantRow?.organizationId) {
-        notifyPaymentConfirmed(tenantRow.organizationId, {
-          id: utilityBillId,
-          amount,
-        });
-      }
-
-      // WhatsApp receipt
-      const recipientPhone = tenantRow?.phone ?? phoneNumber;
-      if (recipientPhone && whatsappService.isConfigured) {
-        const utilLabel = ((ubill as any).utilityType ?? 'Utility').replace(/\b\w/g, (c: string) => c.toUpperCase());
-        const msg = [
-          `✅ *${utilLabel} Bill Payment Received*`,
-          `Receipt: ${mpesaReceiptNumber}`,
-          `Amount: KES ${Math.round(amount).toLocaleString('en-KE')}`,
-          `Bill Ref: ${ubill.billNumber ?? `#${utilityBillId}`} — *Fully settled* ✓`,
-          `Date: ${transactionDate}`,
-          `\nThank you${tenantRow?.firstName ? ', ' + tenantRow.firstName : ''}! Your ${utilLabel.toLowerCase()} bill has been recorded.`,
-        ].join('\n');
-        whatsappService.sendMessage({ to: recipientPhone, type: 'text', content: msg })
-          .catch(err => console.warn('[M-Pesa] WhatsApp utility receipt send failed:', err));
-      }
-    }
-
-    console.log(`[M-Pesa] Utility bill reconciled — receipt: ${mpesaReceiptNumber}, billId: ${utilityBillId}, amount: KES ${amount}`);
-    return;
-  }
-
-  // ── 2b. Unmatched — no rentPaymentId or utilityBillId ────────────────────
-  if (!rentPaymentId) {
-    // Unmatched C2B payment — visible in /api/mpesa/unmatched for manual resolution
+  // No invoice/bill identified — it stays visible in /api/mpesa/unmatched for a manager to resolve.
+  if (!target) {
     console.warn(`[M-Pesa] ${callbackSource.toUpperCase()} ${mpesaReceiptNumber} has no rentPaymentId — saved as unmatched`);
     return;
   }
 
-  // ── 2c. Rent invoice path ─────────────────────────────────────────────────
-  const [invoice] = await db
-    .select()
-    .from(rentPayments)
-    .where(eq(rentPayments.id, rentPaymentId))
-    .limit(1);
+  const paidDate = mpesaDay(transactionDate);
+  const result = await applyPayment({
+    target, amount, method: 'mpesa', paidDate, reference: mpesaReceiptNumber, receiptNumber: mpesaReceiptNumber,
+    actorUserId: null, allowOverpay: true,
+  });
 
-  if (!invoice) {
-    console.error(`[M-Pesa] rentPaymentId ${rentPaymentId} not found in db`);
+  // identify the tenant / organisation for the notifications below
+  const [bill]: any[] = target.kind === 'rent'
+    ? await db.select().from(rentPayments).where(eq(rentPayments.id, target.id)).limit(1)
+    : await db.select().from(utilityBills).where(eq(utilityBills.id, target.id)).limit(1);
+  const [tenantRow] = bill?.tenantId
+    ? await db.select({ organizationId: tenants.organizationId, firstName: tenants.firstName, phone: tenants.phone, userId: tenants.userId }).from(tenants).where(eq(tenants.id, bill.tenantId)).limit(1)
+    : [undefined];
+
+  if (!result.applied) {
+    if (result.reason === 'duplicate') { console.warn(`[M-Pesa] receipt ${mpesaReceiptNumber} was already applied — ignored`); return; }
+    // Real money arrived for something already settled. Don't touch the bill; detach the payment so it shows up as unmatched.
+    await db.update(mpesaTransactions).set({ rentPaymentId: null, utilityBillId: null, description: `${mpesaReceiptNumber}: sent for an invoice/bill that was already paid — needs a manager` } as any)
+      .where(eq(mpesaTransactions.id, mpesaTransactionDbId));
+    await alertManagers(tenantRow?.organizationId, 'M-Pesa payment needs attention',
+      `${fmtKES(amount)} (receipt ${mpesaReceiptNumber}) arrived for ${target.kind === 'rent' ? (bill?.invoiceNumber ?? `invoice #${target.id}`) : (bill?.billNumber ?? `bill #${target.id}`)}, which is already settled. Match it to another invoice or refund it.`);
     return;
   }
 
-  // ── 3. Partial payment calculation ───────────────────────────────────────
-  const invoiceAmount = Number(invoice.amount);
-
-  // Sum all completed mpesa transactions already linked to this invoice
-  // (handles the case where this is the 2nd or 3rd instalment)
-  const prevRows = await db
-    .select({ amount: mpesaTransactions.amount })
-    .from(mpesaTransactions)
-    .where(
-      and(
-        eq(mpesaTransactions.rentPaymentId, rentPaymentId),
-        eq(mpesaTransactions.status, 'completed'),
-      )
-    );
-
-  const alreadyPaid = prevRows.reduce((s, r) => s + Number(r.amount), 0);
-  const totalPaid   = alreadyPaid + amount;
-  const balance     = invoiceAmount - totalPaid;
-  const isFullyPaid = balance <= 0.01; // 1 cent tolerance for floating point
-
-  const newStatus = isFullyPaid ? 'paid' : 'partial';
-  const paidDate  = isFullyPaid ? new Date().toISOString().split('T')[0] : undefined;
-
-  // Build an audit trail in the notes field
-  const newNote = [
-    invoice.notes,
-    `M-Pesa ${mpesaReceiptNumber}: ${fmtKES(amount)} on ${transactionDate}`,
-    balance > 0.01 ? `Balance: ${fmtKES(balance)}` : `Fully settled`,
-  ].filter(Boolean).join(' | ');
-
-  await storage.markPaymentAsPaid(rentPaymentId, {
-    paidDate:      paidDate ?? invoice.paidDate ?? new Date().toISOString().split('T')[0],
-    paymentMethod: 'mpesa',
-    transactionId: mpesaReceiptNumber,
-    notes:         newNote,
-  });
-
-  // markPaymentAsPaid always sets status='paid'; fix it to 'partial' if needed
-  if (!isFullyPaid) {
-    await db
-      .update(rentPayments)
-      .set({ status: 'partial' })
-      .where(eq(rentPayments.id, rentPaymentId));
+  if (tenantRow?.organizationId) {
+    notifyPaymentConfirmed(tenantRow.organizationId, { id: target.id, amount, invoiceNumber: bill?.invoiceNumber ?? undefined });
+  }
+  if (result.overpaid > EPS) {
+    await alertManagers(tenantRow?.organizationId, 'Tenant overpaid',
+      `${fmtKES(result.overpaid)} more than due was received on ${bill?.invoiceNumber ?? bill?.billNumber ?? `#${target.id}`} (receipt ${mpesaReceiptNumber}). Refund it or credit the next invoice.`);
   }
 
-  // ── 4. WebSocket real-time event ─────────────────────────────────────────
-  let tenantRow: { organizationId: number | null; firstName: string | null; phone: string | null } | undefined;
+  const ref = target.kind === 'rent' ? (bill?.invoiceNumber ?? `#${target.id}`) : (bill?.billNumber ?? `#${target.id}`);
+  const label = target.kind === 'rent' ? 'Payment Received'
+    : `${String(bill?.utilityType ?? 'Utility').replace(/\b\w/g, (c: string) => c.toUpperCase())} Bill Payment Received`;
+  const standing = result.fullyPaid ? '*Fully settled* ✓' : `Balance: *${fmtKES(result.balance)}*`;
 
-  if (invoice.tenantId) {
-    const rows = await db
-      .select({
-        organizationId: tenants.organizationId,
-        firstName:      tenants.firstName,
-        phone:          tenants.phone,
-      })
-      .from(tenants)
-      .where(eq(tenants.id, invoice.tenantId))
-      .limit(1);
-
-    tenantRow = rows[0];
-
-    if (tenantRow?.organizationId) {
-      notifyPaymentConfirmed(tenantRow.organizationId, {
-        id:            rentPaymentId,
-        amount,
-        invoiceNumber: invoice.invoiceNumber ?? undefined,
-      });
-    }
+  if (tenantRow?.userId) {
+    pushNotification(tenantRow.userId, {
+      type: 'payment',
+      title: result.fullyPaid ? 'Payment received — settled' : 'Part payment received',
+      message: `${fmtKES(amount)} received for ${ref} (receipt ${mpesaReceiptNumber}).${result.fullyPaid ? '' : ` Balance still due: ${fmtKES(result.balance)}.`}`,
+      ts: new Date().toISOString(), link: '/tenant-portal',
+    });
   }
 
-  // ── 5. WhatsApp receipt ───────────────────────────────────────────────────
   const recipientPhone = tenantRow?.phone ?? phoneNumber;
   if (recipientPhone && whatsappService.isConfigured) {
     const msg = [
-      `✅ *Payment Received*`,
+      `✅ *${label}*`,
       `Receipt: ${mpesaReceiptNumber}`,
       `Amount: ${fmtKES(amount)}`,
-      `Invoice: ${invoice.invoiceNumber ?? `#${rentPaymentId}`} — ${isFullyPaid ? '*Fully settled* ✓' : `Balance: *${fmtKES(balance)}*`}`,
-      `Date: ${transactionDate}`,
+      `${target.kind === 'rent' ? 'Invoice' : 'Bill'}: ${ref} — ${standing}`,
+      `Date: ${paidDate}`,
       `\nThank you${tenantRow?.firstName ? ', ' + tenantRow.firstName : ''}! Your payment has been recorded.`,
     ].join('\n');
-
     whatsappService.sendMessage({ to: recipientPhone, type: 'text', content: msg })
       .catch(err => console.warn('[M-Pesa] WhatsApp receipt send failed:', err));
   }
 
-  console.log(
-    `[M-Pesa] Reconciled — receipt: ${mpesaReceiptNumber}, ` +
-    `invoiceId: ${rentPaymentId}, amount: ${fmtKES(amount)}, ` +
-    `status: ${newStatus}, balance: ${fmtKES(Math.max(balance, 0))}`
-  );
+  // KRA eTIMS once a rent invoice is fully settled (same as a manual full payment). Non-fatal.
+  if (target.kind === 'rent' && result.fullyPaid && tenantRow?.organizationId) {
+    submitInvoice(tenantRow.organizationId, 'rent_payment', target.id).catch((e: any) => console.error('[eTIMS] Auto-submission failed (non-fatal):', e?.message));
+  }
+
+  console.log(`[M-Pesa] Reconciled — receipt: ${mpesaReceiptNumber}, ${target.kind}Id: ${target.id}, amount: ${fmtKES(amount)}, status: ${result.status}, balance: ${fmtKES(result.balance)}`);
 }
 
 // ─── POST /api/mpesa/initiate ────────────────────────────────────────────────
@@ -275,9 +192,13 @@ router.post('/initiate', authenticateJWT, async (req: any, res) => {
       message: 'Landlords cannot initiate M-Pesa STK push payments. Contact your property manager.',
     });
   }
+  if (callerRole === 'contractor') {
+    return res.status(403).json({ message: 'Not permitted.' });
+  }
   const schema = z.object({
     phoneNumber:      z.string().min(9),
-    amount:           z.number().positive(),
+    // Daraja takes whole shillings only
+    amount:           z.number().int('M-Pesa amounts are in whole shillings').positive(),
     rentPaymentId:    z.number().int().positive().optional(),
     utilityBillId:    z.number().int().positive().optional(),
     tenantId:         z.number().int().positive().optional(),
@@ -340,6 +261,19 @@ router.post('/initiate', authenticateJWT, async (req: any, res) => {
       if (!billTenant || billTenant.organizationId !== orgId) {
         return res.status(404).json({ message: 'Utility bill not found in your organisation.' });
       }
+    }
+  }
+
+  // What is being paid must still be owed, and the prompt may not ask for more than the balance — otherwise a tenant could
+  // overpay by accident (or an invoice already settled by cash could be "paid" a second time).
+  if (rentPaymentId || utilityBillId) {
+    const due = rentPaymentId
+      ? await (async () => { const [r] = await db.select().from(rentPayments).where(eq(rentPayments.id, rentPaymentId!)).limit(1); return r ? { settled: r.status === 'paid' || r.status === 'completed', ...(await rentBalance(r)) } : null; })()
+      : await (async () => { const [b] = await db.select().from(utilityBills).where(eq(utilityBills.id, utilityBillId!)).limit(1); return b ? { settled: b.status === 'paid', ...((await utilityBalances([b as any])).get(b.id)!) } : null; })();
+    if (!due) return res.status(404).json({ message: 'Nothing to pay was found.' });
+    if (due.settled || due.balance <= EPS) return res.status(409).json({ message: 'This is already fully paid.' });
+    if (amount > Math.ceil(due.balance) + EPS) {
+      return res.status(400).json({ message: `The balance is KES ${due.balance.toLocaleString('en-KE', { minimumFractionDigits: 2 })} — enter that amount or less.`, balance: due.balance });
     }
   }
 
@@ -464,14 +398,14 @@ router.post('/initiate', authenticateJWT, async (req: any, res) => {
 
 // ─── POST /api/mpesa/callback ────────────────────────────────────────────────
 // Safaricom STK result — MUST respond 200 immediately.
-router.post('/callback', safaricomIpOnly, async (req, res) => {
+mpesaWebhookRouter.post('/callback', safaricomIpOnly, async (req, res) => {
   res.status(200).json({ ResultCode: 0, ResultDesc: 'Accepted' });
 
   try {
     const mpesaService = getMPesaService();
     if (!mpesaService) {
       console.error('[mpesa-actions] M-PESA callback received but service is not configured — raw body logged for manual recovery:', JSON.stringify(req.body));
-      return res.status(200).json({ ResultCode: 0, ResultDesc: 'Accepted' }); // always 200 to Safaricom
+      return; // the 200 was already sent above
     }
     const parsed = mpesaService.parseCallback(req.body);
     const { checkoutRequestId, resultCode, resultDesc, amount, mpesaReceiptNumber, phoneNumber, transactionDate } = parsed;
@@ -601,7 +535,7 @@ router.post('/callback', safaricomIpOnly, async (req, res) => {
 // ─── POST /api/mpesa/c2b/validation ─────────────────────────────────────────
 // Safaricom calls this BEFORE accepting a C2B payment.
 // Register: Daraja portal → C2B → Register URLs → ValidationURL
-router.post('/c2b/validation', safaricomIpOnly, (req, res) => {
+mpesaWebhookRouter.post('/c2b/validation', safaricomIpOnly, (req, res) => {
   console.log('[M-Pesa] C2B validation:', JSON.stringify(req.body));
   res.status(200).json({ ResultCode: '0', ResultDesc: 'Accepted' });
 });
@@ -609,7 +543,7 @@ router.post('/c2b/validation', safaricomIpOnly, (req, res) => {
 // ─── POST /api/mpesa/c2b/confirmation ───────────────────────────────────────
 // Safaricom confirms a COMPLETED C2B payment — this is final and irrevocable.
 // Register: Daraja portal → C2B → Register URLs → ConfirmationURL
-router.post('/c2b/confirmation', safaricomIpOnly, async (req, res) => {
+mpesaWebhookRouter.post('/c2b/confirmation', safaricomIpOnly, async (req, res) => {
   res.status(200).json({ ResultCode: '0', ResultDesc: 'Accepted' });
 
   try {
@@ -666,27 +600,40 @@ router.post('/c2b/confirmation', safaricomIpOnly, async (req, res) => {
     // (skipped entirely if a utility bill was already matched above)
     if (!matchedRentPaymentId && !matchedUtilityBillId && phoneNumber) {
       const suffix = phoneNumber.slice(-9);
+      // The same number can legitimately exist on more than one tenant record (someone who moved between landlords on the
+      // platform). Prefer the tenant who is still active and, among those, the one that actually owes this amount.
       const tenantRows = await db
-        .select({ id: tenants.id })
+        .select({ id: tenants.id, status: tenants.status })
         .from(tenants)
         .where(like(tenants.phone, `%${suffix}`))
-        .limit(1);
+        .orderBy(sql`case when ${tenants.status} = 'active' then 0 else 1 end`, desc(tenants.id))
+        .limit(5);
 
-      if (tenantRows[0]) {
-        const tenantId = tenantRows[0].id;
-        const invRows  = await db
+      let invRows: Array<{ id: number; amount: string }> = [];
+      let tenantId: number | null = null;
+      for (const cand of tenantRows) {
+        const found = await db
           .select({ id: rentPayments.id, amount: rentPayments.amount })
           .from(rentPayments)
           .where(
             and(
-              eq(rentPayments.tenantId, tenantId),
-              or(eq(rentPayments.status, 'pending'), eq(rentPayments.status, 'partial')),
+              eq(rentPayments.tenantId, cand.id),
+              or(eq(rentPayments.status, 'pending'), eq(rentPayments.status, 'overdue'), eq(rentPayments.status, 'partial')),
               gte(rentPayments.amount, String(amount * 0.9)),
               lte(rentPayments.amount, String(amount * 1.1)),
             )
           )
+          .orderBy(asc(rentPayments.dueDate))
           .limit(1);
+        if (found[0]) { tenantId = cand.id; invRows = found as any; break; }
+      }
+      if (tenantId == null && tenantRows[0]) tenantId = tenantRows[0].id;
 
+      if (tenantId != null) {
+        // Even when no invoice fits, remember WHOSE payment this is: it is what puts an unmatched payment on the
+        // manager's /unmatched list (that list is scoped by tenant → organisation). Without it, a part payment sent to
+        // the paybill with a mistyped reference belonged to nobody and could never be found or matched.
+        matchedTenantId = tenantId;
         if (invRows[0]) {
           matchedRentPaymentId = invRows[0].id;
           matchedTenantId      = tenantId;
@@ -831,6 +778,11 @@ router.post('/match', authenticateJWT, async (req: any, res) => {
 
     const txn = rows[0];
     if (!txn)                        return res.status(404).json({ message: 'M-Pesa transaction not found' });
+    // A payment that was identified as another organisation's tenant is not ours to re-assign.
+    if (txn.tenantId) {
+      const [txnTenant] = await db.select({ organizationId: tenants.organizationId }).from(tenants).where(eq(tenants.id, txn.tenantId)).limit(1);
+      if (!txnTenant || txnTenant.organizationId !== orgId) return res.status(404).json({ message: 'M-Pesa transaction not found' });
+    }
     if (txn.status !== 'completed')  return res.status(400).json({ message: 'Transaction is not completed' });
     if (txn.rentPaymentId || txn.utilityBillId) return res.status(400).json({ message: 'Transaction already linked' });
 

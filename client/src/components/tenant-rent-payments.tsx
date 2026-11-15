@@ -46,6 +46,7 @@ import {
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { apiRequest, ensureArray } from '@/lib/queryClient';
+import { apiErrorMessage } from '@/lib/maintenance-flow';
 import { format } from 'date-fns';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -62,6 +63,9 @@ interface RentPayment {
   mpesaTransactionId?: string;
   bankReference?: string;
   status: 'pending' | 'paid' | 'overdue' | 'partial';
+  /** Money received so far / still owed — from the receipts ledger (the server sends both). */
+  paidAmount?: number;
+  balance?: number;
   notes?: string;
   createdAt: string;
   updatedAt: string;
@@ -124,16 +128,21 @@ export default function TenantRentPayments({
       ensureArray(await (await apiRequest(`/api/rent-payments?tenantId=${tenantId}`)).json()),
   });
 
+  // Part payments count: what was received is "collected", what is still owed is pending/overdue.
+  const owed    = (p: RentPayment) => p.balance ?? Number(p.amount);
+  const got     = (p: RentPayment) => p.paidAmount ?? (p.status === 'paid' ? Number(p.amount) : 0);
+  const isLate  = (p: RentPayment) => p.status === 'overdue' || ((p.status === 'pending' || p.status === 'partial') && p.dueDate < today);
   const paid    = payments.filter(p => p.status === 'paid');
-  const pending = payments.filter(p => p.status === 'pending');
-  const overdue = payments.filter(p => p.status === 'overdue');
-  const totalCollected = paid.reduce((s, p)    => s + Number(p.amount), 0);
-  const totalPending   = pending.reduce((s, p) => s + Number(p.amount), 0);
-  const totalOverdue   = overdue.reduce((s, p) => s + Number(p.amount), 0);
+  const pending = payments.filter(p => (p.status === 'pending' || p.status === 'partial') && !isLate(p));
+  const overdue = payments.filter(p => p.status !== 'paid' && isLate(p));
+  const totalCollected = payments.reduce((s, p) => s + got(p), 0);
+  const totalPending   = pending.reduce((s, p) => s + owed(p), 0);
+  const totalOverdue   = overdue.reduce((s, p) => s + owed(p), 0);
   const onTimeRate     = payments.length ? Math.round((paid.length / payments.length) * 100) : 0;
 
   const filtered = payments.filter(p => {
-    if (filter !== 'all' && p.status !== filter) return false;
+    if (filter === 'overdue') { if (p.status === 'paid' || !isLate(p)) return false; }
+    else if (filter !== 'all' && p.status !== filter) return false;
     if (!search) return true;
     const q = search.toLowerCase();
     return (p.invoiceNumber ?? '').toLowerCase().includes(q) || p.status.includes(q);
@@ -158,7 +167,7 @@ export default function TenantRentPayments({
       setMarkPaidOpen(false);
       toast({ title: 'Payment recorded' });
     },
-    onError: () => toast({ title: 'Failed to record payment', variant: 'destructive' }),
+    onError: (e: any) => toast({ title: 'Failed to record payment', description: apiErrorMessage(e), variant: 'destructive' }),
   });
 
   const reminderMutation = useMutation({
@@ -172,7 +181,7 @@ export default function TenantRentPayments({
     mutationFn: (id: number) =>
       apiRequest(`/api/rent-payments/${id}`, { method: 'DELETE' }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['/api/rent-payments'] }),
-    onError:   () => toast({ title: 'Failed to delete invoice', variant: 'destructive' }),
+    onError:   (e: any) => toast({ title: 'Failed to delete invoice', description: apiErrorMessage(e), variant: 'destructive' }),
   });
 
   const dedupMutation = useMutation({
@@ -186,12 +195,12 @@ export default function TenantRentPayments({
 
   const lateFeeMutation = useMutation({
     mutationFn: ({ id, amount }: { id: number; amount: string }) =>
-      apiRequest(`/api/rent-payments/${id}/apply-late-fee`, { method: 'POST', data: { amount } }),
+      apiRequest(`/api/rent-payments/${id}/apply-late-fee`, { method: 'POST', data: { amount, lateFeeAmount: amount } }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['/api/rent-payments'] });
       toast({ title: 'Late fee applied' });
     },
-    onError: () => toast({ title: 'Failed to apply late fee', variant: 'destructive' }),
+    onError: (e: any) => toast({ title: 'Failed to apply late fee', description: apiErrorMessage(e), variant: 'destructive' }),
   });
 
   const openMarkPaid = (p: RentPayment) => { setSelectedPayment(p); setMarkPaidOpen(true); };
@@ -202,9 +211,9 @@ export default function TenantRentPayments({
   const handleExport = () => {
     downloadExcel(
       `payments-${tenantName.replace(/\s+/g, '-')}`,
-      ['Invoice', 'Amount', 'Currency', 'Due Date', 'Paid Date', 'Method', 'Status', 'Notes'],
+      ['Invoice', 'Amount', 'Paid', 'Balance', 'Currency', 'Due Date', 'Paid Date', 'Method', 'Status', 'Notes'],
       payments.map(p => [
-        p.invoiceNumber ?? `PAY-${p.id}`, Number(p.amount), p.currency, p.dueDate,
+        p.invoiceNumber ?? `PAY-${p.id}`, Number(p.amount), got(p), owed(p), p.currency, p.dueDate,
         p.paidDate ?? '', p.paymentMethod ?? '', p.status, p.notes ?? '',
       ]),
       'Payments',
@@ -376,7 +385,7 @@ export default function TenantRentPayments({
                   const statusCls   = STATUS_CONFIG[payment.status]?.cls ?? '';
                   const isPaid      = payment.status === 'paid';
                   const isActionable = !isPaid;
-                  const daysOverdue = !isPaid && payment.dueDate < today
+                  const daysOverdue = !isPaid && isLate(payment)
                     ? Math.floor((Date.now() - new Date(payment.dueDate).getTime()) / 86400000)
                     : 0;
 
@@ -384,7 +393,7 @@ export default function TenantRentPayments({
                     <div
                       key={payment.id}
                       className={`flex items-center gap-3 rounded-xl border px-4 py-3 ${
-                        payment.status === 'overdue' || (payment.status === 'pending' && payment.dueDate < today)
+                        isLate(payment)
                           ? 'border-red-200 dark:border-red-800 bg-red-50/40 dark:bg-red-950/20'
                           : 'border-border dark:border-gray-800'
                       }`}
@@ -406,6 +415,11 @@ export default function TenantRentPayments({
                           <span className="font-semibold text-sm text-foreground">
                             {fmt(payment.amount, currency)}
                           </span>
+                          {payment.status === 'partial' && (
+                            <span className="text-blue-700 dark:text-blue-400 font-medium">
+                              {fmt(got(payment), currency)} received · {fmt(owed(payment), currency)} left
+                            </span>
+                          )}
                           <span className="flex items-center gap-1">
                             <Calendar className="h-3 w-3" />Due {fmtDate(payment.dueDate)}
                           </span>
@@ -473,6 +487,8 @@ export default function TenantRentPayments({
                                 `RENT RECEIPT — ${tenantName}`,
                                 `Invoice: ${payment.invoiceNumber ?? `PAY-${payment.id}`}`,
                                 `Amount:  ${fmt(payment.amount, currency)}`,
+                                `Received: ${fmt(got(payment), currency)}`,
+                                `Balance:  ${fmt(owed(payment), currency)}`,
                                 `Due:     ${fmtDate(payment.dueDate)}`,
                                 `Status:  ${payment.status}`,
                                 payment.paidDate           ? `Paid:    ${fmtDate(payment.paidDate)}`    : '',
@@ -538,7 +554,7 @@ export default function TenantRentPayments({
               <span className="font-medium">
                 {selectedPayment?.invoiceNumber ?? `Invoice #${selectedPayment?.id}`}
               </span>
-              {' '}({selectedPayment ? fmt(selectedPayment.amount, currency) : ''})
+              {' '}({selectedPayment ? `${fmt(owed(selectedPayment), currency)} outstanding` : ''})
             </DialogDescription>
           </DialogHeader>
 
@@ -551,6 +567,8 @@ export default function TenantRentPayments({
                 id: selectedPayment.id,
                 data: {
                   paidDate:      fd.get('paidDate'),
+                  // the server settles the rest when this is left at the balance; less than the balance records a part payment
+                  amount:        Number(fd.get('amount')),
                   paymentMethod: fd.get('method'),
                   transactionId: fd.get('transactionId') || undefined,
                   bankReference: fd.get('bankReference') || undefined,
@@ -561,8 +579,17 @@ export default function TenantRentPayments({
             className="space-y-4 mt-2"
           >
             <div className="space-y-1.5">
+              <Label className="text-xs">Amount received ({currency})</Label>
+              {/* key resets the default when a different invoice is opened */}
+              <Input key={selectedPayment?.id} name="amount" type="number" min="0.01" step="0.01"
+                max={selectedPayment ? owed(selectedPayment) : undefined}
+                defaultValue={selectedPayment ? owed(selectedPayment) : ''} required className="h-9" />
+              <p className="text-[11px] text-muted-foreground">Enter less than the balance to record a part payment.</p>
+            </div>
+
+            <div className="space-y-1.5">
               <Label className="text-xs">Payment Date</Label>
-              <Input name="paidDate" type="date" defaultValue={today} required className="h-9" />
+              <Input name="paidDate" type="date" defaultValue={today} max={today} required className="h-9" />
             </div>
 
             <div className="space-y-1.5">

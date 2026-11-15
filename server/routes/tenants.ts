@@ -526,7 +526,10 @@ tenantRouter.get("/:id/payments", async (req: any, res: any) => {
       .from(rentPayments)
       .where(eq(rentPayments.tenantId, tenantId));
 
-    return res.json(results);
+    // paidAmount / balance come from the receipts ledger so a part-paid invoice shows what is still owed
+    const { rentBalances } = await import("../services/rent-ledger");
+    const bal = await rentBalances(results.map(r => ({ id: r.id, amount: r.amount, status: r.status })));
+    return res.json(results.map(r => ({ ...r, paidAmount: bal.get(r.id)?.paidAmount ?? 0, balance: bal.get(r.id)?.balance ?? Number(r.amount) })));
   } catch (error: any) {
     console.error("Error getting tenant payments:", error);
     return res.status(500).json({ message: "Failed to fetch payments" });

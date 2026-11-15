@@ -50,6 +50,7 @@ import {
   type SQL,
 } from "drizzle-orm";
 import { format, subMonths, startOfMonth, endOfMonth } from "date-fns";
+import { rentReceivedBetween, rentReceivedByMonth, rentOutstanding } from "../services/rent-ledger";
 import { fmtDate, fmtDateShort, fmtKES } from "@shared/reportFormatters";
 
 const router = Router();
@@ -122,23 +123,18 @@ router.get("/dashboard", authenticateJWT, requireOrg, requireOwner, async (req: 
     const eom = endOfMonth(now);
 
     // Current-month revenue & expenses
-    const [revenueResult] = await db
-      .select({ total: sql<string>`COALESCE(SUM(${rentPayments.amount}), 0)` })
-      .from(rentPayments)
-      .leftJoin(tenants, eq(rentPayments.tenantId, tenants.id))
-      .leftJoin(units, eq(tenants.unitId, units.id))
-      .where(and(
-        inArray(units.propertyId, propertyIds),
-        inArray(rentPayments.status, ["paid", "completed"]),
-        gte(rentPayments.createdAt, som),
-        lte(rentPayments.createdAt, eom),
-      ));
+    // Revenue = rent cash that actually arrived this month (receipts, dated by when the money came in). It used to sum whole
+    // invoices that were *created* this month and marked paid — part payments vanished and arrears paid late landed in the
+    // month the invoice was raised.
+    const monthFrom = format(som, "yyyy-MM-dd"), monthTo = format(eom, "yyyy-MM-dd");
+    const revenueResult = { total: String(await rentReceivedBetween(propertyIds, monthFrom, monthTo)) };
 
     const [expenseResult] = await db
       .select({ total: sql<string>`COALESCE(SUM(${propertyExpenses.amount}), 0)` })
       .from(propertyExpenses)
       .where(and(
         inArray(propertyExpenses.propertyId, propertyIds),
+        inArray(propertyExpenses.status, ["approved", "paid"]),   // pending / rejected expenses are not costs yet
         gte(propertyExpenses.expenseDate, som),
         lte(propertyExpenses.expenseDate, eom),
       ));
@@ -162,23 +158,7 @@ router.get("/dashboard", authenticateJWT, requireOrg, requireOwner, async (req: 
     const trendEnd   = endOfMonth(now);
 
     const [trendRevRows, trendExpRows] = await Promise.all([
-      db.select({
-          month: sql<string>`TO_CHAR(DATE_TRUNC('month', ${rentPayments.createdAt}), 'Mon')`,
-          yr:    sql<number>`EXTRACT(YEAR  FROM DATE_TRUNC('month', ${rentPayments.createdAt}))::int`,
-          mo:    sql<number>`EXTRACT(MONTH FROM DATE_TRUNC('month', ${rentPayments.createdAt}))::int`,
-          total: sql<string>`COALESCE(SUM(${rentPayments.amount}), 0)`,
-        })
-        .from(rentPayments)
-        .leftJoin(tenants, eq(rentPayments.tenantId, tenants.id))
-        .leftJoin(units,   eq(tenants.unitId, units.id))
-        .where(and(
-          inArray(units.propertyId, propertyIds),
-          inArray(rentPayments.status, ["paid", "completed"]),
-          gte(rentPayments.createdAt, trendStart),
-          lte(rentPayments.createdAt, trendEnd),
-        ))
-        .groupBy(sql`DATE_TRUNC('month', ${rentPayments.createdAt})`)
-        .orderBy(sql`DATE_TRUNC('month', ${rentPayments.createdAt})`),
+      rentReceivedByMonth(propertyIds, format(trendStart, "yyyy-MM-dd"), format(trendEnd, "yyyy-MM-dd")),
 
       db.select({
           month: sql<string>`TO_CHAR(DATE_TRUNC('month', ${propertyExpenses.expenseDate}), 'Mon')`,
@@ -189,6 +169,7 @@ router.get("/dashboard", authenticateJWT, requireOrg, requireOwner, async (req: 
         .from(propertyExpenses)
         .where(and(
           inArray(propertyExpenses.propertyId, propertyIds),
+          inArray(propertyExpenses.status, ["approved", "paid"]),
           gte(propertyExpenses.expenseDate, trendStart),
           lte(propertyExpenses.expenseDate, trendEnd),
         ))
@@ -197,9 +178,7 @@ router.get("/dashboard", authenticateJWT, requireOrg, requireOwner, async (req: 
     ]);
 
     // Index by "YYYY-MM" so the zip is O(1) per month and order-independent.
-    const revByMonth = Object.fromEntries(
-      trendRevRows.map((r) => [`${r.yr}-${String(r.mo).padStart(2, "0")}`, Number(r.total)])
-    );
+    const revByMonth = trendRevRows;   // already "YYYY-MM" → amount
     const expByMonth = Object.fromEntries(
       trendExpRows.map((r) => [`${r.yr}-${String(r.mo).padStart(2, "0")}`, Number(r.total)])
     );
@@ -216,7 +195,7 @@ router.get("/dashboard", authenticateJWT, requireOrg, requireOwner, async (req: 
     const categoryRows = await db
       .select({ category: propertyExpenses.category, total: sql<string>`COALESCE(SUM(${propertyExpenses.amount}), 0)` })
       .from(propertyExpenses)
-      .where(and(inArray(propertyExpenses.propertyId, propertyIds), gte(propertyExpenses.expenseDate, som), lte(propertyExpenses.expenseDate, eom)))
+      .where(and(inArray(propertyExpenses.propertyId, propertyIds), inArray(propertyExpenses.status, ["approved", "paid"]), gte(propertyExpenses.expenseDate, som), lte(propertyExpenses.expenseDate, eom)))
       .groupBy(propertyExpenses.category);
 
     const expenseCategories = categoryRows
@@ -258,31 +237,13 @@ router.get("/dashboard", authenticateJWT, requireOrg, requireOwner, async (req: 
 
     const recentReports = await storage.getPortfolioReports(ownerId);
 
-    // Arrears: sum of overdue/pending rent payments for these properties
-    const [arrearsResult] = await db
-      .select({ total: sql<string>`COALESCE(SUM(${rentPayments.amount}), 0)` })
-      .from(rentPayments)
-      .leftJoin(tenants, eq(rentPayments.tenantId, tenants.id))
-      .leftJoin(units, eq(tenants.unitId, units.id))
-      .where(and(
-        inArray(units.propertyId, propertyIds),
-        inArray(rentPayments.status, ["overdue", "pending"]),
-      ));
+    // Arrears: what is still OWED on unsettled invoices (a part-paid invoice counts only its balance)
+    const arrearsResult = { total: String((await rentOutstanding(propertyIds)).total) };
     const totalArrears = Number(arrearsResult?.total ?? 0);
 
-    // YTD revenue (Jan 1 to today)
+    // YTD revenue (Jan 1 to today) — cash received
     const ytdStart = new Date(now.getFullYear(), 0, 1);
-    const [ytdResult] = await db
-      .select({ total: sql<string>`COALESCE(SUM(${rentPayments.amount}), 0)` })
-      .from(rentPayments)
-      .leftJoin(tenants, eq(rentPayments.tenantId, tenants.id))
-      .leftJoin(units, eq(tenants.unitId, units.id))
-      .where(and(
-        inArray(units.propertyId, propertyIds),
-        inArray(rentPayments.status, ["paid", "completed"]),
-        gte(rentPayments.createdAt, ytdStart),
-        lte(rentPayments.createdAt, now),
-      ));
+    const ytdResult = { total: String(await rentReceivedBetween(propertyIds, format(ytdStart, "yyyy-MM-dd"), format(now, "yyyy-MM-dd"))) };
 
     // YTD expenses
     const [ytdExpResult] = await db
@@ -290,6 +251,7 @@ router.get("/dashboard", authenticateJWT, requireOrg, requireOwner, async (req: 
       .from(propertyExpenses)
       .where(and(
         inArray(propertyExpenses.propertyId, propertyIds),
+        inArray(propertyExpenses.status, ["approved", "paid"]),
         gte(propertyExpenses.expenseDate, ytdStart),
         lte(propertyExpenses.expenseDate, now),
       ));
@@ -345,9 +307,7 @@ router.get("/dashboard", authenticateJWT, requireOrg, requireOwner, async (req: 
       paid: paidSet.has(t.id),
     }));
     const expectedThisMonth  = activeTenants.reduce((s, t) => s + Number(t.monthlyRent ?? 0), 0);
-    const collectedThisMonth = thisMonthPmts
-      .filter(p => p.status === "paid" || p.status === "completed")
-      .reduce((s, p) => s + Number(p.amount ?? 0), 0);
+    const collectedThisMonth = Number(revenueResult.total);   // cash received this month (same number as the revenue card)
 
     res.json({
       properties: ownerProperties,
@@ -810,17 +770,20 @@ router.patch("/expenses/:id", authenticateJWT, requireOrg, requireOwner, async (
     const ownerId = (req as any).ownerId as string;
     const { propertyIds } = await resolveOwnerProperties(ownerId, req.user.organizationId as number);
     const id = parseInt(req.params.id);
-    const { status, receiptUrl, paymentDate, notes } = req.body;
+    // An owner can attach a receipt and add notes. Approving / rejecting / paying an expense is the manager's decision
+    // (it changes what is deducted on the owner statement), so status and payment date are NOT accepted here.
+    const { receiptUrl, notes } = req.body;
 
     const [expense] = await db.select().from(propertyExpenses).where(eq(propertyExpenses.id, id)).limit(1);
     if (!expense) return res.status(404).json({ message: "Expense not found" });
     if (!propertyIds.includes(expense.propertyId)) return res.status(403).json({ message: "Access denied" });
 
-    const patch: any = {};
-    if (status)      patch.status      = status;
-    if (receiptUrl)  patch.receiptUrl  = receiptUrl;
-    if (paymentDate) patch.paymentDate = new Date(paymentDate);
-    if (notes !== undefined) patch.notes = notes;
+    const patch: any = { updatedAt: new Date() };
+    if (receiptUrl)  patch.receiptUrl  = String(receiptUrl);
+    if (notes !== undefined) {
+      if (expense.status === "paid") return res.status(409).json({ message: "A paid expense is final." });
+      patch.notes = notes;
+    }
 
     const [updated] = await db.update(propertyExpenses).set(patch)
       .where(eq(propertyExpenses.id, id)).returning();
@@ -1349,13 +1312,22 @@ router.post("/expenses", authenticateJWT, requireOrg, requireOwner, async (req: 
       return res.status(403).json({ message: "Property does not belong to this owner" });
     }
 
-    const expenseNumber = `EXP-${Date.now().toString(36).toUpperCase()}`;
+    const amt = Number(amount);
+    if (!Number.isFinite(amt) || amt <= 0) return res.status(400).json({ message: "amount must be a number greater than zero" });
+    if (Number.isNaN(new Date(expenseDate).getTime()) || new Date(expenseDate).getTime() > Date.now() + 36 * 3600_000) {
+      return res.status(400).json({ message: "expenseDate must be a real date, not in the future" });
+    }
+    const CATEGORIES = ["maintenance", "utilities", "supplies", "services", "insurance", "taxes", "legal", "marketing", "other"];
+    if (!CATEGORIES.includes(String(category))) return res.status(400).json({ message: `category must be one of: ${CATEGORIES.join(", ")}` });
+
+    const expenseNumber = `EXP-${Date.now().toString(36).toUpperCase()}${Math.floor(Math.random() * 36 ** 2).toString(36).toUpperCase()}`;
     const [expense] = await db.insert(propertyExpenses).values({
       expenseNumber,
+      createdBy: req.user.id,            // NOT NULL — the insert used to fail for every owner, so no owner could record an expense
       propertyId: Number(propertyId),
       vendorName: vendorName.trim(),
       description: description.trim(),
-      amount: String(amount),
+      amount: String(amt),
       currency: currency || "KES",
       category,
       expenseDate: new Date(expenseDate),
@@ -1382,6 +1354,10 @@ router.delete("/expenses/:id", authenticateJWT, requireOrg, requireOwner, async 
     const [expense] = await db.select().from(propertyExpenses).where(eq(propertyExpenses.id, id)).limit(1);
     if (!expense) return res.status(404).json({ message: "Expense not found" });
     if (!propertyIds.includes(expense.propertyId)) return res.status(403).json({ message: "Access denied" });
+    if (expense.status === "approved" || expense.status === "paid") {
+      return res.status(409).json({ message: "An approved or paid expense is part of the books and cannot be deleted." });
+    }
+    if (expense.utilityBillId) return res.status(409).json({ message: "This expense mirrors a utility bill — delete or reverse the bill instead." });
 
     await db.delete(propertyExpenses).where(eq(propertyExpenses.id, id));
     return res.json({ success: true });

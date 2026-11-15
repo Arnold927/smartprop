@@ -25,6 +25,7 @@ import {
 } from "recharts";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, ensureArray } from "@/lib/queryClient";
+import { apiErrorMessage } from "@/lib/maintenance-flow";
 import { format } from "date-fns";
 import StatusBadge from "@/components/ui/status-badge";
 import { PageShell, PageHeader, SectionCard, SPBadge, EmptyState, PrimaryButton, SecondaryButton, FilterBar, SPTable, SPAvatar, StatTile, StatsGrid, KESAmount, ActionMenu, ConfirmDialog } from "@/components/ui/sp-ui";
@@ -1144,10 +1145,11 @@ export default function UtilityManagement({ embedded = false }: { embedded?: boo
 
   const markBillPaidMutation = useMutation({
     mutationFn: async (id: number) => {
-      const r = await apiRequest(`/api/utility-bills/${id}`, { method: "PUT", data: { status: "paid", paidDate: new Date().toISOString() } });
+      const r = await apiRequest(`/api/utility-bills/${id}`, { method: "PUT", data: { status: "paid", paidDate: new Date().toISOString().slice(0, 10), paymentMethod: "cash" } });
       return r.json();
     },
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["/api/utility-bills"] }); toast({ title: "Bill marked as paid" }); },
+    onError: (e: any) => toast({ title: "Bill not updated", description: apiErrorMessage(e), variant: "destructive" }),
   });
 
   const totalMonthlyBills = bills.reduce((sum, b) => sum + Number(b.amount), 0);
@@ -1241,7 +1243,7 @@ export default function UtilityManagement({ embedded = false }: { embedded?: boo
       cell: (b: UtilityBill) => (
         <ActionMenu items={[
           { label: "Edit", icon: <Edit className="w-4 h-4" />, onClick: () => setEditBill(b) },
-          ...(b.status === "pending" ? [{ label: "Mark Paid", icon: <CheckCircle2 className="w-4 h-4" />, onClick: () => markBillPaidMutation.mutate(b.id) }] : []),
+          ...((b.status === "pending" || b.status === "overdue") ? [{ label: "Mark Paid", icon: <CheckCircle2 className="w-4 h-4" />, onClick: () => markBillPaidMutation.mutate(b.id) }] : []),
           { label: "Delete", icon: <Trash2 className="w-4 h-4" />, onClick: () => { if (confirm("Delete this bill?")) deleteBillMutation.mutate(b.id); }, destructive: true, separator: true },
         ]} />
       ),

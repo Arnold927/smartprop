@@ -132,7 +132,10 @@ const PAY_STATUS: Record<string, { label: string; cls: string }> = {
   pending:    { label: "Pending",    cls: "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200" },
   overdue:    { label: "Overdue",    cls: "bg-red-100    text-red-800    dark:bg-red-900    dark:text-red-200"    },
   processing: { label: "Processing", cls: "bg-blue-100   text-blue-800   dark:bg-blue-900   dark:text-blue-200"   },
+  partial:    { label: "Part paid",  cls: "bg-blue-100   text-blue-800   dark:bg-blue-900   dark:text-blue-200"   },
 };
+/** What is still owed on an invoice/bill (the server sends `balance`; older rows fall back to the full amount). */
+const owedOf = (x: any): number => Math.max(0, Number(x?.balance ?? x?.amount ?? 0));
 
 function getPriorityConfig(t: (k: string) => string): Record<string, { label: string; cls: string }> {
   return {
@@ -1334,6 +1337,7 @@ function PaymentHistoryTable({ payments, isLoading, tenant, unitNumber, property
             const cfg       = PAY_STATUS[p.status] ?? PAY_STATUS.pending;
             const isOverdue = p.status === "overdue";
             const isPaid    = p.status === "paid" || p.status === "completed";
+            const isPartial = p.status === "partial" || (!isPaid && Number(p.paidAmount ?? 0) > 0);
             return (
               <div key={p.id} className={`p-4 rounded-2xl border ${
                 isOverdue ? "border-red-200 dark:border-red-800 bg-red-50/50 dark:bg-red-950/20" : "border-border"
@@ -1341,6 +1345,11 @@ function PaymentHistoryTable({ payments, isLoading, tenant, unitNumber, property
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
                     <p className="font-bold text-base">{fmtKES(p.amount)}</p>
+                    {isPartial && (
+                      <p className="text-xs text-blue-700 dark:text-blue-400 font-medium mt-0.5">
+                        {fmtKES(p.paidAmount ?? 0)} paid · {fmtKES(owedOf(p))} left
+                      </p>
+                    )}
                     <div className="flex items-center gap-2 mt-0.5 flex-wrap">
                       <p className="text-xs text-muted-foreground">Due {fmtDate(p.dueDate)}</p>
                       {p.paidDate && <span className="text-xs text-green-600 font-medium">· Paid {fmtDate(p.paidDate)}</span>}
@@ -1364,7 +1373,7 @@ function PaymentHistoryTable({ payments, isLoading, tenant, unitNumber, property
                     )}
                   </div>
                   <div className="flex flex-col items-end gap-2 flex-shrink-0">
-                    <Badge className={`text-[11px] px-2.5 py-0.5 ${cfg.cls}`}>{cfg.label}</Badge>
+                    <Badge className={`text-[11px] px-2.5 py-0.5 ${cfg.cls}`}>{isPartial && !isPaid ? PAY_STATUS.partial.label : cfg.label}</Badge>
                     {isPaid && (
                       <button
                         onClick={() => downloadReceipt(p, tenant, unitNumber, propertyData)}
@@ -2563,7 +2572,8 @@ export default function TenantPortal({ tenantId, initialTenantData }: TenantPort
 
   const paidPayments    = payments.filter(p => ["paid", "completed"].includes(p.status));
   const overduePayments = payments.filter(p => p.status === "overdue");
-  const pendingPayments = payments.filter(p => p.status === "pending");
+  // a part-paid invoice is still owed — it must stay payable (and show only what is left)
+  const pendingPayments = payments.filter(p => p.status === "pending" || p.status === "partial");
 
   const lastPayment = paidPayments.sort((a, b) =>
     new Date(b.paidDate ?? b.createdAt).getTime() - new Date(a.paidDate ?? a.createdAt).getTime()
@@ -3195,7 +3205,7 @@ export default function TenantPortal({ tenantId, initialTenantData }: TenantPort
                 <AlertTriangle className="w-5 h-5 text-red-500 shrink-0" />
                 <div>
                   <p className="text-sm font-semibold text-red-800 dark:text-red-200">{overduePayments.length} overdue payment(s) — please settle immediately</p>
-                  <p className="text-xs text-red-700 dark:text-red-300 mt-0.5">Total overdue: {fmtKES(overduePayments.reduce((s, p) => s + Number(p.amount ?? 0), 0))}</p>
+                  <p className="text-xs text-red-700 dark:text-red-300 mt-0.5">Total overdue: {fmtKES(overduePayments.reduce((s, p) => s + owedOf(p), 0))}</p>
                 </div>
               </div>
             ) : !nextDue ? (
@@ -3226,8 +3236,8 @@ export default function TenantPortal({ tenantId, initialTenantData }: TenantPort
                       </div>
                     ))}
                     <div className="flex justify-between text-xs font-bold text-blue-900 dark:text-blue-100 pt-1 border-t border-blue-200 dark:border-blue-700 mt-1">
-                      <span>Total</span>
-                      <span>{fmtKES(nextDue.amount)}</span>
+                      <span>{Number(nextDue.paidAmount ?? 0) > 0 ? "Balance due" : "Total"}</span>
+                      <span>{fmtKES(owedOf(nextDue))}</span>
                     </div>
                   </div>
                 )}
@@ -3236,7 +3246,7 @@ export default function TenantPortal({ tenantId, initialTenantData }: TenantPort
 
             {/* Payment methods */}
             <PaymentMethodsPanel
-              amount={Number(nextDue?.amount ?? overduePayments[0]?.amount ?? tenant?.monthlyRent ?? 0)}
+              amount={Math.ceil(nextDue ? owedOf(nextDue) : overduePayments[0] ? owedOf(overduePayments[0]) : Number(tenant?.monthlyRent ?? 0))}
               rentPaymentId={nextDue?.id ?? overduePayments[0]?.id}
               tenantId={tenantId}
               accountReference={payRef}
@@ -3468,6 +3478,9 @@ export default function TenantPortal({ tenantId, initialTenantData }: TenantPort
                               <div>
                                 <p className="text-muted-foreground">Amount</p>
                                 <p className="font-semibold text-foreground">{bill.currency || "KES"} {Number(bill.amount || 0).toLocaleString()}</p>
+                                {Number(bill.paidAmount ?? 0) > 0 && bill.status !== "paid" && (
+                                  <p className="text-[11px] text-blue-700 dark:text-blue-400 font-medium">{Number(bill.paidAmount).toLocaleString()} paid · {owedOf(bill).toLocaleString()} left</p>
+                                )}
                               </div>
                               {bill.unitsConsumed && (
                                 <div>
@@ -3500,7 +3513,7 @@ export default function TenantPortal({ tenantId, initialTenantData }: TenantPort
                             {(bill.status === "pending" || bill.status === "overdue") && (
                               <div className="mt-2">
                                 <PaymentMethodsPanel
-                                  amount={Number(bill.amount || 0)}
+                                  amount={Math.ceil(owedOf(bill))}
                                   tenantId={tenantId}
                                   utilityBillId={bill.id}
                                   accountReference={

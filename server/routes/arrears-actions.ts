@@ -56,7 +56,7 @@ export const paymentRemindersRouter = Router();
 paymentRemindersRouter.get("/", authenticateJWT, requireOrg, async (req: any, res) => {
   try {
     const status = req.query.status as string | undefined;
-    const reminders = await storage.getPaymentReminders(status);
+    const reminders = await storage.getPaymentReminders(status, req.user.organizationId);
     res.json(reminders);
   } catch (err) {
     console.error("Get payment reminders error:", err);

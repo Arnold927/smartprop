@@ -303,15 +303,17 @@ router.put("/kra/profile/:userId", ...auth, async (req: any, res: any) => {
     const orgId = req.user.organizationId;
     const userId = req.params.userId;
     const data   = { ...req.body, organizationId: orgId, userId, updatedAt: new Date() };
+    if (!String(req.body?.kraPin ?? "").trim()) return res.status(400).json({ message: "kraPin is required" });
 
+    // scoped to the organisation: another organisation's profile for the same user id is never read or overwritten
     const [existing] = await db
       .select({ id: landlordKraProfiles.id })
       .from(landlordKraProfiles)
-      .where(eq(landlordKraProfiles.userId, userId))
+      .where(and(eq(landlordKraProfiles.userId, userId), eq(landlordKraProfiles.organizationId, orgId)))
       .limit(1);
 
     if (existing) {
-      const [updated] = await db.update(landlordKraProfiles).set(data).where(eq(landlordKraProfiles.userId, userId)).returning();
+      const [updated] = await db.update(landlordKraProfiles).set(data).where(eq(landlordKraProfiles.id, existing.id)).returning();
       res.json(updated);
     } else {
       const parsed = insertLandlordKraProfileSchema.parse(data);
@@ -636,6 +638,9 @@ router.post("/cbk-rates", ...auth, async (req: any, res: any) => {
 router.get("/deposit-interest/:leaseId", ...auth, async (req: any, res: any) => {
   try {
     const leaseId = parseInt(req.params.leaseId);
+    // the lease must belong to the caller's organisation (deposit balances are money owed to a tenant)
+    const [ownLease] = await db.select({ id: leases.id }).from(leases).where(and(eq(leases.id, leaseId), eq(leases.organizationId, req.user.organizationId))).limit(1);
+    if (!ownLease) return res.status(404).json({ message: "Lease not found" });
     const rows    = await db
       .select()
       .from(depositInterestAccruals)
@@ -666,7 +671,7 @@ router.post("/deposit-interest/accrue", ...auth, async (req: any, res: any) => {
     const [lease] = await db
       .select()
       .from(leases)
-      .where(eq(leases.id, leaseId))
+      .where(and(eq(leases.id, leaseId), eq(leases.organizationId, orgId)))
       .limit(1);
 
     if (!lease) return res.status(404).json({ message: "Lease not found" });

@@ -60,8 +60,7 @@ beforeAll(async () => {
   const accounts = await db
     .select({ id: chartOfAccounts.id, accountType: chartOfAccounts.accountType })
     .from(chartOfAccounts)
-    .where(eq(chartOfAccounts.organizationId, ctx.orgId))
-    .limit(10);
+    .where(eq(chartOfAccounts.organizationId, ctx.orgId));   // (a limit of 10 cut off before the revenue accounts)
 
   const asset   = accounts.find(a => a.accountType === "asset");
   const revenue = accounts.find(a => a.accountType === "revenue");

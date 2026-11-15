@@ -10,6 +10,7 @@
 import { Router } from "express";
 import { isMpesaConfigured } from "../services/mpesa";
 import { db } from "../db";
+import { rentReceivedBetween, rentReceivedByMonth, rentOutstanding } from "../services/rent-ledger";
 import { authenticateJWT } from "../middleware/auth";
 import { requireOrg } from "../middleware/requireOrg";
 import {
@@ -30,22 +31,10 @@ router.get("/metrics", authenticateJWT, requireOrg, async (req: any, res) => {
     const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
     const monthEnd   = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
 
-    const [revenueAllTime] = await db
-      .select({ total: sql<string>`COALESCE(SUM(${rentPayments.amount}), 0)` })
-      .from(rentPayments)
-      .leftJoin(tenants, eq(rentPayments.tenantId, tenants.id))
-      .where(and(eq(tenants.organizationId, orgId), eq(rentPayments.status, "paid")));
-
-    const [revenueThisMonth] = await db
-      .select({ total: sql<string>`COALESCE(SUM(${rentPayments.amount}), 0)` })
-      .from(rentPayments)
-      .leftJoin(tenants, eq(rentPayments.tenantId, tenants.id))
-      .where(and(
-        eq(tenants.organizationId, orgId),
-        eq(rentPayments.status, "paid"),
-        gte(rentPayments.paidDate, monthStart.toISOString().slice(0, 10)),
-        lte(rentPayments.paidDate, monthEnd.toISOString().slice(0, 10)),
-      ));
+    // Revenue = rent cash actually received (receipts; older settled invoices without receipts count in full at their paid
+    // date). It used to add up whole invoices marked "paid", so a part payment never showed until the last shilling arrived.
+    const revenueAllTime  = { total: String(await rentReceivedBetween({ orgId }, "1900-01-01", "2999-12-31")) };
+    const revenueThisMonth = { total: String(await rentReceivedBetween({ orgId }, monthStart.toISOString().slice(0, 10), monthEnd.toISOString().slice(0, 10))) };
 
     // ── unit occupancy ────────────────────────────────────────────────────────
     const [unitStats] = await db
@@ -228,6 +217,8 @@ router.get("/summary", authenticateJWT, requireOrg, async (req: any, res) => {
     const in30       = new Date(now.getTime() + 30 * 86400000);
 
     const PAID = ["paid", "completed"];
+    /** money received so far on this invoice (receipts ledger) */
+    const RECEIVED = sql`COALESCE((SELECT SUM(r.amount::numeric) FROM payment_receipts r WHERE r.payment_id = ${rentPayments.id}), 0)`;
     const payOrg = and(eq(tenants.organizationId, orgId));
     const paidDay = sql`COALESCE(${rentPayments.paidDate}, ${rentPayments.dueDate})`;
 
@@ -253,36 +244,28 @@ router.get("/summary", authenticateJWT, requireOrg, async (req: any, res) => {
       .from(tenants).where(eq(tenants.organizationId, orgId)).orderBy(desc(tenants.createdAt)).limit(3);
 
     // ── payments: totals by bucket ────────────────────────────────────────────
-    const [paidMonth] = await db
-      .select({ total: sql<string>`COALESCE(SUM(${rentPayments.amount}), 0)`, n: count() })
+    const paidMonthTotal = await rentReceivedBetween({ orgId }, isoDay(monthStart), isoDay(monthEnd));
+    const paidMonthCount = Number((await db
+      .select({ n: count() })
       .from(rentPayments).innerJoin(tenants, eq(rentPayments.tenantId, tenants.id))
-      .where(and(payOrg, inArray(rentPayments.status, PAID),
-        gte(paidDay, isoDay(monthStart)), lte(paidDay, isoDay(monthEnd))));
-    const [overdue] = await db
-      .select({ total: sql<string>`COALESCE(SUM(${rentPayments.amount}), 0)`, n: count() })
-      .from(rentPayments).innerJoin(tenants, eq(rentPayments.tenantId, tenants.id))
-      .where(and(payOrg, eq(rentPayments.status, "overdue")));
-    const [pending] = await db
-      .select({ total: sql<string>`COALESCE(SUM(${rentPayments.amount}), 0)`, n: count() })
-      .from(rentPayments).innerJoin(tenants, eq(rentPayments.tenantId, tenants.id))
-      .where(and(payOrg, sql`${rentPayments.status} NOT IN ('paid','completed','overdue','cancelled')`));
+      .where(and(payOrg, inArray(rentPayments.status, PAID), gte(paidDay, isoDay(monthStart)), lte(paidDay, isoDay(monthEnd)))))[0]?.n ?? 0);
+    const paidMonth = { total: String(paidMonthTotal), n: paidMonthCount };
+    // overdue / pending are what is still OWED (a part-paid invoice counts only its balance)
+    const overdueOut = await rentOutstanding({ orgId }, ["overdue"]);
+    const pendingOut = await rentOutstanding({ orgId }, ["pending", "partial"]);
+    const overdue = { total: String(overdueOut.total), n: overdueOut.count };
+    const pending = { total: String(pendingOut.total), n: pendingOut.count };
 
     // ── payments: monthly income (calendar months, by paid date) ─────────────
-    const incomeRows = await db
-      .select({ m: sql<string>`to_char(${paidDay}, 'YYYY-MM')`, total: sql<string>`COALESCE(SUM(${rentPayments.amount}), 0)` })
-      .from(rentPayments).innerJoin(tenants, eq(rentPayments.tenantId, tenants.id))
-      .where(and(payOrg, inArray(rentPayments.status, PAID), gte(paidDay, isoDay(sixAgo))))
-      .groupBy(sql`to_char(${paidDay}, 'YYYY-MM')`);
-    const incomeBy: Record<string, number> = {};
-    incomeRows.forEach(r => { incomeBy[r.m] = Number(r.total); });
+    const incomeBy: Record<string, number> = await rentReceivedByMonth({ orgId }, isoDay(sixAgo), "2999-12-31");
 
     // ── payments: due-month trend (collected / pending / overdue) ────────────
     const trendRows = await db
       .select({
         m: sql<string>`to_char(${rentPayments.dueDate}, 'YYYY-MM')`,
-        collected: sql<string>`COALESCE(SUM(CASE WHEN ${rentPayments.status} IN ('paid','completed') THEN ${rentPayments.amount} ELSE 0 END), 0)`,
-        pending:   sql<string>`COALESCE(SUM(CASE WHEN ${rentPayments.status} NOT IN ('paid','completed','overdue','cancelled') THEN ${rentPayments.amount} ELSE 0 END), 0)`,
-        overdue:   sql<string>`COALESCE(SUM(CASE WHEN ${rentPayments.status} = 'overdue' THEN ${rentPayments.amount} ELSE 0 END), 0)`,
+        collected: sql<string>`COALESCE(SUM(CASE WHEN ${rentPayments.status} IN ('paid','completed') THEN ${rentPayments.amount}::numeric ELSE ${RECEIVED} END), 0)`,
+        pending:   sql<string>`COALESCE(SUM(CASE WHEN ${rentPayments.status} IN ('pending','partial') THEN GREATEST(${rentPayments.amount}::numeric - ${RECEIVED}, 0) ELSE 0 END), 0)`,
+        overdue:   sql<string>`COALESCE(SUM(CASE WHEN ${rentPayments.status} = 'overdue' THEN GREATEST(${rentPayments.amount}::numeric - ${RECEIVED}, 0) ELSE 0 END), 0)`,
       })
       .from(rentPayments).innerJoin(tenants, eq(rentPayments.tenantId, tenants.id))
       .where(payOrg)

@@ -508,8 +508,8 @@ function FinancePanel() {
 
   const markPaidMutation = useMutation({
     mutationFn: async (id: number) => {
+      // no body: the server settles the outstanding balance, dated today (EAT), as cash
       const r = await apiRequest(`/api/rent-payments/${id}/mark-paid`, { method: "POST" });
-      if (!r.ok) throw new Error("Failed to mark as paid");
       return r.json();
     },
     onSuccess: () => {
@@ -517,12 +517,13 @@ function FinancePanel() {
       queryClient.invalidateQueries({ queryKey: ["/api/arrears"] });
       toast({ title: "Payment marked as paid" });
     },
-    onError: (e: any) => toast({ title: e.message ?? "Failed", variant: "destructive" }),
+    onError: (e: any) => toast({ title: "Could not mark as paid", description: apiErrorMessage(e), variant: "destructive" }),
   });
 
   const PAY_STATUS: Record<string,{label:string;color:string;bg:string}> = {
     paid:      { label:"Paid",    color:"text-green-700 dark:text-green-400", bg:"bg-green-50 dark:bg-green-950/30 border-green-200 dark:border-green-800" },
     completed: { label:"Paid",    color:"text-green-700 dark:text-green-400", bg:"bg-green-50 dark:bg-green-950/30 border-green-200 dark:border-green-800" },
+    partial:   { label:"Part paid", color:"text-blue-700 dark:text-blue-400", bg:"bg-blue-50 dark:bg-blue-950/30 border-blue-200 dark:border-blue-800" },
     pending:   { label:"Pending", color:"text-amber-700 dark:text-amber-400", bg:"bg-amber-50 dark:bg-amber-950/30 border-amber-200 dark:border-amber-800" },
     overdue:   { label:"Overdue", color:"text-red-700 dark:text-red-400",     bg:"bg-red-50 dark:bg-red-950/30 border-red-200 dark:border-red-800" },
     failed:    { label:"Failed",  color:"text-red-700 dark:text-red-400",     bg:"bg-red-50 dark:bg-red-950/30 border-red-200 dark:border-red-800" },
@@ -598,7 +599,7 @@ function FinancePanel() {
                       <Badge className={`text-xs py-0 ${sc.color} bg-card border border-border`}>{sc.label}</Badge>
                     </div>
                   </div>
-                  {p.status === "pending" && (
+                  {["pending", "overdue", "partial"].includes(p.status) && (
                     <div className="mt-2 pt-2 border-t border-border/40">
                       <Button size="sm" className="text-xs h-7 bg-green-600 hover:bg-green-700 text-white"
                         disabled={markPaidMutation.isPending}

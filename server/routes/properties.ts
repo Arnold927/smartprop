@@ -131,8 +131,49 @@ expenseRouter.get("/:id", authenticateJWT, requireOrg, async (req: any, res) => 
   }
 });
 
+// ── Expense rules ───────────────────────────────────────────────────────────────────────────────────────────────────
+// Who may record / change expenses (caretakers, guards, contractors and tenants may not — an expense is a cost
+// that flows straight into the owner statement), what an expense must look like, and how its status moves:
+//   pending → approved | rejected,  approved → paid | rejected,  rejected → pending (resubmit),  paid is final.
+const EXPENSE_WRITERS = ["admin", "manager", "landlord", "staff"];
+const EXPENSE_STATUS_NEXT: Record<string, string[]> = {
+  pending: ["approved", "rejected"], approved: ["paid", "rejected"], rejected: ["pending"], paid: [],
+};
+const EXPENSE_EDITABLE = ["propertyId", "contractorId", "vendorName", "description", "amount", "currency", "category", "expenseDate", "dueDate",
+  "isRecurring", "recurringFrequency", "nextRecurringDate", "paymentMethod", "receiptUrl", "invoiceUrl", "tags", "notes"] as const;
+
+function expenseWriteDenied(req: any, res: any): boolean {
+  if (!EXPENSE_WRITERS.includes(req.user?.role)) { res.status(403).json({ message: "Your role cannot record or change expenses." }); return true; }
+  return false;
+}
+function expenseProblem(b: any, { creating }: { creating: boolean }): string | null {
+  if (b.amount !== undefined || creating) {
+    const n = Number(b.amount);
+    if (b.amount === undefined || b.amount === null || b.amount === "" || !Number.isFinite(n) || n <= 0) return "amount must be a number greater than zero";
+    if (n > 1_000_000_000) return "amount is unrealistically large";
+  }
+  for (const k of ["expenseDate", "dueDate", "paymentDate"]) {
+    if (b[k] !== undefined && b[k] !== null && b[k] !== "" && Number.isNaN(new Date(b[k]).getTime())) return `${k} is not a valid date`;
+  }
+  if (b.expenseDate && new Date(b.expenseDate).getTime() > Date.now() + 36 * 3600_000) return "expenseDate cannot be in the future";
+  if (b.dueDate && b.expenseDate && new Date(b.dueDate) < new Date(new Date(b.expenseDate).toISOString().slice(0, 10))) return "dueDate cannot be before the expense date";
+  if (creating && !String(b.vendorName ?? "").trim()) return "vendorName is required";
+  if (creating && !String(b.description ?? "").trim()) return "description is required";
+  return null;
+}
+/** Date columns arrive as strings (JSON) — turn them into Dates (or null) before the schema sees them. */
+const asDate = (v: any) => (v === undefined ? undefined : v === null || v === "" ? null : new Date(v));
+/** EXP-YYYYMM-n — next number for the month (the web form sends its own; API callers need not). */
+async function nextExpenseNumber(): Promise<string> {
+  const ym = new Date(Date.now() + 3 * 3600_000).toISOString().slice(0, 7).replace("-", "");
+  const r: any = await db.execute(sql`select coalesce(max((regexp_match(expense_number, ${"^EXP-" + ym + "-(\\d+)$"}))[1]::int), 0) as n from property_expenses`);
+  const n = Number((r.rows ?? r)[0]?.n ?? 0);
+  return `EXP-${ym}-${String(n + 1).padStart(4, "0")}`;
+}
+
 expenseRouter.post("/", authenticateJWT, requireOrg, async (req: any, res) => {
   try {
+    if (expenseWriteDenied(req, res)) return;
     const orgId: number = req.user.organizationId;
     const propertyId = parseInt(req.body.propertyId);
     // Ownership check: property must belong to this org (and, for a
@@ -147,21 +188,46 @@ expenseRouter.post("/", authenticateJWT, requireOrg, async (req: any, res) => {
       .limit(1);
     if (!prop) return res.status(403).json({ message: "Property does not belong to your organisation" });
 
-    const validated = insertPropertyExpenseSchema.parse({
-      ...req.body,
-      propertyId,
-      createdBy: req.user.id ?? req.user.userId,
-    });
-    const [created] = await db.insert(propertyExpenses).values(validated as any).returning();
-    res.status(201).json(created);
+    const problem = expenseProblem(req.body, { creating: true });
+    if (problem) return res.status(400).json({ message: problem });
+
+    for (let attempt = 0; attempt < 5; attempt++) {
+      try {
+        const supplied = String(req.body.expenseNumber ?? "").trim();
+        const validated = insertPropertyExpenseSchema.parse({
+          ...req.body,
+          expenseNumber: supplied || await nextExpenseNumber(),
+          propertyId,
+          amount: String(Number(req.body.amount)),
+          expenseDate: asDate(req.body.expenseDate),
+          dueDate: asDate(req.body.dueDate),
+          nextRecurringDate: asDate(req.body.nextRecurringDate),
+          // an expense is born pending (or, for a manager entering something already approved, approved) — never "paid" without a payment
+          status: req.body.status === "approved" && ["admin", "manager"].includes(req.user.role) ? "approved" : "pending",
+          paymentDate: undefined,
+          approvedBy: undefined,
+          approvedAt: undefined,
+          createdBy: req.user.id ?? req.user.userId,
+        });
+        const [created] = await db.insert(propertyExpenses).values(validated as any).returning();
+        return res.status(201).json(created);
+      } catch (e: any) {
+        if (e?.code === "23505" && !String(req.body.expenseNumber ?? "").trim()) continue;   // number raced — take the next one
+        if (e?.code === "23505") return res.status(409).json({ message: "An expense with that number already exists" });
+        throw e;
+      }
+    }
+    return res.status(503).json({ message: "Could not allocate an expense number — please try again" });
   } catch (err: any) {
+    if (err?.name === "ZodError") return res.status(400).json({ message: `Invalid expense: ${(err.errors ?? err.issues ?? []).map((i: any) => `${(i.path ?? []).join(".")} ${i.message}`).join("; ")}`.slice(0, 300) });
     console.error("[expenses] POST / error:", err);
-    res.status(500).json({ message: err.message ?? "Failed to create expense" });
+    res.status(500).json({ message: "Failed to create expense" });
   }
 });
 
 expenseRouter.put("/:id", authenticateJWT, requireOrg, async (req: any, res) => {
   try {
+    if (expenseWriteDenied(req, res)) return;
     const orgId: number = req.user.organizationId;
     const id = parseInt(req.params.id);
     // Ownership check via property join (and, for a landlord, ownerId too)
@@ -169,38 +235,90 @@ expenseRouter.put("/:id", authenticateJWT, requireOrg, async (req: any, res) => 
       ? and(eq(propertyExpenses.id, id), eq(properties.organizationId, orgId), eq(properties.ownerId, req.user.id))
       : and(eq(propertyExpenses.id, id), eq(properties.organizationId, orgId));
     const [existing] = await db
-      .select({ propertyId: propertyExpenses.propertyId })
+      .select({ propertyId: propertyExpenses.propertyId, status: propertyExpenses.status, utilityBillId: propertyExpenses.utilityBillId })
       .from(propertyExpenses)
       .innerJoin(properties, eq(propertyExpenses.propertyId, properties.id))
       .where(propCondition)
       .limit(1);
     if (!existing) return res.status(404).json({ message: "Expense not found" });
 
+    const body = req.body ?? {};
+    // only known fields — the old code spread the whole body into the UPDATE (createdBy, expenseNumber, approvedBy…)
+    const set: Record<string, any> = {};
+    for (const k of EXPENSE_EDITABLE) if (body[k] !== undefined) set[k] = body[k];
+    for (const k of ["expenseDate", "dueDate", "nextRecurringDate"]) if (set[k] !== undefined) set[k] = asDate(set[k]);   // drizzle wants Date objects
+
+    const from = existing.status ?? "pending";
+    const wantsStatus = body.status !== undefined && body.status !== from;
+    if (from === "paid" && (Object.keys(set).length > 0 || wantsStatus)) {
+      return res.status(409).json({ message: "A paid expense is final and cannot be changed." });
+    }
+    if (from === "approved" && (set.amount !== undefined || set.propertyId !== undefined)) {
+      return res.status(409).json({ message: "An approved expense's amount and property are locked — reject it first to change them." });
+    }
+    if (existing.utilityBillId && (set.amount !== undefined || set.propertyId !== undefined)) {
+      return res.status(409).json({ message: "This expense mirrors a utility bill — change the bill instead." });
+    }
+    const problem = expenseProblem({ ...body, ...set }, { creating: false });
+    if (problem) return res.status(400).json({ message: problem });
+    if (set.propertyId !== undefined) {
+      const pid = parseInt(set.propertyId);
+      const cond = req.user.role === "landlord"
+        ? and(eq(properties.id, pid), eq(properties.organizationId, orgId), eq(properties.ownerId, req.user.id))
+        : and(eq(properties.id, pid), eq(properties.organizationId, orgId));
+      const [dest] = await db.select({ id: properties.id }).from(properties).where(cond).limit(1);
+      if (!dest) return res.status(403).json({ message: "Property does not belong to your organisation" });
+      set.propertyId = pid;
+    }
+    if (set.amount !== undefined) set.amount = String(Number(set.amount));
+
+    if (wantsStatus) {
+      const to = String(body.status);
+      if (!(EXPENSE_STATUS_NEXT[from] ?? []).includes(to)) {
+        return res.status(409).json({ message: `An expense cannot go from ${from} to ${to}.` });
+      }
+      // matches the screen: an owner/landlord cannot approve or pay their own submissions
+      if (["approved", "rejected", "paid"].includes(to) && !["admin", "manager"].includes(req.user.role)) {
+        return res.status(403).json({ message: "Only an admin or manager can approve, reject or pay an expense." });
+      }
+      set.status = to;
+      if (to === "approved") { set.approvedBy = req.user.id; set.approvedAt = new Date(); }
+      if (to === "paid")     { set.paymentDate = body.paymentDate ? new Date(body.paymentDate) : new Date(); }
+      if (to === "pending" || to === "rejected") { set.approvedBy = null; set.approvedAt = null; }
+    }
+
     const [updated] = await db
       .update(propertyExpenses)
-      .set({ ...req.body, updatedAt: new Date() })
-      .where(eq(propertyExpenses.id, id))
+      .set({ ...set, updatedAt: new Date() })
+      .where(and(eq(propertyExpenses.id, id), eq(propertyExpenses.status, from)))   // loses cleanly if someone else moved it first
       .returning();
+    if (!updated) return res.status(409).json({ message: "This expense was changed by someone else — refresh and try again." });
     res.json(updated);
   } catch (err: any) {
+    console.error("[expenses] PUT /:id error:", err);
     res.status(500).json({ message: "Failed to update expense" });
   }
 });
 
 expenseRouter.delete("/:id", authenticateJWT, requireOrg, async (req: any, res) => {
   try {
+    if (expenseWriteDenied(req, res)) return;
     const orgId: number = req.user.organizationId;
     const id = parseInt(req.params.id);
     const propCondition = req.user.role === "landlord"
       ? and(eq(propertyExpenses.id, id), eq(properties.organizationId, orgId), eq(properties.ownerId, req.user.id))
       : and(eq(propertyExpenses.id, id), eq(properties.organizationId, orgId));
     const [existing] = await db
-      .select({ propertyId: propertyExpenses.propertyId })
+      .select({ propertyId: propertyExpenses.propertyId, status: propertyExpenses.status, utilityBillId: propertyExpenses.utilityBillId })
       .from(propertyExpenses)
       .innerJoin(properties, eq(propertyExpenses.propertyId, properties.id))
       .where(propCondition)
       .limit(1);
     if (!existing) return res.status(404).json({ message: "Expense not found" });
+    if (existing.status === "paid" || existing.status === "approved") {
+      return res.status(409).json({ message: "An approved or paid expense is part of the books and cannot be deleted. Reject it instead." });
+    }
+    if (existing.utilityBillId) return res.status(409).json({ message: "This expense mirrors a utility bill — delete or reverse the bill instead." });
     await db.delete(propertyExpenses).where(eq(propertyExpenses.id, id));
     res.status(204).send();
   } catch (err: any) {

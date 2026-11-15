@@ -4,7 +4,7 @@
  */
 import { Router } from "express";
 import { db } from "../db";
-import { rentPayments, tenants, units, properties } from "@shared/schema";
+import { rentPayments, tenants, units, properties, mpesaTransactions } from "@shared/schema";
 import { eq, sql, desc, and, gte, lte, inArray } from "drizzle-orm";
 import { authenticateJWT } from "../middleware/auth";
 import { auditLog } from "../middleware/auditLog";
@@ -14,6 +14,8 @@ import { z } from "zod";
 import { notifyPaymentConfirmed } from "../ws";
 import { whatsappService } from "../whatsapp";
 import { submitInvoice } from "../services/etims";
+import { applyPayment, rentBalance, rentBalances, receiptsFor, PaymentRuleError, money, round2, todayEAT, validPaidDate, EPS } from "../services/rent-ledger";
+import { pushNotification } from "./notifications";
 
 const router = Router();
 
@@ -132,11 +134,15 @@ router.get("/", authenticateJWT, requireOrg, async (req: any, res) => {
     const totalCount = Number(total);
     const totalPages = Math.ceil(totalCount / pageSize);
 
+    // paid-to-date and balance, so a part-paid invoice shows what is still owed instead of the full amount
+    const bal = await rentBalances(results as any);
+    const withBalances = results.map(r => ({ ...r, ...(bal.get(r.id) ?? { paidAmount: 0, balance: money(r.amount) }) }));
+
     res.json({
       count:    totalCount,
       next:     page < totalPages ? `?page=${page + 1}&page_size=${pageSize}` : null,
       previous: page > 1         ? `?page=${page - 1}&page_size=${pageSize}` : null,
-      results,
+      results:  withBalances,
     });
   } catch (error) {
     console.error("Rent payments list error:", error);
@@ -188,25 +194,25 @@ router.get("/stats", authenticateJWT, requireOrg, async (req: any, res) => {
     }
 
     const rows = await db
-      .select({ status: rentPayments.status, amount: rentPayments.amount })
+      .select({ id: rentPayments.id, status: rentPayments.status, amount: rentPayments.amount, dueDate: rentPayments.dueDate })
       .from(rentPayments)
       .innerJoin(tenants, eq(rentPayments.tenantId, tenants.id))
       .where(and(...conditions));
 
+    // Money, not invoice counts: a part-paid invoice contributes what was received to "collected" and only what is
+    // STILL owed to pending/overdue (it used to be counted whole as pending, hiding the cash already received).
+    const bals = await rentBalances(rows as any);
+    const todayStr = todayEAT();
     let collected = 0, collectedCount = 0;
     let pending   = 0, pendingCount   = 0;
     let overdue   = 0, overdueCount   = 0;
 
     for (const row of rows) {
-      const amt = Number(row.amount ?? 0);
-      const st  = row.status ?? "";
-      if (st === "paid" || st === "completed") {
-        collected += amt; collectedCount++;
-      } else if (st === "overdue") {
-        overdue += amt; overdueCount++;
-      } else {
-        pending += amt; pendingCount++;
-      }
+      const b = bals.get(row.id) ?? { paidAmount: 0, balance: money(row.amount) };
+      collected += b.paidAmount;
+      if (b.balance <= EPS) { collectedCount++; continue; }
+      const pastDue = row.status === "overdue" || String(row.dueDate ?? "") < todayStr;
+      if (pastDue) { overdue += b.balance; overdueCount++; } else { pending += b.balance; pendingCount++; }
     }
 
     // Finance-correct collection rate: collected ÷ total expected (value-based, not count-based)
@@ -216,11 +222,11 @@ router.get("/stats", authenticateJWT, requireOrg, async (req: any, res) => {
       : 0;
 
     res.json({
-      collected, collectedCount,
-      pending,   pendingCount,
-      overdue,   overdueCount,
+      collected: round2(collected), collectedCount,
+      pending:   round2(pending),   pendingCount,
+      overdue:   round2(overdue),   overdueCount,
       total: rows.length,
-      totalExpected,
+      totalExpected: round2(totalExpected),
       collectionRate,
       period: allTime ? "all" : `${y}-${String(m).padStart(2, "0")}`,
     });
@@ -229,6 +235,19 @@ router.get("/stats", authenticateJWT, requireOrg, async (req: any, res) => {
     res.status(500).json({ message: "Failed to fetch rent payment stats" });
   }
 });
+
+/** Is this tenant one the caller may bill / collect from? (same org; a landlord only for properties they own) */
+async function callerCanUseTenant(req: any, tenantId: number): Promise<boolean> {
+  const [tenant] = await db.select({ organizationId: tenants.organizationId, unitId: tenants.unitId }).from(tenants).where(eq(tenants.id, tenantId)).limit(1);
+  if (!tenant || tenant.organizationId !== req.user.organizationId) return false;
+  if (req.user.role === "landlord") {
+    if (!tenant.unitId) return false;
+    const [unit] = await db.select({ propertyId: units.propertyId }).from(units).where(eq(units.id, tenant.unitId)).limit(1);
+    const [prop] = unit?.propertyId ? await db.select({ ownerId: properties.ownerId }).from(properties).where(eq(properties.id, unit.propertyId)).limit(1) : [undefined];
+    if (!prop || prop.ownerId !== req.user.id) return false;
+  }
+  return true;
+}
 
 /** Verifies a rent payment belongs to the caller's org (and, for a landlord,
  *  to a tenant in a property they own). Sends a 404 and returns null if not —
@@ -257,184 +276,166 @@ async function requireOwnedRentPayment(req: any, res: any): Promise<typeof rentP
 }
 
 // POST /api/rent-payments/:id/mark-paid
+// Records ONE payment against the invoice. `amount` is optional (defaults to the outstanding balance, i.e. "paid in
+// full"); a smaller amount is a part payment and leaves the invoice "partial". Every payment gets its own receipt and
+// its own general-ledger posting, and the same invoice cannot be closed twice.
+const markPaidSchema = z.object({
+  paidDate:      z.string().optional(),
+  paymentMethod: z.string().trim().min(1).max(30).optional(),
+  amount:        z.union([z.number(), z.string()]).optional(),
+  transactionId: z.string().trim().max(100).optional(),
+  bankReference: z.string().trim().max(100).optional(),
+  notes:         z.string().max(500).optional(),
+});
+
+function ruleErrorResponse(res: any, e: unknown): boolean {
+  if (e instanceof PaymentRuleError) {
+    const status = e.code === "NOT_FOUND" ? 404 : e.code === "ALREADY_PAID" ? 409 : 400;
+    res.status(status).json({ message: e.message, code: e.code, ...e.extra });
+    return true;
+  }
+  return false;
+}
+
 router.post("/:id/mark-paid", authenticateJWT, auditLog("rent_payment", "ACTION"), async (req: any, res) => {
   try {
     const owned = await requireOwnedRentPayment(req, res);
     if (!owned) return;
+    const id = owned.id;
 
-    const id = parseInt(req.params.id);
-    const schema = z.object({
-      paidDate: z.string(),
-      paymentMethod: z.string(),
-      transactionId: z.string().optional(),
-      bankReference: z.string().optional(),
-      notes: z.string().optional(),
-    });
-    const data = schema.parse(req.body);
-    const payment = await storage.markPaymentAsPaid(id, data);
+    const parsed = markPaidSchema.safeParse(req.body ?? {});
+    if (!parsed.success) return res.status(400).json({ message: "Invalid data", errors: parsed.error.errors });
+    const data = parsed.data;
 
-    // Auto-post rent receipt to general ledger (double-entry)
-    // Debit: Cash & Bank (asset increases) / Credit: Rental Income (revenue increases)
-    try {
-      const orgId: number = req.user.organizationId;
-      const accounts = await storage.getChartOfAccounts(orgId);
-      const cashAcc = accounts?.find((a: any) => a.accountName === "Cash & Bank");
-      const revAcc  = accounts?.find((a: any) => a.accountName === "Rental Income");
-      const amount  = parseFloat(String(payment.amount ?? 0));
-      if (cashAcc && revAcc && amount > 0) {
-        const txDate = payment.paidDate ? new Date(payment.paidDate) : new Date();
-        const journalRef = `GL-RENT-${payment.invoiceNumber ?? payment.id}`;
-        const fiscalYear   = txDate.getFullYear();
-        const fiscalPeriod = txDate.getMonth() + 1;
-        await storage.createGeneralLedgerEntry({
-          organizationId: orgId,
-          createdBy: req.user.id,
-          transactionId: `${journalRef}-DR`,
-          accountId: cashAcc.id,
-          debitAmount: amount, creditAmount: 0,
-          description: `Rent received: ${payment.invoiceNumber ?? `Payment #${payment.id}`}`,
-          reference: journalRef,
-          transactionDate: txDate,
-          fiscalYear, fiscalPeriod, currency: payment.currency ?? "KES",
-        });
-        await storage.createGeneralLedgerEntry({
-          organizationId: orgId,
-          createdBy: req.user.id,
-          transactionId: `${journalRef}-CR`,
-          accountId: revAcc.id,
-          debitAmount: 0, creditAmount: amount,
-          description: `Rent received: ${payment.invoiceNumber ?? `Payment #${payment.id}`}`,
-          reference: journalRef,
-          transactionDate: txDate,
-          fiscalYear, fiscalPeriod, currency: payment.currency ?? "KES",
-        });
-      }
-    } catch (glErr) {
-      console.error("[GL] Rent payment auto-post failed (non-fatal):", glErr);
+    const paidDate = (data.paidDate ?? "").slice(0, 10) || todayEAT();
+    if (!validPaidDate(paidDate)) return res.status(400).json({ message: "Payment date must be a real date, not in the future." });
+    const method = (data.paymentMethod ?? "cash").toLowerCase();
+
+    if (owned.status === "paid" || owned.status === "completed") {
+      return res.status(409).json({ message: "This invoice is already paid.", code: "ALREADY_PAID" });
     }
+    const bal = await rentBalance(owned);
+    let amount = data.amount === undefined || data.amount === "" ? bal.balance : money(data.amount);
+    if (!(amount > 0)) return res.status(400).json({ message: "Amount must be greater than zero." });
 
-    notifyPaymentConfirmed(req.user.organizationId, {
-      id: payment.id,
-      amount: Number(payment.amount ?? 0),
-      invoiceNumber: payment.invoiceNumber ?? undefined,
+    const reference = data.bankReference || data.transactionId || null;
+    const result = await applyPayment({
+      target: { kind: "rent", id }, amount, method, paidDate, reference, notes: data.notes ?? null,
+      actorUserId: req.user.id, allowOverpay: false,
     });
+    if (!result.applied) return res.status(409).json({ message: "This invoice is already paid.", code: "ALREADY_PAID" });
+    const payment = result.record;
 
-    // WhatsApp confirmation to tenant (non-fatal)
+    const orgId: number = req.user.organizationId;
+    notifyPaymentConfirmed(orgId, { id: payment.id, amount, invoiceNumber: payment.invoiceNumber ?? undefined });
+
+    // tenant: WhatsApp + the portal's notification bell (non-fatal)
+    let tenant: { firstName: string | null; lastName: string | null; phone: string | null; email: string | null; currency: string | null; userId: string | null } | undefined;
     if (payment.tenantId) {
       try {
-        const [tenant] = await db
-          .select({
-            firstName: tenants.firstName,
-            lastName: tenants.lastName,
-            phone: tenants.phone,
-            currency: tenants.currency,
-          })
-          .from(tenants)
-          .where(eq(tenants.id, payment.tenantId))
-          .limit(1);
-
+        [tenant] = await db.select({ firstName: tenants.firstName, lastName: tenants.lastName, phone: tenants.phone, email: tenants.email, currency: tenants.currency, userId: tenants.userId })
+          .from(tenants).where(eq(tenants.id, payment.tenantId)).limit(1);
         if (tenant?.phone) {
-          const name = `${tenant.firstName} ${tenant.lastName}`.trim();
-          await whatsappService.sendPaymentConfirmation(
-            tenant.phone,
-            name,
-            Number(payment.amount ?? 0).toLocaleString(),
-            data.paymentMethod,
-            tenant.currency ?? "KES",
-            req.user.organizationId
-          );
+          await whatsappService.sendPaymentConfirmation(tenant.phone, `${tenant.firstName} ${tenant.lastName}`.trim(), amount.toLocaleString(), method, tenant.currency ?? "KES", orgId);
+        }
+        if (tenant?.userId) {
+          pushNotification(tenant.userId, {
+            type: "payment",
+            title: result.fullyPaid ? "Payment received — invoice settled" : "Part payment received",
+            message: `We recorded ${payment.currency ?? "KES"} ${amount.toLocaleString("en-KE")} for ${payment.invoiceNumber ?? "your invoice"}${result.fullyPaid ? "." : `. Balance still due: ${payment.currency ?? "KES"} ${result.balance.toLocaleString("en-KE")}.`} Receipt ${result.receipt!.receiptNumber}.`,
+            ts: new Date().toISOString(), link: "/tenant-portal", meta: { rentPaymentId: payment.id },
+          });
         }
       } catch (waErr) {
-        console.error("[WhatsApp] Payment confirmation failed (non-fatal):", waErr);
+        console.error("[notify] Payment confirmation failed (non-fatal):", waErr);
       }
     }
 
-    // ── eTIMS auto-submission ──────────────────────────────────────────────────
-    // Submit the rent payment to KRA eTIMS immediately on confirmation.
-    // Non-fatal: a network or config failure must never roll back a payment.
-    // The submission is logged and can be retried from the eTIMS dashboard.
-    try {
-      const orgId: number = req.user.organizationId;
-      const etims = await submitInvoice(orgId, "rent_payment", payment.id);
-      console.log(
-        `[eTIMS] Payment #${payment.id} submitted — rcptNo: ${etims.rcptNo ?? "sandbox"}`
-      );
-    } catch (etimsErr: any) {
-      console.error("[eTIMS] Auto-submission failed (non-fatal):", etimsErr.message);
-    }
-    // ──────────────────────────────────────────────────────────────────────────
-
-    // ── Kenyan Landlord and Tenant Act: receipts for all payments ─────────────
-    // The Act requires landlords to issue receipts for all payments. M-Pesa
-    // payments are covered by the WhatsApp confirmation above. For cash and
-    // bank-transfer payments recorded manually, we generate and attach a receipt
-    // to the response so the manager can print or forward it to the tenant.
-    let receiptData: Record<string, any> | null = null;
-    const method = (data.paymentMethod ?? "").toLowerCase();
-    if (method !== "mpesa" && method !== "m-pesa") {
+    // KRA eTIMS — once the invoice is fully settled. Non-fatal; can be retried from the eTIMS dashboard.
+    if (result.fullyPaid) {
       try {
-        const [tenant] = await db
-          .select({
-            firstName: tenants.firstName,
-            lastName:  tenants.lastName,
-            phone:     tenants.phone,
-            email:     tenants.email,
-          })
-          .from(tenants)
-          .where(eq(tenants.id, payment.tenantId!))
-          .limit(1);
-
-        const receiptNumber = `RCP-${payment.invoiceNumber ?? payment.id}-${Date.now().toString(36).toUpperCase()}`;
-        receiptData = {
-          receiptNumber,
-          paymentId:     payment.id,
-          invoiceNumber: payment.invoiceNumber,
-          tenantName:    tenant ? `${tenant.firstName} ${tenant.lastName}`.trim() : "Tenant",
-          tenantPhone:   tenant?.phone ?? null,
-          tenantEmail:   tenant?.email ?? null,
-          amount:        Number(payment.amount ?? 0),
-          currency:      payment.currency ?? "KES",
-          paidDate:      data.paidDate,
-          paymentMethod: data.paymentMethod,
-          reference:     data.bankReference ?? data.transactionId ?? null,
-          notes:         data.notes ?? null,
-          issuedAt:      new Date().toISOString(),
-          // Flag so the UI knows to offer a print/send action
-          requiresIssuance: true,
-        };
-
-        console.log(`[Receipt] Generated ${receiptNumber} for ${method} payment #${payment.id}`);
-      } catch (rcptErr) {
-        console.error("[Receipt] Generation failed (non-fatal):", rcptErr);
+        const etims = await submitInvoice(orgId, "rent_payment", payment.id);
+        console.log(`[eTIMS] Payment #${payment.id} submitted — rcptNo: ${etims.rcptNo ?? "sandbox"}`);
+      } catch (etimsErr: any) {
+        console.error("[eTIMS] Auto-submission failed (non-fatal):", etimsErr.message);
       }
     }
-    // ─────────────────────────────────────────────────────────────────────────
 
-    res.json({ ...payment, receipt: receiptData });
+    // Kenyan Landlord and Tenant Act: a receipt for every payment. It is stored (payment_receipts), so it can be
+    // reprinted from GET /:id/receipts; the response carries it for immediate printing / forwarding.
+    const receiptData = {
+      receiptNumber: result.receipt!.receiptNumber,
+      paymentId:     payment.id,
+      invoiceNumber: payment.invoiceNumber,
+      tenantName:    tenant ? `${tenant.firstName} ${tenant.lastName}`.trim() : "Tenant",
+      tenantPhone:   tenant?.phone ?? null,
+      tenantEmail:   tenant?.email ?? null,
+      amount,
+      currency:      payment.currency ?? "KES",
+      paidDate,
+      paymentMethod: method,
+      reference,
+      notes:         data.notes ?? null,
+      invoiceTotal:  money(payment.amount),
+      paidToDate:    result.paidAmount,
+      balance:       result.balance,
+      fullyPaid:     result.fullyPaid,
+      issuedAt:      new Date().toISOString(),
+      requiresIssuance: method !== "mpesa" && method !== "m-pesa",
+    };
+
+    res.json({ ...payment, paidAmount: result.paidAmount, balance: result.balance, receipt: receiptData });
   } catch (error) {
-    if (error instanceof z.ZodError) {
-      return res.status(400).json({ message: "Invalid data", errors: error.errors });
-    }
+    if (ruleErrorResponse(res, error)) return;
     console.error("Mark paid error:", error);
     res.status(500).json({ message: "Failed to mark payment as paid" });
   }
 });
 
+// GET /api/rent-payments/:id/receipts — every receipt issued against the invoice (reprint / audit)
+router.get("/:id/receipts", authenticateJWT, async (req: any, res) => {
+  try {
+    const owned = await requireOwnedRentPayment(req, res);
+    if (!owned) return;
+    const rows = await receiptsFor({ kind: "rent", id: owned.id });
+    const bal = await rentBalance(owned);
+    res.json({ invoiceNumber: owned.invoiceNumber, amount: owned.amount, ...bal, receipts: rows });
+  } catch (error) {
+    console.error("Receipts error:", error);
+    res.status(500).json({ message: "Failed to fetch receipts" });
+  }
+});
+
 // POST /api/rent-payments/:id/apply-late-fee
+// One fee per invoice, on an invoice that is unpaid and past its due date. Accepts { lateFeeAmount } (or { amount }).
+const LATE_FEE_TAG = "[late-fee";
 router.post("/:id/apply-late-fee", authenticateJWT, auditLog("rent_payment", "ACTION"), async (req: any, res) => {
   try {
     const owned = await requireOwnedRentPayment(req, res);
     if (!owned) return;
 
-    const id = parseInt(req.params.id);
-    const schema = z.object({ lateFeeAmount: z.string() });
-    const { lateFeeAmount } = schema.parse(req.body);
-    const payment = await storage.applyLateFee(id, lateFeeAmount);
-    res.json(payment);
-  } catch (error) {
-    if (error instanceof z.ZodError) {
-      return res.status(400).json({ message: "Invalid data", errors: error.errors });
+    const raw = req.body?.lateFeeAmount ?? req.body?.amount;
+    const fee = round2(money(raw));
+    if (raw === undefined || raw === null || !(fee > 0) || !/^\s*\d+(\.\d+)?\s*$/.test(String(raw))) {
+      return res.status(400).json({ message: "Enter the late fee as a positive amount." });
     }
+    const base = money(owned.amount);
+    if (fee > base) return res.status(400).json({ message: "A late fee cannot be larger than the invoice itself." });
+
+    if (owned.status === "paid" || owned.status === "completed") return res.status(409).json({ message: "This invoice is already paid — a late fee cannot be added." });
+    if (String(owned.dueDate ?? "") >= todayEAT()) return res.status(409).json({ message: "This invoice is not past its due date yet." });
+    if ((owned.notes ?? "").includes(LATE_FEE_TAG)) return res.status(409).json({ message: "A late fee has already been applied to this invoice." });
+
+    // the WHERE re-checks everything, so two clicks racing cannot both add the fee
+    const [updated] = await db.update(rentPayments).set({
+      amount: (base + fee).toFixed(2),
+      status: owned.status === "partial" ? "partial" : "overdue",
+      notes: [owned.notes, `${LATE_FEE_TAG} ${owned.currency ?? "KES"} ${fee.toFixed(2)} added ${todayEAT()}]`].filter(Boolean).join(" | "),
+      updatedAt: new Date(),
+    }).where(and(eq(rentPayments.id, owned.id), sql`${rentPayments.status} IN ('pending','overdue','partial')`, sql`COALESCE(${rentPayments.notes},'') NOT LIKE ${'%' + LATE_FEE_TAG + '%'}`)).returning();
+    if (!updated) return res.status(409).json({ message: "This invoice changed while you were editing it — refresh and try again." });
+    res.json({ ...updated, ...(await rentBalance(updated)) });
+  } catch (error) {
     console.error("Late fee error:", error);
     res.status(500).json({ message: "Failed to apply late fee" });
   }
@@ -499,29 +500,50 @@ router.get("/generate-invoice-number", authenticateJWT, async (_req, res) => {
   }
 });
 
-// POST /api/rent-payments — create a new rent payment record
+// POST /api/rent-payments — create an invoice (or record a payment that was already received)
+// status "paid" + paidDate is the "record a payment received outside the system" shortcut: the invoice is created and
+// the payment is applied through the same ledger as everything else (receipt + ledger posting), never as a bare flag.
+const isoDay = (v: string) => validPaidDate(v) || /^\d{4}-\d{2}-\d{2}$/.test(v) && !Number.isNaN(new Date(`${v}T00:00:00Z`).getTime());
+const createSchema = z.object({
+  tenantId:      z.number().int().positive(),
+  amount:        z.union([z.string(), z.number()]).transform(v => String(v).trim()).refine(v => /^\d+(\.\d{1,2})?$/.test(v) && parseFloat(v) > 0, "Amount must be a positive number"),
+  currency:      z.string().trim().length(3).default("KES"),
+  dueDate:       z.string().refine(isoDay, "Due date must be a valid date (YYYY-MM-DD)"),
+  paidDate:      z.string().refine(validPaidDate, "Payment date must be a real date, not in the future").optional(),
+  paymentMethod: z.string().trim().min(1).max(30).optional(),
+  status:        z.enum(["pending", "paid", "overdue"]).default("pending"),
+  notes:         z.string().max(500).optional(),
+  invoiceNumber: z.string().trim().min(1).max(50).optional(),
+  mpesaTransactionId: z.string().trim().max(100).optional(),
+  bankReference: z.string().trim().max(100).optional(),
+});
+
 router.post("/", authenticateJWT, requireOrg, auditLog("rent_payment", "CREATE"), async (req: any, res) => {
   try {
-    const schema = z.object({
-      tenantId:      z.number(),
-      amount:        z.string(),
-      currency:      z.string().default("KES"),
-      dueDate:       z.string(),
-      paidDate:      z.string().optional(),
-      paymentMethod: z.string().optional(),
-      status:        z.enum(["pending", "paid", "overdue", "partial"]).default("pending"),
-      notes:         z.string().optional(),
-      invoiceNumber: z.string().optional(),
-      mpesaTransactionId: z.string().optional(),
-      bankReference: z.string().optional(),
-    });
-    const data = schema.parse(req.body);
-    const payment = await storage.createRentPayment(data);
-    res.status(201).json(payment);
-  } catch (error) {
-    if (error instanceof z.ZodError) {
-      return res.status(400).json({ message: "Invalid data", errors: error.errors });
+    const parsed = createSchema.safeParse(req.body ?? {});
+    if (!parsed.success) return res.status(400).json({ message: parsed.error.errors[0]?.message ?? "Invalid data", errors: parsed.error.errors });
+    const data = parsed.data;
+
+    // the tenant must be one of the caller's own (404, not 403, so ids of other organisations are not confirmed)
+    if (!(await callerCanUseTenant(req, data.tenantId))) return res.status(404).json({ message: "Tenant not found" });
+
+    const markPaidNow = data.status === "paid";
+    const { paidDate, paymentMethod, mpesaTransactionId, bankReference, status, ...rest } = data;
+    const payment = await storage.createRentPayment({ ...rest, status: markPaidNow ? "pending" : status } as any);
+
+    if (markPaidNow) {
+      const result = await applyPayment({
+        target: { kind: "rent", id: payment.id }, amount: money(payment.amount), method: (paymentMethod ?? "cash").toLowerCase(),
+        paidDate: paidDate ?? todayEAT(), reference: mpesaTransactionId || bankReference || null, actorUserId: req.user.id, allowOverpay: false,
+      });
+      return res.status(201).json({ ...result.record, paidAmount: result.paidAmount, balance: result.balance, receipt: result.receipt });
     }
+    res.status(201).json(payment);
+  } catch (error: any) {
+    if (error?.code === "23505" || /duplicate key|unique constraint/i.test(String(error?.cause?.message ?? error?.message ?? ""))) {
+      return res.status(409).json({ message: "An invoice with that number already exists." });
+    }
+    if (ruleErrorResponse(res, error)) return;
     console.error("Create payment error:", error);
     res.status(500).json({ message: "Failed to create payment" });
   }
@@ -578,22 +600,27 @@ router.get("/export", authenticateJWT, requireOrg, async (req: any, res) => {
         lastName:      tenants.lastName,
       })
       .from(rentPayments)
-      .leftJoin(tenants, and(...tenantJoinConditions))
+      .innerJoin(tenants, and(...tenantJoinConditions))   // INNER: a LEFT join here exported every organisation's invoices
       .where(paymentConditions.length ? and(...paymentConditions) : undefined)
       .orderBy(desc(rentPayments.dueDate));
 
-    const header = "ID,Invoice,Tenant,Amount,Currency,Due Date,Paid Date,Status,Payment Method,Notes";
+    const bal = await rentBalances(rows as any);
+    // a cell starting with = + - @ is executed as a formula by Excel — neutralise it
+    const cell = (v: unknown) => { const t = String(v ?? ""); return `"${(/^[=+\-@]/.test(t) ? "'" + t : t).replace(/"/g, '""')}"`; };
+    const header = "ID,Invoice,Tenant,Amount,Paid,Balance,Currency,Due Date,Paid Date,Status,Payment Method,Notes";
     const csvRows = rows.map(r => [
       r.id,
-      r.invoiceNumber ?? "",
-      `${r.firstName ?? ""} ${r.lastName ?? ""}`.trim(),
+      cell(r.invoiceNumber),
+      cell(`${r.firstName ?? ""} ${r.lastName ?? ""}`.trim()),
       r.amount,
+      bal.get(r.id)?.paidAmount ?? 0,
+      bal.get(r.id)?.balance ?? r.amount,
       r.currency,
       r.dueDate ?? "",
       r.paidDate ?? "",
       r.status,
-      r.paymentMethod ?? "",
-      `"${(r.notes ?? "").replace(/"/g, '""')}"`,
+      cell(r.paymentMethod),
+      cell(r.notes),
     ].join(","));
 
     const csv = [header, ...csvRows].join("\n");
@@ -612,22 +639,19 @@ router.get("/export", authenticateJWT, requireOrg, async (req: any, res) => {
 // Paid invoices cannot be deleted to preserve audit trail.
 router.delete("/:id", authenticateJWT, requireOrg, auditLog("rent_payment", "DELETE"), async (req: any, res) => {
   try {
-    const id    = parseInt(req.params.id);
-    const orgId = req.user.organizationId as number;
+    // org + (for a landlord) ownership — this used to check the organisation only
+    const payment = await requireOwnedRentPayment(req, res);
+    if (!payment) return;
+    const id = payment.id;
 
-    // Verify the payment belongs to this org and is not paid
-    const [payment] = await db
-      .select({ id: rentPayments.id, status: rentPayments.status, tenantId: rentPayments.tenantId })
-      .from(rentPayments)
-      .innerJoin(tenants, eq(rentPayments.tenantId, tenants.id))
-      .where(and(eq(rentPayments.id, id), eq(tenants.organizationId, orgId)))
-      .limit(1);
-
-    if (!payment) return res.status(404).json({ message: "Payment not found" });
-    if (payment.status === "paid") {
-      return res.status(409).json({ message: "Cannot delete a paid invoice. Reverse it instead." });
+    if (payment.status === "paid" || payment.status === "completed" || payment.status === "partial") {
+      return res.status(409).json({ message: "Money has already been received against this invoice, so it cannot be deleted. Keep it for the audit trail." });
     }
+    const bal = await rentBalance(payment);
+    if (bal.paidAmount > 0) return res.status(409).json({ message: "Money has already been received against this invoice, so it cannot be deleted." });
 
+    // any M-Pesa attempt / receipt rows point at the invoice — clear the unfinished ones so the delete can go through
+    await db.delete(mpesaTransactions).where(and(eq(mpesaTransactions.rentPaymentId, id), sql`${mpesaTransactions.status} <> 'completed'`));
     await db.delete(rentPayments).where(eq(rentPayments.id, id));
     res.status(204).send();
   } catch (error) {
@@ -642,6 +666,7 @@ router.delete("/:id", authenticateJWT, requireOrg, auditLog("rent_payment", "DEL
 // Safe to call multiple times. Paid records are never touched.
 router.post("/dedup-cleanup", authenticateJWT, requireOrg, async (req: any, res) => {
   try {
+    if (!["admin", "manager"].includes(req.user.role)) return res.status(403).json({ message: "Only an administrator or manager can clean up duplicate invoices." });
     const orgId = req.user.organizationId as number;
 
     // Fetch all non-paid payments for this org ordered oldest-first
@@ -652,6 +677,7 @@ router.post("/dedup-cleanup", authenticateJWT, requireOrg, async (req: any, res)
         dueDate:       rentPayments.dueDate,
         status:        rentPayments.status,
         invoiceNumber: rentPayments.invoiceNumber,
+        amount:        rentPayments.amount,
       })
       .from(rentPayments)
       .innerJoin(tenants, eq(rentPayments.tenantId, tenants.id))
@@ -670,7 +696,8 @@ router.post("/dedup-cleanup", authenticateJWT, requireOrg, async (req: any, res)
     for (const row of rows) {
       const month = String(row.dueDate ?? "").slice(0, 7); // "YYYY-MM"
       if (!month) continue;
-      const key = `${row.tenantId}|${month}`;
+      // same tenant, same month AND same amount — two different charges in one month (rent + a one-off) are not duplicates
+      const key = `${row.tenantId}|${month}|${money(row.amount)}`;
       if (seen.has(key)) {
         toDelete.push(row.id); // duplicate — mark for deletion
       } else {

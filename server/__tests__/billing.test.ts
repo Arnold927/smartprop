@@ -25,15 +25,15 @@
  *     ✓ POST /api/billing/webhook with unknown OrderTrackingId → 200 (idempotent ACK)
  *
  *   Invoice generation (utility billing)
- *     ✓ POST /api/generate-invoices → 401 without token
- *     ✓ POST /api/generate-invoices → 200 with admin token, returns invoice list
+ *     ✓ POST /api/billing/generate-invoices → 401 without token
+ *     ✓ POST /api/billing/generate-invoices → 200 with admin token, returns invoice list
  *     ✓ Generated invoices have required fields: tenantId, amount, dueDate, status
  *
  *   Rent payment recording (core billing path)
  *     ✓ POST /api/rent-payments → 201 with correct body
  *     ✓ Amount is stored as-is (no rounding artifact)
  *     ✓ Duplicate mpesaTransactionId → conflict detected (409 or idempotent 200)
- *     ✓ Payment with status "overdue" can be updated to "paid" via PATCH
+ *     ✓ Overdue invoice: PATCH to "paid" refused (400); mark-paid settles it
  *     ✓ GET /api/rent-payments returns only org-scoped data (isolation check)
  */
 
@@ -200,15 +200,15 @@ describe("POST /api/billing/webhook", () => {
 // INVOICE GENERATION
 // ══════════════════════════════════════════════════════════════════════════════
 
-describe("POST /api/generate-invoices", () => {
+describe("POST /api/billing/generate-invoices", () => {
 
   it("401 without token", async () => {
-    const res = await supertest(app).post("/api/generate-invoices").send({});
+    const res = await supertest(app).post("/api/billing/generate-invoices").send({});
     expect(res.status).toBe(401);
   });
 
   it("generates invoices for the org → 200 with array", async () => {
-    const res = await authedPost(app, "/api/generate-invoices", ctx.adminToken, {
+    const res = await authedPost(app, "/api/billing/generate-invoices", ctx.adminToken, {
       period: new Date().toISOString().slice(0, 7), // YYYY-MM
     });
     expect([200, 201]).toContain(res.status);
@@ -276,7 +276,7 @@ describe("POST /api/rent-payments — core billing path", () => {
     expect(res.status).toBeLessThan(500);
   });
 
-  it("overdue payment can be updated to 'paid' via PATCH", async () => {
+  it("an overdue invoice is settled through mark-paid — PATCH can no longer force status 'paid'", async () => {
     // Create an overdue payment
     const createRes = await authedPost(app, "/api/rent-payments", ctx.adminToken, {
       tenantId:      ctx.tenantId,
@@ -290,13 +290,17 @@ describe("POST /api/rent-payments — core billing path", () => {
     const paymentId = createRes.body.id;
     createdPaymentIds.push(paymentId);
 
-    // Now mark it paid
+    // Editing the status by hand would skip the receipt and the ledger entry, so it is refused …
     const patchRes = await authedPatch(app, `/api/rent-payments/${paymentId}`, ctx.adminToken, {
       status:   "paid",
       paidDate: new Date().toISOString(),
     });
-    expect([200, 201]).toContain(patchRes.status);
-    expect(patchRes.body.status).toBe("paid");
+    expect(patchRes.status).toBe(400);
+
+    // … the way to settle it is to record the money
+    const payRes = await authedPost(app, `/api/rent-payments/${paymentId}/mark-paid`, ctx.adminToken, { paidDate: new Date().toISOString().slice(0, 10), paymentMethod: "cash" });
+    expect(payRes.status).toBe(200);
+    expect(payRes.body.status).toBe("paid");
   });
 
   it("org isolation — org2 admin cannot see org1 payments", async () => {
@@ -316,8 +320,12 @@ describe("POST /api/rent-payments — core billing path", () => {
     // Org2 admin fetches payment list — should not include org1's payment
     const listRes = await authedGet(app, "/api/rent-payments", ctx2.adminToken);
     expect(listRes.status).toBe(200);
-    const ids = (listRes.body as any[]).map((p: any) => p.id);
+    const rows = Array.isArray(listRes.body) ? listRes.body : listRes.body.results;   // paginated: { results }
+    const ids = (rows as any[]).map((p: any) => p.id);
     expect(ids).not.toContain(org1PaymentId);
+    // … nor open it by id
+    const byId = await authedGet(app, `/api/rent-payments/${org1PaymentId}`, ctx2.adminToken);
+    expect([403, 404]).toContain(byId.status);
   });
 
   it("tenant role → 401 or 403 on POST /api/rent-payments", async () => {
@@ -345,10 +353,10 @@ describe("GET /api/arrears — overdue rent detection", () => {
     expect(res.status).toBe(401);
   });
 
-  it("200 with admin token — returns array", async () => {
+  it("200 with admin token — returns the arrears list (paginated)", async () => {
     const res = await authedGet(app, "/api/arrears", ctx.adminToken);
     expect(res.status).toBe(200);
-    expect(Array.isArray(res.body)).toBe(true);
+    expect(Array.isArray(res.body) || Array.isArray(res.body?.results)).toBe(true);
   });
 
   it("tenant role → 403 (cannot see arrears list)", async () => {

@@ -30,8 +30,9 @@
 import { db } from "../db";
 import { and, eq, inArray, sql } from "drizzle-orm";
 import {
-  maintenanceRequests, units, properties, tenants, users, staffMembers, contractors, workOrders, pmAgreements, utilityBills,
+  maintenanceRequests, units, properties, tenants, users, staffMembers, contractors, workOrders, pmAgreements, utilityBills, mpesaTransactions,
 } from "@shared/schema";
+import { paidToDate, EPS as MONEY_EPS } from "./rent-ledger";
 import { storage } from "../storage";
 import { notifyMaintenanceUpdated } from "../ws";
 import { pushNotification } from "../routes/notifications";
@@ -587,13 +588,22 @@ export async function issueTenantChargeBill(updated: any, tenantId: number | nul
 
   const now = new Date();
   const notes = `Repair charge for "${updated.title}" (#${updated.ticketNumber})${updated.tenantChargeReason ? `: ${updated.tenantChargeReason}` : ""}`;
-  const fields = { amount: amount.toFixed(2), notes };
+  let fields: Record<string, any> = { amount: amount.toFixed(2), notes };
 
   // Already billed? Update it while it is unpaid; a paid bill is never touched.
   if (updated.tenantChargeBillId) {
     const [bill] = await db.select().from(utilityBills).where(eq(utilityBills.id, updated.tenantChargeBillId)).limit(1);
     if (bill) {
       if (bill.status === "paid") return bill;
+      // Part of it may already be paid (M-Pesa part payments): the bill can follow the cost UP or DOWN, but never below what
+      // the tenant has already handed over — and if the cost drops to exactly that, the bill is simply settled.
+      const received = await paidToDate({ kind: "utility", id: bill.id });
+      if (received > 0 && amount <= received + MONEY_EPS) {
+        amount = received;
+        fields = { amount: received.toFixed(2), notes, status: "paid", paidDate: new Date() };
+      } else {
+        fields = { amount: amount.toFixed(2), notes };
+      }
       const [b] = await db.update(utilityBills).set(fields as any).where(eq(utilityBills.id, bill.id)).returning();
       if (money(bill.amount) !== amount) {
         await tellTenant(tenantId, "Repair charge updated", `The repair charge for request #${updated.ticketNumber} was changed to ${tenant.currency ?? "KES"} ${amount.toLocaleString("en-KE")}. See Utility Bills in your portal.`, updated.id);
@@ -615,6 +625,12 @@ export async function issueTenantChargeBill(updated: any, tenantId: number | nul
   return bill;
 }
 
+/** Delete a bill nothing has been paid on. Unfinished M-Pesa attempts point at it, so they go first (the database would refuse the delete). */
+async function removeUnpaidBill(billId: number) {
+  await db.delete(mpesaTransactions).where(and(eq(mpesaTransactions.utilityBillId, billId), sql`${mpesaTransactions.status} <> 'completed'`));
+  await db.delete(utilityBills).where(eq(utilityBills.id, billId));
+}
+
 /** The tenant's repair bill, if one was issued and still exists. */
 async function chargeBillOf(billId: number | null | undefined) {
   if (!billId) return null;
@@ -626,8 +642,10 @@ async function chargeBillOf(billId: number | null | undefined) {
 export async function assertCostEditAllowed(ctx: Pick<RequestCtx, "tenantChargeBillId" | "chargeTenant">, newActualCost: unknown) {
   if (!ctx.chargeTenant || newActualCost == null || String(newActualCost) === "") return;
   const bill = await chargeBillOf(ctx.tenantChargeBillId);
-  if (bill?.status === "paid" && money(newActualCost) < money(bill.amount)) {
-    throw new WorkflowError(409, `The tenant has already paid ${money(bill.amount).toLocaleString("en-KE")} for this repair, so the cost can't be lowered below that. Refund the charge from Finances first.`, "ALREADY_PAID");
+  if (!bill) return;
+  const received = bill.status === "paid" ? money(bill.amount) : await paidToDate({ kind: "utility", id: bill.id });
+  if (received > 0 && money(newActualCost) < received - MONEY_EPS) {
+    throw new WorkflowError(409, `The tenant has already paid ${received.toLocaleString("en-KE")} for this repair, so the cost can't be lowered below that. Refund the charge from Finances first.`, "ALREADY_PAID");
   }
 }
 
@@ -650,12 +668,13 @@ async function pauseChargeOnReopen(ctx: RequestCtx, actor: Actor) {
   if (!ctx.chargeTenant || !ctx.tenantId) return;
   const bill = await chargeBillOf(ctx.tenantChargeBillId);
   if (!bill) return;
-  if (bill.status === "paid") {
+  const alreadyPaid = bill.status === "paid" ? money(bill.amount) : await paidToDate({ kind: "utility", id: bill.id });
+  if (alreadyPaid > 0) {
     await appendThreadNote(ctx.id, actor, "Reopened after the tenant had already paid the repair charge — decide whether to refund it from Finances.").catch(() => {});
     await notifyOversight(actor.organizationId, ctx, "Reopened after a paid charge", `${ctx.title ?? ctx.ticketNumber} (#${ctx.ticketNumber}) was reopened, but the tenant already paid its repair charge. Consider a refund.`, actor.id ? [actor.id] : []).catch(() => {});
     return;
   }
-  await db.delete(utilityBills).where(eq(utilityBills.id, bill.id));
+  await removeUnpaidBill(bill.id);
   await db.update(maintenanceRequests).set({ tenantChargeBillId: null } as any).where(eq(maintenanceRequests.id, ctx.id));
   await appendThreadNote(ctx.id, actor, "Repair charge withdrawn while the job is redone — it will be billed again when it is completed.").catch(() => {});
   await tellTenant(ctx.tenantId, "Repair charge on hold", `You reopened request #${ctx.ticketNumber}, so the repair charge was taken off your account for now. You'll only be billed once the fix is done.`, ctx.id);
@@ -678,8 +697,8 @@ export async function setTenantCharge(
 
   // ── Remove the charge ──
   if (!input.charge) {
-    if (bill?.status === "paid") throw new WorkflowError(409, "The tenant has already paid this charge. Refund it from Finances instead.", "ALREADY_PAID");
-    if (bill) await db.delete(utilityBills).where(eq(utilityBills.id, bill.id));
+    if (bill && (bill.status === "paid" || (await paidToDate({ kind: "utility", id: bill.id })) > 0)) throw new WorkflowError(409, "The tenant has already paid this charge (or part of it). Refund it from Finances instead.", "ALREADY_PAID");
+    if (bill) await removeUnpaidBill(bill.id);
     const [u] = await db.update(maintenanceRequests)
       .set({ chargeTenant: false, tenantChargeAmount: null, tenantChargeReason: null, tenantChargeBillId: null, updatedAt: new Date() } as any)
       .where(eq(maintenanceRequests.id, requestId)).returning();

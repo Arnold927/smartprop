@@ -20,6 +20,8 @@ import { Router } from "express";
 import { db } from "../db";
 import { rentPayments, tenants, units, properties, insertRentPaymentSchema } from "@shared/schema";
 import { eq, and } from "drizzle-orm";
+import { z } from "zod";
+import { rentBalance, money, EPS } from "../services/rent-ledger";
 import { authenticateJWT } from "../middleware/auth";
 import { requireOrg } from "../middleware/requireOrg";
 
@@ -62,12 +64,22 @@ router.get("/:id", async (req: any, res: any) => {
 
     const ok = await callerCanAccess(payment.tenantId, req.user.organizationId, req.user.role ?? "", req.user.id);
     if (!ok) return res.status(404).json({ message: "Payment not found" });
-    res.json(payment);
+    res.json({ ...payment, ...(await rentBalance(payment)) });
   } catch (err) {
     console.error("[rent-payments-item-guard] GET /:id:", err);
     res.status(500).json({ message: "Failed to fetch payment" });
   }
 });
+
+// What an edit may change. Money state (status paid/partial, paid date, method, M-Pesa / bank reference) is written ONLY by
+// POST /:id/mark-paid and the M-Pesa reconciliation — a PATCH that set status "paid" used to close an invoice with no
+// receipt, no ledger entry and no record of how much was received.
+const editSchema = z.object({
+  amount:   z.union([z.string(), z.number()]).transform(v => String(v).trim()).refine(v => /^\d+(\.\d{1,2})?$/.test(v) && parseFloat(v) > 0, "Amount must be a positive number").optional(),
+  dueDate:  z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Due date must be YYYY-MM-DD").refine(v => !Number.isNaN(new Date(`${v}T00:00:00Z`).getTime()), "Due date must be a real date").optional(),
+  notes:    z.string().max(1000).nullable().optional(),
+  status:   z.enum(["pending", "overdue"]).optional(),
+}).strict();
 
 async function handleUpdate(req: any, res: any) {
   try {
@@ -78,11 +90,27 @@ async function handleUpdate(req: any, res: any) {
     const ok = await callerCanAccess(payment.tenantId, req.user.organizationId, req.user.role ?? "", req.user.id);
     if (!ok) return res.status(404).json({ message: "Payment not found" });
 
-    const validated = insertRentPaymentSchema.partial().parse(req.body);
-    const [updated] = await db.update(rentPayments).set(validated as any).where(eq(rentPayments.id, id)).returning();
-    res.json(updated);
+    const body = req.body ?? {};
+    if (["paid", "partial", "completed"].includes(body.status)) {
+      return res.status(400).json({ message: "To record a payment use Record payment — it issues the receipt and posts to the ledger. The status cannot be set directly." });
+    }
+    const parsed = editSchema.safeParse(body);
+    if (!parsed.success) return res.status(400).json({ message: parsed.error.errors[0]?.message ?? "Invalid data", errors: parsed.error.errors });
+    const edit = parsed.data;
+
+    const settled = payment.status === "paid" || payment.status === "completed";
+    if (settled && (edit.amount !== undefined || edit.dueDate !== undefined || edit.status !== undefined)) {
+      return res.status(409).json({ message: "This invoice is already paid, so its amount and dates are locked." });
+    }
+    const bal = await rentBalance(payment);
+    if (edit.amount !== undefined && money(edit.amount) <= bal.paidAmount + (bal.paidAmount > 0 ? EPS : -1)) {
+      return res.status(409).json({ message: `Part of this invoice has already been paid (${payment.currency ?? "KES"} ${bal.paidAmount.toLocaleString("en-KE")}). The amount cannot be set to less than what was received.` });
+    }
+    if (payment.status === "partial" && edit.status) return res.status(409).json({ message: "A part-paid invoice keeps the status Partial until it is settled." });
+
+    const [updated] = await db.update(rentPayments).set({ ...edit, updatedAt: new Date() } as any).where(eq(rentPayments.id, id)).returning();
+    res.json({ ...updated, ...(await rentBalance(updated)) });
   } catch (err: any) {
-    if (err?.name === "ZodError") return res.status(400).json({ errors: err.errors });
     console.error("[rent-payments-item-guard] update:", err);
     res.status(500).json({ message: "Failed to update payment" });
   }

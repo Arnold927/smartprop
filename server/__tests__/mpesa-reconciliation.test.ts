@@ -35,7 +35,8 @@ import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import supertest from "supertest";
 import { getApp, setupTestData, cleanupTestData, authedPost, authedGet, authedPatch, type TestContext } from "./helpers";
 import { db } from "../db";
-import { mpesaTransactions, rentPayments } from "@shared/schema";
+import { mpesaTransactions, rentPayments, tenants, paymentReceipts } from "@shared/schema";
+import { paidToDate } from "../services/rent-ledger";
 import { eq, and, isNull } from "drizzle-orm";
 
 let app: any;
@@ -75,9 +76,16 @@ function stkCallback(overrides: {
             },
       },
     },
-    // SmartProp adds this field when initiating STK so the callback can find the payment
-    _rentPaymentId: overrides.rentPaymentId,
   };
+}
+
+/** What /api/mpesa/initiate does before the customer types a PIN: one pending row keyed by CheckoutRequestID. */
+async function initiateStk(rentPaymentId: number, amount: number, checkoutRequestId: string) {
+  await db.insert(mpesaTransactions).values({
+    organizationId: ctx.orgId, tenantId: ctx.tenantId, rentPaymentId,
+    phoneNumber: "254712000001", amount: String(amount), status: "pending",
+    checkoutRequestId, description: "test stk",
+  } as any);
 }
 
 async function createPendingPayment(amount = FULL_RENT): Promise<number> {
@@ -96,11 +104,12 @@ async function createPendingPayment(amount = FULL_RENT): Promise<number> {
 
 async function getPayment(id: number) {
   const [row] = await db
-    .select({ status: rentPayments.status, amount: rentPayments.amount, paidAmount: rentPayments.paidAmount })
+    .select({ status: rentPayments.status, amount: rentPayments.amount })
     .from(rentPayments)
     .where(eq(rentPayments.id, id))
     .limit(1);
-  return row;
+  // what has been received comes from the receipts ledger (there is no paidAmount column)
+  return row ? { ...row, paidAmount: await paidToDate({ kind: "rent", id }) } : row;
 }
 
 // ── Setup / teardown ──────────────────────────────────────────────────────────
@@ -117,6 +126,7 @@ afterAll(async () => {
     .catch(() => {});
   // Remove rent payments created during tests
   for (const id of createdPaymentIds) {
+    await db.delete(paymentReceipts).where(eq(paymentReceipts.paymentId, id)).catch(() => {});
     await db.delete(rentPayments).where(eq(rentPayments.id, id)).catch(() => {});
   }
   await cleanupTestData(ctx);
@@ -131,7 +141,9 @@ describe("POST /api/mpesa/callback — STK push reconciliation", () => {
   it("full payment → rent payment marked 'paid' with receipt", async () => {
     const paymentId = await createPendingPayment(FULL_RENT);
     const receipt   = "QKE_FULL_" + Date.now();
-    const cb        = stkCallback({ receipt, amount: FULL_RENT, rentPaymentId: paymentId });
+    const co        = "ws_CO_full_" + Date.now();
+    await initiateStk(paymentId, FULL_RENT, co);
+    const cb        = stkCallback({ receipt, amount: FULL_RENT, checkoutRequestId: co });
 
     const res = await supertest(app)
       .post("/api/mpesa/callback")
@@ -140,18 +152,23 @@ describe("POST /api/mpesa/callback — STK push reconciliation", () => {
     // Callback must respond 200 to Safaricom (they retry on non-200)
     expect(res.status).toBe(200);
 
+    await new Promise(r => setTimeout(r, 600)); // the callback is acknowledged first, then reconciled
     const payment = await getPayment(paymentId);
     expect(payment?.status).toBe("paid");
+    expect(payment?.paidAmount).toBe(FULL_RENT);
   });
 
   it("idempotency — duplicate receipt ignored, payment not double-credited", async () => {
     const paymentId = await createPendingPayment(FULL_RENT);
     const receipt   = "QKE_DUPE_" + Date.now();
-    const cb        = stkCallback({ receipt, amount: FULL_RENT, rentPaymentId: paymentId });
+    const co        = "ws_CO_dupe_" + Date.now();
+    await initiateStk(paymentId, FULL_RENT, co);
+    const cb        = stkCallback({ receipt, amount: FULL_RENT, checkoutRequestId: co });
 
     // First callback — should succeed
     const r1 = await supertest(app).post("/api/mpesa/callback").send(cb);
     expect(r1.status).toBe(200);
+    await new Promise(r => setTimeout(r, 600));
 
     const afterFirst = await getPayment(paymentId);
     expect(afterFirst?.status).toBe("paid");
@@ -159,6 +176,8 @@ describe("POST /api/mpesa/callback — STK push reconciliation", () => {
     // Second callback with same receipt — must be ignored
     const r2 = await supertest(app).post("/api/mpesa/callback").send(cb);
     expect(r2.status).toBe(200); // still 200 — idempotent, not an error
+    await new Promise(r => setTimeout(r, 400));
+    expect((await getPayment(paymentId))?.paidAmount).toBe(FULL_RENT); // not 100,000
 
     // Verify no duplicate mpesa transaction rows
     const rows = await db
@@ -172,42 +191,55 @@ describe("POST /api/mpesa/callback — STK push reconciliation", () => {
     const paymentId   = await createPendingPayment(FULL_RENT);
     const partialAmt  = 20_000;
     const receipt     = "QKE_PART_" + Date.now();
-    const cb          = stkCallback({ receipt, amount: partialAmt, rentPaymentId: paymentId });
+    const co          = "ws_CO_part_" + Date.now();
+    await initiateStk(paymentId, partialAmt, co);
+    const cb          = stkCallback({ receipt, amount: partialAmt, checkoutRequestId: co });
 
     await supertest(app).post("/api/mpesa/callback").send(cb);
+    await new Promise(r => setTimeout(r, 600));
 
     const payment = await getPayment(paymentId);
     expect(payment?.status).toBe("partial");
-    expect(Number(payment?.paidAmount ?? payment?.amount ?? 0)).toBeGreaterThanOrEqual(partialAmt);
+    expect(payment?.paidAmount).toBe(partialAmt);
   });
 
   it("two partials that sum to full → status 'paid'", async () => {
     const paymentId = await createPendingPayment(FULL_RENT);
     const half      = FULL_RENT / 2;
 
+    const co1 = "ws_CO_h1_" + Date.now(), co2 = "ws_CO_h2_" + Date.now();
+    await initiateStk(paymentId, half, co1);
     await supertest(app).post("/api/mpesa/callback")
-      .send(stkCallback({ receipt: "QKE_HALF1_" + Date.now(), amount: half, rentPaymentId: paymentId }));
+      .send(stkCallback({ receipt: "QKE_HALF1_" + Date.now(), amount: half, checkoutRequestId: co1 }));
+    await new Promise(r => setTimeout(r, 600));
 
     const afterFirst = await getPayment(paymentId);
     expect(afterFirst?.status).toBe("partial");
 
+    await initiateStk(paymentId, half, co2);
     await supertest(app).post("/api/mpesa/callback")
-      .send(stkCallback({ receipt: "QKE_HALF2_" + Date.now(), amount: half, rentPaymentId: paymentId }));
+      .send(stkCallback({ receipt: "QKE_HALF2_" + Date.now(), amount: half, checkoutRequestId: co2 }));
+    await new Promise(r => setTimeout(r, 600));
 
     const afterSecond = await getPayment(paymentId);
     expect(afterSecond?.status).toBe("paid");
+    expect(afterSecond?.paidAmount).toBe(FULL_RENT);
   });
 
   it("user-cancelled STK (ResultCode=1032) → payment stays 'pending'", async () => {
     const paymentId = await createPendingPayment(FULL_RENT);
-    const cb = stkCallback({ resultCode: 1032, rentPaymentId: paymentId });
+    const co = "ws_CO_cancel_" + Date.now();
+    await initiateStk(paymentId, FULL_RENT, co);
+    const cb = stkCallback({ resultCode: 1032, checkoutRequestId: co });
 
     const res = await supertest(app).post("/api/mpesa/callback").send(cb);
     expect(res.status).toBe(200); // must ACK even on cancel
 
+    await new Promise(r => setTimeout(r, 400));
     const payment = await getPayment(paymentId);
     // Cancelled STK must NOT change payment to paid
     expect(payment?.status).toBe("pending");
+    expect(payment?.paidAmount).toBe(0);
   });
 
 });
@@ -223,22 +255,26 @@ describe("POST /api/mpesa/c2b — C2B paybill reconciliation", () => {
       .post("/api/mpesa/c2b/validation")
       .send({ TransID: "TEST001", Amount: 5000 });
     expect(res.status).toBe(200);
-    expect(res.body.ResultCode).toBe(0);
+    expect(Number(res.body.ResultCode)).toBe(0); // Daraja accepts 0 or "0"
   });
 
   it("c2b with wrong reference → creates unmatched transaction", async () => {
     const badRef = "WRONG_REF_" + Date.now();
+    // the sender is a known tenant (phone matches) but the reference is gibberish — a manager has to place it
+    const phone = "2547" + String(Date.now()).slice(-8); // unique per run
+    await db.update(tenants).set({ phone: "+" + phone } as any).where(eq(tenants.id, ctx.tenantId));
     const res = await supertest(app)
       .post("/api/mpesa/c2b/confirmation")
       .send({
         TransID:          "C2B_BAD_" + Date.now(),
-        Amount:           10_000,
-        MSISDN:           "254712999001",
+        TransAmount:      "10000",
+        MSISDN:           phone,
         BillRefNumber:    badRef,
         TransactionType:  "Pay Bill",
       });
 
     expect(res.status).toBe(200); // must ACK to Safaricom
+    await new Promise(r => setTimeout(r, 500));
 
     // Verify it landed in the unmatched list
     const list = await authedGet(app, "/api/mpesa/unmatched", ctx.adminToken);
@@ -246,7 +282,7 @@ describe("POST /api/mpesa/c2b — C2B paybill reconciliation", () => {
     expect(Array.isArray(list.body)).toBe(true);
     // At least one unmatched entry now exists
     const found = (list.body as any[]).some(
-      (t: any) => t.billRefNumber === badRef || t.accountReference === badRef
+      (t: any) => String(t.description ?? "").includes(badRef)
     );
     expect(found).toBe(true);
   });
@@ -287,6 +323,7 @@ describe("POST /api/mpesa/match — manual reconciliation", () => {
     const paymentId = await createPendingPayment(FULL_RENT);
     const [txn] = await db.insert(mpesaTransactions).values({
       organizationId:    ctx.orgId,
+      tenantId:          ctx.tenantId,
       mpesaReceiptNumber: "C2B_MATCH_" + Date.now(),
       amount:            String(FULL_RENT),
       phoneNumber:       "254712888001",
@@ -303,9 +340,10 @@ describe("POST /api/mpesa/match — manual reconciliation", () => {
 
     expect(res.status).toBe(200);
 
-    // Verify the payment is now marked paid
+    // Verify the payment is now marked paid, with the money on the ledger
     const payment = await getPayment(paymentId);
     expect(payment?.status).toBe("paid");
+    expect(payment?.paidAmount).toBe(FULL_RENT);
   });
 
 });

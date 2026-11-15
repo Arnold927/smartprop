@@ -379,7 +379,7 @@ generalLedgerRouter.post(
 // Standard accounts that are seeded for every new organisation. These IDs are
 // assigned by the DB (serial), so we never hard-code numeric IDs on the client.
 
-const SEED_ACCOUNTS = [
+export const SEED_ACCOUNTS = [
   { accountCode: "1001", accountName: "Cash & Bank",             accountType: "asset",     normalBalance: "debit"  },
   { accountCode: "1002", accountName: "Accounts Receivable",     accountType: "asset",     normalBalance: "debit"  },
   { accountCode: "1003", accountName: "Rent Receivable",         accountType: "asset",     normalBalance: "debit"  },
