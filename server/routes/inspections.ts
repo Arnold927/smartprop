@@ -511,6 +511,13 @@ router.get("/:id/diff", ...auth, async (req: any, res: any) => {
 
     if (!moveIn) return res.status(404).json({ message: "Linked move-in inspection not found" });
 
+    // what is actually held for this tenancy (the deposit ledger), so a deduction is judged against real money
+    let depositHeld: number | null = null;
+    if (moveOut.leaseId) {
+      const { depositState } = await import("../services/lease-lifecycle");
+      depositHeld = (await depositState(moveOut.leaseId)).balance;
+    }
+
     type Room = { room: string; condition: string; notes?: string; photoUrls?: string[] };
     const inRooms  = (moveIn.rooms  as Room[] ?? []);
     const outRooms = (moveOut.rooms as Room[] ?? []);
@@ -556,7 +563,8 @@ router.get("/:id/diff", ...auth, async (req: any, res: any) => {
       newIssues:         moveOut.issuesFound ?? [],
       totalIssuesCost:   Number(moveOut.totalIssuesCost ?? 0),
       recommendedDeduction: Number(moveOut.recommendedDeduction ?? 0),
-      depositHeld:       null,  // caller should join with tenant.securityDeposit
+      depositHeld,
+      leaseId:           moveOut.leaseId ?? null,
     });
   } catch (err: any) {
     console.error("inspection diff error:", err);

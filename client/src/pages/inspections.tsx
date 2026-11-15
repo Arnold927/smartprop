@@ -361,6 +361,13 @@ function InspectionEditor({ inspection, onClose }: { inspection: any; onClose: (
               <div className="space-y-2">
                 <p className="text-sm text-muted-foreground">Move-in: {fmt(diff.moveInDate)} → Move-out: {fmt(diff.moveOutDate)}</p>
                 <p className="text-sm font-medium">{diff.degradedRooms} room(s) degraded · {fmtKES(diff.recommendedDeduction)} recommended deduction</p>
+                {diff.depositHeld != null && (
+                  <p className="text-xs text-muted-foreground">
+                    Deposit held for this tenancy: <span className="font-semibold text-foreground">{fmtKES(diff.depositHeld)}</span>
+                    {Number(diff.recommendedDeduction) > Number(diff.depositHeld) && <span className="text-amber-600 dark:text-amber-400"> — the recommended deduction is more than the deposit.</span>}
+                    {" "}Settle it from Leases → the lease → Settle Deposit.
+                  </p>
+                )}
                 {!locked && <p className="text-xs text-muted-foreground">Compared using your last saved progress — save to refresh it.</p>}
                 {diff.roomDiffs?.map((r: any) => (
                   <div key={r.room} className={cn("flex items-center gap-3 p-2 rounded-lg border text-sm", r.degraded ? "border-red-200 bg-red-50/40 dark:border-red-900 dark:bg-red-950/20" : "border-border")}>

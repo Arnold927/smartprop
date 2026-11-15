@@ -14,7 +14,9 @@
 
 import { db }               from "../db";
 import { leases, leaseEvents, tenants, organizations } from "@shared/schema";
-import { eq, and, lte, gte, or } from "drizzle-orm";
+import { eq, and, lte, gte, or, sql } from "drizzle-orm";
+import { todayEAT } from "./rent-ledger";
+import { addDays, dueScheduledTerminations, endTenancy } from "./lease-lifecycle";
 import { sendLeaseEmail }   from "../lib/leaseEmail";
 import { whatsappService }  from "../whatsapp";
 import { notifyTenant }     from "./notifyTenant";
@@ -41,24 +43,23 @@ function scheduleDailyEAT(hh: number, mm: number, job: () => Promise<void>): voi
 
 // ── Job 1: Expiry notices (90 / 60 / 30 days) ────────────────────────────────
 
-async function sendExpiryNotices(): Promise<void> {
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
+export async function sendExpiryNotices(): Promise<void> {
+  const today = todayEAT();
 
-  // Notice thresholds and the flag column that tracks whether it was sent
+  // Notice thresholds and the flag column that tracks whether it was sent. A notice goes out as soon as the lease is
+  // INSIDE its window (≤ N days left, > the next window) — an exact-day match lost the notice for good whenever the
+  // server was down or the lease was created/renewed on the day. The windows do not overlap, so a tenant is
+  // never sent a "90 days" notice with 20 days left.
   const thresholds = [
-    { days: 90, flag: "renewalNotice90Sent" as const },
-    { days: 60, flag: "renewalNotice60Sent" as const },
-    { days: 30, flag: "renewalNotice30Sent" as const },
+    { days: 90, flag: "renewalNotice90Sent" as const, from: 60 },
+    { days: 60, flag: "renewalNotice60Sent" as const, from: 30 },
+    { days: 30, flag: "renewalNotice30Sent" as const, from: -1 },
   ];
 
-  for (const { days, flag } of thresholds) {
-    const targetDate = new Date(today);
-    targetDate.setDate(targetDate.getDate() + days);
-    const targetStr  = targetDate.toISOString().split("T")[0];
+  for (const { days, flag, from } of thresholds) {
+    const latest = addDays(today, days);          // ends on or before this → inside the window
+    const earliest = addDays(today, from);        // ends after this → not yet in the next window
 
-    // Find active leases expiring exactly `days` days from today where
-    // the notice hasn't been sent yet
     const expiring = await db
       .select({
         lease:        leases,
@@ -74,7 +75,12 @@ async function sendExpiryNotices(): Promise<void> {
         and(
           eq(leases.status,          "active"),
           eq(leases[flag],           false),
-          eq(leases.endDate,         targetStr as any),
+          lte(leases.endDate,        latest as any),
+          gte(leases.endDate,        today as any),
+          // a lease already inside a later window gets that window's notice, not this one
+          from >= 0 ? gte(leases.endDate, addDays(earliest, 1) as any) : gte(leases.endDate, today as any),
+          // nothing to chase when a renewal is already in progress
+          sql`not exists (select 1 from leases r where r.previous_lease_id = ${leases.id} and r.status in ('draft','pending_signature','active'))`,
         )
       );
 
@@ -84,7 +90,9 @@ async function sendExpiryNotices(): Promise<void> {
     for (const row of expiring) {
       const { lease } = row;
       try {
+        let emailError: string | null = null;
         if (row.email) {
+          // an e-mail outage must not stop the WhatsApp notice or leave the flag unset (that re-sent the WhatsApp daily)
           await sendLeaseEmail({
             type:           "expiry_notice",
             to:             row.email,
@@ -97,7 +105,7 @@ async function sendExpiryNotices(): Promise<void> {
             currency:       lease.currency,
             leaseId:        lease.id,
             daysUntilExpiry: days,
-          });
+          }).catch((e: any) => { emailError = String(e?.message ?? e); log(`  e-mail notice failed for ${lease.leaseNumber}: ${emailError}`); });
         }
 
         // WhatsApp expiry warning — primary channel for Kenyan tenants
@@ -120,9 +128,9 @@ async function sendExpiryNotices(): Promise<void> {
           tenantId:       lease.tenantId,
           organizationId: lease.organizationId,
           eventType:      "notice_sent",
-          description:    `${days}-day expiry notice sent (email + WhatsApp).`,
+          description:    `${days}-day expiry notice sent${emailError ? " (WhatsApp; the e-mail failed)" : " (email + WhatsApp)"}.`,
           performedBy:    null,
-          metadata:       { days, email: row.email, sentAt: new Date().toISOString() },
+          metadata:       { days, email: row.email, emailError, sentAt: new Date().toISOString() },
         });
 
         log(`  ✓ ${days}d notice → ${row.email} + WhatsApp (lease ${lease.leaseNumber})`);
@@ -135,41 +143,40 @@ async function sendExpiryNotices(): Promise<void> {
 
 // ── Job 2: Auto-expire past leases ────────────────────────────────────────────
 
-async function autoExpireLeases(): Promise<void> {
-  const yesterday = new Date();
-  yesterday.setDate(yesterday.getDate() - 1);
-  const yesterdayStr = yesterday.toISOString().split("T")[0];
+export async function autoExpireLeases(): Promise<void> {
+  const today = todayEAT();
 
-  // Active leases whose end date was yesterday or earlier
+  // 0. terminations the manager scheduled for a date that has now arrived end the tenancy properly (tenant, unit, login)
+  for (const d of await dueScheduledTerminations(today)) {
+    try {
+      await endTenancy(d.id, { date: String(d.endDate), reason: "Scheduled termination date reached", userId: null, scheduled: true });
+      log(`  ✓ Terminated (scheduled): ${d.n}`);
+    } catch (e) { log(`  ✗ Scheduled termination of ${d.n} failed: ${e}`); }
+  }
+
+  // 1. active leases whose end date has passed are expired (the tenant stays: they are holding over until the
+  //    manager renews or terminates). A lease that already has a renewal in progress says so in its audit trail.
   const expired = await db
     .select({ id: leases.id, tenantId: leases.tenantId, organizationId: leases.organizationId, leaseNumber: leases.leaseNumber })
     .from(leases)
-    .where(
-      and(
-        eq(leases.status, "active"),
-        lte(leases.endDate, yesterdayStr as any),
-      )
-    );
+    .where(and(eq(leases.status, "active"), lte(leases.endDate, addDays(today, -1) as any)));
 
   if (expired.length === 0) return;
   log(`Auto-expiring ${expired.length} past-due lease(s)...`);
 
   for (const lease of expired) {
-    await db
-      .update(leases)
-      .set({ status: "expired", updatedAt: new Date() })
-      .where(eq(leases.id, lease.id));
-
+    const res = await db.update(leases).set({ status: "expired", updatedAt: new Date() })
+      .where(and(eq(leases.id, lease.id), eq(leases.status, "active"))).returning({ id: leases.id });
+    if (!res.length) continue;
     await db.insert(leaseEvents).values({
       leaseId:        lease.id,
       tenantId:       lease.tenantId,
       organizationId: lease.organizationId,
       eventType:      "expired",
-      description:    `Lease ${lease.leaseNumber} automatically marked as expired (end date passed).`,
+      description:    `Lease ${lease.leaseNumber} automatically marked as expired (end date passed). The tenant is holding over until the lease is renewed or terminated.`,
       performedBy:    null,
       metadata:       { expiredAt: new Date().toISOString() },
     });
-
     log(`  ✓ Expired: ${lease.leaseNumber}`);
   }
 }

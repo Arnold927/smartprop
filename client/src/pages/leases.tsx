@@ -9,14 +9,14 @@
  *
  * Detail drawer (click any lease row):
  *   Overview | Audit Trail | Deposit Ledger
- *   Actions: Send for Signing · Sign · Activate · Renew · Terminate
- *   Deposit: record received / refund / partial / forfeited
+ *   Actions: Send for Signing · Sign · Activate · Renew · Terminate (now or scheduled) · Settle deposit
+ *   Deposit: record received / refund / partial / forfeited; move-out settlement (deposit − rent − bills − damages → refund)
  */
 
 import { AlertTriangle as AlertTriangleIc, Check as CheckIc } from "lucide-react";
 import { tenantOptions, unitOptions, propertyOptions, userOptions, byId } from "@/lib/pickerOptions";
 import { SearchableSelect } from "@/components/ui/searchable-select";
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest, ensureArray } from "@/lib/queryClient";
@@ -41,6 +41,8 @@ import {
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Checkbox } from "@/components/ui/checkbox";
+import { apiErrorMessage } from "@/lib/maintenance-flow";
 import { Separator } from "@/components/ui/separator";
 import { ExportMenu } from "@/components/export-menu";
 import { downloadExcel } from "@/lib/excel";
@@ -73,6 +75,9 @@ interface Lease {
   notes?: string;
   documentUrl?: string;
   depositBalance?: number;
+  /** from GET /api/leases/:id */
+  renewal?: { id: number; leaseNumber: string; status: string } | null;
+  scheduledTermination?: { date: string; reason: string | null } | null;
   createdAt: string;
 }
 
@@ -87,6 +92,8 @@ interface LeaseEvent {
 
 interface DepositLedger {
   originalDeposit: number;
+  received?: number;
+  outstanding?: number;
   currentBalance: number;
   currency: string;
   transactions: {
@@ -148,7 +155,20 @@ const EVENT_ICON: Record<string, React.ReactNode> = {
   terminated:        <XCircle className="w-3.5 h-3.5 text-red-500" />,
   notice_sent:       <Send className="w-3.5 h-3.5 text-sky-500" />,
   expired:           <Clock className="w-3.5 h-3.5 text-muted-foreground" />,
+  renewal_drafted:   <RefreshCw className="w-3.5 h-3.5 text-blue-500" />,
+  signatures_reset:  <PenLine className="w-3.5 h-3.5 text-amber-500" />,
+  termination_scheduled: <Clock className="w-3.5 h-3.5 text-amber-500" />,
+  termination_cancelled: <RotateCcw className="w-3.5 h-3.5 text-muted-foreground" />,
+  deposit_settled:   <Banknote className="w-3.5 h-3.5 text-emerald-500" />,
 };
+
+/** An api error ('{"message":…,"code":…}' text) as { message, code }. */
+function parseErr(e: unknown): { message: string; code?: string; data: any } {
+  const raw = e instanceof Error ? e.message : String(e ?? "");
+  let data: any = {};
+  try { data = JSON.parse(raw); } catch { /* plain text */ }
+  return { message: apiErrorMessage(e), code: data?.code, data };
+}
 
 // ─── Urgency tag for expiring leases ─────────────────────────────────────────
 
@@ -220,8 +240,8 @@ function CreateLeaseDialog({ open, onClose }: { open: boolean; onClose: () => vo
   const [form, setForm] = useState({
     tenantId: "", startDate: "", endDate: "", monthlyRent: "",
     securityDeposit: "", depositPaidDate: "", escalationRate: "0.1",
-    leaseDurationMonths: "12", specialConditions: "",
-    rentStructure: "fixed", percentageRentRate: "",
+    leaseDurationMonths: "", specialConditions: "",
+    rentStructure: "fixed", percentageRentRate: "", unitId: "",
   });
 
   const { data: tenantsRaw } = useQuery<any>({
@@ -229,6 +249,14 @@ function CreateLeaseDialog({ open, onClose }: { open: boolean; onClose: () => vo
     queryFn: async () => ensureArray(await (await apiRequest("/api/tenants")).json()),
   });
   const tenants: any[] = Array.isArray(tenantsRaw) ? tenantsRaw : (tenantsRaw?.results ?? []);
+  const pickedTenant = tenants.find((t: any) => String(t.id) === form.tenantId);
+  // a tenant who is not in a unit yet (or has left) needs one chosen; a placed tenant's lease is for their own unit
+  const needsUnit = !!pickedTenant && (!pickedTenant.unit?.id || pickedTenant.status === "inactive");
+  const { data: vacant = [] } = useQuery<any[]>({
+    queryKey: ["/api/units/vacant"],
+    queryFn: async () => ensureArray(await (await apiRequest("/api/units/vacant")).json()),
+    enabled: open && needsUnit,
+  });
 
   const mut = useMutation({
     mutationFn: async () => {
@@ -236,19 +264,19 @@ function CreateLeaseDialog({ open, onClose }: { open: boolean; onClose: () => vo
         method: "POST",
         data: {
           tenantId:           parseInt(form.tenantId),
+          unitId:             needsUnit && form.unitId ? parseInt(form.unitId) : undefined,
           startDate:          form.startDate,
           endDate:            form.endDate,
           monthlyRent:        parseFloat(form.monthlyRent),
           securityDeposit:    parseFloat(form.securityDeposit || "0"),
           depositPaidDate:    form.depositPaidDate || undefined,
           escalationRate:     parseFloat(form.escalationRate),
-          leaseDurationMonths: parseInt(form.leaseDurationMonths),
+          leaseDurationMonths: form.leaseDurationMonths ? parseInt(form.leaseDurationMonths) : undefined,   // blank = worked out from the dates
           specialConditions:  form.specialConditions || undefined,
           rentStructure:      form.rentStructure,
           percentageRentRate: form.rentStructure !== "fixed" ? parseFloat(form.percentageRentRate || "0") / 100 : undefined,
         },
       });
-      if (!r.ok) throw new Error((await r.json()).message);
       return r.json();
     },
     onSuccess: (data: any) => {
@@ -262,7 +290,7 @@ function CreateLeaseDialog({ open, onClose }: { open: boolean; onClose: () => vo
       }
       onClose();
     },
-    onError: (e: any) => toast({ title: "Failed to create lease", description: e.message, variant: "destructive" }),
+    onError: (e: any) => toast({ title: "Failed to create lease", description: parseErr(e).message, variant: "destructive" }),
   });
 
   const field = (key: keyof typeof form, label: string, type = "text", placeholder = "") => (
@@ -299,6 +327,20 @@ function CreateLeaseDialog({ open, onClose }: { open: boolean; onClose: () => vo
               options={tenantOptions(tenants)}
             />
           </div>
+          {needsUnit && (
+            <div className="space-y-1.5">
+              <Label className="text-xs font-medium">Unit <span className="text-red-500">*</span></Label>
+              <SearchableSelect
+                className="h-9"
+                value={form.unitId}
+                onValueChange={v => setForm(f => ({ ...f, unitId: v }))}
+                placeholder="Select a vacant unit…"
+                searchPlaceholder="Search units…"
+                options={unitOptions(vacant, undefined, { showOccupancy: false })}
+              />
+              <p className="text-[11px] text-muted-foreground">This tenant is not in a unit yet. Activating the lease moves them in.</p>
+            </div>
+          )}
 
           <div className="grid grid-cols-2 gap-3">
             {field("startDate", "Start date", "date")}
@@ -306,7 +348,7 @@ function CreateLeaseDialog({ open, onClose }: { open: boolean; onClose: () => vo
           </div>
           <div className="grid grid-cols-2 gap-3">
             {field("monthlyRent", "Monthly rent (KES)", "number", "e.g. 45000")}
-            {field("leaseDurationMonths", "Term (months)", "number", "12")}
+            {field("leaseDurationMonths", "Term (months)", "number", "Worked out from the dates")}
           </div>
           <div className="space-y-1.5">
             <Label className="text-xs font-medium">Rent structure</Label>
@@ -381,7 +423,7 @@ function CreateLeaseDialog({ open, onClose }: { open: boolean; onClose: () => vo
           <Button variant="outline" onClick={onClose}>Cancel</Button>
           <Button
             onClick={() => mut.mutate()}
-            disabled={mut.isPending || !form.tenantId || !form.startDate || !form.endDate || !form.monthlyRent}
+            disabled={mut.isPending || !form.tenantId || !form.startDate || !form.endDate || !form.monthlyRent || (needsUnit && !form.unitId) || form.endDate <= form.startDate}
           >
             {mut.isPending && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
             Create Draft
@@ -408,16 +450,17 @@ function DepositDialog({ lease, open, onClose }: { lease: Lease; open: boolean; 
         method: "POST",
         data: { ...form, amount: parseFloat(form.amount) },
       });
-      if (!r.ok) throw new Error((await r.json()).message);
       return r.json();
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["/api/leases"] });
+      qc.invalidateQueries({ queryKey: [`/api/leases/${lease.id}`] });
       qc.invalidateQueries({ queryKey: [`/api/leases/${lease.id}/deposit`] });
+      qc.invalidateQueries({ queryKey: [`/api/leases/${lease.id}/events`] });
       toast({ title: "Deposit recorded" });
       onClose();
     },
-    onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
+    onError: (e: any) => toast({ title: "Couldn't record that", description: parseErr(e).message, variant: "destructive" }),
   });
 
   return (
@@ -425,7 +468,12 @@ function DepositDialog({ lease, open, onClose }: { lease: Lease; open: boolean; 
       <DialogContent className="max-w-xl">
         <DialogHeader>
           <DialogTitle>Record Deposit Transaction</DialogTitle>
-          <DialogDescription>Deposit balance: {fmtKES(lease.depositBalance ?? 0, lease.currency)}</DialogDescription>
+          <DialogDescription>
+            Deposit balance: {fmtKES(lease.depositBalance ?? 0, lease.currency)}.
+            {["active", "pending_signature", "draft"].includes(lease.status)
+              ? " Refunds and forfeits become available once the lease has ended."
+              : lease.status === "terminated" || lease.status === "expired" ? " To clear rent, bills and damages in one go, use Settle deposit." : ""}
+          </DialogDescription>
         </DialogHeader>
         <div className="space-y-3 py-2">
           <div className="space-y-1.5">
@@ -434,9 +482,11 @@ function DepositDialog({ lease, open, onClose }: { lease: Lease; open: boolean; 
               <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="received">Received</SelectItem>
-                <SelectItem value="refunded">Full refund</SelectItem>
-                <SelectItem value="partial_refund">Partial refund</SelectItem>
-                <SelectItem value="forfeited">Forfeited (damage/arrears)</SelectItem>
+                {["terminated", "expired"].includes(lease.status) && <>
+                  <SelectItem value="refunded">Full refund</SelectItem>
+                  <SelectItem value="partial_refund">Partial refund</SelectItem>
+                  <SelectItem value="forfeited">Forfeited (damage/arrears)</SelectItem>
+                </>}
                 <SelectItem value="adjustment">Adjustment</SelectItem>
               </SelectContent>
             </Select>
@@ -447,7 +497,7 @@ function DepositDialog({ lease, open, onClose }: { lease: Lease; open: boolean; 
           </div>
           <div className="space-y-1.5">
             <Label className="text-xs font-medium">Date</Label>
-            <Input type="date" value={form.transactionDate} onChange={e => setForm(f => ({ ...f, transactionDate: e.target.value }))} className="h-9" />
+            <Input type="date" max={new Date().toISOString().split("T")[0]} value={form.transactionDate} onChange={e => setForm(f => ({ ...f, transactionDate: e.target.value }))} className="h-9" />
           </div>
           <div className="space-y-1.5">
             <Label className="text-xs font-medium">Reason <span className="text-red-500">*</span></Label>
@@ -470,9 +520,170 @@ function DepositDialog({ lease, open, onClose }: { lease: Lease; open: boolean; 
   );
 }
 
+// ─── Move-out settlement dialog ───────────────────────────────────────────────
+
+interface Settlement {
+  canSettle: boolean; alreadySettled: boolean; leaseStatus: string; currency: string;
+  depositHeld: number;
+  unpaidRent: { id: number; label: string; dueDate: string; balance: number }[];
+  unpaidUtilities: { id: number; label: string; type: string | null; dueDate: string; balance: number }[];
+  unpaidRentTotal: number; unpaidUtilitiesTotal: number;
+  upcomingInvoices: { count: number; total: number };
+  inspection: { id: number; number: string; status: string; signedByManager: boolean; recommendedDeduction: number; totalIssuesCost: number; issueCount: number } | null;
+  suggested: { arrears: number; damages: number; refund: number; shortfall: number };
+}
+
+function SettleDepositDialog({ lease, open, onClose }: { lease: Lease; open: boolean; onClose: () => void }) {
+  const { toast } = useToast();
+  const qc = useQueryClient();
+  const { data: s, isLoading } = useQuery<Settlement>({
+    queryKey: [`/api/leases/${lease.id}/settlement`],
+    queryFn: async () => (await apiRequest(`/api/leases/${lease.id}/settlement`)).json(),
+    enabled: open,
+  });
+  const [applyArrears, setApplyArrears] = useState(true);
+  const [refund, setRefund] = useState(true);
+  const [damage, setDamage] = useState<{ amount: string; reason: string }>({ amount: "", reason: "" });
+  const [other, setOther] = useState<{ amount: string; reason: string }>({ amount: "", reason: "" });
+  const [prefilled, setPrefilled] = useState(false);
+  const [reference, setReference] = useState("");
+
+  // start from what the move-out inspection recommended (the manager can change it)
+  useEffect(() => {
+    if (!s || prefilled) return;
+    setPrefilled(true);
+    if (s.inspection && s.inspection.recommendedDeduction > 0) {
+      setDamage({ amount: String(s.inspection.recommendedDeduction), reason: `Damage found at move-out inspection ${s.inspection.number}` });
+    }
+  }, [s, prefilled]);
+
+  const held = s?.depositHeld ?? 0;
+  const dueTotal = (s?.unpaidRentTotal ?? 0) + (s?.unpaidUtilitiesTotal ?? 0);
+  const arrears = applyArrears ? Math.min(held, dueTotal) : 0;
+  const dmg = Math.max(0, Math.min(Number(damage.amount) || 0, held - arrears));
+  const oth = Math.max(0, Math.min(Number(other.amount) || 0, held - arrears - dmg));
+  const remainder = Math.max(0, held - arrears - dmg - oth);
+  const shortfall = Math.max(0, dueTotal - arrears);
+  const cur = s?.currency ?? lease.currency;
+  const tooMuch = (Number(damage.amount) || 0) + (Number(other.amount) || 0) > held - arrears + 0.005;
+  const missingReason = (Number(damage.amount) > 0 && !damage.reason.trim()) || (Number(other.amount) > 0 && !other.reason.trim());
+
+  const mut = useMutation({
+    mutationFn: async () => {
+      const deductions = [
+        ...(Number(damage.amount) > 0 ? [{ category: "damages", amount: Number(damage.amount), reason: damage.reason.trim() }] : []),
+        ...(Number(other.amount) > 0 ? [{ category: "other", amount: Number(other.amount), reason: other.reason.trim() }] : []),
+      ];
+      const r = await apiRequest(`/api/leases/${lease.id}/settle-deposit`, {
+        method: "POST", data: { applyToArrears: applyArrears, deductions, refund, reference: reference.trim() || undefined },
+      });
+      return r.json();
+    },
+    onSuccess: (r: any) => {
+      for (const k of ["/api/leases", `/api/leases/${lease.id}`, `/api/leases/${lease.id}/deposit`, `/api/leases/${lease.id}/events`, `/api/leases/${lease.id}/settlement`, "/api/rent-payments", "/api/utility-bills"]) qc.invalidateQueries({ queryKey: [k] });
+      toast({
+        title: "Deposit settled",
+        description: `Rent ${fmtKES(r.rentApplied, cur)} · bills ${fmtKES(r.utilitiesApplied, cur)} · deductions ${fmtKES((r.deductions ?? []).reduce((a: number, d: any) => a + d.amount, 0), cur)} · refunded ${fmtKES(r.refunded, cur)}.` +
+          (r.shortfall > 0 ? ` Still owed by the tenant: ${fmtKES(r.shortfall, cur)}.` : ""),
+        duration: 12000,
+      });
+      onClose();
+    },
+    onError: (e: any) => toast({ title: "Couldn't settle the deposit", description: parseErr(e).message, variant: "destructive" }),
+  });
+
+  const row = (label: string, value: string, tone = "") => (
+    <div className="flex items-center justify-between text-sm"><span className="text-muted-foreground">{label}</span><span className={`font-semibold tabular-nums ${tone}`}>{value}</span></div>
+  );
+
+  return (
+    <Dialog open={open} onOpenChange={v => !v && onClose()}>
+      <DialogContent className="max-w-xl max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>Settle security deposit</DialogTitle>
+          <DialogDescription>{lease.leaseNumber} · {lease.tenantName}. Deposit held, less rent and bills still owed, less damage deductions; the rest goes back to the tenant.</DialogDescription>
+        </DialogHeader>
+
+        {isLoading || !s ? (
+          <div className="py-10 flex justify-center"><Loader2 className="w-5 h-5 animate-spin text-muted-foreground" /></div>
+        ) : s.alreadySettled ? (
+          <p className="text-sm text-muted-foreground py-6 text-center">This deposit has already been settled. See the Deposit Ledger and Audit Trail for the breakdown.</p>
+        ) : !s.canSettle ? (
+          <p className="text-sm text-muted-foreground py-6 text-center">End the tenancy first (Terminate), then settle the deposit.</p>
+        ) : (
+          <div className="space-y-4 py-1">
+            <div className="rounded-lg bg-muted/50 p-3 space-y-1.5">
+              {row("Deposit held", fmtKES(held, cur), "text-emerald-700 dark:text-emerald-400")}
+              {row(`Unpaid rent (${s.unpaidRent.length} invoice${s.unpaidRent.length === 1 ? "" : "s"})`, fmtKES(s.unpaidRentTotal, cur), s.unpaidRentTotal > 0 ? "text-rose-600" : "")}
+              {row(`Unpaid utility bills (${s.unpaidUtilities.length})`, fmtKES(s.unpaidUtilitiesTotal, cur), s.unpaidUtilitiesTotal > 0 ? "text-rose-600" : "")}
+              {s.upcomingInvoices.count > 0 && (
+                <p className="text-[11px] text-amber-700 dark:text-amber-400">{s.upcomingInvoices.count} invoice(s) worth {fmtKES(s.upcomingInvoices.total, cur)} are not due yet and are left alone — cancel them if the tenant has gone.</p>
+              )}
+            </div>
+
+            <label className="flex items-start gap-2 text-sm cursor-pointer">
+              <Checkbox checked={applyArrears} onCheckedChange={v => setApplyArrears(v === true)} className="mt-0.5" disabled={dueTotal <= 0} />
+              <span>Apply the deposit to unpaid rent and bills first (oldest first). Invoices are marked paid and the payment shows in the ledger and reports.</span>
+            </label>
+
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <Label className="text-xs font-medium">Damage deductions</Label>
+                {s.inspection ? (
+                  <span className="text-[11px] text-muted-foreground">
+                    Inspection {s.inspection.number}: recommended {fmtKES(s.inspection.recommendedDeduction, cur)}
+                    {!s.inspection.signedByManager && " · not yet signed"}
+                  </span>
+                ) : <span className="text-[11px] text-muted-foreground">No move-out inspection on file</span>}
+              </div>
+              <div className="grid grid-cols-[130px_1fr] gap-2">
+                <Input type="number" min={0} placeholder="Amount" className="h-9" value={damage.amount} onChange={e => setDamage(d => ({ ...d, amount: e.target.value }))} />
+                <Input placeholder="What for (e.g. broken tiles)" className="h-9" value={damage.reason} onChange={e => setDamage(d => ({ ...d, reason: e.target.value }))} />
+              </div>
+              <Label className="text-xs font-medium">Other deductions (cleaning, keys…)</Label>
+              <div className="grid grid-cols-[130px_1fr] gap-2">
+                <Input type="number" min={0} placeholder="Amount" className="h-9" value={other.amount} onChange={e => setOther(d => ({ ...d, amount: e.target.value }))} />
+                <Input placeholder="What for" className="h-9" value={other.reason} onChange={e => setOther(d => ({ ...d, reason: e.target.value }))} />
+              </div>
+              {tooMuch && <p className="text-[11px] text-amber-700 dark:text-amber-400">Deductions are capped at what is left of the deposit after rent and bills.</p>}
+            </div>
+
+            <label className="flex items-start gap-2 text-sm cursor-pointer">
+              <Checkbox checked={refund} onCheckedChange={v => setRefund(v === true)} className="mt-0.5" />
+              <span>Refund the remainder to the tenant now (untick to keep it held).</span>
+            </label>
+            <div className="space-y-1.5">
+              <Label className="text-xs font-medium">Refund reference (M-Pesa / cheque no.)</Label>
+              <Input className="h-9" placeholder="Optional" value={reference} onChange={e => setReference(e.target.value)} />
+            </div>
+
+            <div className="rounded-lg border p-3 space-y-1.5">
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Result</p>
+              {row("Applied to rent and bills", fmtKES(arrears, cur))}
+              {row("Deductions", fmtKES(dmg + oth, cur))}
+              {row(refund ? "Refunded to tenant" : "Stays held", fmtKES(remainder, cur), "text-emerald-700 dark:text-emerald-400")}
+              {shortfall > 0.005 && row("Still owed by the tenant", fmtKES(shortfall, cur), "text-rose-600")}
+            </div>
+          </div>
+        )}
+
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>Close</Button>
+          {s?.canSettle && !s.alreadySettled && (
+            <Button onClick={() => mut.mutate()} disabled={mut.isPending || missingReason || held <= 0}>
+              {mut.isPending && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+              Settle deposit
+            </Button>
+          )}
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 // ─── Lease detail sheet ───────────────────────────────────────────────────────
 
-function LeaseDetailSheet({ lease, open, onClose }: { lease: Lease | null; open: boolean; onClose: () => void }) {
+function LeaseDetailSheet({ lease: listLease, open, onClose }: { lease: Lease | null; open: boolean; onClose: () => void }) {
   const { user } = useAuth();
   const canManageLeases = ["admin", "manager", "landlord"].includes(user?.role ?? "");
   const { toast } = useToast();
@@ -483,35 +694,42 @@ function LeaseDetailSheet({ lease, open, onClose }: { lease: Lease | null; open:
   const [terminationDate, setTerminationDate] = useState("");
   const [showTerminate, setShowTerminate] = useState(false);
   const [showRRT, setShowRRT] = useState(false);
+  const [showSettle, setShowSettle] = useState(false);
+  const [confirmUnsigned, setConfirmUnsigned] = useState<string | null>(null);
+
+  // the list row has no renewal / scheduled-termination info and goes stale after every action: read the lease itself
+  const { data: detail } = useQuery<Lease>({
+    queryKey: [`/api/leases/${listLease?.id}`],
+    queryFn: async () => (await apiRequest(`/api/leases/${listLease!.id}`)).json(),
+    enabled: !!listLease && open,
+  });
+  const lease: Lease | null = listLease ? { ...listLease, ...(detail ?? {}) } : null;
+  const refresh = () => {
+    for (const k of ["/api/leases", `/api/leases/${listLease?.id}`, `/api/leases/${listLease?.id}/events`, `/api/leases/${listLease?.id}/deposit`]) qc.invalidateQueries({ queryKey: [k] });
+  };
 
   const { data: events = [] } = useQuery<LeaseEvent[]>({
-    queryKey: [`/api/leases/${lease?.id}/events`],
-    queryFn: async () => ensureArray(await (await apiRequest(`/api/leases/${lease!.id}/events`)).json()),
-    enabled: !!lease && open && tab === "events",
+    queryKey: [`/api/leases/${listLease?.id}/events`],
+    queryFn: async () => ensureArray(await (await apiRequest(`/api/leases/${listLease!.id}/events`)).json()),
+    enabled: !!listLease && open && tab === "events",
   });
 
   const { data: deposit } = useQuery<DepositLedger>({
-    queryKey: [`/api/leases/${lease?.id}/deposit`],
-    queryFn: async () => (await apiRequest(`/api/leases/${lease!.id}/deposit`)).json(),
-    enabled: !!lease && open && tab === "deposit",
+    queryKey: [`/api/leases/${listLease?.id}/deposit`],
+    queryFn: async () => (await apiRequest(`/api/leases/${listLease!.id}/deposit`)).json(),
+    enabled: !!listLease && open && tab === "deposit",
   });
 
-  const action = (endpoint: string, body: Record<string, any> = {}, label = "") =>
+  // Each step keeps the drawer open and refreshes it, so signing twice and activating is one visit, not three.
+  const action = (endpoint: string, body: Record<string, any> = {}, label = "", then?: (r: any) => void) =>
     useMutation({
-      mutationFn: async () => {
-        const r = await apiRequest(`/api/leases/${lease!.id}/${endpoint}`, {
-          method: "POST",
-          data: body,
-        });
-        if (!r.ok) throw new Error((await r.json()).message);
-        return r.json();
+      mutationFn: async () => (await apiRequest(`/api/leases/${listLease!.id}/${endpoint}`, { method: "POST", data: body })).json(),
+      onSuccess: (r: any) => { refresh(); toast({ title: label || "Done" }); then?.(r); },
+      onError: (e: any) => {
+        const { message, code } = parseErr(e);
+        if (endpoint === "activate" && code === "UNSIGNED") { setConfirmUnsigned(message); return; }
+        toast({ title: "Couldn't do that", description: message, variant: "destructive" });
       },
-      onSuccess: () => {
-        qc.invalidateQueries({ queryKey: ["/api/leases"] });
-        toast({ title: label || "Done" });
-        onClose();
-      },
-      onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
     });
 
   // eslint-disable-next-line react-hooks/rules-of-hooks
@@ -521,50 +739,43 @@ function LeaseDetailSheet({ lease, open, onClose }: { lease: Lease | null; open:
   // eslint-disable-next-line react-hooks/rules-of-hooks
   const signManager = action("sign", { signer: "manager" }, "Manager signature recorded");
   // eslint-disable-next-line react-hooks/rules-of-hooks
-  const activateMut = action("activate", {}, "Lease activated");
+  const activateMut = action("activate", {}, "Lease activated", () => { setConfirmUnsigned(null); });
+  // eslint-disable-next-line react-hooks/rules-of-hooks
+  const activatePaperMut = action("activate", { confirmUnsigned: true }, "Lease activated on the paper copy", () => { setConfirmUnsigned(null); });
+  // eslint-disable-next-line react-hooks/rules-of-hooks
+  const cancelTermMut = action("cancel-termination", {}, "Scheduled termination cancelled");
   // eslint-disable-next-line react-hooks/rules-of-hooks
   const renewMut = useMutation({
-    mutationFn: async () => {
-      const r = await apiRequest(`/api/leases/${lease!.id}/renew`, {
-        method: "POST",
-        data: {},
-      });
-      if (!r.ok) throw new Error((await r.json()).message);
-      return r.json();
-    },
+    mutationFn: async () => (await apiRequest(`/api/leases/${listLease!.id}/renew`, { method: "POST", data: {} })).json(),
     onSuccess: (data: any) => {
-      qc.invalidateQueries({ queryKey: ["/api/leases"] });
-      toast({ title: "Renewal draft created" });
-      if (data?.complianceWarnings?.length) {
-        data.complianceWarnings.forEach((w: string) =>
-          toast({ title: "Compliance Warning", description: w, variant: "destructive", duration: 12000 })
-        );
-      }
-      onClose();
+      refresh();
+      toast({
+        title: "Renewal draft created",
+        description: `${data?.newLease?.leaseNumber ?? "The renewal"} starts ${fmtDate(data?.newLease?.startDate)}. This lease stays active until the renewal is signed and activated.`,
+        duration: 9000,
+      });
+      data?.complianceWarnings?.forEach((w: string) => toast({ title: "Compliance Warning", description: w, variant: "destructive", duration: 12000 }));
     },
-    onError: (e: any) => toast({ title: "Error", description: (e as any).message, variant: "destructive" }),
+    onError: (e: any) => toast({ title: "Couldn't renew", description: parseErr(e).message, variant: "destructive" }),
   });
   // eslint-disable-next-line react-hooks/rules-of-hooks
   const terminateMut = useMutation({
-    mutationFn: async () => {
-      const r = await apiRequest(`/api/leases/${lease!.id}/terminate`, {
-        method: "POST",
-        data: { reason: terminateReason, terminationDate: terminationDate || undefined },
-      });
-      if (!r.ok) throw new Error((await r.json()).message);
-      return r.json();
-    },
+    mutationFn: async () => (await apiRequest(`/api/leases/${listLease!.id}/terminate`, {
+      method: "POST", data: { reason: terminateReason, terminationDate: terminationDate || undefined },
+    })).json(),
     onSuccess: (data: any) => {
-      qc.invalidateQueries({ queryKey: ["/api/leases"] });
-      toast({ title: "Lease terminated" });
-      if (data?.complianceWarnings?.length) {
-        data.complianceWarnings.forEach((w: string) =>
-          toast({ title: "Compliance Warning", description: w, variant: "destructive", duration: 12000 })
-        );
+      refresh();
+      setShowTerminate(false); setTerminateReason(""); setTerminationDate("");
+      if (data?.scheduled) {
+        toast({ title: "Termination scheduled", description: `The tenancy ends automatically on ${fmtDate(data.terminationDate)}. Until then the tenant keeps access and rent keeps billing.`, duration: 9000 });
+      } else {
+        toast({ title: "Tenancy ended", description: "Lease terminated, unit vacated, tenant login switched off." });
+        const st = data?.settlement;
+        if (st && (st.depositHeld > 0 || st.unpaidRent > 0 || st.unpaidUtilities > 0)) setShowSettle(true);   // straight on to the move-out money
       }
-      onClose();
+      data?.complianceWarnings?.forEach((w: string) => toast({ title: "Compliance Warning", description: w, variant: "destructive", duration: 12000 }));
     },
-    onError: (e: any) => toast({ title: "Error", description: (e as any).message, variant: "destructive" }),
+    onError: (e: any) => toast({ title: "Couldn't terminate", description: parseErr(e).message, variant: "destructive" }),
   });
 
   if (!lease) return null;
@@ -644,8 +855,32 @@ function LeaseDetailSheet({ lease, open, onClose }: { lease: Lease | null; open:
                 </div>
               )}
 
+              {lease.status === "active" && lease.scheduledTermination && (
+                <div className="rounded-lg border border-amber-300 bg-amber-50 dark:bg-amber-950/30 dark:border-amber-700 p-3 flex items-start justify-between gap-3">
+                  <p className="text-xs text-amber-800 dark:text-amber-300">
+                    <strong>Termination scheduled for {fmtDate(lease.scheduledTermination.date)}.</strong>{" "}
+                    The tenant stays until then; the system ends the tenancy that day.
+                    {lease.scheduledTermination.reason ? ` Reason: ${lease.scheduledTermination.reason}` : ""}
+                  </p>
+                  {canManageLeases && (
+                    <Button size="sm" variant="outline" className="shrink-0" onClick={() => cancelTermMut.mutate()} disabled={cancelTermMut.isPending}>Cancel it</Button>
+                  )}
+                </div>
+              )}
+              {lease.status === "expired" && (
+                <div className="rounded-lg border border-orange-300 bg-orange-50 dark:bg-orange-950/30 p-3 text-xs text-orange-800 dark:text-orange-300">
+                  <strong>This lease has expired</strong> and the tenant is holding over. Renew it, or terminate it when they move out.
+                </div>
+              )}
+              {lease.renewal && (
+                <div className="rounded-lg border border-blue-200 bg-blue-50 dark:bg-blue-950/30 p-3 text-xs text-blue-800 dark:text-blue-300">
+                  <strong>Renewal {lease.renewal.leaseNumber}</strong> is {lease.renewal.status.replace("_", " ")}.
+                  {lease.status !== "renewed" && " This lease stays active until the renewal is signed and activated."}
+                </div>
+              )}
+
               {/* Renewal preview */}
-              {lease.status === "active" && (
+              {lease.status === "active" && !lease.renewal && (
                 <div className="bg-blue-50 dark:bg-blue-950/30 rounded-lg p-3 border border-blue-100 dark:border-blue-900" >
                   <p className="text-xs font-semibold text-blue-700 dark:text-blue-300 mb-1 flex items-center gap-1">
                     <TrendingUp className="w-3 h-3" /> Renewal projection
@@ -671,14 +906,14 @@ function LeaseDetailSheet({ lease, open, onClose }: { lease: Lease | null; open:
                       Send for Signing
                     </Button>
                   )}
-                  {canManageLeases && ["draft", "pending_signature"].includes(lease.status) && !lease.signedByTenantAt && (
+                  {canManageLeases && lease.status === "pending_signature" && !lease.signedByTenantAt && (
                     <Button size="sm" variant="outline" onClick={() => signTenant.mutate()} disabled={signTenant.isPending}>
-                      <PenLine className="w-3.5 h-3.5 mr-1.5 text-violet-500" />Tenant Signed
+                      <PenLine className="w-3.5 h-3.5 mr-1.5 text-violet-500" />Record Tenant Signature
                     </Button>
                   )}
-                  {canManageLeases && ["draft", "pending_signature"].includes(lease.status) && !lease.signedByManagerAt && (
+                  {canManageLeases && lease.status === "pending_signature" && !lease.signedByManagerAt && (
                     <Button size="sm" variant="outline" onClick={() => signManager.mutate()} disabled={signManager.isPending}>
-                      <ShieldCheck className="w-3.5 h-3.5 mr-1.5 text-violet-500" />Manager Signed
+                      <ShieldCheck className="w-3.5 h-3.5 mr-1.5 text-violet-500" />Record Manager Signature
                     </Button>
                   )}
                   {canManageLeases && ["draft", "pending_signature"].includes(lease.status) && (
@@ -687,10 +922,10 @@ function LeaseDetailSheet({ lease, open, onClose }: { lease: Lease | null; open:
                       Activate
                     </Button>
                   )}
-                  {canManageLeases && lease.status === "active" && (
+                  {canManageLeases && ["active", "expired"].includes(lease.status) && !lease.renewal && (
                     <Button size="sm" variant="outline" onClick={() => renewMut.mutate()} disabled={renewMut.isPending}>
                       {renewMut.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin mr-1.5" /> : <RefreshCw className="w-3.5 h-3.5 mr-1.5" />}
-                      Renew (+{escPct}%)
+                      Draft Renewal (+{escPct}%)
                     </Button>
                   )}
                   <Button size="sm" variant="outline" onClick={() => setShowDepositDialog(true)}>
@@ -701,13 +936,32 @@ function LeaseDetailSheet({ lease, open, onClose }: { lease: Lease | null; open:
                       <Scale className="w-3.5 h-3.5 mr-1.5" />RRT Notice
                     </Button>
                   )}
-                  {canManageLeases && lease.status === "active" && (
+                  {canManageLeases && ["active", "expired"].includes(lease.status) && !lease.scheduledTermination && (
                     <Button size="sm" variant="destructive" onClick={() => setShowTerminate(true)}>
                       <XCircle className="w-3.5 h-3.5 mr-1.5" />Terminate
                     </Button>
                   )}
+                  {canManageLeases && ["terminated", "expired"].includes(lease.status) && (
+                    <Button size="sm" onClick={() => setShowSettle(true)}>
+                      <Banknote className="w-3.5 h-3.5 mr-1.5" />Settle Deposit
+                    </Button>
+                  )}
                 </div>
               </div>
+
+              {/* Activating without both signatures: say what is missing, let staff confirm a paper copy */}
+              {confirmUnsigned && (
+                <div className="border border-amber-300 rounded-lg p-3 bg-amber-50 dark:bg-amber-950/20 dark:border-amber-700 space-y-2">
+                  <p className="text-xs text-amber-800 dark:text-amber-300">{confirmUnsigned}</p>
+                  <div className="flex gap-2">
+                    <Button size="sm" onClick={() => activatePaperMut.mutate()} disabled={activatePaperMut.isPending}>
+                      {activatePaperMut.isPending && <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />}
+                      I hold a signed paper copy — activate
+                    </Button>
+                    <Button size="sm" variant="outline" onClick={() => setConfirmUnsigned(null)}>Back</Button>
+                  </div>
+                </div>
+              )}
 
               {/* Terminate confirm */}
               {showTerminate && (
@@ -720,10 +974,14 @@ function LeaseDetailSheet({ lease, open, onClose }: { lease: Lease | null; open:
                         type="date"
                         className="h-8 w-full rounded-md border border-input bg-background px-2 text-xs"
                         value={terminationDate}
+                        max={lease.status === "active" ? String(lease.endDate).split("T")[0] : new Date().toISOString().split("T")[0]}
                         onChange={e => setTerminationDate(e.target.value)}
                       />
                     </div>
                   </div>
+                  <p className="text-[11px] text-muted-foreground">
+                    Today or earlier ends the tenancy now (lease, unit, tenant login). A later date only schedules it — the tenant keeps living and paying until that day, and you can cancel it.
+                  </p>
                   {/* ── Compliance: 30-day notice warning ── */}
                   {(() => {
                     const tDate = terminationDate ? new Date(terminationDate) : new Date();
@@ -816,6 +1074,7 @@ function LeaseDetailSheet({ lease, open, onClose }: { lease: Lease | null; open:
                     <div className="bg-muted/50 rounded-lg p-3">
                       <p className="text-[10px] text-muted-foreground uppercase tracking-wide mb-1">Original deposit</p>
                       <p className="text-lg font-bold">{fmtKES(deposit.originalDeposit, deposit.currency)}</p>
+                      {(deposit.outstanding ?? 0) > 0 && <p className="text-[11px] text-amber-700 dark:text-amber-400 mt-0.5">{fmtKES(deposit.outstanding!, deposit.currency)} not yet received</p>}
                     </div>
                     <div className={`rounded-lg p-3 ${deposit.currentBalance > 0 ? "bg-emerald-50 dark:bg-emerald-950/30" : "bg-rose-50 dark:bg-rose-950/30"}`}>
                       <p className="text-[10px] text-muted-foreground uppercase tracking-wide mb-1">Current balance</p>
@@ -857,9 +1116,14 @@ function LeaseDetailSheet({ lease, open, onClose }: { lease: Lease | null; open:
                     </div>
                   )}
 
-                  <Button size="sm" variant="outline" onClick={() => setShowDepositDialog(true)}>
-                    <Banknote className="w-3.5 h-3.5 mr-1.5" />Record Transaction
-                  </Button>
+                  <div className="flex gap-2 flex-wrap">
+                    <Button size="sm" variant="outline" onClick={() => setShowDepositDialog(true)}>
+                      <Banknote className="w-3.5 h-3.5 mr-1.5" />Record Transaction
+                    </Button>
+                    {canManageLeases && ["terminated", "expired"].includes(lease.status) && (
+                      <Button size="sm" onClick={() => setShowSettle(true)}>Settle Deposit</Button>
+                    )}
+                  </div>
                 </>
               )}
             </TabsContent>
@@ -872,6 +1136,13 @@ function LeaseDetailSheet({ lease, open, onClose }: { lease: Lease | null; open:
           lease={lease}
           open={showDepositDialog}
           onClose={() => setShowDepositDialog(false)}
+        />
+      )}
+      {showSettle && (
+        <SettleDepositDialog
+          lease={lease}
+          open={showSettle}
+          onClose={() => setShowSettle(false)}
         />
       )}
     </>

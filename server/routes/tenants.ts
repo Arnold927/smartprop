@@ -342,6 +342,16 @@ tenantRouter.post("/", async (req: any, res: any) => {
       if (role === "landlord" && unitRow.ownerId !== req.user.id) {
         return res.status(403).json({ message: "You can only add tenants to units in properties you own." });
       }
+      // One household per unit: a second ACTIVE tenant on the same unit is a double booking (the new tenant would
+      // also have flipped the unit's occupancy for the first one). End the current tenancy first.
+      const [holder] = await db.select({ id: tenants.id, f: tenants.firstName, l: tenants.lastName }).from(tenants)
+        .where(and(eq(tenants.organizationId, orgId), eq(tenants.unitId, unitId), eq(tenants.status, "active"))).limit(1);
+      if (holder) {
+        return res.status(409).json({
+          message: `That unit is already occupied by ${`${holder.f ?? ""} ${holder.l ?? ""}`.trim() || "another tenant"}. End their tenancy from the Leases page (Terminate) before adding a new tenant to it.`,
+          code: "UNIT_OCCUPIED",
+        });
+      }
     }
 
     // Resolve (or create) the tenant's OWN login. tenants.userId is NOT NULL, so a
