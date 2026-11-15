@@ -23,6 +23,7 @@ import { z } from "zod";
 import { formatDistanceToNow } from "date-fns";
 import { PageShell, PageHeader, SectionCard, SPBadge, EmptyState, PrimaryButton, SecondaryButton, FilterBar, SPTable, SPAvatar, StatTile, StatsGrid, KESAmount, ActionMenu, ConfirmDialog } from "@/components/ui/sp-ui";
 import { useAuth } from "@/hooks/useAuth";
+import { apiErrorMessage } from "@/lib/maintenance-flow";
 
 // ── Schema ────────────────────────────────────────────────────────────────────
 
@@ -59,9 +60,9 @@ const audienceOptions = [
 
 const communicationChannels = [
   { value: "app_notification", label: "In-App Notification", description: "Instant push via WebSocket — works for any logged-in user", icon: Bell,        color: "bg-blue-500",   available: true },
-  { value: "email",            label: "Email",               description: "Sent via Resend — requires RESEND_API_KEY env var",          icon: Mail,        color: "bg-green-500",  available: !!true  },
-  { value: "sms",              label: "SMS",                 description: "Sent via Twilio — requires TWILIO_* env vars",               icon: Smartphone,  color: "bg-purple-500", available: !!true  },
-  { value: "whatsapp",         label: "WhatsApp",            description: "Sent via WhatsApp Business API — requires WHATSAPP_API_KEY + WHATSAPP_PHONE_NUMBER_ID env vars", icon: MessageSquare, color: "bg-green-600", available: true },
+  { value: "email",            label: "Email",               description: "Sent from your organisation's email address",          icon: Mail,        color: "bg-green-500",  available: !!true  },
+  { value: "sms",              label: "SMS",                 description: "Text message to the phone number on file (Kenyan numbers are converted automatically)",               icon: Smartphone,  color: "bg-purple-500", available: !!true  },
+  { value: "whatsapp",         label: "WhatsApp",            description: "WhatsApp message to the phone number on file", icon: MessageSquare, color: "bg-green-600", available: true },
 ];
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -72,6 +73,7 @@ function statusColor(status: string) {
     case "sending":   return "bg-yellow-100 text-yellow-800 dark:bg-yellow-950/50 dark:text-yellow-400";
     case "scheduled": return "bg-blue-100 text-blue-800 dark:bg-blue-950/50 dark:text-blue-400";
     case "failed":    return "bg-red-100 text-red-800 dark:bg-red-950/50 dark:text-red-400";
+    case "cancelled": return "bg-muted text-muted-foreground line-through";
     default:          return "bg-muted text-muted-foreground";
   }
 }
@@ -89,11 +91,16 @@ function StatusIcon({ status }: { status: string }) {
 
 // ── Templates panel ───────────────────────────────────────────────────────────
 
-function TemplatesDialog({ open, onClose, onApply }: {
+function TemplatesDialog({ open, onClose, onApply, canEdit }: {
   open: boolean;
   onClose: () => void;
   onApply: (title: string, content: string) => void;
+  canEdit: boolean;
 }) {
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const [adding, setAdding] = useState(false);
+  const [draft, setDraft] = useState({ name: "", category: "announcement", content: "" });
   const { data: templates = [] } = useQuery({
     queryKey: ["/api/broadcast-messages/templates"],
     queryFn: async () => {
@@ -102,6 +109,19 @@ function TemplatesDialog({ open, onClose, onApply }: {
     },
     enabled: open,
     retry: false,
+  });
+  const refresh = () => queryClient.invalidateQueries({ queryKey: ["/api/broadcast-messages/templates"] });
+  const createMut = useMutation({
+    mutationFn: async () => (await apiRequest("/api/broadcast-messages/templates", {
+      method: "POST", data: { name: draft.name, category: draft.category, medium: ["app_notification", "email", "sms", "whatsapp"], subject: draft.name, content: draft.content },
+    })).json(),
+    onSuccess: () => { toast({ title: "Template saved" }); setAdding(false); setDraft({ name: "", category: "announcement", content: "" }); refresh(); },
+    onError: (e) => toast({ title: "Could not save template", description: apiErrorMessage(e), variant: "destructive" }),
+  });
+  const removeMut = useMutation({
+    mutationFn: async (id: number) => (await apiRequest(`/api/broadcast-messages/templates/${id}`, { method: "DELETE" })).json(),
+    onSuccess: () => { toast({ title: "Template removed" }); refresh(); },
+    onError: (e) => toast({ title: "Could not remove template", description: apiErrorMessage(e), variant: "destructive" }),
   });
 
   return (
@@ -112,11 +132,31 @@ function TemplatesDialog({ open, onClose, onApply }: {
             <FileText className="w-4 h-4" />Communication Templates
           </DialogTitle>
         </DialogHeader>
-        {templates.length === 0 ? (
+        {adding && (
+          <div className="border border-border rounded-xl p-4 space-y-3">
+            <Input placeholder="Template name, e.g. Water shutdown notice" value={draft.name} onChange={e => setDraft({ ...draft, name: e.target.value })} maxLength={100} />
+            <Select value={draft.category} onValueChange={v => setDraft({ ...draft, category: v })}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {["announcement", "rent_reminder", "maintenance_update", "welcome", "emergency", "custom"].map(c => (
+                  <SelectItem key={c} value={c} className="capitalize">{c.replace(/_/g, " ")}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Textarea placeholder="Message text" rows={4} value={draft.content} onChange={e => setDraft({ ...draft, content: e.target.value })} maxLength={2000} />
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" size="sm" onClick={() => setAdding(false)}>Cancel</Button>
+              <Button size="sm" disabled={!draft.name.trim() || !draft.content.trim() || createMut.isPending} onClick={() => createMut.mutate()}>
+                {createMut.isPending ? "Saving…" : "Save template"}
+              </Button>
+            </div>
+          </div>
+        )}
+        {templates.length === 0 && !adding ? (
           <div className="py-12 text-center">
             <FileText className="w-10 h-10 text-muted-foreground mx-auto mb-3" />
             <p className="text-sm text-muted-foreground">No templates yet.</p>
-            <p className="text-xs text-muted-foreground mt-1">Create one via POST /api/broadcast-messages/templates.</p>
+            {canEdit && <Button variant="outline" size="sm" className="mt-3" onClick={() => setAdding(true)}>Create your first template</Button>}
           </div>
         ) : (
           <div className="space-y-3 py-2">
@@ -127,10 +167,16 @@ function TemplatesDialog({ open, onClose, onApply }: {
                     <p className="text-sm font-semibold text-foreground">{t.name}</p>
                     <Badge variant="outline" className="text-[10px] mt-1 capitalize">{t.category.replace(/_/g, " ")}</Badge>
                   </div>
-                  <Button size="sm" variant="outline" className="h-7 text-xs"
-                    onClick={() => { onApply(t.subject || t.name, t.content); onClose(); }}>
-                    Use
-                  </Button>
+                  <div className="flex gap-2">
+                    {canEdit && (
+                      <Button size="sm" variant="ghost" className="h-7 text-xs text-red-600" disabled={removeMut.isPending}
+                        onClick={() => removeMut.mutate(t.id)}>Remove</Button>
+                    )}
+                    <Button size="sm" variant="outline" className="h-7 text-xs"
+                      onClick={() => { onApply(t.subject || t.name, t.content); onClose(); }}>
+                      Use
+                    </Button>
+                  </div>
                 </div>
                 <p className="text-xs text-muted-foreground mt-2 line-clamp-2">{t.content}</p>
               </div>
@@ -138,6 +184,7 @@ function TemplatesDialog({ open, onClose, onApply }: {
           </div>
         )}
         <DialogFooter>
+          {canEdit && !adding && templates.length > 0 && <Button variant="outline" onClick={() => setAdding(true)}>New template</Button>}
           <Button variant="outline" onClick={onClose}>Close</Button>
         </DialogFooter>
       </DialogContent>
@@ -151,7 +198,7 @@ const PAGE_SIZE_OPTIONS = [5, 10, 20, 50];
 
 export default function BroadcastMessaging({ embedded = false }: { embedded?: boolean } = {}) {
   const { user } = useAuth();
-  const isAdmin = user?.role === "admin";
+  const isAdmin = user?.role === "admin" || user?.role === "manager" || user?.role === "platform_admin";   // may send broadcasts
 
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -205,16 +252,20 @@ export default function BroadcastMessaging({ embedded = false }: { embedded?: bo
     onSuccess: (result: any) => {
       const isScheduled = result.status === "scheduled";
       const skipped = result.skippedCount ?? 0;
+      const nobody = !isScheduled && (result.sentCount ?? 0) === 0;
       toast({
-        title: isScheduled ? "Broadcast scheduled" : "Broadcast sent",
+        title: isScheduled ? "Broadcast scheduled" : nobody ? "Nobody received this broadcast" : "Broadcast sent",
+        variant: nobody ? "destructive" : undefined,
         description: isScheduled
           ? `Will be delivered to ${result.totalRecipients} recipients on ${new Date(result.scheduledFor).toLocaleString()}.`
           : [
               `Delivered to ${result.sentCount} of ${result.totalRecipients} recipients.`,
               result.failedCount > 0 ? ` ${result.failedCount} failed.` : "",
-              skipped > 0 ? ` ${skipped} skipped — missing contact info for selected channel(s).` : "",
+              skipped > 0 ? ` ${skipped} skipped — no contact detail, opted out, or channel not set up.` : "",
+              ...(result.warnings ?? []).map((w: string) => ` ${w}.`),
             ].join("").trim(),
       });
+      if (nobody) { queryClient.invalidateQueries({ queryKey: ["/api/broadcast-messages"] }); return; }   // keep the form so it can be fixed and resent
       form.reset();
       setSelectedChannels([]);
       setSelectedRoles([]);
@@ -223,9 +274,18 @@ export default function BroadcastMessaging({ embedded = false }: { embedded?: bo
     },
     onError: (error: any) => toast({
       title: "Failed to send broadcast",
-      description: error.message || "Please try again.",
+      description: apiErrorMessage(error, "Please try again."),
       variant: "destructive",
     }),
+  });
+
+  const cancelMutation = useMutation({
+    mutationFn: async (id: number) => {
+      const r = await apiRequest(`/api/broadcast-messages/${id}/cancel`, { method: "PATCH", data: {} });
+      return r.json();
+    },
+    onSuccess: () => { toast({ title: "Broadcast cancelled" }); queryClient.invalidateQueries({ queryKey: ["/api/broadcast-messages"] }); },
+    onError: (e) => toast({ title: "Could not cancel", description: apiErrorMessage(e), variant: "destructive" }),
   });
 
   const handleChannelToggle = (channel: string, checked: boolean) => {
@@ -411,10 +471,16 @@ export default function BroadcastMessaging({ embedded = false }: { embedded?: bo
                   <h3 className="text-sm font-semibold text-foreground truncate">{broadcast.title}</h3>
                   <p className="text-xs text-muted-foreground truncate mt-0.5">{broadcast.content}</p>
                 </div>
-                <Badge className={`${statusColor(broadcast.status)} flex items-center flex-shrink-0 text-xs`}>
-                  <StatusIcon status={broadcast.status} />
-                  {broadcast.status}
-                </Badge>
+                <div className="flex items-center gap-2 flex-shrink-0">
+                  {broadcast.status === "scheduled" && isAdmin && (
+                    <Button size="sm" variant="outline" className="h-7 text-xs" disabled={cancelMutation.isPending}
+                      onClick={() => cancelMutation.mutate(broadcast.id)}>Cancel</Button>
+                  )}
+                  <Badge className={`${statusColor(broadcast.status)} flex items-center text-xs`}>
+                    <StatusIcon status={broadcast.status} />
+                    {broadcast.status}
+                  </Badge>
+                </div>
               </div>
 
               <div className="flex items-center justify-between text-xs text-muted-foreground mt-2">
@@ -425,6 +491,11 @@ export default function BroadcastMessaging({ embedded = false }: { embedded?: bo
                   <span className="flex items-center gap-1">
                     <CheckCircle2 className="h-3 w-3 text-green-500" />{broadcast.sentCount ?? 0} sent
                   </span>
+                  {broadcast.status === "scheduled" && broadcast.scheduledFor && (
+                    <span className="flex items-center gap-1 text-blue-600">
+                      <Clock className="h-3 w-3" />goes out {new Date(broadcast.scheduledFor).toLocaleString()}
+                    </span>
+                  )}
                   {(broadcast.skippedCount ?? 0) > 0 && (
                     <span className="flex items-center gap-1 text-amber-500">
                       <AlertCircle className="h-3 w-3" />{broadcast.skippedCount} skipped
@@ -765,6 +836,7 @@ export default function BroadcastMessaging({ embedded = false }: { embedded?: bo
       <TemplatesDialog
         open={templatesOpen}
         onClose={() => setTemplatesOpen(false)}
+        canEdit={isAdmin}
         onApply={(title, content) => {
           form.setValue("title", title);
           form.setValue("content", content);

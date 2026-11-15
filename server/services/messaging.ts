@@ -19,6 +19,13 @@
  *   SendGrid:          SENDGRID_API_KEY
  */
 
+import { toE164 } from '../lib/phone';
+import { isEmailConfigured, sendPlainEmail } from '../lib/email';
+
+export function escapeHtml(v: string): string {
+  return String(v).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c] as string));
+}
+
 // ── Type stubs (avoids mandatory @types installs) ─────────────────────────────
 
 interface SendGridClient {
@@ -141,9 +148,19 @@ export class MessagingService {
 
   // ── sendSMS ────────────────────────────────────────────────────────────────
 
+  /** True when at least one SMS provider is configured. */
+  isSmsConfigured(): boolean { return !!(this.atSMS || this.twilioClient); }
+
+  /** True when email can be sent (Resend, or SendGrid as the legacy fallback). */
+  isEmailConfigured(): boolean { return isEmailConfigured() || !!this.sendGridClient; }
+
   async sendSMS(options: SMSOptions): Promise<boolean> {
-    // Normalise phone: AT requires E.164 (e.g. +254...). Strip spaces.
-    const to = options.to.replace(/\s+/g, '');
+    // AT and Twilio both require E.164 (+2547…); numbers are stored as typed (0712…, 254712…).
+    const to = toE164(options.to);
+    if (!to) {
+      console.warn('[messaging] sendSMS skipped — not a valid phone number:', options.to);
+      return false;
+    }
 
     // 1. Africa's Talking — preferred
     if (this.atSMS) {
@@ -188,6 +205,19 @@ export class MessagingService {
   // ── sendEmail ──────────────────────────────────────────────────────────────
 
   async sendEmail(options: EmailOptions): Promise<boolean> {
+    // Resend is the provider the rest of the app (invites, statements, reminders) is configured with.
+    if (isEmailConfigured()) {
+      try {
+        await sendPlainEmail({
+          to: options.to, subject: options.subject,
+          html: options.html ?? `<p>${escapeHtml(options.text ?? "")}</p>`, text: options.text,
+        });
+        return true;
+      } catch (err) {
+        console.error('[messaging] Resend email error:', err);
+        return false;
+      }
+    }
     if (!this.sendGridClient) {
       console.warn('[messaging] SendGrid not configured, email not sent');
       return false;
@@ -296,11 +326,11 @@ export class MessagingService {
 
   private formatContentByType(content: string, type?: string): string {
     switch (type) {
-      case 'invoice_reminder':    return `<h2>🧾 Payment Reminder</h2><p>${content}</p><p><a href="#" class="btn">Pay Now</a></p>`;
-      case 'maintenance_update':  return `<h2>🔧 Maintenance Update</h2><p>${content}</p>`;
-      case 'payment_confirmation':return `<h2>✅ Payment Confirmed</h2><p>${content}</p>`;
-      case 'system_notification': return `<h2>🔔 System Notification</h2><p>${content}</p>`;
-      default:                    return `<p>${content}</p>`;
+      case 'invoice_reminder':    return `<h2>🧾 Payment Reminder</h2><p>${escapeHtml(content).replace(/\n/g, "<br>")}</p>`;
+      case 'maintenance_update':  return `<h2>🔧 Maintenance Update</h2><p>${escapeHtml(content).replace(/\n/g, '<br>')}</p>`;
+      case 'payment_confirmation':return `<h2>✅ Payment Confirmed</h2><p>${escapeHtml(content).replace(/\n/g, '<br>')}</p>`;
+      case 'system_notification': return `<h2>🔔 System Notification</h2><p>${escapeHtml(content).replace(/\n/g, '<br>')}</p>`;
+      default:                    return `<p>${escapeHtml(content).replace(/\n/g, '<br>')}</p>`;
     }
   }
 }

@@ -872,11 +872,29 @@ function NotificationPrefsCard() {
           </button>
         </div>
 
-        {/* Email toggle */}
+        {/* Email toggle — this used to flip the payment-reminder switch by mistake */}
         <div className="flex items-center justify-between py-2 border-b border-border">
           <div>
             <p className="text-sm font-medium">Email notifications</p>
             <p className="text-xs text-muted-foreground mt-0.5">Formal rent statements and lease documents</p>
+          </div>
+          <button
+            onClick={() => toggle("emailNotifications", !(prefs?.emailNotifications ?? true))}
+            disabled={saveMut.isPending}
+            className={`relative inline-flex h-6 w-11 rounded-full transition-colors ${
+              (prefs?.emailNotifications ?? true) ? "bg-blue-500" : "bg-muted-foreground/30"
+            }`}
+          >
+            <span className={`absolute top-0.5 left-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform ${
+              (prefs?.emailNotifications ?? true) ? "translate-x-5" : "translate-x-0"
+            }`} />
+          </button>
+        </div>
+        {/* Rent reminders master switch */}
+        <div className="flex items-center justify-between py-2 border-b border-border">
+          <div>
+            <p className="text-sm font-medium">Rent reminders</p>
+            <p className="text-xs text-muted-foreground mt-0.5">Due-date warnings, overdue notices and payment confirmations on any channel</p>
           </div>
           <button
             onClick={() => toggle("paymentReminders", !(prefs?.paymentReminders ?? true))}
@@ -890,7 +908,6 @@ function NotificationPrefsCard() {
             }`} />
           </button>
         </div>
-
         {/* Rent due warning days */}
         <div className="flex items-center justify-between py-2">
           <div>
@@ -913,7 +930,7 @@ function NotificationPrefsCard() {
 
         <p className="text-xs text-muted-foreground bg-muted/50 rounded-lg px-3 py-2">
           <MoonIc className="inline h-3.5 w-3.5 mr-1 -mt-0.5" />Quiet hours (21:00 – 07:00 EAT): non-urgent notifications are held until morning.
-          Urgent alerts (overdue rent, lease termination) are always delivered immediately.
+          Urgent alerts (overdue rent, lease termination) skip quiet hours — unless you have switched that kind of notification off.
         </p>
       </CardContent>
     </Card>

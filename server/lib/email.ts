@@ -905,3 +905,20 @@ export async function sendOwnerStatementEmail({
     throw new Error(`Failed to send owner statement email: ${msg}`);
   }
 }
+
+/** True when email can actually be sent (a Resend key is present). */
+export function isEmailConfigured(): boolean {
+  return !!process.env.RESEND_API_KEY;
+}
+
+/** Plain transactional email (broadcasts, reminders). Throws on failure so callers can record why. */
+export async function sendPlainEmail({ to, subject, html, text }: { to: string; subject: string; html: string; text?: string }) {
+  const client = getResendClient();
+  const from = getFromEmail();
+  const { error } = await client.emails.send({ from, to, subject, html, ...(text ? { text } : {}) });
+  if (error) {
+    const msg = (error as any).message ?? JSON.stringify(error);
+    logger.error("[email] Plain email send error:", msg);
+    throw new Error(`Failed to send email: ${msg}`);
+  }
+}

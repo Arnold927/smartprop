@@ -885,7 +885,7 @@ export const broadcastMessages = pgTable("broadcast_messages", {
   audienceFilter: jsonb("audience_filter"), // JSON criteria for filtering recipients
   broadcastMedium: varchar("broadcast_medium").array().notNull(), // ["sms", "email", "app_notification", "whatsapp", "push_notification"]
   scheduledFor: timestamp("scheduled_for"),
-  status: varchar("status", { enum: ["draft", "scheduled", "sending", "sent", "failed"] }).default("draft"),
+  status: varchar("status", { enum: ["draft", "scheduled", "sending", "sent", "failed", "cancelled"] }).default("draft"),
   totalRecipients: integer("total_recipients").default(0),
   sentCount: integer("sent_count").default(0),
   failedCount: integer("failed_count").default(0),

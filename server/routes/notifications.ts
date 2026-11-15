@@ -381,6 +381,7 @@ router.get("/preferences", async (req: any, res) => {
         securityAlerts:       true,
         paymentReminders:     true,
         whatsappNotifications:true,    // primary channel in Kenya
+        emailNotifications:   true,
         rentDueWarningDays:   3,
         marketingEmails:      false,
         weeklyDigest:         false,
@@ -404,6 +405,8 @@ const prefsSchema = z.object({
   securityAlerts:        z.boolean().optional(),
   paymentReminders:      z.boolean().optional(),
   whatsappNotifications: z.boolean().optional(),
+  emailNotifications:    z.boolean().optional(),
+  smsNotifications:      z.boolean().optional(),
   rentDueWarningDays:    z.number().int().min(1).max(14).optional(),
   marketingEmails:       z.boolean().optional(),
   weeklyDigest:          z.boolean().optional(),
@@ -411,8 +414,8 @@ const prefsSchema = z.object({
   frequency:             z.enum(["immediate","daily","weekly","monthly"]).optional(),
   quietHours:            z.object({
     enabled: z.boolean(),
-    start:   z.string(),
-    end:     z.string(),
+    start:   z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, "Use HH:MM"),
+    end:     z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, "Use HH:MM"),
   }).optional(),
 });
 

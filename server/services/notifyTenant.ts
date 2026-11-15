@@ -20,7 +20,7 @@ import { db }               from "../db";
 import { tenants, userNotificationPreferences, users, organizations } from "@shared/schema";
 import { eq, and }          from "drizzle-orm";
 import { whatsappService }  from "../whatsapp";
-import { sendRentReminderEmail } from "../lib/email";
+import { whatsappReady } from "./payment-reminders";
 
 const log = (msg: string) => console.log(`[notifyTenant] ${msg}`);
 
@@ -269,9 +269,30 @@ function buildWhatsAppMessage(tenant: { firstName: string; lastName: string }, e
 
 // ── Quiet hours check (EAT = UTC+3) ──────────────────────────────────────────
 
-function isQuietHours(): boolean {
-  const eatHour = (new Date().getUTCHours() + 3) % 24;
-  return eatHour >= 21 || eatHour < 7; // 21:00 – 07:00 EAT
+/** Minutes past midnight in Nairobi. */
+function eatMinutes(): number {
+  const eat = new Date(Date.now() + 3 * 3600_000);
+  return eat.getUTCHours() * 60 + eat.getUTCMinutes();
+}
+function hhmm(v: unknown, fallback: number): number {
+  const m = /^([01]?\d|2[0-3]):([0-5]\d)$/.exec(String(v ?? ""));
+  return m ? Number(m[1]) * 60 + Number(m[2]) : fallback;
+}
+
+/** Default window is 21:00–07:00 EAT; a tenant who set their own window (enabled) gets that one. Handles windows that cross midnight. */
+export function isQuietHours(window?: { enabled?: boolean; start?: string; end?: string } | null, nowMin = eatMinutes()): boolean {
+  const start = window?.enabled ? hhmm(window.start, 21 * 60) : 21 * 60;
+  const end   = window?.enabled ? hhmm(window.end, 7 * 60)    : 7 * 60;
+  if (start === end) return false;
+  return start < end ? nowMin >= start && nowMin < end : nowMin >= start || nowMin < end;
+}
+
+/** Which of the tenant's own switches governs an event. */
+function categoryOf(type: string): "payment" | "maintenance" | "security" | "general" {
+  if (type.startsWith("rent_")) return "payment";
+  if (type.startsWith("maintenance_")) return "maintenance";
+  if (type === "visitor_approved") return "security";
+  return "general";
 }
 
 const URGENT_EVENTS = new Set([
@@ -289,6 +310,8 @@ interface TenantPrefs {
   firstName:   string;
   lastName:    string;
   orgId:       number;
+  allow:       { payment: boolean; maintenance: boolean; security: boolean };
+  quietHours:  { enabled?: boolean; start?: string; end?: string } | null;
 }
 
 async function getPrefs(tenantId: number): Promise<TenantPrefs | null> {
@@ -310,12 +333,19 @@ async function getPrefs(tenantId: number): Promise<TenantPrefs | null> {
   // Look up preferences via the user account linked to this tenant.
   // row.userId may be null if the tenant has no portal account yet — skip the
   // prefs query in that case and fall back to the default (notify on all channels).
-  let prefs: { whatsappNotifications?: boolean | null; emailNotifications?: boolean | null } | undefined;
+  let prefs: {
+    whatsappNotifications?: boolean | null; emailNotifications?: boolean | null; paymentReminders?: boolean | null;
+    maintenanceUpdates?: boolean | null; securityAlerts?: boolean | null; quietHours?: unknown;
+  } | undefined;
   if (row.userId) {
     const [prefsRow] = await db
       .select({
         whatsappNotifications: userNotificationPreferences.whatsappNotifications,
         emailNotifications:    userNotificationPreferences.emailNotifications,
+        paymentReminders:      userNotificationPreferences.paymentReminders,
+        maintenanceUpdates:    userNotificationPreferences.maintenanceUpdates,
+        securityAlerts:        userNotificationPreferences.securityAlerts,
+        quietHours:            userNotificationPreferences.quietHours,
       })
       .from(userNotificationPreferences)
       .where(eq(userNotificationPreferences.userId, row.userId))
@@ -332,6 +362,13 @@ async function getPrefs(tenantId: number): Promise<TenantPrefs | null> {
     // Default both channels to true if no prefs row exists yet
     whatsappOk: prefs ? Boolean(prefs.whatsappNotifications ?? true) : true,
     emailOk:    prefs ? Boolean(prefs.emailNotifications    ?? true) : true,
+    // The tenant's own category switches used to be stored and shown but never read here.
+    allow: {
+      payment:     prefs ? prefs.paymentReminders !== false : true,
+      maintenance: prefs ? prefs.maintenanceUpdates !== false : true,
+      security:    prefs ? prefs.securityAlerts !== false : true,
+    },
+    quietHours: (prefs?.quietHours as TenantPrefs["quietHours"]) ?? null,
   };
 }
 
@@ -351,12 +388,19 @@ export async function notifyTenant(
   tenantId: number,
   event: NotificationEvent,
   orgId?: number,
-): Promise<void> {
+): Promise<boolean> {
+  let whatsappSent = false;
   try {
     const prefs = await getPrefs(tenantId);
-    if (!prefs) { log(`Tenant #${tenantId} not found — skipping`); return; }
+    if (!prefs) { log(`Tenant #${tenantId} not found — skipping`); return false; }
 
     const effectiveOrgId = orgId ?? prefs.orgId;
+
+    const category = categoryOf(event.type);
+    if (category !== "general" && !prefs.allow[category]) {
+      log(`Tenant #${tenantId} switched ${category} notifications off — skipping ${event.type}`);
+      return false;
+    }
 
     // Fetch org details for paybill number and name
     let org: { name?: string | null; mpesaPaybill?: string | null } = {};
@@ -368,9 +412,16 @@ export async function notifyTenant(
         .limit(1);
       org = orgRow ?? {};
     } catch { /* non-fatal */ }
+    // The M-Pesa line in rent messages was never filled in (only the org name was loaded). Resolve the paybill that applies to this tenant.
+    try {
+      const { resolvePaymentConfigForTenantId } = await import("../utils/resolvePaymentConfig");
+      const cfg = await resolvePaymentConfigForTenantId(tenantId, effectiveOrgId);
+      const paybill = cfg?.rentPayment?.mpesaPaybill;
+      if (paybill) org = { ...org, mpesaPaybill: String(paybill) };
+    } catch { /* non-fatal */ }
 
     const isUrgent = URGENT_EVENTS.has(event.type);
-    const quiet    = isQuietHours();
+    const quiet    = isQuietHours(prefs.quietHours);
 
     // ── WhatsApp ────────────────────────────────────────────────────────────
     if (prefs.whatsappOk && prefs.phone) {
@@ -381,9 +432,16 @@ export async function notifyTenant(
           org,
         );
 
-        whatsappService
-          .sendMessage({ to: prefs.phone, type: "text", content: msg }, effectiveOrgId)
-          .catch(err => log(`WhatsApp failed for tenant #${tenantId}: ${err}`));
+        // Without real credentials the WhatsApp service only logs and reports success, so check first.
+        const wa = await whatsappReady(effectiveOrgId);
+        if (!wa.ready) {
+          log(`WhatsApp not configured for org #${effectiveOrgId} — not sending to tenant #${tenantId}`);
+        } else {
+          whatsappSent = true;
+          whatsappService
+            .sendMessage({ to: prefs.phone, type: "text", content: msg }, effectiveOrgId, wa.settings)
+            .catch(err => log(`WhatsApp failed for tenant #${tenantId}: ${err}`));
+        }
       } else {
         log(`Quiet hours — skipping non-urgent WhatsApp for tenant #${tenantId}`);
       }
@@ -402,6 +460,7 @@ export async function notifyTenant(
   } catch (err) {
     log(`Error notifying tenant #${tenantId}: ${err}`);
   }
+  return whatsappSent;
 }
 
 /**

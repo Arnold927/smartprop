@@ -13,7 +13,7 @@
 import { Router } from "express";
 import { db } from "../db";
 import { messages, users } from "@shared/schema";
-import { eq, and, or, count, desc } from "drizzle-orm";
+import { eq, and, or, count, desc, inArray } from "drizzle-orm";
 import { authenticateJWT } from "../middleware/auth";
 import { auditLog } from "../middleware/auditLog";
 import { requireOrg } from "../middleware/requireOrg";
@@ -24,6 +24,30 @@ import { pushNotification } from "./notifications";
 import { z } from "zod";
 
 const router = Router();
+
+/**
+ * Who may message whom. Tenants and landlords reach the management team only — before this, any tenant could message
+ * (or bulk-message) every user in the organisation, and the contact list handed them everyone's name and role.
+ * Staff roles can message anyone in their organisation except platform administrators.
+ */
+const MANAGEMENT_ROLES = ["admin", "manager", "staff"];
+const canMessageRole = (senderRole: string | undefined, targetRole: string | null | undefined): boolean => {
+  if (!targetRole || targetRole === "platform_admin") return senderRole === "platform_admin";
+  if (senderRole === "tenant" || senderRole === "landlord") return MANAGEMENT_ROLES.includes(targetRole);
+  return true;
+};
+const BULK_SENDERS = ["admin", "manager", "platform_admin"];
+
+const sendMessageSchema = z.object({
+  toUserId: z.string().uuid("Recipient is not valid").optional().nullable(),
+  subject: z.string().trim().max(200).optional().nullable(),
+  content: z.string().trim().min(1, "Message cannot be empty").max(5000),
+  metadata: z.object({
+    attachments: z.array(z.object({
+      url: z.string().max(1000), name: z.string().max(255).optional(), size: z.number().optional(), mimeType: z.string().max(120).optional(),
+    })).max(10).optional(),
+  }).passthrough().optional().nullable(),
+});
 
 // ── GET /api/messages ─────────────────────────────────────────────────────────
 // ?box=inbox|sent|all  (default: all)
@@ -61,10 +85,11 @@ router.get("/", authenticateJWT, requireOrg, async (req: any, res) => {
     }
 
     // Batch-fetch all users referenced on this page
+    const pageUserIds = [...new Set(rows.flatMap(m => [m.fromUserId, m.toUserId]))];
     const userRows = await db
       .select({ id: users.id, firstName: users.firstName, lastName: users.lastName, email: users.email, role: users.role })
       .from(users)
-      .where(eq(users.organizationId, orgId));
+      .where(and(eq(users.organizationId, orgId), inArray(users.id, pageUserIds)));
 
     const userMap = new Map(userRows.map(u => [u.id, u]));
 
@@ -103,9 +128,10 @@ router.post("/", authenticateJWT, requireOrg, auditLog("message", "CREATE"), asy
     const userId: string = String(req.user.userId || req.user.id);
     const orgId: number  = req.user.organizationId;
 
-    let toUserId: string | undefined = req.body.toUserId
-      ? String(req.body.toUserId)
-      : undefined;
+    const body = sendMessageSchema.safeParse(req.body);
+    if (!body.success) return res.status(400).json({ message: body.error.errors[0]?.message ?? "Invalid message", errors: body.error.errors });
+
+    let toUserId: string | undefined = body.data.toUserId ? String(body.data.toUserId) : undefined;
 
     // If no recipient specified (e.g. tenant sending first-ever message),
     // auto-route to the org admin so the schema requirement is satisfied.
@@ -120,18 +146,29 @@ router.post("/", authenticateJWT, requireOrg, auditLog("message", "CREATE"), asy
       }
       toUserId = admin.id;
     } else {
-      // Validate the supplied recipient belongs to the same org
+      if (toUserId === userId) return res.status(400).json({ message: "You cannot message yourself" });
+      // Validate the supplied recipient belongs to the same org — and is someone this role may message
       const [targetUser] = await db
-        .select({ id: users.id })
+        .select({ id: users.id, role: users.role })
         .from(users)
         .where(and(eq(users.id, toUserId), eq(users.organizationId, orgId)))
         .limit(1);
       if (!targetUser) {
         return res.status(400).json({ message: "Recipient not found in your organisation" });
       }
+      if (!canMessageRole(req.user.role, targetUser.role)) {
+        return res.status(403).json({ message: "You can only message the management team" });
+      }
     }
 
-    const validated = insertMessageSchema.parse({ ...req.body, fromUserId: userId, toUserId });
+    // Only the fields a person may set. (The whole body used to be passed through, so a client could set messageType,
+    // isRead, sentAt, scheduling flags, or forge metadata.)
+    const validated = insertMessageSchema.parse({
+      fromUserId: userId, toUserId,
+      subject: body.data.subject || null, content: body.data.content,
+      channel: "app", type: "chat", messageType: "direct", sentAt: new Date(),
+      metadata: body.data.metadata ?? null,
+    });
     const msg = await storage.createMessage(validated);
 
     // Real-time push to recipient
@@ -192,7 +229,7 @@ router.get("/contacts", authenticateJWT, requireOrg, async (req: any, res) => {
     const isManager = ['admin', 'manager'].includes(req.user.role ?? '');
 
     const contacts = rows
-      .filter(u => u.id !== userId)
+      .filter(u => u.id !== userId && canMessageRole(req.user.role, u.role))
       .map(u => ({
         id:        u.id,
         firstName: u.firstName,
@@ -238,20 +275,32 @@ router.post("/bulk", authenticateJWT, requireOrg, async (req: any, res) => {
   try {
     const userId: string = String(req.user.userId || req.user.id);
     const orgId: number  = req.user.organizationId;
-    const { toUserIds, subject, content, attachments } = req.body;
+    // Mass messaging is for the management team. It used to be open to every role, including tenants.
+    if (!BULK_SENDERS.includes(req.user.role)) {
+      return res.status(403).json({ message: "Only admins and managers can message several people at once" });
+    }
+    const { subject, content, attachments } = req.body;
+    const toUserIds: string[] = Array.isArray(req.body.toUserIds) ? [...new Set<string>(req.body.toUserIds.map(String))] : [];
 
-    if (!Array.isArray(toUserIds) || toUserIds.length === 0) {
+    if (toUserIds.length === 0) {
       return res.status(400).json({ message: "toUserIds must be a non-empty array" });
     }
-    if (!content?.trim()) {
+    if (!toUserIds.every(id => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id))) {
+      return res.status(400).json({ message: "toUserIds contains an invalid id" });
+    }
+    if (toUserIds.length > 500) return res.status(400).json({ message: "At most 500 recipients per message" });
+    if (typeof content !== "string" || !content.trim()) {
       return res.status(400).json({ message: "content is required" });
+    }
+    if (content.length > 5000 || (typeof subject === "string" && subject.length > 200)) {
+      return res.status(400).json({ message: "Message or subject is too long" });
     }
 
     // Validate all recipients belong to same org
     const recipientRows = await db
       .select({ id: users.id })
       .from(users)
-      .where(and(eq(users.organizationId, orgId)));
+      .where(and(eq(users.organizationId, orgId), inArray(users.id, toUserIds)));
     const validIds = new Set(recipientRows.map(u => u.id));
     const invalidIds = toUserIds.filter((id: string) => !validIds.has(id));
     if (invalidIds.length > 0) {
@@ -269,7 +318,8 @@ router.post("/bulk", authenticateJWT, requireOrg, async (req: any, res) => {
         const validated = insertMessageSchema.parse({
           fromUserId: userId,
           toUserId,
-          subject: subject ?? "Message from management",
+          subject: (typeof subject === "string" && subject.trim()) || "Message from management",
+          sentAt: new Date(),
           content: content.trim(),
           messageType: "broadcast",
           metadata: meta ?? null,

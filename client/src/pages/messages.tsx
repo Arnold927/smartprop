@@ -26,6 +26,7 @@ import { SearchableSelect } from "@/components/ui/searchable-select";
 import { useLocation } from "wouter";
 import { useState, useCallback } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { apiErrorMessage } from "@/lib/maintenance-flow";
 import { apiRequest, ensureArray } from "@/lib/queryClient";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
@@ -380,8 +381,8 @@ export default function Messages({ embedded = false }: { embedded?: boolean } = 
       setIsComposeOpen(false);
       setCompose({ toUserId: "", subject: "", content: "", isReply: false });
     },
-    onError: () => {
-      toast({ title: "Failed to send message", description: "Please try again.", variant: "destructive" });
+    onError: (e) => {
+      toast({ title: "Failed to send message", description: apiErrorMessage(e, "Please try again."), variant: "destructive" });
     },
   });
 

@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
+import { apiErrorMessage } from "@/lib/maintenance-flow";
 import {
   AlertTriangle, DollarSign, Calendar, MessageSquare, Send,
   Calculator, Clock, Shield, Target, Activity,
@@ -33,7 +34,7 @@ function roleCapabilities(role: Role) {
   return {
     canManage:    role === "admin" || role === "manager",   // detect, schedule, send reminders
     canView:      role !== "tenant",                        // full list
-    canSendReminder: role === "admin" || role === "manager" || role === "staff",
+    canSendReminder: role === "admin" || role === "manager",   // the reminders API is admin/manager only
     isLandlord:   role === "landlord",
     isStaff:      role === "staff",
   };
@@ -317,42 +318,35 @@ export default function ArrearsPage() {
       return r.json();
     },
     onSuccess: (data: any) => {
-      toast({ title: `${data?.scheduled ?? 0} reminders scheduled` });
+      const queued = data?.scheduled ?? 0;
+      if (!queued) toast({ title: "Nothing to send", description: "Every active arrear was already reminded in the last 7 days." });
+      else toast({
+        title: `${data.sent ?? 0} of ${queued} reminders delivered`,
+        description: [data.skipped ? `${data.skipped} skipped (opted out, no contact detail or channel not set up)` : "", data.failed ? `${data.failed} failed` : ""].filter(Boolean).join(" · ") || undefined,
+        variant: !data.sent ? "destructive" : undefined,
+      });
       queryClient.invalidateQueries({ queryKey: ["/api/payment-reminders"] });
     },
-    onError: () => toast({ title: "Failed to schedule reminders", variant: "destructive" }),
+    onError: (e) => toast({ title: "Failed to send reminders", description: apiErrorMessage(e), variant: "destructive" }),
   });
 
   const sendReminderMutation = useMutation({
-    mutationFn: async ({ tenantId, arrearsId, arrear }: { tenantId: number; arrearsId: number; arrear: Arrears }) => {
-      const tenantName   = getTenantName(tenantId);
-      const amount       = safeAmount(arrear.outstandingAmount).toLocaleString("en-KE");
-      const currency     = arrear.currency ?? "KES";
-      const daysOverdue  = calcDaysOverdue(arrear.nextDueDate, arrear.daysOverdue);
-      const message = [
-        `Dear ${tenantName},`,
-        ``,
-        `This is a payment reminder from your property manager.`,
-        ``,
-        `Outstanding amount: ${currency} ${amount}`,
-        `Days overdue: ${daysOverdue}`,
-        ...(arrear.nextDueDate ? [`Next due date: ${safeFormatDate(arrear.nextDueDate)}`] : []),
-        ``,
-        `Please make payment as soon as possible to avoid further action.`,
-        `If you have already paid, please share your payment reference.`,
-      ].join("\n");
+    mutationFn: async ({ tenantId, arrearsId }: { tenantId: number; arrearsId: number; arrear: Arrears }) => {
+      // The server builds the wording from the live balance and picks the channel (WhatsApp, then email, then SMS).
       const r = await apiRequest("/api/payment-reminders", {
         method: "POST",
-        data: { tenantId, arrearsId, reminderType: "overdue", channel: "email", message,
-                scheduledFor: new Date().toISOString(), recipientInfo: { tenantId } },
+        data: { tenantId, arrearsId, reminderType: "overdue", channel: "auto" },
       });
       return r.json();
     },
-    onSuccess: () => {
-      toast({ title: "Reminder sent" });
+    onSuccess: (data: any) => {
+      const d = data?.delivery;
+      if (d?.status === "sent") toast({ title: "Reminder sent", description: `Delivered by ${d.channel}.` });
+      else if (d?.status === "skipped") toast({ title: "Reminder not sent", description: d.reason, variant: "destructive" });
+      else toast({ title: "Reminder failed", description: d?.reason ?? "The provider did not accept it.", variant: "destructive" });
       queryClient.invalidateQueries({ queryKey: ["/api/payment-reminders"] });
     },
-    onError: () => toast({ title: "Failed to send reminder", variant: "destructive" }),
+    onError: (e) => toast({ title: "Failed to send reminder", description: apiErrorMessage(e), variant: "destructive" }),
   });
 
   const calculateRiskMutation = useMutation({
@@ -439,46 +433,32 @@ export default function ArrearsPage() {
   const selection = useRowSelection(arrearsPag.filtered, (a: Arrears) => a.id);
   const [bulkBusy, setBulkBusy] = useState(false);
 
-  const buildReminderMessage = (arrear: Arrears) => {
-    const tenantName  = getTenantName(arrear.tenantId);
-    const amount      = safeAmount(arrear.outstandingAmount).toLocaleString("en-KE");
-    const currency    = arrear.currency ?? "KES";
-    const daysOverdue = calcDaysOverdue(arrear.nextDueDate, arrear.daysOverdue);
-    return [
-      `Dear ${tenantName},`, ``,
-      `This is a payment reminder from your property manager.`, ``,
-      `Outstanding amount: ${currency} ${amount}`,
-      `Days overdue: ${daysOverdue}`,
-      ...(arrear.nextDueDate ? [`Next due date: ${safeFormatDate(arrear.nextDueDate)}`] : []),
-      ``,
-      `Please make payment as soon as possible to avoid further action.`,
-      `If you have already paid, please share your payment reference.`,
-    ].join("\n");
-  };
-
   const sendBulkReminders = async () => {
     const rows = selection.selectedItems;
     if (!rows.length) return;
     setBulkBusy(true);
-    let ok = 0, failed = 0;
+    let sent = 0, skipped = 0, failed = 0;
     // 5 at a time so a big selection does not hammer the server
     for (let i = 0; i < rows.length; i += 5) {
       const results = await Promise.allSettled(rows.slice(i, i + 5).map(a =>
         apiRequest("/api/payment-reminders", {
           method: "POST",
-          data: { tenantId: a.tenantId, arrearsId: a.id, reminderType: "overdue", channel: "email",
-                  message: buildReminderMessage(a), scheduledFor: new Date().toISOString(), recipientInfo: { tenantId: a.tenantId } },
-        }).then(r => { if (!r.ok) throw new Error("failed"); })
+          data: { tenantId: a.tenantId, arrearsId: a.id, reminderType: "overdue", channel: "auto" },
+        }).then(r => r.json())
       ));
-      results.forEach(r => (r.status === "fulfilled" ? ok++ : failed++));
+      results.forEach(r => {
+        const st = r.status === "fulfilled" ? r.value?.delivery?.status : "failed";
+        if (st === "sent") sent++; else if (st === "skipped") skipped++; else failed++;
+      });
     }
     setBulkBusy(false);
     queryClient.invalidateQueries({ queryKey: ["/api/payment-reminders"] });
     toast({
-      title: failed ? `${ok} reminder${ok === 1 ? "" : "s"} sent, ${failed} failed` : `${ok} reminder${ok === 1 ? "" : "s"} sent`,
-      variant: failed && !ok ? "destructive" : undefined,
+      title: `${sent} of ${rows.length} reminder${rows.length === 1 ? "" : "s"} delivered`,
+      description: [skipped ? `${skipped} skipped — see the Reminders tab for why` : "", failed ? `${failed} failed` : ""].filter(Boolean).join(" · ") || undefined,
+      variant: !sent ? "destructive" : undefined,
     });
-    if (!failed) selection.clear();
+    if (!skipped && !failed) selection.clear();
   };
 
   const exportRows = (list: Arrears[]) => list.map(a => ({
@@ -769,11 +749,27 @@ export default function ArrearsPage() {
                         <p className="text-xs text-muted-foreground capitalize">{reminder.reminderType.replace("_", " ")}</p>
                       </div>
                     </div>
-                    <SPBadge status={reminder.status} />
+                    <div className="flex items-center gap-2">
+                      {reminder.status === "pending" && caps.canSendReminder && (
+                        <Button size="sm" variant="outline" className="h-7 text-xs"
+                          onClick={async () => {
+                            try {
+                              const r = await apiRequest(`/api/payment-reminders/${reminder.id}/cancel`, { method: "PATCH", data: {} });
+                              if (!r.ok) throw new Error(await r.text());
+                              queryClient.invalidateQueries({ queryKey: ["/api/payment-reminders"] });
+                              toast({ title: "Reminder cancelled" });
+                            } catch (e) { toast({ title: "Could not cancel", description: apiErrorMessage(e), variant: "destructive" }); }
+                          }}>Cancel</Button>
+                      )}
+                      <SPBadge status={reminder.status} />
+                    </div>
                   </div>
                   <div className="bg-muted/50 rounded-lg p-3">
                     <p className="text-xs text-muted-foreground whitespace-pre-wrap break-words">{reminder.message}</p>
                   </div>
+                  {(reminder.status === "skipped" || reminder.status === "failed") && (reminder.recipientInfo as any)?.reason && (
+                    <p className="text-xs text-amber-700 dark:text-amber-400">Not delivered: {(reminder.recipientInfo as any).reason}</p>
+                  )}
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs text-muted-foreground">
                     <div><p className="font-medium text-foreground">Channel</p><p className="capitalize">{reminder.channel}</p></div>
                     <div><p className="font-medium text-foreground">Scheduled</p><p>{safeFormatTime(reminder.scheduledFor)}</p></div>

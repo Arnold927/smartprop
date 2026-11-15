@@ -18,18 +18,43 @@
  */
 
 import { db } from '../db';
-import { tenants, rentPayments, units, properties, organizations, userNotificationPreferences } from '@shared/schema';
+import { tenants, rentPayments, units, properties, organizations, userNotificationPreferences, paymentReminders } from '@shared/schema';
 import { eq, and, sql, ne, inArray } from 'drizzle-orm';
 import { storage } from '../storage';
 import { sendRentReminderEmail } from '../lib/email';
 import { notifyTenant } from './notifyTenant';
+import { loadContact, processDueReminders } from './payment-reminders';
+import { dispatchDueBroadcasts } from './broadcast-dispatch';
+import { toE164 } from '../lib/phone';
+import { isEmailConfigured } from '../lib/email';
 
 const log = (msg: string) => console.log(`[RentScheduler] ${msg}`);
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
+/** Today's date in Nairobi. Rent due dates are calendar dates, so "overdue" must flip at midnight EAT, not midnight UTC. */
 function todayStr(): string {
-  return new Date().toISOString().split('T')[0];
+  return new Date(Date.now() + 3 * 3600_000).toISOString().split('T')[0];
+}
+
+/** Whole days from one calendar date to another (positive when `to` is later). */
+function dayDiff(from: string, to: string): number {
+  return Math.round((Date.parse(to.slice(0, 10) + 'T00:00:00Z') - Date.parse(from.slice(0, 10) + 'T00:00:00Z')) / 86400000);
+}
+
+/** When this tenant was last sent a reminder of this kind (scheduler or manual). */
+async function lastReminderSent(tenantId: number, type: string): Promise<Date | null> {
+  const [r] = await db.select({ at: paymentReminders.sentAt }).from(paymentReminders)
+    .where(and(eq(paymentReminders.tenantId, tenantId), eq(paymentReminders.reminderType, type), eq(paymentReminders.status, 'sent')))
+    .orderBy(sql`${paymentReminders.sentAt} desc`).limit(1);
+  return r?.at ?? null;
+}
+
+async function logReminder(tenantId: number, type: string, channel: string, message: string, extra: Record<string, unknown>) {
+  await db.insert(paymentReminders).values({
+    tenantId, reminderType: type, channel: channel.slice(0, 10), message: message.slice(0, 500),
+    scheduledFor: new Date(), sentAt: new Date(), status: 'sent', recipientInfo: { source: 'scheduler', ...extra },
+  });
 }
 
 /** ms until the next occurrence of HH:MM EAT (UTC+3) */
@@ -270,16 +295,29 @@ export async function sendOverdueRentReminders(): Promise<number> {
     const paidAmount = paidOf(current);
 
     const currency = info.currency ?? current.currency ?? 'KES';
-    const daysOverdue = Math.floor(
-      (Date.now() - new Date(current.dueDate!).getTime()) / 86400000
-    );
+    const daysOverdue = dayDiff(String(current.dueDate), today);
     const totalOutstanding = invoices.reduce((sum, inv) => {
       const amt  = parseFloat(String(inv.amount ?? 0));
       return sum + Math.max(0, amt - paidOf(inv));
     }, 0);
+    if (totalOutstanding <= 0.005) continue;   // everything on these invoices has since been paid
+
+    // ── Who may be contacted, and is it time? ─────────────────────────────
+    // This job used to message every overdue tenant every single morning for as long as they owed, ignored their
+    // email/payment-reminder switches, and wrote nothing down. Now: active tenants only, their own opt-outs respected,
+    // and a gap between reminders (every 3 days for the first two weeks, then weekly) measured against what was really sent —
+    // including reminders a manager sent by hand.
+    const contact = await loadContact(tenantId);
+    if (!contact) continue;
+    if (contact.status && contact.status !== 'active') { log(`Tenant #${tenantId} is ${contact.status} — no automatic reminder`); continue; }
+    if (!contact.allowPayment) { log(`Tenant #${tenantId} switched payment reminders off — skipped`); continue; }
+    const last = await lastReminderSent(tenantId, 'overdue');
+    const gapDays = daysOverdue <= 14 ? 3 : 7;
+    if (last && Date.now() - last.getTime() < (gapDays * 24 - 2) * 3600_000) continue;
 
     // ── Email ─────────────────────────────────────────────────────────────
-    if (info.email) {
+    let emailed = false;
+    if (info.email && contact.allowEmail && isEmailConfigured()) {
       try {
         await sendRentReminderEmail({
           to:              info.email,
@@ -299,22 +337,28 @@ export async function sendOverdueRentReminders(): Promise<number> {
             return {
               invoiceNumber: inv.invoiceNumber ?? `PAY-${inv.id}`,
               amount: ia, paidAmount: ip, dueDate: inv.dueDate!,
-              daysOverdue: Math.floor((Date.now() - new Date(inv.dueDate!).getTime()) / 86400000),
+              daysOverdue: dayDiff(String(inv.dueDate), today),
             };
           }),
         });
+        emailed = true;
       } catch (err) { log(`Email failed for tenant #${tenantId}: ${err}`); }
     }
 
     // ── WhatsApp (primary channel) ─────────────────────────────────────────
-    await notifyTenant(tenantId, {
+    const whatsapped = await notifyTenant(tenantId, {
       type:          'rent_overdue',
       invoiceAmount: totalOutstanding,
       currency,
       dueDate:       current.dueDate!,
       daysOverdue,
       balance:       totalOutstanding,
-    }, info.orgId ?? undefined).catch(err => log(`WhatsApp failed for tenant #${tenantId}: ${err}`));
+    }, info.orgId ?? undefined).catch(err => { log(`WhatsApp failed for tenant #${tenantId}: ${err}`); return false; });
+
+    if (!emailed && !whatsapped) { log(`Tenant #${tenantId} could not be reached (no usable channel) — not counted`); continue; }
+    await logReminder(tenantId, 'overdue', emailed && whatsapped ? 'email+wa' : emailed ? 'email' : 'whatsapp',
+      `Overdue: ${currency} ${totalOutstanding.toFixed(2)} across ${invoices.length} invoice(s), ${daysOverdue}d`,
+      { invoiceIds: invoices.map(i => i.id), emailed, whatsapped });
 
     sent++;
     log(`Notified tenant #${tenantId} (${info.firstName}) — ${daysOverdue}d overdue, ${invoices.length} invoice(s)`);
@@ -331,11 +375,8 @@ export async function sendOverdueRentReminders(): Promise<number> {
 export async function sendRentDueWarnings(): Promise<number> {
   // Fetch all pending invoices due within the next 1–14 days
   const maxDays = 14;
-  const today = new Date();
-  const maxDate = new Date();
-  maxDate.setDate(maxDate.getDate() + maxDays);
-  const todayStr   = today.toISOString().split('T')[0];
-  const maxDateStr = maxDate.toISOString().split('T')[0];
+  const today = todayStr();                                   // Nairobi calendar date
+  const maxDate = new Date(Date.parse(today + 'T00:00:00Z') + maxDays * 86400000).toISOString().split('T')[0];
 
   const upcoming = await db
     .select({
@@ -349,8 +390,8 @@ export async function sendRentDueWarnings(): Promise<number> {
     .where(
       and(
         eq(rentPayments.status, 'pending'),
-        sql`${rentPayments.dueDate} > ${todayStr}::date`,
-        sql`${rentPayments.dueDate} <= ${maxDateStr}::date`
+        sql`${rentPayments.dueDate} > ${today}::date`,
+        sql`${rentPayments.dueDate} <= ${maxDate}::date`
       )
     );
 
@@ -359,38 +400,21 @@ export async function sendRentDueWarnings(): Promise<number> {
     return 0;
   }
 
-  // Fetch notification preferences for all involved tenants in one query
-  // by joining tenants → users → userNotificationPreferences
+  // Each tenant's preferred warning lead time (default 3 days), in one query per table.
   const tenantIds = [...new Set(upcoming.map(p => p.tenantId))];
-
-  // Build a map of tenantId → preferred warning days
   const prefMap = new Map<number, number>();
   try {
-    const rows = await db
-      .select({
-        tenantId:          tenants.id,
-        userId:            tenants.userId,
-      })
-      .from(tenants)
-      .where(sql`${tenants.id} = ANY(${sql.raw(`ARRAY[${tenantIds.join(',')}]`)})`)
-    ;
-
+    const rows = await db.select({ tenantId: tenants.id, userId: tenants.userId }).from(tenants).where(inArray(tenants.id, tenantIds));
     const userIds = rows.map(r => r.userId).filter(Boolean) as string[];
+    const prefsByUser = new Map<string, number>();
     if (userIds.length > 0) {
       const prefsRows = await db
-        .select({
-          userId:             userNotificationPreferences.userId,
-          rentDueWarningDays: (userNotificationPreferences as any).rentDueWarningDays,
-        })
+        .select({ userId: userNotificationPreferences.userId, days: userNotificationPreferences.rentDueWarningDays })
         .from(userNotificationPreferences)
-        .where(sql`${userNotificationPreferences.userId} = ANY(${sql.raw(`ARRAY['${userIds.join("','")}']::uuid[]`)})`);
-
-      const prefsByUser = new Map(prefsRows.map(p => [p.userId, Number(p.rentDueWarningDays ?? 3)]));
-      for (const row of rows) {
-        const days = row.userId ? (prefsByUser.get(row.userId) ?? 3) : 3;
-        prefMap.set(row.tenantId, days);
-      }
+        .where(inArray(userNotificationPreferences.userId, userIds));
+      prefsRows.forEach(p => prefsByUser.set(p.userId, Number(p.days ?? 3)));
     }
+    for (const row of rows) prefMap.set(row.tenantId, row.userId ? (prefsByUser.get(row.userId) ?? 3) : 3);
   } catch (err) {
     log(`Could not fetch warning day preferences — using default of 3: ${err}`);
   }
@@ -399,21 +423,32 @@ export async function sendRentDueWarnings(): Promise<number> {
   let sent = 0;
 
   for (const inv of upcoming) {
-    const dueDate  = new Date(String(inv.dueDate));
-    const msLeft   = dueDate.getTime() - today.getTime();
-    const daysLeft = Math.ceil(msLeft / (1000 * 60 * 60 * 24));
+    // Calendar-day difference in Nairobi time (the old millisecond maths shifted by a day depending on what time the job ran).
+    const daysLeft = dayDiff(today, String(inv.dueDate));
     const warnDays = prefMap.get(inv.tenantId) ?? 3;
 
     // Only send if today is exactly the tenant's preferred warning day
     if (daysLeft !== warnDays) continue;
 
-    await notifyTenant(inv.tenantId, {
+    const contact = await loadContact(inv.tenantId);
+    if (!contact || (contact.status && contact.status !== 'active') || !contact.allowPayment) continue;
+
+    // Once per invoice: a restart or a second run on the same day must not warn twice.
+    const [already] = await db.select({ id: paymentReminders.id }).from(paymentReminders).where(and(
+      eq(paymentReminders.tenantId, inv.tenantId), eq(paymentReminders.reminderType, 'pre_due'),
+      eq(paymentReminders.status, 'sent'), sql`${paymentReminders.recipientInfo}->>'invoiceId' = ${String(inv.id)}`,
+    )).limit(1);
+    if (already) continue;
+
+    const delivered = await notifyTenant(inv.tenantId, {
       type:          'rent_due_warning',
       invoiceAmount: parseFloat(String(inv.amount)),
       currency:      inv.currency ?? 'KES',
       dueDate:       String(inv.dueDate),
       daysUntilDue:  daysLeft,
-    }).catch(err => log(`Pre-due warning failed for tenant #${inv.tenantId}: ${err}`));
+    }).catch(err => { log(`Pre-due warning failed for tenant #${inv.tenantId}: ${err}`); return false; });
+    if (!delivered) continue;
+    await logReminder(inv.tenantId, 'pre_due', 'whatsapp', `Rent due in ${daysLeft} day(s)`, { invoiceId: inv.id });
     sent++;
   }
 
@@ -452,6 +487,12 @@ export function startRentScheduler(): void {
     log('Running pre-due rent warnings (WhatsApp)...');
     await sendRentDueWarnings();
   });
+
+  // Queued reminders (scheduled from the arrears page, or "send later") — checked every 10 minutes.
+  setInterval(() => { processDueReminders().catch(err => log(`Queued reminder run failed: ${err}`)); }, 10 * 60 * 1000).unref?.();
+
+  // Scheduled broadcasts — nothing used to pick these up, so a broadcast saved for later simply never went out.
+  setInterval(() => { dispatchDueBroadcasts().catch(err => log(`Scheduled broadcast run failed: ${err}`)); }, 60 * 1000).unref?.();
 
   // Also run generation + overdue sweep immediately on startup.
   // Deliberately skip the reminder job on startup — we don't want to
