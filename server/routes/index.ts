@@ -116,7 +116,7 @@ import sustainabilityRouter    from "./sustainability";
 import ownerStatementsRouter   from "./owner-statements";
 import inspectionsRouter       from "./inspections";
 import tenantInspectionsRouter from "./tenant-inspections";
-import prospectsRouter         from "./prospects";
+import prospectsRouter, { prospectsPublicRouter, applyLimiter } from "./prospects";
 import analyticsRouter         from "./analytics";
 import ratingsRouter           from "./ratings";
 import rolesRouter from "./roles";
@@ -155,7 +155,9 @@ export function registerModularRoutes(app: Express) {
   app.use("/api/auth", authRouter);
 
   // Public prospect application form — tenants submit without a login
-  app.post("/api/prospects/apply", (req: any, res: any, next: any) => prospectsRouter(req, res, next));
+  // (mounted as its own router: wrapping the staff router in app.post() left the full path in place, nothing matched, and every
+  //  application was answered 401 by the login guard below — so the form never worked)
+  app.use("/api/prospects/apply", applyLimiter, prospectsPublicRouter);
 
   // Gate guard PIN login — its own short-lived JWT, not the main app JWT
   app.use("/api/gate-auth", gateAuthRouter);

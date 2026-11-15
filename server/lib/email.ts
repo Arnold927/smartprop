@@ -843,3 +843,32 @@ export async function sendRefundProcessedEmail({
 
   return data;
 }
+
+/** Tells an approved prospect their application was accepted and what is being offered. Callers treat failure as non-fatal. */
+export async function sendLeaseOfferEmail({
+  to, name, orgName, propertyName, unitNumber, rent,
+}: { to: string; name: string; orgName?: string | null; propertyName?: string | null; unitNumber?: string | null; rent: number }) {
+  const client = getResendClient();
+  const from = getFromEmail();
+  const esc = (v: string) => v.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c] as string));
+  const where = [propertyName, unitNumber ? `unit ${unitNumber}` : null].filter(Boolean).join(", ");
+  const { error } = await client.emails.send({
+    from,
+    to,
+    subject: `Your application was approved${orgName ? ` — ${orgName}` : ""}`,
+    html: `
+      <div style="font-family: Arial, sans-serif; line-height: 1.6; max-width: 600px; margin: 0 auto;">
+        <h2 style="color: #047857;">Good news, ${esc(name)}</h2>
+        <p>Your application${where ? ` for <strong>${esc(where)}</strong>` : ""} has been approved.</p>
+        <p>The monthly rent offered is <strong>KES ${Math.round(rent).toLocaleString("en-KE")}</strong>.
+        We will be in touch shortly with your lease to review and sign.</p>
+        ${orgName ? `<p style="color:#6b7280;font-size:13px;">— ${esc(orgName)}</p>` : ""}
+      </div>
+    `,
+  });
+  if (error) {
+    const msg = (error as any).message ?? JSON.stringify(error);
+    logger.error("[email] Lease offer send error:", msg);
+    throw new Error(`Failed to send lease offer email: ${msg}`);
+  }
+}

@@ -14,7 +14,7 @@
 import { Router } from "express";
 import { db } from "../db";
 import { tenants, units, properties, users } from "@shared/schema";
-import { eq, and } from "drizzle-orm";
+import { eq, and, inArray } from "drizzle-orm";
 import { authenticateJWT } from "../middleware/auth";
 import { requireOrg } from "../middleware/requireOrg";
 import { resolveOrInviteTenantUser } from "../utils/resolveOrInviteTenantUser";
@@ -111,7 +111,7 @@ tenantOnboardingRouter.post("/", async (req: any, res: any) => {
     const [activeTenant] = await db
       .select({ id: tenants.id })
       .from(tenants)
-      .where(and(eq(tenants.unitId, unit.id), eq(tenants.status, "active")))
+      .where(and(eq(tenants.unitId, unit.id), inArray(tenants.status, ["active", "pending"])))
       .limit(1);
 
     if (activeTenant) {

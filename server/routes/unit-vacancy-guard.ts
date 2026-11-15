@@ -18,7 +18,7 @@
 import { Router } from "express";
 import { db } from "../db";
 import { units, properties, tenants, insertUnitSchema } from "@shared/schema";
-import { eq, and } from "drizzle-orm";
+import { eq, and, inArray } from "drizzle-orm";
 import { authenticateJWT } from "../middleware/auth";
 import { requireOrg } from "../middleware/requireOrg";
 
@@ -58,7 +58,7 @@ router.patch("/:id", authenticateJWT as any, requireOrg as any, async (req: any,
       const [activeTenant] = await db
         .select({ id: tenants.id })
         .from(tenants)
-        .where(and(eq(tenants.unitId, unitId), eq(tenants.status, "active")))
+        .where(and(eq(tenants.unitId, unitId), inArray(tenants.status, ["active", "pending"])))
         .limit(1);
 
       if (activeTenant) {

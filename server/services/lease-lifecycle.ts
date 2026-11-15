@@ -87,7 +87,7 @@ export async function appendEvent(tx: any, o: { leaseId: number; tenantId: numbe
 /** Who else holds this unit? A second tenant / second live lease on the same unit is a double booking. */
 export async function unitConflict(orgId: number, unitId: number, tenantId: number, ignoreLeaseIds: number[] = []): Promise<string | null> {
   const [other] = await db.select({ id: tenants.id, first: tenants.firstName, last: tenants.lastName }).from(tenants)
-    .where(and(eq(tenants.organizationId, orgId), eq(tenants.unitId, unitId), ne(tenants.id, tenantId), eq(tenants.status, "active"))).limit(1);
+    .where(and(eq(tenants.organizationId, orgId), eq(tenants.unitId, unitId), ne(tenants.id, tenantId), inArray(tenants.status, ["active", "pending"]))).limit(1);
   if (other) return `That unit is occupied by ${`${other.first ?? ""} ${other.last ?? ""}`.trim() || "another tenant"}. End their tenancy first.`;
   const conds: any[] = [eq(leases.organizationId, orgId), eq(leases.unitId, unitId), ne(leases.tenantId, tenantId), inArray(leases.status, ["active", "pending_signature"])];
   if (ignoreLeaseIds.length) conds.push(sql`${leases.id} not in (${sql.join(ignoreLeaseIds.map(i => sql`${i}`), sql`,`)})`);
@@ -219,7 +219,7 @@ export async function endTenancy(leaseId: number, o: { date: string; reason: str
       }
       const unitId = lease.unitId ?? t?.unitId ?? null;
       if (unitId != null) {
-        const [stillHeld] = await tx.select({ id: tenants.id }).from(tenants).where(and(eq(tenants.unitId, unitId), eq(tenants.status, "active"), ne(tenants.id, lease.tenantId))).limit(1);
+        const [stillHeld] = await tx.select({ id: tenants.id }).from(tenants).where(and(eq(tenants.unitId, unitId), inArray(tenants.status, ["active", "pending"]), ne(tenants.id, lease.tenantId))).limit(1);
         if (!stillHeld) await tx.update(units).set({ isOccupied: false } as any).where(eq(units.id, unitId));
       }
     }

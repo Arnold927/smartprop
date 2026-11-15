@@ -68,7 +68,7 @@ interface Lease {
   currency: string;
   securityDeposit: string;
   escalationRate: string;
-  status: "draft" | "pending_signature" | "active" | "renewed" | "expired" | "terminated";
+  status: "draft" | "pending_signature" | "active" | "renewed" | "expired" | "terminated" | "cancelled";
   signedByTenantAt?: string;
   signedByManagerAt?: string;
   specialConditions?: string;
@@ -140,10 +140,12 @@ const STATUS_META: Record<string, { label: string; color: string; icon: React.Re
   renewed:           { label: "Renewed",          color: "bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300",    icon: <RefreshCw className="w-3 h-3" /> },
   expired:           { label: "Expired",          color: "bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300",    icon: <Clock className="w-3 h-3" /> },
   terminated:        { label: "Terminated",       color: "bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300",        icon: <XCircle className="w-3 h-3" /> },
+  cancelled:         { label: "Cancelled",        color: "bg-slate-100 text-muted-foreground dark:bg-slate-800 dark:text-slate-400", icon: <XCircle className="w-3 h-3" /> },
 };
 
 const EVENT_ICON: Record<string, React.ReactNode> = {
   created:           <Plus className="w-3.5 h-3.5 text-blue-500" />,
+  cancelled:         <XCircle className="w-3.5 h-3.5 text-muted-foreground" />,
   sent_for_signing:  <Send className="w-3.5 h-3.5 text-amber-500" />,
   signed_tenant:     <PenLine className="w-3.5 h-3.5 text-violet-500" />,
   signed_manager:    <ShieldCheck className="w-3.5 h-3.5 text-violet-500" />,
@@ -696,6 +698,7 @@ function LeaseDetailSheet({ lease: listLease, open, onClose }: { lease: Lease | 
   const [showRRT, setShowRRT] = useState(false);
   const [showSettle, setShowSettle] = useState(false);
   const [confirmUnsigned, setConfirmUnsigned] = useState<string | null>(null);
+  const [confirmCancel, setConfirmCancel] = useState(false);
 
   // the list row has no renewal / scheduled-termination info and goes stale after every action: read the lease itself
   const { data: detail } = useQuery<Lease>({
@@ -744,6 +747,8 @@ function LeaseDetailSheet({ lease: listLease, open, onClose }: { lease: Lease | 
   const activatePaperMut = action("activate", { confirmUnsigned: true }, "Lease activated on the paper copy", () => { setConfirmUnsigned(null); });
   // eslint-disable-next-line react-hooks/rules-of-hooks
   const cancelTermMut = action("cancel-termination", {}, "Scheduled termination cancelled");
+  // eslint-disable-next-line react-hooks/rules-of-hooks
+  const cancelLeaseMut = action("cancel", {}, "Lease cancelled", () => setConfirmCancel(false));
   // eslint-disable-next-line react-hooks/rules-of-hooks
   const renewMut = useMutation({
     mutationFn: async () => (await apiRequest(`/api/leases/${listLease!.id}/renew`, { method: "POST", data: {} })).json(),
@@ -922,6 +927,11 @@ function LeaseDetailSheet({ lease: listLease, open, onClose }: { lease: Lease | 
                       Activate
                     </Button>
                   )}
+                  {canManageLeases && ["draft", "pending_signature"].includes(lease.status) && (
+                    <Button size="sm" variant="outline" className="border-red-200 text-red-600 hover:bg-red-50 dark:border-red-900 dark:text-red-400" onClick={() => setConfirmCancel(true)}>
+                      <XCircle className="w-3.5 h-3.5 mr-1.5" />Cancel Lease
+                    </Button>
+                  )}
                   {canManageLeases && ["active", "expired"].includes(lease.status) && !lease.renewal && (
                     <Button size="sm" variant="outline" onClick={() => renewMut.mutate()} disabled={renewMut.isPending}>
                       {renewMut.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin mr-1.5" /> : <RefreshCw className="w-3.5 h-3.5 mr-1.5" />}
@@ -950,6 +960,11 @@ function LeaseDetailSheet({ lease: listLease, open, onClose }: { lease: Lease | 
               </div>
 
               {/* Activating without both signatures: say what is missing, let staff confirm a paper copy */}
+              <ConfirmDialog
+                open={confirmCancel} onClose={() => setConfirmCancel(false)} onConfirm={() => cancelLeaseMut.mutate()} loading={cancelLeaseMut.isPending}
+                destructive title="Cancel this lease?" confirmLabel="Cancel lease"
+                description="It has not started, so nothing is billed. If it was drafted for a new tenant, the tenant is released, the unit goes back on the market and the prospect returns to “approved”."
+              />
               {confirmUnsigned && (
                 <div className="border border-amber-300 rounded-lg p-3 bg-amber-50 dark:bg-amber-950/20 dark:border-amber-700 space-y-2">
                   <p className="text-xs text-amber-800 dark:text-amber-300">{confirmUnsigned}</p>
@@ -1495,6 +1510,7 @@ export default function LeasesPage() {
                     <SelectItem value="renewed">Renewed</SelectItem>
                     <SelectItem value="expired">Expired</SelectItem>
                     <SelectItem value="terminated">Terminated</SelectItem>
+                    <SelectItem value="cancelled">Cancelled</SelectItem>
                   </SelectContent>
                 </Select>
                 <Select value={String(allTab.pageSize)} onValueChange={v => { allTab.setPageSize(Number(v)); allTab.setPage(1); }}>

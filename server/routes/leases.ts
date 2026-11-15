@@ -25,7 +25,7 @@ import { z }               from "zod";
 import { db }              from "../db";
 import {
   leases, leaseEvents, depositTransactions,
-  tenants, units, properties, organizations, users,
+  tenants, units, properties, organizations, users, prospects,
 } from "@shared/schema";
 import { eq, and, desc, inArray, sql, ne } from "drizzle-orm";
 import { authenticateJWT } from "../middleware/auth";
@@ -494,6 +494,53 @@ router.post("/:id/activate", async (req: any, res) => {
     return res.json({ message: "Lease activated", status: "active" });
   } catch (err) {
     return fail(res, err, "Failed to activate lease");
+  }
+});
+
+// ─── POST /:id/cancel ─────────────────────────────────────────────────────────
+// Withdraws a lease that never started (draft or awaiting signature) — a renewal nobody wants, or a placement that fell
+// through. A tenant who was only "pending" because of this lease is released again, the unit goes back on the market, and
+// a prospect that was converted for it returns to "approved" so the letting can be redone or rejected.
+
+router.post("/:id/cancel", auditLog("lease", "UPDATE") as any, async (req: any, res) => {
+  try {
+    const orgId = req.user.organizationId as number, userId = req.user.id as string;
+    if (!MANAGERS.includes(req.user.role)) return res.status(403).json({ message: "Only admin, manager, or landlord can cancel leases." });
+    const reason = typeof req.body?.reason === "string" ? req.body.reason.trim().slice(0, 500) : "";
+    const lease = await loadLease(req.user, parseInt(req.params.id));
+    if (!["draft", "pending_signature"].includes(lease.status)) {
+      return res.status(400).json({ message: lease.status === "active" ? "This lease is running — terminate it instead." : `This lease is already ${lease.status}.` });
+    }
+    const out = await db.transaction(async (tx) => {
+      const [cur] = await tx.select().from(leases).where(eq(leases.id, lease.id)).for("update").limit(1);
+      if (!cur || !["draft", "pending_signature"].includes(cur.status)) throw new LeaseRuleError(409, "Lease changed. Reload and try again.");
+      await tx.update(leases).set({ status: "cancelled", updatedAt: new Date() } as any).where(eq(leases.id, lease.id));
+
+      let released = false, prospectReopened = false;
+      const [t] = await tx.select({ id: tenants.id, status: tenants.status, unitId: tenants.unitId }).from(tenants).where(eq(tenants.id, lease.tenantId)).limit(1);
+      if (t?.status === "pending") {
+        const [other] = await tx.select({ id: leases.id }).from(leases).where(and(eq(leases.tenantId, t.id), inArray(leases.status, ["active", "pending_signature", "draft"]), ne(leases.id, lease.id))).limit(1);
+        if (!other) {
+          await tx.update(tenants).set({ status: "inactive", updatedAt: new Date() } as any).where(eq(tenants.id, t.id));
+          const unitId = lease.unitId ?? t.unitId;
+          if (unitId != null) {
+            const [held] = await tx.select({ id: tenants.id }).from(tenants).where(and(eq(tenants.unitId, unitId), inArray(tenants.status, ["active", "pending"]), ne(tenants.id, t.id))).limit(1);
+            if (!held) await tx.update(units).set({ isOccupied: false } as any).where(eq(units.id, unitId));
+          }
+          released = true;
+          const back = await tx.update(prospects).set({ status: "approved", convertedToTenantId: null, convertedAt: null, updatedAt: new Date() } as any)
+            .where(and(eq(prospects.convertedToTenantId, t.id), eq(prospects.organizationId, orgId), eq(prospects.status, "converted"))).returning({ id: prospects.id });
+          prospectReopened = back.length > 0;
+        }
+      }
+      await appendEvent(tx, { leaseId: lease.id, tenantId: lease.tenantId, orgId, eventType: "cancelled", performedBy: userId, ip: req.ip,
+        description: `Lease ${lease.leaseNumber} cancelled before it started${reason ? `. Reason: ${reason}` : ""}.`, metadata: { reason, released, prospectReopened } });
+      return { released, prospectReopened };
+    });
+    res.locals.auditEntityId = String(lease.id);
+    return res.json({ message: "Lease cancelled", status: "cancelled", ...out });
+  } catch (err) {
+    return fail(res, err, "Failed to cancel lease");
   }
 });
 

@@ -345,7 +345,7 @@ tenantRouter.post("/", async (req: any, res: any) => {
       // One household per unit: a second ACTIVE tenant on the same unit is a double booking (the new tenant would
       // also have flipped the unit's occupancy for the first one). End the current tenancy first.
       const [holder] = await db.select({ id: tenants.id, f: tenants.firstName, l: tenants.lastName }).from(tenants)
-        .where(and(eq(tenants.organizationId, orgId), eq(tenants.unitId, unitId), eq(tenants.status, "active"))).limit(1);
+        .where(and(eq(tenants.organizationId, orgId), eq(tenants.unitId, unitId), inArray(tenants.status, ["active", "pending"]))).limit(1);
       if (holder) {
         return res.status(409).json({
           message: `That unit is already occupied by ${`${holder.f ?? ""} ${holder.l ?? ""}`.trim() || "another tenant"}. End their tenancy from the Leases page (Terminate) before adding a new tenant to it.`,
