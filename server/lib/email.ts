@@ -872,3 +872,36 @@ export async function sendLeaseOfferEmail({
     throw new Error(`Failed to send lease offer email: ${msg}`);
   }
 }
+
+/** Tells a property owner their monthly statement is ready. Callers treat failure as non-fatal. */
+export async function sendOwnerStatementEmail({
+  to, name, orgName, propertyName, period, statementNumber, grossRent, deductions, netPayable, currency,
+}: { to: string; name: string; orgName?: string | null; propertyName?: string | null; period: string; statementNumber: string; grossRent: number; deductions: number; netPayable: number; currency?: string | null }) {
+  const client = getResendClient();
+  const from = getFromEmail();
+  const esc = (v: string) => v.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c] as string));
+  const cur = currency || "KES";
+  const f = (n: number) => `${cur} ${n.toLocaleString("en-KE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  const { error } = await client.emails.send({
+    from,
+    to,
+    subject: `Owner statement ${statementNumber} — ${period}${propertyName ? ` — ${propertyName}` : ""}`,
+    html: `
+      <div style="font-family: Arial, sans-serif; line-height: 1.6; max-width: 600px; margin: 0 auto;">
+        <h2 style="color: #047857;">Your statement for ${esc(period)}</h2>
+        <p>Hello ${esc(name)}, the statement for ${propertyName ? `<strong>${esc(propertyName)}</strong>` : "your property"} is ready.</p>
+        <table style="border-collapse: collapse; width: 100%;">
+          <tr><td style="padding:6px 0;">Rent collected</td><td style="text-align:right;">${f(grossRent)}</td></tr>
+          <tr><td style="padding:6px 0;">Fees and costs</td><td style="text-align:right;">- ${f(deductions)}</td></tr>
+          <tr style="border-top:1px solid #d1d5db;"><td style="padding:8px 0;"><strong>Net payable to you</strong></td><td style="text-align:right;"><strong>${f(netPayable)}</strong></td></tr>
+        </table>
+        <p style="color:#6b7280;font-size:13px;">Statement ${esc(statementNumber)}. Sign in to your portal for the full breakdown.${orgName ? ` — ${esc(orgName)}` : ""}</p>
+      </div>
+    `,
+  });
+  if (error) {
+    const msg = (error as any).message ?? JSON.stringify(error);
+    logger.error("[email] Owner statement send error:", msg);
+    throw new Error(`Failed to send owner statement email: ${msg}`);
+  }
+}

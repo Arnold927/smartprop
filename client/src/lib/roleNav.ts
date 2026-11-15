@@ -65,6 +65,7 @@ const getCoreManagerItems = (t: (k: string) => string) => [
     children: [
       { name: t("nav.overview"),         href: "/finances" },
       { name: t("nav.rent_collection"),  href: "/rent-collection" },
+      { name: "Bank reconciliation",     href: "/bank-reconciliation" },
       { name: t("nav.arrears_risk"),     href: "/arrears" },
       { name: t("nav.expenses"),         href: "/expense-management" },
       { name: "Billing & utilities",     href: "/billing" },
@@ -451,7 +452,7 @@ export const ROLE_ALLOWED_ROUTES: Record<string, string[]> = {
     "/", "/dashboard", "/property-manager-dashboard", "/finance-dashboard", "/maintenance-dashboard",
     "/properties", "/parking-management", "/visitor-management", "/inspections", "/caretakers",
     "/tenants", "/leases", "/prospects", "/tenant-onboarding", "/tenant-subletting", "/diaspora-rent-to-own", "/diaspora-rent-to-own/:id",
-    "/finances", "/rent-collection", "/arrears", "/expense-management",
+    "/finances", "/rent-collection", "/arrears", "/expense-management", "/bank-reconciliation",
     "/utility-management", "/utility-bill-sender", "/owner-statements", "/general-ledger",
     "/maintenance", "/maintenance-request", "/contractors", "/work-orders", "/construction-projects",
     "/messages", "/whatsapp-integration", "/broadcast-messaging",

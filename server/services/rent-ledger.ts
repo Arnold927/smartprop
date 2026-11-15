@@ -286,6 +286,58 @@ async function postRentReceipt(tx: any, p: { tenantId: number; invoiceLabel: str
   ] as any).onConflictDoNothing();
 }
 
+/**
+ * Undo one rent receipt (a bank match that was wrong, a payment recorded against the wrong invoice).
+ * The receipt row is removed, the invoice goes back to partial / pending / overdue according to what is LEFT, and the
+ * general-ledger entries it posted are cancelled by an equal and opposite pair — the books keep both lines.
+ * Safe to call twice: a receipt that is already gone does nothing.
+ */
+export async function reverseReceipt(receiptNumber: string, opts: { actorUserId?: string | null; reason?: string } = {}): Promise<{ reversed: boolean; invoiceId?: number; status?: string; paidAmount?: number }> {
+  return db.transaction(async (tx) => {
+    const [rec] = await tx.select().from(paymentReceipts).where(eq(paymentReceipts.receiptNumber, receiptNumber)).for("update").limit(1);
+    if (!rec) return { reversed: false };
+    const invoiceId = Number((rec as any).paymentId);
+    if (!(invoiceId > 0)) throw new PaymentRuleError("NOT_FOUND", "Only rent receipts can be reversed here.");
+    const [bill] = await tx.select().from(rentPayments).where(eq(rentPayments.id, invoiceId)).for("update").limit(1);
+    if (!bill) throw new PaymentRuleError("NOT_FOUND", "Invoice not found.");
+    const label = (bill as any).invoiceNumber ?? `INV${invoiceId}`;
+
+    await tx.delete(paymentReceipts).where(eq(paymentReceipts.id, (rec as any).id));
+
+    const [left] = await tx.select({ s: sql<string>`coalesce(sum(${paymentReceipts.amount}),0)` }).from(paymentReceipts).where(eq(paymentReceipts.paymentId, invoiceId));
+    const [legacy] = await tx.select({ s: sql<string>`coalesce(sum(${mpesaTransactions.amount}),0)` }).from(mpesaTransactions)
+      .where(and(eq(mpesaTransactions.rentPaymentId, invoiceId), eq(mpesaTransactions.status, "completed"),
+        sql`not exists (select 1 from payment_receipts r where r.receipt_number = ${mpesaTransactions.mpesaReceiptNumber})`));
+    const paid = round2(money(left?.s) + money(legacy?.s));
+    const due = money((bill as any).amount);
+    const today = todayEAT();
+    const status = paid >= due - EPS ? "paid" : paid > EPS ? "partial" : (String((bill as any).dueDate).slice(0, 10) < today ? "overdue" : "pending");
+    const note = `Receipt ${receiptNumber} reversed${opts.reason ? ` — ${opts.reason}` : ""} on ${today}`;
+    await tx.update(rentPayments).set({
+      status,
+      paidDate: status === "paid" ? (bill as any).paidDate : null,
+      bankReference: /^(bank|cheque)/i.test(String((rec as any).paymentMethod ?? "")) ? null : (bill as any).bankReference,
+      notes: [(bill as any).notes, note].filter(Boolean).join(" | "),
+      updatedAt: new Date(),
+    } as any).where(eq(rentPayments.id, invoiceId));
+
+    // Cancel what was posted to the general ledger (same accounts, debit and credit swapped).
+    const origIds = [`GL-RENT-${label}-${receiptNumber}-DR`, `GL-RENT-${label}-${receiptNumber}-CR`];
+    const orig = await tx.select().from(generalLedger).where(inArray(generalLedger.transactionId, origIds));
+    if (orig.length) {
+      const now = new Date();
+      await tx.insert(generalLedger).values(orig.map((o: any) => ({
+        organizationId: o.organizationId, createdBy: opts.actorUserId ?? o.createdBy, propertyId: o.propertyId, unitId: o.unitId,
+        description: `Reversal: ${o.description}`, reference: `${o.reference}-REV`, currency: o.currency,
+        transactionDate: now, fiscalYear: now.getUTCFullYear(), fiscalPeriod: now.getUTCMonth() + 1,
+        transactionId: `${o.transactionId}-REV`, accountId: o.accountId,
+        debitAmount: o.creditAmount, creditAmount: o.debitAmount,
+      })) as any).onConflictDoNothing();
+    }
+    return { reversed: true, invoiceId, status, paidAmount: Math.min(paid, due) };
+  });
+}
+
 /** Receipts for one bill, newest first (staff view and the tenant's own history). */
 export async function receiptsFor(t: Target) {
   return db.select().from(paymentReceipts).where(eq(paymentReceipts.paymentId, ledgerKey(t))).orderBy(desc(paymentReceipts.id));

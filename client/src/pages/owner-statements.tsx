@@ -25,14 +25,16 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useRoleGuard, ROLES } from "@/hooks/useRoleGuard";
+import { apiErrorMessage } from "@/lib/maintenance-flow";
 import { PageShell, PageHeader, SectionCard, SPBadge, EmptyState, PrimaryButton, SecondaryButton, FilterBar, SPTable, SPAvatar, StatTile, StatsGrid, KESAmount, ActionMenu, ConfirmDialog } from "@/components/ui/sp-ui";
 
 import {
   Building, DollarSign, FileText, CheckCircle2, Loader2,
-  Plus, RefreshCw, Banknote, AlertCircle, Pencil, Info, Download,
+  Plus, RefreshCw, Banknote, AlertCircle, Pencil, Info, Download, Send, Trash2,
 } from "lucide-react";
 
-const fmtKES = (n: any) => `KES ${Math.round(Number(n ?? 0)).toLocaleString("en-KE")}`;
+// whole shillings when it is a whole amount, otherwise cents — a statement must not round 7,350.50 to 7,351
+const fmtKES = (n: any) => { const v = Number(n ?? 0); return `KES ${v.toLocaleString("en-KE", Number.isInteger(v) ? undefined : { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`; };
 const fmt    = (d: any) => d ? format(new Date(d), "dd MMM yyyy") : "—";
 const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
 
@@ -93,7 +95,7 @@ function AgreementsTab({ isReadOnly }: { isReadOnly: boolean }) {
       setShowForm(false); setEditId(null);
       toast({ title: editId ? "Agreement updated" : "Agreement created" });
     },
-    onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
+    onError: (e: unknown) => toast({ title: "Could not save the agreement", description: apiErrorMessage(e), variant: "destructive" }),
   });
 
   return (
@@ -181,31 +183,29 @@ function AgreementsTab({ isReadOnly }: { isReadOnly: boolean }) {
             <DialogHeader><DialogTitle>{editId ? "Edit" : "New"} Property Management Agreement</DialogTitle></DialogHeader>
             <div className="grid grid-cols-2 gap-3 mt-2">
               {!editId && (
-                <>
-                  <div className="col-span-2">
-                    <Label className="text-xs">Property <span className="text-red-500">*</span></Label>
-                    <SearchableSelect
-                      value={String(form.propertyId ?? "")}
-                      onValueChange={v => setForm((f: any) => ({ ...f, propertyId: parseInt(v) }))}
-                      placeholder="Select property…"
-                      searchPlaceholder="Search properties…"
-                      options={propertyOptions(properties)}
-                    />
-                  </div>
-                  <div className="col-span-2">
-                    <Label className="text-xs">Property owner (landlord)</Label>
-                    <SearchableSelect
-                      clearable
-                      value={String(form.ownerUserId ?? "")}
-                      onValueChange={v => setForm((f: any) => ({ ...f, ownerUserId: v || null }))}
-                      placeholder="Auto-resolved from property owner…"
-                      searchPlaceholder="Search landlords by name or email…"
-                      options={userOptions(landlordUsers)}
-                    />
-                    <p className="text-xs text-muted-foreground mt-0.5">Leave blank to use the property's assigned owner automatically.</p>
-                  </div>
-                </>
+                <div className="col-span-2">
+                  <Label className="text-xs">Property <span className="text-red-500">*</span></Label>
+                  <SearchableSelect
+                    value={String(form.propertyId ?? "")}
+                    onValueChange={v => setForm((f: any) => ({ ...f, propertyId: parseInt(v) }))}
+                    placeholder="Select property…"
+                    searchPlaceholder="Search properties…"
+                    options={propertyOptions(properties)}
+                  />
+                </div>
               )}
+              <div className="col-span-2">
+                <Label className="text-xs">Property owner (landlord)</Label>
+                <SearchableSelect
+                  clearable
+                  value={String(form.ownerUserId ?? "")}
+                  onValueChange={v => setForm((f: any) => ({ ...f, ownerUserId: v || null }))}
+                  placeholder="Auto-resolved from property owner…"
+                  searchPlaceholder="Search landlords by name or email…"
+                  options={userOptions(landlordUsers)}
+                />
+                <p className="text-xs text-muted-foreground mt-0.5">Leave blank to use the property's assigned owner automatically.</p>
+              </div>
               <div>
                 <Label className="text-xs">Fee type</Label>
                 <Select value={form.feeType} onValueChange={v => setForm((f: any) => ({ ...f, feeType: v }))}>
@@ -225,6 +225,23 @@ function AgreementsTab({ isReadOnly }: { isReadOnly: boolean }) {
                 <Label className="text-xs">Start date</Label>
                 <Input type="date" value={form.startDate ?? ""} onChange={e => setForm((f: any) => ({ ...f, startDate: e.target.value }))} />
               </div>
+              <div>
+                <Label className="text-xs">End date <span className="text-muted-foreground">(optional)</span></Label>
+                <Input type="date" value={form.endDate ?? ""} onChange={e => setForm((f: any) => ({ ...f, endDate: e.target.value }))} />
+              </div>
+              {editId && (
+                <div>
+                  <Label className="text-xs">Status</Label>
+                  <Select value={form.status ?? "active"} onValueChange={v => setForm((f: any) => ({ ...f, status: v }))}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="active">Active</SelectItem>
+                      <SelectItem value="suspended">Suspended — no new statements</SelectItem>
+                      <SelectItem value="terminated">Terminated</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
               <div>
                 <Label className="text-xs">Disbursement method</Label>
                 <Select value={form.disbursementMethod ?? ""} onValueChange={v => setForm((f: any) => ({ ...f, disbursementMethod: v }))}>
@@ -335,7 +352,7 @@ function StatementDetailDialog({ statementId, onClose }: { statementId: number |
                 <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">Breakdown</p>
                 <div className="rounded-lg border divide-y text-sm">
                   {lineItems.map((item: any, i: number) => (
-                    <div key={i} className={`flex justify-between px-3 py-2 ${item.type === "net" ? "bg-muted/40 font-semibold" : ""}`}>
+                    <div key={i} className={`flex justify-between px-3 py-2 ${item.type === "net" ? "bg-muted/40 font-semibold" : item.type === "shortfall" ? "bg-amber-50 text-amber-800" : ""}`}>
                       <span className={item.type === "deduction" ? "text-muted-foreground" : ""}>{item.description}</span>
                       <span className={item.amount < 0 ? "text-red-600" : item.type === "net" ? "text-emerald-700" : ""}>{fmtKES(item.amount)}</span>
                     </div>
@@ -387,27 +404,59 @@ function StatementDetailDialog({ statementId, onClose }: { statementId: number |
 
 // ─── Disburse Dialog ─────────────────────────────────────────────────────────
 
-function DisburseDialog({ statementId, onClose, onConfirm, loading }: { statementId: number | null; onClose: () => void; onConfirm: (ref: string) => void; loading: boolean }) {
+function DisburseDialog({ statement, onClose, onConfirm, loading }: { statement: any | null; onClose: () => void; onConfirm: (ref: string, date: string) => void; loading: boolean }) {
+  const today = new Date(Date.now() + 3 * 3600_000).toISOString().slice(0, 10);
   const [ref, setRef] = useState("");
+  const [date, setDate] = useState(today);
+  const net = Number(statement?.netPayable ?? 0);
+  const needsRef = net > 0;
   return (
-    <Dialog open={!!statementId} onOpenChange={open => !open && onClose()}>
+    <Dialog open={!!statement} onOpenChange={open => !open && onClose()}>
       <DialogContent className="max-w-xl">
-        <DialogHeader><DialogTitle>Mark as Disbursed</DialogTitle></DialogHeader>
+        <DialogHeader><DialogTitle>Record the owner payout</DialogTitle></DialogHeader>
         <div className="space-y-3 pt-1">
-          <div>
-            <Label className="text-xs">Disbursement reference <span className="text-muted-foreground">(M-Pesa / bank ref)</span></Label>
-            <Input
-              placeholder="e.g. QK2XR3ABCD or KES-2025-001"
-              value={ref}
-              onChange={e => setRef(e.target.value)}
-              className="mt-1"
-              autoFocus
-            />
+          <p className="text-sm text-muted-foreground">
+            {statement ? `${statement.statementNumber} · ${statement.propertyName ?? ""} — ` : ""}{needsRef ? <>pay the owner <span className="font-semibold text-foreground">{fmtKES(net)}</span>, then record it here.</> : "nothing is payable this month."}
+            {" "}If you paid from the bank, you can instead match the bank debit in Bank Reconciliation.
+          </p>
+          <div className="grid grid-cols-3 gap-3">
+            <div className="col-span-2">
+              <Label className="text-xs">Payout reference <span className="text-muted-foreground">(M-Pesa code / bank ref / cheque no.){needsRef ? " *" : ""}</span></Label>
+              <Input placeholder="e.g. QK2XR3ABCD" value={ref} onChange={e => setRef(e.target.value)} className="mt-1" autoFocus />
+            </div>
+            <div>
+              <Label className="text-xs">Date paid</Label>
+              <Input type="date" max={today} value={date} onChange={e => setDate(e.target.value)} className="mt-1" />
+            </div>
           </div>
           <div className="flex gap-2 justify-end pt-1">
             <Button variant="outline" onClick={onClose}>Cancel</Button>
-            <Button disabled={loading || !ref.trim()} onClick={() => { onConfirm(ref.trim()); setRef(""); }}>
-              {loading && <Loader2 className="h-4 w-4 animate-spin mr-1" />} Confirm
+            <Button disabled={loading || (needsRef && ref.trim().length < 3) || !date} onClick={() => { onConfirm(ref.trim(), date); setRef(""); }}>
+              {loading && <Loader2 className="h-4 w-4 animate-spin mr-1" />} Mark as paid
+            </Button>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function UndoPayoutDialog({ statement, onClose, onConfirm, loading }: { statement: any | null; onClose: () => void; onConfirm: (reason: string) => void; loading: boolean }) {
+  const [reason, setReason] = useState("");
+  return (
+    <Dialog open={!!statement} onOpenChange={open => !open && onClose()}>
+      <DialogContent className="max-w-md">
+        <DialogHeader><DialogTitle>Reverse this payout?</DialogTitle></DialogHeader>
+        <div className="space-y-3 pt-1">
+          <p className="text-sm text-muted-foreground">{statement?.statementNumber} goes back to “approved” and the payout reference is removed. Use this only if the payout was recorded by mistake.</p>
+          <div>
+            <Label className="text-xs">Why? *</Label>
+            <Input className="mt-1" value={reason} onChange={e => setReason(e.target.value)} placeholder="e.g. Entered against the wrong statement" autoFocus />
+          </div>
+          <div className="flex gap-2 justify-end">
+            <Button variant="outline" onClick={onClose}>Keep as paid</Button>
+            <Button variant="destructive" disabled={loading || reason.trim().length < 3} onClick={() => { onConfirm(reason.trim()); setReason(""); }}>
+              {loading && <Loader2 className="h-4 w-4 animate-spin mr-1" />} Reverse payout
             </Button>
           </div>
         </div>
@@ -422,10 +471,14 @@ function StatementsTab({ isReadOnly, onGoToAgreements }: { isReadOnly: boolean; 
   const { user }  = useAuth();
   const { toast } = useToast();
   const qc        = useQueryClient();
-  const [genForm, setGenForm] = useState({ propertyId: "", year: new Date().getFullYear(), month: new Date().getMonth() + 1 });
+  // a statement is for a month that has ended — default to last month
+  const lastMonth = new Date(Date.now() + 3 * 3600_000); lastMonth.setUTCDate(1); lastMonth.setUTCMonth(lastMonth.getUTCMonth() - 1);
+  const [genForm, setGenForm] = useState({ propertyId: "", year: lastMonth.getUTCFullYear(), month: lastMonth.getUTCMonth() + 1 });
   const [filterProp, setFilterProp]   = useState("all");
   const [detailId, setDetailId]       = useState<number | null>(null);
-  const [disburseId, setDisburseId]   = useState<number | null>(null);
+  const [disburseFor, setDisburseFor] = useState<any | null>(null);
+  const [undoFor, setUndoFor]         = useState<any | null>(null);
+  const [deleteFor, setDeleteFor]     = useState<any | null>(null);
 
   const { data: properties = [] } = useProperties(user?.role);
 
@@ -450,40 +503,73 @@ function StatementsTab({ isReadOnly, onGoToAgreements }: { isReadOnly: boolean; 
     },
   });
 
+  const refresh = () => { qc.invalidateQueries({ queryKey: ["/api/owner-statements"] }); qc.invalidateQueries({ queryKey: ["/api/bank-reconciliation"] }); };
+  const failToast = (title: string) => (e: unknown) => toast({ title, description: apiErrorMessage(e), variant: "destructive" });
+
   const generate = useMutation({
-    mutationFn: () => apiRequest("/api/owner-statements/generate", {
+    mutationFn: async () => (await apiRequest("/api/owner-statements/generate", {
       method: "POST",
       data: { propertyId: parseInt(genForm.propertyId), year: genForm.year, month: genForm.month },
-    }),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["/api/owner-statements"] }); toast({ title: "Statement generated" }); },
-    onError:   (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
+    })).json(),
+    onSuccess: (r: any) => {
+      refresh();
+      const warn = Array.isArray(r?.warnings) && r.warnings.length ? r.warnings.join(" ") : undefined;
+      toast({ title: "Statement generated", description: warn ?? `${r?.statementNumber ?? ""} is a draft — review it, then approve.` });
+    },
+    onError: failToast("Could not generate"),
   });
 
   const approve = useMutation({
-    mutationFn: (id: number) => apiRequest(`/api/owner-statements/${id}/approve`, { method: "PATCH" }),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["/api/owner-statements"] }); toast({ title: "Statement approved" }); },
-    onError:   () => toast({ title: "Error", description: "Failed to approve.", variant: "destructive" }),
+    mutationFn: async (id: number) => (await apiRequest(`/api/owner-statements/${id}/approve`, { method: "PATCH" })).json(),
+    onSuccess: () => { refresh(); toast({ title: "Statement approved" }); },
+    onError: failToast("Could not approve"),
+  });
+
+  const send = useMutation({
+    mutationFn: async (id: number) => (await apiRequest(`/api/owner-statements/${id}/send`, { method: "PATCH" })).json(),
+    onSuccess: (r: any) => {
+      refresh();
+      toast(r?.emailSent
+        ? { title: "Statement sent", description: "The owner has been emailed." }
+        : { title: "Marked as sent — email not delivered", description: r?.emailError ?? "Share the PDF with the owner yourself.", variant: "destructive" });
+    },
+    onError: failToast("Could not send"),
   });
 
   const disburse = useMutation({
-    mutationFn: ({ id, ref }: { id: number; ref: string }) =>
-      apiRequest(`/api/owner-statements/${id}/mark-disbursed`, { method: "PATCH", data: { disbursementRef: ref } }),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["/api/owner-statements"] });
-      toast({ title: "Marked as disbursed" });
-      setDisburseId(null);
-    },
-    onError: () => toast({ title: "Error", description: "Failed to mark disbursed.", variant: "destructive" }),
+    mutationFn: async ({ id, ref, date }: { id: number; ref: string; date: string }) =>
+      (await apiRequest(`/api/owner-statements/${id}/mark-disbursed`, { method: "PATCH", data: { disbursementRef: ref, disbursedDate: date } })).json(),
+    onSuccess: () => { refresh(); toast({ title: "Payout recorded" }); setDisburseFor(null); },
+    onError: failToast("Could not record the payout"),
+  });
+
+  const undo = useMutation({
+    mutationFn: async ({ id, reason }: { id: number; reason: string }) =>
+      (await apiRequest(`/api/owner-statements/${id}/undo-disbursed`, { method: "PATCH", data: { reason } })).json(),
+    onSuccess: () => { refresh(); toast({ title: "Payout reversed", description: "The statement is approved again." }); setUndoFor(null); },
+    onError: failToast("Could not reverse the payout"),
+  });
+
+  const remove = useMutation({
+    mutationFn: async (id: number) => (await apiRequest(`/api/owner-statements/${id}`, { method: "DELETE" })).json(),
+    onSuccess: () => { refresh(); toast({ title: "Draft deleted" }); setDeleteFor(null); },
+    onError: (e: unknown) => { setDeleteFor(null); toast({ title: "Could not delete", description: apiErrorMessage(e), variant: "destructive" }); },
   });
 
   return (
     <div className="space-y-4">
       <StatementDetailDialog statementId={detailId} onClose={() => setDetailId(null)} />
       <DisburseDialog
-        statementId={disburseId}
-        onClose={() => setDisburseId(null)}
-        onConfirm={ref => disburseId && disburse.mutate({ id: disburseId, ref })}
+        statement={disburseFor}
+        onClose={() => setDisburseFor(null)}
+        onConfirm={(ref, date) => disburseFor && disburse.mutate({ id: disburseFor.id, ref, date })}
         loading={disburse.isPending}
+      />
+      <UndoPayoutDialog statement={undoFor} onClose={() => setUndoFor(null)} onConfirm={reason => undoFor && undo.mutate({ id: undoFor.id, reason })} loading={undo.isPending} />
+      <ConfirmDialog
+        open={!!deleteFor} onClose={() => setDeleteFor(null)} onConfirm={() => deleteFor && remove.mutate(deleteFor.id)} loading={remove.isPending}
+        destructive title="Delete this draft?" confirmLabel="Delete draft"
+        description="Only a draft can be deleted. You can generate the statement again at any time."
       />
 
       {/* Generate panel — manager/admin only */}
@@ -500,7 +586,7 @@ function StatementsTab({ isReadOnly, onGoToAgreements }: { isReadOnly: boolean; 
               </div>
               <div>
                 <Label className="text-xs">Year</Label>
-                <Input type="number" value={genForm.year} onChange={e => setGenForm(f => ({ ...f, year: parseInt(e.target.value) }))} />
+                <Input type="number" min={2000} max={2100} value={genForm.year || ""} onChange={e => setGenForm(f => ({ ...f, year: parseInt(e.target.value) || 0 }))} />
               </div>
               <div>
                 <Label className="text-xs">Month</Label>
@@ -510,7 +596,7 @@ function StatementsTab({ isReadOnly, onGoToAgreements }: { isReadOnly: boolean; 
                 </Select>
               </div>
               <div className="flex items-end">
-                <Button className="w-full" onClick={() => generate.mutate()} disabled={!genForm.propertyId || missingAgreement || generate.isPending}>
+                <Button className="w-full" onClick={() => generate.mutate()} disabled={!genForm.propertyId || missingAgreement || generate.isPending || genForm.year < 2000}>
                   {generate.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <RefreshCw className="h-4 w-4 mr-1" />} Generate
                 </Button>
               </div>
@@ -563,6 +649,9 @@ function StatementsTab({ isReadOnly, onGoToAgreements }: { isReadOnly: boolean; 
                     <div><p className="text-xs text-muted-foreground">Deductions</p><p className="font-medium text-red-600">-{fmtKES(s.totalDeductions ?? (Number(s.maintenanceCosts??0)+Number(s.utilityCosts??0)+Number(s.insuranceCosts??0)+Number(s.otherDeductions??0)))}</p></div>
                     <div><p className="text-xs text-muted-foreground">Net payable</p><p className="font-bold text-emerald-700">{fmtKES(s.netPayable)}</p></div>
                   </div>
+                  {Number(s.totalDeductions ?? 0) - Number(s.grossRent ?? 0) > 0.01 && (
+                    <p className="text-xs text-amber-700 mt-1">Costs exceeded rent by {fmtKES(Number(s.totalDeductions) - Number(s.grossRent))} — nothing payable; carried to the next statement.</p>
+                  )}
                   {s.disbursedAt && <p className="text-xs text-muted-foreground mt-1">Disbursed {fmt(s.disbursedAt)}{s.disbursementRef ? ` · Ref: ${s.disbursementRef}` : ""}</p>}
                 </div>
                 <div className="flex gap-2 flex-wrap">
@@ -578,10 +667,23 @@ function StatementsTab({ isReadOnly, onGoToAgreements }: { isReadOnly: boolean; 
                       <CheckCircle2 className="h-4 w-4 mr-1" /> Approve
                     </Button>
                   )}
-                  {!isReadOnly && s.status === "approved" && (
-                    <Button size="sm" onClick={() => setDisburseId(s.id)} disabled={disburse.isPending}>
+                  {!isReadOnly && (s.status === "approved" || s.status === "sent") && (
+                    <Button size="sm" variant="outline" onClick={() => send.mutate(s.id)} disabled={send.isPending}>
+                      {send.isPending && send.variables === s.id ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Send className="h-4 w-4 mr-1" />} {s.status === "sent" ? "Resend" : "Send to owner"}
+                    </Button>
+                  )}
+                  {!isReadOnly && (s.status === "approved" || s.status === "sent") && (
+                    <Button size="sm" onClick={() => setDisburseFor(s)} disabled={disburse.isPending}>
                       <Banknote className="h-4 w-4 mr-1" /> Mark Disbursed
                     </Button>
+                  )}
+                  {!isReadOnly && s.status === "draft" && (
+                    <Button size="sm" variant="ghost" className="text-muted-foreground hover:text-red-600" onClick={() => setDeleteFor(s)} aria-label="Delete draft" title="Delete draft">
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  )}
+                  {user?.role === "admin" && s.status === "paid" && (
+                    <Button size="sm" variant="ghost" className="text-muted-foreground" onClick={() => setUndoFor(s)}>Reverse payout</Button>
                   )}
                 </div>
               </div>

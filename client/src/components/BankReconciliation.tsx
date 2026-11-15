@@ -34,6 +34,8 @@ import {
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, apiJson } from "@/lib/queryClient";
+import { apiErrorMessage } from "@/lib/maintenance-flow";
+import { ConfirmDialog } from "@/components/ui/sp-ui";
 import { format } from "date-fns";
 
 // ── Types ──────────────────────────────────────────────────────────────────────
@@ -77,7 +79,33 @@ interface BankRow {
     dueDate:       string;
     status:        string;
     tenantId:      number;
+    tenantName?:   string;
   } | null;
+  /** Set on a bank debit that was matched to (or is suggested for) an owner payout. */
+  matchedStatement?: { id: number; statementNumber: string; netPayable: string; status: string; propertyName?: string } | null;
+}
+
+interface OpenInvoice {
+  id:            number;
+  invoiceNumber: string | null;
+  amount:        number;
+  balance:       number;
+  dueDate:       string;
+  status:        string;
+  tenantName:    string;
+  unitNumber:    string | null;
+}
+
+interface PayoutCandidate {
+  id:              number;
+  statementNumber: string;
+  status:          string;
+  periodMonth:     number;
+  periodYear:      number;
+  netPayable:      string;
+  propertyName?:   string;
+  ownerFirstName?: string;
+  ownerLastName?:  string;
 }
 
 interface BankName {
@@ -122,6 +150,8 @@ export default function BankReconciliation() {
   const [matchDialogRow,  setMatchDialogRow]  = useState<BankRow | null>(null);
   const [ignoreDialogRow, setIgnoreDialogRow] = useState<BankRow | null>(null);
   const [searchTerm,      setSearchTerm]      = useState("");
+  const [payoutDialogRow, setPayoutDialogRow] = useState<BankRow | null>(null);
+  const [deleteImport,    setDeleteImport]    = useState<BankImport | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // ── Queries ────────────────────────────────────────────────────────────────
@@ -145,76 +175,88 @@ export default function BankReconciliation() {
     enabled: !!selectedImport,
   });
 
-  // Fetch pending payments for the match dialog
-  const { data: pendingPayments = [] } = useQuery<{ results: PendingPayment[] }>({
-    queryKey: ["/api/rent-payments", { status: "pending" }],
-    queryFn:  () => apiJson<{ results: PendingPayment[] }>("/api/rent-payments?status=pending&page_size=100"),
-    enabled:  !!matchDialogRow,
-    select:   (d: any) => d.results ?? [],
-  });
-
   // ── Mutations ──────────────────────────────────────────────────────────────
 
+  const refreshAll = () => {
+    refetchRows();
+    refetchImports();
+    qc.invalidateQueries({ queryKey: ["/api/bank-reconciliation/open-invoices"] });
+    qc.invalidateQueries({ queryKey: ["/api/rent-payments"] });
+    qc.invalidateQueries({ queryKey: ["/api/owner-statements"] });
+  };
+  const fail = (title: string) => (err: unknown) => toast({ title, description: apiErrorMessage(err), variant: "destructive" });
+
   const uploadMutation = useMutation({
-    mutationFn: (data: any) =>
-      apiRequest("/api/bank-reconciliation/imports", { method: "POST", data }),
+    mutationFn: async (data: any) => (await apiRequest("/api/bank-reconciliation/imports", { method: "POST", data })).json(),
     onSuccess: (res: any) => {
       toast({ title: "Statement uploaded", description: res.message });
       qc.invalidateQueries({ queryKey: ["/api/bank-reconciliation/imports"] });
       setTab("imports");
     },
-    onError: (err: any) => {
-      toast({ title: "Upload failed", description: err?.message ?? "Check CSV format", variant: "destructive" });
-    },
+    onError: fail("Upload failed"),
   });
 
   const autoMatchMutation = useMutation({
-    mutationFn: (importId: number) =>
-      apiRequest(`/api/bank-reconciliation/imports/${importId}/auto-match`, { method: "POST" }),
+    mutationFn: async (importId: number) => (await apiRequest(`/api/bank-reconciliation/imports/${importId}/auto-match`, { method: "POST" })).json(),
     onSuccess: (res: any) => {
       toast({ title: "Auto-match complete", description: res.message });
-      refetchRows();
-      refetchImports();
+      refreshAll();
     },
-    onError: () => toast({ title: "Auto-match failed", variant: "destructive" }),
+    onError: fail("Auto-match failed"),
   });
 
   const matchMutation = useMutation({
-    mutationFn: ({ rowId, rentPaymentId, notes }: { rowId: number; rentPaymentId: number; notes?: string }) =>
-      apiRequest(`/api/bank-reconciliation/rows/${rowId}/match`, {
-        method: "POST", data: { rentPaymentId, notes },
-      }),
-    onSuccess: () => {
-      toast({ title: "Payment matched" });
+    mutationFn: async ({ rowId, rentPaymentId, notes }: { rowId: number; rentPaymentId: number; notes?: string }) =>
+      (await apiRequest(`/api/bank-reconciliation/rows/${rowId}/match`, { method: "POST", data: { rentPaymentId, notes } })).json(),
+    onSuccess: (res: any) => {
+      toast({ title: "Payment matched", description: res?.message });
       setMatchDialogRow(null);
-      refetchRows();
-      refetchImports();
-      qc.invalidateQueries({ queryKey: ["/api/rent-payments"] });
+      refreshAll();
     },
-    onError: () => toast({ title: "Match failed", variant: "destructive" }),
+    onError: fail("Match failed"),
+  });
+
+  const payoutMutation = useMutation({
+    mutationFn: async ({ rowId, statementId }: { rowId: number; statementId: number }) =>
+      (await apiRequest(`/api/bank-reconciliation/rows/${rowId}/match-statement`, { method: "POST", data: { statementId } })).json(),
+    onSuccess: (res: any) => {
+      toast({ title: "Payout matched", description: res?.message });
+      setPayoutDialogRow(null);
+      refreshAll();
+    },
+    onError: fail("Could not match the payout"),
   });
 
   const ignoreMutation = useMutation({
-    mutationFn: ({ rowId, notes }: { rowId: number; notes?: string }) =>
-      apiRequest(`/api/bank-reconciliation/rows/${rowId}/ignore`, { method: "POST", data: { notes } }),
+    mutationFn: async ({ rowId, notes }: { rowId: number; notes?: string }) =>
+      (await apiRequest(`/api/bank-reconciliation/rows/${rowId}/ignore`, { method: "POST", data: { notes } })).json(),
     onSuccess: () => {
       toast({ title: "Row ignored" });
       setIgnoreDialogRow(null);
-      refetchRows();
+      refreshAll();
     },
-    onError: () => toast({ title: "Failed", variant: "destructive" }),
+    onError: fail("Could not ignore the row"),
   });
 
   const unmatchMutation = useMutation({
-    mutationFn: (rowId: number) =>
-      apiRequest(`/api/bank-reconciliation/rows/${rowId}/unmatch`, { method: "POST" }),
+    mutationFn: async (rowId: number) =>
+      (await apiRequest(`/api/bank-reconciliation/rows/${rowId}/unmatch`, { method: "POST" })).json(),
     onSuccess: () => {
-      toast({ title: "Match reverted" });
-      refetchRows();
-      refetchImports();
-      qc.invalidateQueries({ queryKey: ["/api/rent-payments"] });
+      toast({ title: "Reverted", description: "The payment (if any) was reversed and the invoice is open again." });
+      refreshAll();
     },
-    onError: () => toast({ title: "Failed", variant: "destructive" }),
+    onError: fail("Could not revert"),
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: async (id: number) => (await apiRequest(`/api/bank-reconciliation/imports/${id}`, { method: "DELETE" })).json(),
+    onSuccess: () => {
+      toast({ title: "Import deleted" });
+      setDeleteImport(null);
+      if (selectedImport && deleteImport && selectedImport.id === deleteImport.id) { setSelectedImport(null); setTab("imports"); }
+      refetchImports();
+    },
+    onError: (err: unknown) => { setDeleteImport(null); toast({ title: "Could not delete", description: apiErrorMessage(err), variant: "destructive" }); },
   });
 
   // ── Upload form handler ────────────────────────────────────────────────────
@@ -353,6 +395,16 @@ export default function BankReconciliation() {
                             ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
                             : <RefreshCw className="h-3.5 w-3.5" />}
                           <span className="ml-1.5 hidden sm:inline">Auto-match</span>
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="text-muted-foreground hover:text-red-600"
+                          title="Delete this import"
+                          aria-label="Delete this import"
+                          onClick={e => { e.stopPropagation(); setDeleteImport(imp); }}
+                        >
+                          <X className="h-3.5 w-3.5" />
                         </Button>
                         <ChevronRight className="h-4 w-4 text-muted-foreground" />
                       </div>
@@ -549,7 +601,7 @@ export default function BankReconciliation() {
                         <TableHead>Reference</TableHead>
                         <TableHead className="text-right">Amount</TableHead>
                         <TableHead>Status</TableHead>
-                        <TableHead>Matched Invoice</TableHead>
+                        <TableHead>Matched to</TableHead>
                         <TableHead className="text-right">Actions</TableHead>
                       </TableRow>
                     </TableHeader>
@@ -589,9 +641,16 @@ export default function BankReconciliation() {
                             <TableCell>
                               {row.matchedPayment ? (
                                 <div>
-                                  <p className="font-medium text-[11px]">{row.matchedPayment.invoiceNumber}</p>
+                                  <p className="font-medium text-[11px]">{row.matchedPayment.invoiceNumber}{row.matchedPayment.tenantName ? ` · ${row.matchedPayment.tenantName}` : ""}</p>
                                   <p className="text-muted-foreground text-[10px]">
                                     Due {fmtDate(row.matchedPayment.dueDate)} · {fmtKES(row.matchedPayment.amount)}
+                                  </p>
+                                </div>
+                              ) : row.matchedStatement ? (
+                                <div>
+                                  <p className="font-medium text-[11px]">Owner payout {row.matchedStatement.statementNumber}</p>
+                                  <p className="text-muted-foreground text-[10px]">
+                                    {row.matchedStatement.propertyName ?? ""} · {fmtKES(row.matchedStatement.netPayable)}
                                   </p>
                                 </div>
                               ) : (
@@ -606,10 +665,10 @@ export default function BankReconciliation() {
                                       size="sm"
                                       variant="outline"
                                       className="h-7 px-2 text-[11px]"
-                                      onClick={() => setMatchDialogRow(row)}
+                                      onClick={() => (amt < 0 ? setPayoutDialogRow(row) : setMatchDialogRow(row))}
                                     >
                                       <Link className="h-3 w-3 mr-1" />
-                                      Match
+                                      {amt < 0 ? "Owner payout" : "Match"}
                                     </Button>
                                     <Button
                                       size="sm"
@@ -719,7 +778,6 @@ export default function BankReconciliation() {
               {/* Manual pick from pending payments */}
               <ManualMatchForm
                 row={matchDialogRow}
-                pendingPayments={pendingPayments as unknown as PendingPayment[]}
                 onMatch={(rentPaymentId, notes) =>
                   matchMutation.mutate({ rowId: matchDialogRow.id, rentPaymentId, notes })
                 }
@@ -729,6 +787,21 @@ export default function BankReconciliation() {
           )}
         </DialogContent>
       </Dialog>
+
+      {/* ── Owner payout dialog (bank debit → approved owner statement) ──────── */}
+      <PayoutDialog
+        row={payoutDialogRow}
+        onClose={() => setPayoutDialogRow(null)}
+        onConfirm={(rowId, statementId) => payoutMutation.mutate({ rowId, statementId })}
+        isPending={payoutMutation.isPending}
+      />
+
+      <ConfirmDialog
+        open={!!deleteImport} onClose={() => setDeleteImport(null)}
+        onConfirm={() => deleteImport && deleteMutation.mutate(deleteImport.id)} loading={deleteMutation.isPending}
+        destructive title="Delete this import?" confirmLabel="Delete import"
+        description={`This removes the ${deleteImport?.rowCount ?? 0} transactions of ${deleteImport?.fileName ?? "this statement"}. It is only allowed while none of them is matched to a payment.`}
+      />
 
       {/* ── Ignore dialog ───────────────────────────────────────────────────── */}
       <Dialog open={!!ignoreDialogRow} onOpenChange={open => !open && setIgnoreDialogRow(null)}>
@@ -768,37 +841,54 @@ export default function BankReconciliation() {
 // ── Sub-component: manual match form ─────────────────────────────────────────
 
 function ManualMatchForm({
-  row, pendingPayments, onMatch, isPending,
+  row, onMatch, isPending,
 }: {
-  row:             BankRow;
-  pendingPayments: PendingPayment[];
-  onMatch:         (rentPaymentId: number, notes?: string) => void;
-  isPending:       boolean;
+  row:       BankRow;
+  onMatch:   (rentPaymentId: number, notes?: string) => void;
+  isPending: boolean;
 }) {
   const [selectedId, setSelectedId] = useState<string>("");
   const [notes,      setNotes]      = useState("");
+  const [q,          setQ]          = useState("");
+  const amount = Number(row.amount);
+
+  // Every invoice that can still take money — pending, overdue and part-paid — closest amount first
+  const { data: invoices = [], isLoading } = useQuery<OpenInvoice[]>({
+    queryKey: ["/api/bank-reconciliation/open-invoices", amount, q],
+    queryFn:  () => apiJson<OpenInvoice[]>(`/api/bank-reconciliation/open-invoices?amount=${amount}${q ? `&q=${encodeURIComponent(q)}` : ""}`),
+  });
+  const chosen = invoices.find(i => String(i.id) === selectedId);
+  const diff = chosen ? Math.round((amount - chosen.balance) * 100) / 100 : 0;
 
   return (
     <div className="space-y-3">
       <div className="space-y-1.5">
-        <Label className="text-xs">Select invoice to match *</Label>
+        <Label className="text-xs">Select the invoice this paid *</Label>
+        <Input className="h-8 text-xs" placeholder="Search tenant, unit or invoice…" value={q} onChange={e => setQ(e.target.value)} />
         <Select value={selectedId} onValueChange={setSelectedId}>
           <SelectTrigger className="h-9 text-xs">
-            <SelectValue placeholder="Choose pending invoice…" />
+            <SelectValue placeholder={isLoading ? "Loading invoices…" : "Choose an invoice…"} />
           </SelectTrigger>
           <SelectContent>
-            {pendingPayments.length === 0 ? (
-              <SelectItem value="__none" disabled>No pending invoices</SelectItem>
+            {invoices.length === 0 ? (
+              <SelectItem value="__none" disabled>No open invoices</SelectItem>
             ) : (
-              pendingPayments.map(p => (
+              invoices.map(p => (
                 <SelectItem key={p.id} value={String(p.id)}>
-                  {p.invoiceNumber ?? `#${p.id}`} — KES {Number(p.amount).toLocaleString()} (due {p.dueDate})
+                  {p.tenantName}{p.unitNumber ? ` · ${p.unitNumber}` : ""} — {p.invoiceNumber ?? `#${p.id}`} — owes KES {p.balance.toLocaleString("en-KE")}{p.status === "partial" ? " (part paid)" : p.status === "overdue" ? " (overdue)" : ""}
                 </SelectItem>
               ))
             )}
           </SelectContent>
         </Select>
       </div>
+      {chosen && Math.abs(diff) > 0.01 && (
+        <p className={`text-xs rounded-md border p-2 ${diff < 0 ? "border-amber-300 bg-amber-50 text-amber-800" : "border-blue-200 bg-blue-50 text-blue-800"}`}>
+          {diff < 0
+            ? `This is a part payment: KES ${Math.abs(diff).toLocaleString("en-KE")} will still be owed on the invoice.`
+            : `This is KES ${diff.toLocaleString("en-KE")} more than the invoice balance. The invoice will be paid and the excess flagged for refund or credit.`}
+        </p>
+      )}
       <div className="space-y-1.5">
         <Label className="text-xs">Notes (optional)</Label>
         <Textarea
@@ -818,5 +908,58 @@ function ManualMatchForm({
         Confirm Match
       </Button>
     </div>
+  );
+}
+
+// ── Sub-component: owner payout dialog ───────────────────────────────────────
+
+function PayoutDialog({
+  row, onClose, onConfirm, isPending,
+}: {
+  row:       BankRow | null;
+  onClose:   () => void;
+  onConfirm: (rowId: number, statementId: number) => void;
+  isPending: boolean;
+}) {
+  const amount = row ? Math.abs(Number(row.amount)) : 0;
+  const { data: statements = [], isLoading } = useQuery<PayoutCandidate[]>({
+    queryKey: ["/api/bank-reconciliation/payout-candidates", amount],
+    queryFn:  () => apiJson<PayoutCandidate[]>(`/api/bank-reconciliation/payout-candidates?amount=${amount}`),
+    enabled:  !!row,
+  });
+  const suggestedId = row?.matchedStatement?.id;
+
+  return (
+    <Dialog open={!!row} onOpenChange={open => !open && onClose()}>
+      <DialogContent className="sm:max-w-md rounded-2xl">
+        <DialogHeader>
+          <DialogTitle>Match to an owner payout</DialogTitle>
+          <DialogDescription>
+            This bank debit of {fmtKES(amount)} paid an owner statement. Matching marks that statement as paid, using the bank reference.
+          </DialogDescription>
+        </DialogHeader>
+        {isLoading ? <Skeleton className="h-16" /> : statements.length === 0 ? (
+          <p className="text-sm text-muted-foreground py-4">No approved statements are waiting to be paid out. Approve the statement first (Finances → Owner Statements).</p>
+        ) : (
+          <div className="space-y-2 max-h-72 overflow-auto">
+            {statements.map(st => {
+              const exact = Math.abs(Number(st.netPayable) - amount) < 0.01;
+              return (
+                <div key={st.id} className={`rounded-lg border p-3 text-xs flex items-center justify-between gap-3 ${exact ? "border-green-300 bg-green-50/60" : ""}`}>
+                  <div>
+                    <p className="font-medium">{st.statementNumber}{st.id === suggestedId ? " · suggested" : ""}</p>
+                    <p className="text-muted-foreground">{st.propertyName} · {st.periodMonth}/{st.periodYear}{st.ownerFirstName ? ` · ${st.ownerFirstName} ${st.ownerLastName ?? ""}` : ""}</p>
+                    <p className={exact ? "text-green-700 font-medium" : "text-muted-foreground"}>Net payable {fmtKES(st.netPayable)}{exact ? " — matches" : " — different amount"}</p>
+                  </div>
+                  <Button size="sm" disabled={!exact || isPending} onClick={() => row && onConfirm(row.id, st.id)}>
+                    {isPending && <Loader2 className="h-3 w-3 mr-1 animate-spin" />}Mark paid
+                  </Button>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </DialogContent>
+    </Dialog>
   );
 }
