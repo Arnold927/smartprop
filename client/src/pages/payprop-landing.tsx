@@ -15,6 +15,7 @@
  * signed-up customers; this page just doesn't lead with them.
  */
 
+import { BrandMark } from "@/components/brand-logo";
 import { MessageCircle as MessageCircleIc, Mail as MailIc, Phone as PhoneIc } from "lucide-react";
 import { useState, useEffect, useRef } from "react";
 import { Link } from "wouter";
@@ -348,9 +349,7 @@ function DashboardMockup() {
       <div className="flex" style={{ height: "420px" }}>
         <div className="w-40 bg-slate-900 border-r border-slate-800 flex flex-col p-3 gap-0.5 flex-shrink-0">
           <div className="flex items-center gap-2 px-2 py-2.5 mb-2">
-            <div className="w-6 h-6 rounded-md bg-emerald-600 flex items-center justify-center shadow-sm flex-shrink-0">
-              <Building2 className="w-3.5 h-3.5 text-white" />
-            </div>
+            <BrandMark size={24} />
             <div>
               <span className="text-white text-[11px] font-bold leading-none">SmartProp</span>
               <p className="text-slate-400 text-[9px] leading-none mt-0.5">Property Mgmt</p>
@@ -465,9 +464,7 @@ function Navbar({ containerRef }: { containerRef?: React.RefObject<HTMLElement> 
       <div className="max-w-6xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
         <Link href="/">
           <a className="flex items-center gap-2 group">
-            <div className="w-8 h-8 rounded-lg bg-emerald-600 flex items-center justify-center shadow-sm group-hover:bg-emerald-500 transition-colors">
-              <Building2 className="w-4 h-4 text-white" />
-            </div>
+            <BrandMark size={32} className="shadow-sm rounded-lg transition-opacity group-hover:opacity-90" />
             <span className={`font-bold text-lg tracking-tight transition-colors ${scrolled ? "text-gray-900 dark:text-white" : "text-white"}`}>
               Smart<span className="text-emerald-400">Prop</span>
             </span>
@@ -1252,9 +1249,7 @@ function Footer() {
     <footer className="border-t border-white/10 bg-slate-900">
       <div className="max-w-6xl mx-auto px-4 sm:px-6 py-10 flex flex-col sm:flex-row items-center justify-between gap-6 text-sm text-white/50">
         <div className="flex items-center gap-2.5">
-          <div className="w-7 h-7 rounded-md bg-emerald-600 flex items-center justify-center">
-            <Building2 className="w-4 h-4 text-white" />
-          </div>
+          <BrandMark size={28} />
           <span className="font-bold text-base text-white">
             Smart<span className="text-emerald-500">Prop</span>
           </span>

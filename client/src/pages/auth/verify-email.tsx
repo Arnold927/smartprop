@@ -61,7 +61,6 @@ export default function VerifyEmailPage() {
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
           <FuturisticLogo className="mx-auto mb-4" />
-          <h1 className="text-2xl font-semibold text-foreground">Smart Prop</h1>
         </div>
 
         <Card className="w-full shadow-xl border-0">

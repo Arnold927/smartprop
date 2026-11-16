@@ -23,14 +23,13 @@ import {
 } from "lucide-react";
 import { useMutation } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
+import { BrandMark } from "@/components/brand-logo";
 
 // ── SmartProp wordmark ────────────────────────────────────────────────────────
 function Wordmark({ white = false }: { white?: boolean }) {
   return (
     <div className="flex items-center gap-2.5">
-      <div className="w-8 h-8 rounded-lg bg-emerald-500 flex items-center justify-center flex-shrink-0">
-        <Building2 className="w-4 h-4 text-white" />
-      </div>
+      <BrandMark size={32} />
       <span className={`text-lg font-semibold tracking-tight ${white ? "text-white" : "text-slate-900"}`}>
         SmartProp
       </span>

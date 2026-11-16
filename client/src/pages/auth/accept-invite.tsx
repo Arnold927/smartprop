@@ -185,7 +185,6 @@ export default function AcceptInvitePage() {
     <Shell>
       <div className="text-center mb-8">
         <FuturisticLogo className="mx-auto mb-4" />
-        <h1 className="text-2xl font-semibold text-foreground">Smart Prop</h1>
         <p className="text-muted-foreground mt-1">
           {invite.organizationName
             ? <>You've been invited to join <strong className="text-foreground">{invite.organizationName}</strong>{roleLabel ? <> as {roleLabel}</> : null}</>

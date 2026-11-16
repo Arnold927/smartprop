@@ -1,5 +1,6 @@
+import { BrandMark } from "@/components/brand-logo";
 import { useState } from "react";
-import { Home, Menu, Search } from "lucide-react";
+import { Menu, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useIsCompact } from "@/hooks/use-mobile";
 import { NotificationBell } from "@/components/layout/top-bar";
@@ -29,9 +30,7 @@ export default function MobileHeader({ onMenuClick }: MobileHeaderProps) {
  <Menu className="w-5 h-5 text-muted-foreground" />
  </Button>
  <div className="flex items-center gap-2 min-w-0">
- <div className="w-8 h-8 bg-emerald-600 rounded-lg flex items-center justify-center shrink-0">
- <Home className="w-4 h-4 text-white" />
- </div>
+ <BrandMark size={32} className="rounded-lg" />
  <span className="text-base font-bold text-foreground tracking-tight truncate">SmartProp</span>
  </div>
  </div>

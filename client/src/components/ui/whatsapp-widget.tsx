@@ -13,8 +13,8 @@ interface WhatsAppWidgetProps {
 
 export default function WhatsAppWidget({ 
  phoneNumber = "+254759657590", 
- businessName = "Smart Prop Support",
- defaultMessage = "Hi! I'm interested in Smart Prop's property management solutions. Can you help me?"
+ businessName = "SmartProp Support",
+ defaultMessage = "Hi! I'm interested in SmartProp's property management solutions. Can you help me?"
 }: WhatsAppWidgetProps) {
  const [isOpen, setIsOpen] = useState(false);
  const [message, setMessage] = useState(defaultMessage);
@@ -90,7 +90,7 @@ export default function WhatsAppWidget({
  {/* Welcome Message */}
  <div className="bg-muted rounded-lg p-3">
  <p className="text-sm text-foreground">
- 👋 Hi there! How can we help you with Smart Prop property management today?
+ 👋 Hi there! How can we help you with SmartProp property management today?
  </p>
  </div>
 

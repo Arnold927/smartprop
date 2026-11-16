@@ -71,7 +71,7 @@ export default function TenantOnboardingInvoice({
  <Building className="h-6 w-6" />
  </div>
  <div>
- <CardTitle className="text-2xl font-bold">Smart Prop</CardTitle>
+ <CardTitle className="text-2xl font-bold">SmartProp</CardTitle>
  <p className="text-blue-100">Property Management Solutions</p>
  </div>
  </div>
@@ -324,7 +324,7 @@ export default function TenantOnboardingInvoice({
 
  {/* Footer */}
  <div className="pt-8 border-t border-border text-center text-sm text-muted-foreground">
- <p>This invoice was generated automatically by Smart Prop Property Management System</p>
+ <p>This invoice was generated automatically by SmartProp Property Management System</p>
  <p className="mt-2">For support, contact us at support@smartprop.com or +254759657590</p>
  </div>
  </CardContent>

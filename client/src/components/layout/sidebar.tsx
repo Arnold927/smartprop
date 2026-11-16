@@ -1,3 +1,4 @@
+import { BrandMark } from "@/components/brand-logo";
 import { Link, useLocation } from "wouter";
 import { useState, useMemo } from "react";
 import {
@@ -177,9 +178,7 @@ export default function Sidebar({ isOpen, onClose, isCollapsed: isCollapsedProp 
         }`}>
           {!isCollapsed && (
             <div className="flex items-center gap-2.5">
-              <div className="w-8 h-8 bg-emerald-600 rounded-lg flex items-center justify-center flex-shrink-0 shadow-sm">
-                <Home className="w-4 h-4 text-primary-foreground" />
-              </div>
+              <BrandMark size={32} className="rounded-lg shadow-sm" />
               <div>
                 <span className="text-sm font-bold text-foreground tracking-tight">SmartProp</span>
                 <div className="text-xs text-muted-foreground leading-none mt-0.5">Property Management</div>
@@ -188,9 +187,7 @@ export default function Sidebar({ isOpen, onClose, isCollapsed: isCollapsedProp 
           )}
 
           {isCollapsed && (
-            <div className="w-8 h-8 bg-emerald-600 rounded-lg flex items-center justify-center flex-shrink-0 shadow-sm">
-              <Home className="w-4 h-4 text-primary-foreground" />
-            </div>
+            <BrandMark size={32} className="rounded-lg shadow-sm" />
           )}
 
           {isMobile && !isCollapsed && (
