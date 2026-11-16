@@ -20,6 +20,7 @@ import {
   MessageSquare, BarChart2, Truck, Settings, X,
   ChevronRight, CreditCard, Receipt, UserCog, Building, Bell,
   MoreHorizontal, ClipboardList, LogIn,
+  Layers,
 } from "lucide-react";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -177,6 +178,7 @@ const getConfigs = (t: (key: string) => string): Record<string, RoleConfig> => {
     platform_admin: {
       primary: [
         { label: t("nav.organisations"), href: "/organisations", icon: Building },
+        { label: t("nav.plans"), href: "/plans", icon: Layers },
       ],
       groups: [],
     },

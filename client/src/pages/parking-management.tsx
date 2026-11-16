@@ -22,6 +22,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, ensureArray } from "@/lib/queryClient";
+import { apiErrorMessage } from "@/lib/maintenance-flow";
 import { useRoleGuard, ROLES } from "@/hooks/useRoleGuard";
 import { useAuth } from "@/hooks/useAuth";
 
@@ -215,19 +216,19 @@ export default function ParkingManagement() {
   // ── Mutations (condensed) ─────────────────────────────────────────────────
   const inv = (...keys: string[]) => keys.forEach(k=>queryClient.invalidateQueries({queryKey:[k]}));
 
-  const createSpaceMut    = useMutation({ mutationFn:(d:any)=>apiRequest("/api/parking-spaces",{method:"POST",data:d}), onSuccess:()=>{inv("/api/parking-spaces");setIsAddSpaceOpen(false);toast({title:"Space created"});}, onError:(e:any)=>toast({title:"Error",description:e?.message,variant:"destructive"}) });
-  const updateSpaceMut    = useMutation({ mutationFn:({id,data}:{id:number;data:any})=>apiRequest(`/api/parking-spaces/${id}`,{method:"PUT",data}), onSuccess:()=>{inv("/api/parking-spaces");setEditingSpace(null);toast({title:"Space updated"});}, onError:(e:any)=>toast({title:"Error",description:e?.message,variant:"destructive"}) });
-  const deleteSpaceMut    = useMutation({ mutationFn:(id:number)=>apiRequest(`/api/parking-spaces/${id}`,{method:"DELETE"}), onSuccess:()=>{inv("/api/parking-spaces");toast({title:"Space deleted"});}, onError:(e:any)=>toast({title:"Error",description:e?.message,variant:"destructive"}) });
+  const createSpaceMut    = useMutation({ mutationFn:(d:any)=>apiRequest("/api/parking-spaces",{method:"POST",data:d}), onSuccess:()=>{inv("/api/parking-spaces");setIsAddSpaceOpen(false);toast({title:"Space created"});}, onError:(e:any)=>toast({title:"Error",description:apiErrorMessage(e),variant:"destructive"}) });
+  const updateSpaceMut    = useMutation({ mutationFn:({id,data}:{id:number;data:any})=>apiRequest(`/api/parking-spaces/${id}`,{method:"PUT",data}), onSuccess:()=>{inv("/api/parking-spaces");setEditingSpace(null);toast({title:"Space updated"});}, onError:(e:any)=>toast({title:"Error",description:apiErrorMessage(e),variant:"destructive"}) });
+  const deleteSpaceMut    = useMutation({ mutationFn:(id:number)=>apiRequest(`/api/parking-spaces/${id}`,{method:"DELETE"}), onSuccess:()=>{inv("/api/parking-spaces");toast({title:"Space deleted"});}, onError:(e:any)=>toast({title:"Error",description:apiErrorMessage(e),variant:"destructive"}) });
 
-  const createVehicleMut  = useMutation({ mutationFn:(d:any)=>apiRequest("/api/registered-vehicles",{method:"POST",data:d}), onSuccess:()=>{inv("/api/registered-vehicles");setIsAddVehicleOpen(false);toast({title:"Vehicle registered"});}, onError:(e:any)=>toast({title:"Error",description:e?.message,variant:"destructive"}) });
-  const updateVehicleMut  = useMutation({ mutationFn:({id,data}:{id:number;data:any})=>apiRequest(`/api/registered-vehicles/${id}`,{method:"PUT",data}), onSuccess:()=>{inv("/api/registered-vehicles");setEditingVehicle(null);toast({title:"Vehicle updated"});}, onError:(e:any)=>toast({title:"Error",description:e?.message,variant:"destructive"}) });
-  const deleteVehicleMut  = useMutation({ mutationFn:(id:number)=>apiRequest(`/api/registered-vehicles/${id}`,{method:"DELETE"}), onSuccess:()=>{inv("/api/registered-vehicles");toast({title:"Vehicle deleted"});}, onError:(e:any)=>toast({title:"Error",description:e?.message,variant:"destructive"}) });
-  const vehicleStatusMut  = useMutation({ mutationFn:({id,status}:{id:number;status:string})=>apiRequest(`/api/registered-vehicles/${id}/status`,{method:"PATCH",data:{status}}), onSuccess:()=>{inv("/api/registered-vehicles");toast({title:"Status updated"});}, onError:(e:any)=>toast({title:"Error",description:e?.message,variant:"destructive"}) });
+  const createVehicleMut  = useMutation({ mutationFn:(d:any)=>apiRequest("/api/registered-vehicles",{method:"POST",data:d}), onSuccess:()=>{inv("/api/registered-vehicles");setIsAddVehicleOpen(false);toast({title:"Vehicle registered"});}, onError:(e:any)=>toast({title:"Error",description:apiErrorMessage(e),variant:"destructive"}) });
+  const updateVehicleMut  = useMutation({ mutationFn:({id,data}:{id:number;data:any})=>apiRequest(`/api/registered-vehicles/${id}`,{method:"PUT",data}), onSuccess:()=>{inv("/api/registered-vehicles");setEditingVehicle(null);toast({title:"Vehicle updated"});}, onError:(e:any)=>toast({title:"Error",description:apiErrorMessage(e),variant:"destructive"}) });
+  const deleteVehicleMut  = useMutation({ mutationFn:(id:number)=>apiRequest(`/api/registered-vehicles/${id}`,{method:"DELETE"}), onSuccess:()=>{inv("/api/registered-vehicles");toast({title:"Vehicle deleted"});}, onError:(e:any)=>toast({title:"Error",description:apiErrorMessage(e),variant:"destructive"}) });
+  const vehicleStatusMut  = useMutation({ mutationFn:({id,status}:{id:number;status:string})=>apiRequest(`/api/registered-vehicles/${id}/status`,{method:"PATCH",data:{status}}), onSuccess:()=>{inv("/api/registered-vehicles");toast({title:"Status updated"});}, onError:(e:any)=>toast({title:"Error",description:apiErrorMessage(e),variant:"destructive"}) });
 
-  const createAssignMut   = useMutation({ mutationFn:(d:any)=>apiRequest("/api/parking-assignments",{method:"POST",data:d}), onSuccess:()=>{inv("/api/parking-assignments","/api/parking-spaces");setIsAddAssignOpen(false);toast({title:"Assignment created"});}, onError:(e:any)=>toast({title:"Error",description:e?.message,variant:"destructive"}) });
-  const updateAssignMut   = useMutation({ mutationFn:({id,data}:{id:number;data:any})=>apiRequest(`/api/parking-assignments/${id}`,{method:"PUT",data}), onSuccess:()=>{inv("/api/parking-assignments","/api/parking-spaces");setEditingAssignment(null);toast({title:"Assignment updated"});}, onError:(e:any)=>toast({title:"Error",description:e?.message,variant:"destructive"}) });
-  const deleteAssignMut   = useMutation({ mutationFn:(id:number)=>apiRequest(`/api/parking-assignments/${id}`,{method:"DELETE"}), onSuccess:()=>{inv("/api/parking-assignments","/api/parking-spaces");toast({title:"Assignment deleted"});}, onError:(e:any)=>toast({title:"Error",description:e?.message,variant:"destructive"}) });
-  const assignStatusMut   = useMutation({ mutationFn:({id,status}:{id:number;status:string})=>apiRequest(`/api/parking-assignments/${id}/status`,{method:"PATCH",data:{status}}), onSuccess:()=>{inv("/api/parking-assignments","/api/parking-spaces");toast({title:"Status updated"});}, onError:(e:any)=>toast({title:"Error",description:e?.message,variant:"destructive"}) });
+  const createAssignMut   = useMutation({ mutationFn:(d:any)=>apiRequest("/api/parking-assignments",{method:"POST",data:d}), onSuccess:()=>{inv("/api/parking-assignments","/api/parking-spaces");setIsAddAssignOpen(false);toast({title:"Assignment created"});}, onError:(e:any)=>toast({title:"Error",description:apiErrorMessage(e),variant:"destructive"}) });
+  const updateAssignMut   = useMutation({ mutationFn:({id,data}:{id:number;data:any})=>apiRequest(`/api/parking-assignments/${id}`,{method:"PUT",data}), onSuccess:()=>{inv("/api/parking-assignments","/api/parking-spaces");setEditingAssignment(null);toast({title:"Assignment updated"});}, onError:(e:any)=>toast({title:"Error",description:apiErrorMessage(e),variant:"destructive"}) });
+  const deleteAssignMut   = useMutation({ mutationFn:(id:number)=>apiRequest(`/api/parking-assignments/${id}`,{method:"DELETE"}), onSuccess:()=>{inv("/api/parking-assignments","/api/parking-spaces");toast({title:"Assignment deleted"});}, onError:(e:any)=>toast({title:"Error",description:apiErrorMessage(e),variant:"destructive"}) });
+  const assignStatusMut   = useMutation({ mutationFn:({id,status}:{id:number;status:string})=>apiRequest(`/api/parking-assignments/${id}/status`,{method:"PATCH",data:{status}}), onSuccess:()=>{inv("/api/parking-assignments","/api/parking-spaces");toast({title:"Status updated"});}, onError:(e:any)=>toast({title:"Error",description:apiErrorMessage(e),variant:"destructive"}) });
 
   // ── Form helpers ──────────────────────────────────────────────────────────
   const fd = (e: React.FormEvent<HTMLFormElement>) => new FormData(e.currentTarget);
@@ -302,7 +303,7 @@ export default function ParkingManagement() {
                     <div className="space-y-1.5"><Label>Owner Type *</Label>
                       <Select name="ownerType" defaultValue="tenant" required><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{vehicleOwnerOptions.map(t=><SelectItem key={t} value={t}>{t[0].toUpperCase()+t.slice(1)}</SelectItem>)}</SelectContent></Select>
                     </div>
-                    <div className="space-y-1.5"><Label>Vehicle Type *</Label><Input name="vehicleType" placeholder="car, motorcycle..." required /></div>
+                    <div className="space-y-1.5"><Label>Vehicle Type *</Label><Select name="vehicleType" defaultValue="car" required><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{["car","motorcycle","van","truck","bicycle","other"].map(t=><SelectItem key={t} value={t}>{t[0].toUpperCase()+t.slice(1)}</SelectItem>)}</SelectContent></Select></div>
                   </div>
                   <div className="grid grid-cols-3 gap-4">
                     <div className="space-y-1.5"><Label>Make *</Label><Input name="make" required /></div>
@@ -767,7 +768,7 @@ export default function ParkingManagement() {
                 <div className="space-y-1.5"><Label>Owner Type *</Label><Select name="ot" defaultValue={editingVehicle.ownerType}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{vehicleOwnerOptions.map(t=><SelectItem key={t} value={t}>{t[0].toUpperCase()+t.slice(1)}</SelectItem>)}</SelectContent></Select></div>
               </div>
               <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-1.5"><Label>Vehicle Type *</Label><Input name="vt" defaultValue={editingVehicle.vehicleType} required /></div>
+                <div className="space-y-1.5"><Label>Vehicle Type *</Label><Select name="vt" defaultValue={["car","motorcycle","van","truck","bicycle","other"].includes(editingVehicle.vehicleType) ? editingVehicle.vehicleType : "other"}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{["car","motorcycle","van","truck","bicycle","other"].map(t=><SelectItem key={t} value={t}>{t[0].toUpperCase()+t.slice(1)}</SelectItem>)}</SelectContent></Select></div>
                 <div className="space-y-1.5"><Label>Colour *</Label><Input name="color" defaultValue={editingVehicle.color} required /></div>
               </div>
               <div className="grid grid-cols-3 gap-4">

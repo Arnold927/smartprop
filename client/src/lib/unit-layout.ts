@@ -158,7 +158,7 @@ const DEFAULT_ORDER: (keyof Omit<UnitRow, "key">)[] = ["unitNumber", "floor", "u
 const normHeader = (s: string) => s.trim().toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "");
 
 /** Splits one line of CSV, honouring "quoted, values". */
-function splitCsvLine(line: string, sep: string): string[] {
+export function splitCsvLine(line: string, sep: string): string[] {
   const out: string[] = []; let cur = ""; let q = false;
   for (let i = 0; i < line.length; i++) {
     const c = line[i];

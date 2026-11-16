@@ -20,6 +20,7 @@
  * needs no schema change.
  */
 
+import { checkCanAdd } from "../services/plans";
 import { Router } from "express";
 import { randomInt } from "crypto";
 import { z } from "zod";
@@ -158,6 +159,12 @@ router.post("/", async (req: any, res: any) => {
         .where(and(eq(staffMembers.organization_id, orgId), eq(staffMembers.email, email)))
         .limit(1);
       if (dupe) return res.status(409).json({ message: `${email} is already on the team list.` });
+    }
+
+    // A staff login uses a team seat (a caretaker login, in the landlord branch, does not).
+    if (d.giveAccess && email && role !== "landlord") {
+      const seat = await checkCanAdd(orgId, "maxUsers", 1);
+      if (!seat.ok) return res.status(seat.status).json(seat.body);
     }
 
     const employeeId = role === "landlord"

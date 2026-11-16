@@ -54,8 +54,13 @@ import { eq, and } from "drizzle-orm";
 import { authenticateJWT } from "../middleware/auth";
 import { requireOrg }      from "../middleware/requireOrg";
 import { authenticateGuard } from "./gate-pins";
+import { isBlacklisted, normalizePlate } from "../services/gate-access";
 
 export const securityHardwareRouter = Router();
+/** The device-facing webhook. Mounted separately and WITHOUT the login guard (see routes/index.ts): a camera has no
+ *  SmartProp token, it proves itself with the HMAC signature. Mounted through the login guard with the rest of this
+ *  file, every event from every device was answered 401 and the integration could never work. */
+export const hardwareWebhookRouter = Router();
 
 // authAdmin: full admin/manager JWT required (e.g. test-fire endpoint)
 const authAdmin = [authenticateJWT as any, requireOrg as any];
@@ -221,14 +226,17 @@ function verifySignature(
 async function persistEvent(event: NormalisedEvent, propertyId: number): Promise<void> {
   if (event.eventType === "vehicle_entry" || event.eventType === "vehicle_exit") {
     if (event.plateNumber) {
+      const plate = normalizePlate(event.plateNumber);
+      const flagged = await isBlacklisted(propertyId, plate);
+      if (flagged) console.warn(`[HardwareEvent] BLACKLISTED vehicle ${plate} at property #${propertyId}`);
       await db.insert(vehicleMovementLog).values({
         propertyId,
-        plateNumber: event.plateNumber,
+        plateNumber: plate.slice(0, 20),
         vehicleType: event.vehicleType ?? "car",
         direction:   event.eventType === "vehicle_entry" ? "in" : "out",
         purpose:     "hardware_event",
         driverName:  event.personName ?? null,
-        notes:       `Auto-logged via ${event.deviceLabel ?? "security hardware"} · Device: ${event.deviceId ?? "unknown"}`,
+        notes:       `${flagged ? "BLACKLISTED VEHICLE · " : ""}Auto-logged via ${event.deviceLabel ?? "security hardware"} · Device: ${event.deviceId ?? "unknown"}`,
         loggedBy:    event.deviceLabel ?? "Hardware Integration",
       } as any);
     }
@@ -242,8 +250,8 @@ async function persistEvent(event: NormalisedEvent, propertyId: number): Promise
 // Public — authenticated by HMAC-SHA256 signature
 // Query param: ?propertyId=<id>&vendor=hikvision|zkteco|generic
 // ══════════════════════════════════════════════════════════════════════════════
-securityHardwareRouter.post(
-  "/hardware-event",
+hardwareWebhookRouter.post(
+  "/",
   // Need raw body for HMAC — use express.raw() middleware upstream if possible.
   // Express JSON body parser runs before this; we work around it by re-computing
   // the hash from the parsed body when rawBody is unavailable.

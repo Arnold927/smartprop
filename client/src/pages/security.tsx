@@ -375,7 +375,7 @@ interface GatePass {
   validFrom: string;
   validTo: string;
   purpose: string;
-  status: "active" | "expired" | "pending" | "approved";
+  status: "active" | "expired" | "pending" | "approved" | "revoked";
   requestedBy: string | null;
   approvedBy: string | null;
   propertyId: number | null;
@@ -1289,7 +1289,7 @@ export default function SecurityPage() {
       return r.json();
     },
     onSuccess: (_, vars) => {
-      toast({ title: "Gate Pass Updated", description: `Pass has been ${vars.status}.` });
+      toast({ title: "Gate Pass Updated", description: `Pass has been ${vars.status === "revoked" ? "revoked" : vars.status}.` });
       queryClient.invalidateQueries({ queryKey: ["/api/security/gate-passes"] });
     },
     onError: (err: any) => {
@@ -1802,10 +1802,16 @@ export default function SecurityPage() {
                                 }`}>{gp.status}</span>
                               </td>
                               <td className="px-4 py-3">
-                                {(gp.status === "active" || gp.status === "approved") && (
-                                  <Button size="sm" variant="outline" className="h-7 px-2 text-xs border-red-200 text-red-700 hover:bg-red-50"
-                                    onClick={() => updateGatePassStatusMutation.mutate({ id: gp.id, status: "revoked" })} disabled={updateGatePassStatusMutation.isPending}>Revoke</Button>
-                                )}
+                                <div className="flex gap-1.5 justify-end">
+                                  {gp.status === "pending" && (
+                                    <Button size="sm" variant="outline" className="h-7 px-2 text-xs border-emerald-200 text-emerald-700 hover:bg-emerald-50" data-testid={`approve-pass-${gp.id}`}
+                                      onClick={() => updateGatePassStatusMutation.mutate({ id: gp.id, status: "approved" })} disabled={updateGatePassStatusMutation.isPending}>Approve</Button>
+                                  )}
+                                  {(gp.status === "active" || gp.status === "approved" || gp.status === "pending") && (
+                                    <Button size="sm" variant="outline" className="h-7 px-2 text-xs border-red-200 text-red-700 hover:bg-red-50" data-testid={`revoke-pass-${gp.id}`}
+                                      onClick={() => updateGatePassStatusMutation.mutate({ id: gp.id, status: "revoked" })} disabled={updateGatePassStatusMutation.isPending}>{gp.status === "pending" ? "Decline" : "Revoke"}</Button>
+                                  )}
+                                </div>
                               </td>
                             </tr>
                           ))}

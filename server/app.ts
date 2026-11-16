@@ -85,7 +85,13 @@ export async function createApp() {
   app.options("*", cors());
 
   // ── Body parsers ──────────────────────────────────────────────────────────────
-  app.use(express.json({ limit: "10mb" }));
+  // Hardware webhooks sign the exact bytes they send; keep them for the HMAC check (see security-hardware.ts).
+  app.use(express.json({
+    limit: "10mb",
+    verify: (req: any, _res, buf) => {
+      if (req.originalUrl?.startsWith("/api/security/hardware-event")) req.rawBody = buf;
+    },
+  }));
   app.use(express.urlencoded({ extended: false, limit: "10mb" }));
   app.use(cookieParser());
 

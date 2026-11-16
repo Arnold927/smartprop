@@ -29,7 +29,8 @@ import { eq, and, gte, lt, sql } from "drizzle-orm";
 import { authenticateJWT } from "../middleware/auth";
 import { countsTowardUserLimit } from "../middleware/billing";
 import { z } from "zod";
-import { PLANS } from "./billing";
+import { getPlan, listPlans, resolveLimits, syncOrgLimitColumns, getEntitlements } from "../services/plans";
+import subscriptionsRouter from "./platform-subscriptions";
 import { rentReceivedByOrg } from "../services/rent-ledger";
 import { issueInvite, deliverInvite, InviteConflictError } from "../utils/invites";
 
@@ -43,6 +44,7 @@ function requirePlatformAdmin(req: any, res: any, next: any) {
   next();
 }
 router.use(requirePlatformAdmin);
+router.use(subscriptionsRouter);
 
 /** First day of the current calendar month, as a YYYY-MM-DD string. */
 /** Returns the [start, end) bounds for a given month, defaulting to the
@@ -78,11 +80,20 @@ router.get("/organizations", async (req: any, res: any) => {
         subscriptionStatus: organizations.subscriptionStatus,
         maxProperties: organizations.maxProperties,
         maxUsers: organizations.maxUsers,
+        limitOverrides: organizations.limitOverrides,
+        trialEndsAt: organizations.trialEndsAt,
+        currentPeriodEnd: organizations.currentPeriodEnd,
         isActive: organizations.isActive,
         createdAt: organizations.createdAt,
       })
       .from(organizations)
       .orderBy(organizations.name);
+    const planById = new Map((await listPlans({ includeInactive: true })).map((p) => [p.id, p]));
+    const unitCounts = await db
+      .select({ organizationId: units.organizationId, count: sql<number>`count(*)::int` })
+      .from(units)
+      .groupBy(units.organizationId);
+    const unitCountMap = new Map(unitCounts.map((r) => [r.organizationId, Number(r.count)]));
 
     // Counts and revenue as separate grouped queries, merged in JS — avoids
     // raw sql template correlated subqueries (a fragile pattern that's hard
@@ -129,13 +140,21 @@ router.get("/organizations", async (req: any, res: any) => {
     const utilAllTimeMap = new Map(utilAllTime.map(r => [r.organizationId, Number(r.total)]));
     const utilMonthMap = new Map(utilThisMonth.map(r => [r.organizationId, Number(r.total)]));
 
-    const result = orgs.map(o => ({
+    const result = orgs.map(({ limitOverrides, ...o }) => {
+      // the limits the organisation is actually held to (plan, or the admin's override), null = unlimited
+      const { limits, sources } = resolveLimits({ limitOverrides, maxProperties: o.maxProperties, maxUsers: o.maxUsers }, planById.get(o.subscriptionPlan ?? "") ?? null);
+      return {
       ...o,
+      maxProperties: limits.maxProperties,
+      maxUsers: limits.maxUsers,
+      maxUnits: limits.maxUnits,
+      hasCustomTerms: Object.values(sources).includes("override"),
+      unitCount: unitCountMap.get(o.id) ?? 0,
       propertyCount: propCountMap.get(o.id) ?? 0,
       userCount: userCountMap.get(o.id) ?? 0,
       revenueThisMonth: (rentMonthMap.get(o.id) ?? 0) + (utilMonthMap.get(o.id) ?? 0),
       revenueTotal: (rentAllTimeMap.get(o.id) ?? 0) + (utilAllTimeMap.get(o.id) ?? 0),
-    }));
+    };});
 
     res.json(result);
   } catch (err: any) {
@@ -229,7 +248,7 @@ const newOrgSchema = z
     email: z.string().trim().toLowerCase().email("A valid email is required"),
     firstName: z.string().trim().max(100).optional().default(""),
     lastName: z.string().trim().max(100).optional().default(""),
-    plan: z.enum(["starter", "growth", "enterprise"]).default("starter"),
+    plan: z.string().trim().min(1).max(50).default("starter"),
     /** Put the new landlord under an existing property-management organisation instead of giving them a workspace of their own. */
     linkToOrganizationId: z.coerce.number().int().positive().optional(),
   })
@@ -258,7 +277,8 @@ router.post("/organizations", async (req: any, res: any) => {
     return res.status(400).json({ message: parsed.error.issues[0]?.message ?? "Invalid details", errors: parsed.error.flatten().fieldErrors });
   }
   const { organizationName, accountType, email, firstName, lastName, plan: planId, linkToOrganizationId } = parsed.data;
-  const plan = PLANS.find((p) => p.id === planId) ?? PLANS[0];
+  const plan = (await getPlan(planId)) ?? (await listPlans())[0] ?? null;
+  if (!plan) return res.status(400).json({ message: "There are no plans set up yet. Create one under Plans first." });
 
   try {
     // Sign-in looks accounts up by email alone, so one email can only belong to one organisation.
@@ -309,8 +329,10 @@ router.post("/organizations", async (req: any, res: any) => {
           slug,
           subscriptionPlan: plan.id,
           subscriptionStatus: "trial",
-          maxProperties: plan.maxProperties,
-          maxUsers: plan.maxUsers,
+          // a plan with trial days gives a fixed trial; otherwise the trial has no end date until the admin sets one
+          trialEndsAt: plan.trialDays ? new Date(Date.now() + plan.trialDays * 86_400_000) : null,
+          maxProperties: plan.maxProperties ?? 9999,
+          maxUsers: plan.maxUsers ?? 9999,
           features: { accountType },
         } as any)
         .returning();

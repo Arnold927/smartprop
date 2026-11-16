@@ -22,6 +22,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, ensureArray } from "@/lib/queryClient";
+import { apiErrorMessage } from "@/lib/maintenance-flow";
 import {
   Shield, Plus, Trash2, ToggleLeft, ToggleRight, Eye, EyeOff,
   Copy, CheckCircle, Clock, Loader2, RefreshCw, KeyRound, AlertTriangle,
@@ -71,8 +72,19 @@ function shiftDuration(start: string, end: string | null): string {
   return m > 0 ? `${h}h ${m}m` : `${h}h`;
 }
 
+/** Digits that are not trivially guessable (the server refuses 0000, 1234, 4321 …). */
+function isWeakPin(pin: string): boolean {
+  if (/^(\d)\1+$/.test(pin)) return true;
+  const d = pin.split("").map(Number);
+  const step = d[1] - d[0];
+  return (step === 1 || step === -1) && d.every((x, i) => i === 0 || x - d[i - 1] === step);
+}
 function generatePin(length = 6): string {
-  return Array.from({ length }, () => Math.floor(Math.random() * 10)).join("");
+  for (let i = 0; i < 50; i++) {
+    const pin = Array.from({ length }, () => Math.floor(Math.random() * 10)).join("");
+    if (!isWeakPin(pin)) return pin;
+  }
+  return "729106";
 }
 
 // ─── Component ─────────────────────────────────────────────────────────────
@@ -89,6 +101,8 @@ export default function GatePinManager() {
   const [showPin, setShowPin] = useState(false);
   const [createdPin, setCreatedPin] = useState<{ label: string; pin: string; whatsappSent?: boolean; phone?: string } | null>(null);
   const [copied, setCopied] = useState(false);
+  const [changing, setChanging] = useState<GatePin | null>(null);
+  const [changePinValue, setChangePinValue] = useState("");
 
   // ── Queries ───────────────────────────────────────────────────────────────
 
@@ -141,7 +155,25 @@ export default function GatePinManager() {
       setCreatedPin({ label: vars.label, pin: vars.pin, whatsappSent: data.whatsappSent ?? false, phone: vars.phone });
     },
     onError: (err: any) => {
-      toast({ title: "Failed to create PIN", description: err.message, variant: "destructive" });
+      toast({ title: "Failed to create PIN", description: apiErrorMessage(err, "Could not create the PIN"), variant: "destructive" });
+    },
+  });
+
+  // Replacing the digits signs out anyone still using the old PIN — use it when a guard leaves or a PIN leaks.
+  const changeMutation = useMutation({
+    mutationFn: async ({ id, pin }: { id: number; pin: string }) => {
+      const r = await apiRequest(`/api/gate-pins/${id}`, { method: "PUT", data: { pin } });
+      return r.json();
+    },
+    onSuccess: (_data, vars) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/gate-pins", selectedPropertyId] });
+      const label = changing?.label ?? "Gate PIN";
+      setChanging(null);
+      setChangePinValue("");
+      setCreatedPin({ label, pin: vars.pin });
+    },
+    onError: (err: any) => {
+      toast({ title: "Couldn't change the PIN", description: apiErrorMessage(err, "Could not change the PIN"), variant: "destructive" });
     },
   });
 
@@ -151,7 +183,7 @@ export default function GatePinManager() {
       return r.json();
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["/api/gate-pins", selectedPropertyId] }),
-    onError: (err: any) => toast({ title: "Failed", description: err.message, variant: "destructive" }),
+    onError: (err: any) => toast({ title: "Failed", description: apiErrorMessage(err, "That did not work"), variant: "destructive" }),
   });
 
   const deleteMutation = useMutation({
@@ -159,7 +191,7 @@ export default function GatePinManager() {
       await apiRequest(`/api/gate-pins/${id}`, { method: "DELETE" });
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["/api/gate-pins", selectedPropertyId] }),
-    onError: (err: any) => toast({ title: "Failed", description: err.message, variant: "destructive" }),
+    onError: (err: any) => toast({ title: "Failed", description: apiErrorMessage(err, "That did not work"), variant: "destructive" }),
   });
 
   const handleCopy = (pin: string) => {
@@ -328,6 +360,16 @@ export default function GatePinManager() {
                     <Button
                       variant="ghost" size="icon"
                       className="h-8 w-8"
+                      title="Change PIN (signs out the current guard)"
+                      aria-label={`Change PIN for ${pin.label}`}
+                      data-testid={`change-pin-${pin.id}`}
+                      onClick={() => { setChanging(pin); setChangePinValue(generatePin()); }}
+                    >
+                      <RefreshCw className="w-4 h-4 text-slate-500" />
+                    </Button>
+                    <Button
+                      variant="ghost" size="icon"
+                      className="h-8 w-8"
                       title={pin.isActive ? "Deactivate" : "Activate"}
                       disabled={toggleMutation.isPending}
                       onClick={() => toggleMutation.mutate(pin.id)}
@@ -411,6 +453,47 @@ export default function GatePinManager() {
           </CardContent>
         </Card>
       )}
+
+      {/* ── Change PIN dialog ── */}
+      <Dialog open={!!changing} onOpenChange={(o) => { if (!o) { setChanging(null); setChangePinValue(""); } }}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Change PIN — {changing?.label}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <p className="text-xs text-muted-foreground">
+              The guard currently signed in with this PIN is signed out straight away and must use the new one.
+            </p>
+            <div>
+              <p className="text-xs text-muted-foreground mb-1.5">New PIN (4–8 digits)</p>
+              <div className="flex gap-2">
+                <Input
+                  value={changePinValue}
+                  inputMode="numeric"
+                  maxLength={8}
+                  className="font-mono tracking-widest"
+                  data-testid="change-pin-input"
+                  onChange={(e) => setChangePinValue(e.target.value.replace(/\D/g, ""))}
+                />
+                <Button type="button" variant="outline" size="icon" aria-label="Generate a PIN" onClick={() => setChangePinValue(generatePin())}>
+                  <RefreshCw className="w-4 h-4" />
+                </Button>
+              </div>
+            </div>
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={() => setChanging(null)}>Cancel</Button>
+              <Button
+                className="bg-emerald-600 hover:bg-emerald-700 text-white"
+                data-testid="change-pin-save"
+                disabled={changePinValue.length < 4 || changeMutation.isPending}
+                onClick={() => changing && changeMutation.mutate({ id: changing.id, pin: changePinValue })}
+              >
+                {changeMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : "Change PIN"}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* ── Create PIN dialog ── */}
       <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>

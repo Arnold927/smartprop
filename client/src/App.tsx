@@ -107,6 +107,7 @@ const UtilityBillSenderPage = lazy(() => import("@/pages/utility-bill-sender-pag
 const PaymentSetupPage      = lazy(() => import("@/pages/payment-setup"));
 const ExternalLandlordsPage = lazy(() => import("@/pages/external-landlords"));
 const PlatformOrganizationsPage = lazy(() => import("@/pages/platform-organizations"));
+const PlatformPlansPage = lazy(() => import("@/pages/platform-plans"));
 const CaretakersPage = lazy(() => import("@/pages/caretakers"));
 const CaretakerPortalPage = lazy(() => import("@/pages/caretaker-portal"));
 
@@ -433,6 +434,7 @@ function Router() {
             <Route path="/payment-setup" component={() => <P><PaymentSetupPage /></P>} />
             <Route path="/external-landlords" component={() => <P><ExternalLandlordsPage /></P>} />
             <Route path="/organisations" component={() => <P><PlatformOrganizationsPage /></P>} />
+            <Route path="/plans" component={() => <P><PlatformPlansPage /></P>} />
             <Route path="/caretakers" component={() => <P><CaretakersPage /></P>} />
             <Route path="/caretaker-portal" component={() => <P><CaretakerPortalPage /></P>} />
 

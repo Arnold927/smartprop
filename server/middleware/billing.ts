@@ -7,74 +7,45 @@
  * Usage:
  *   router.post("/", authenticateJWT, requireActiveSubscription, enforcePropertyLimit, handler)
  *   router.post("/", authenticateJWT, requireActiveSubscription, enforceUserLimit, handler)
+ *   router.post("/", authenticateJWT, requireActiveSubscription, enforceUnitLimit, handler)
+ *
+ * The limits themselves come from services/plans.ts
+ * (plan + the platform admin's per-organisation overrides).
  */
 
 import { Request, Response, NextFunction } from "express";
-import { db } from "../db.js";
-import { organizations, properties, users } from "@shared/schema";
-import { eq, and, count, notInArray, sql } from "drizzle-orm";
+import { checkCanAdd, getEntitlements, countsTowardUserLimit as seatRule, type LimitKey } from "../services/plans.js";
 
 /**
  * Which logins use up one of a plan's "users".
  *
- * The plans sell team seats ("Up to 5 users", "Up to 20 users"). The limit used to count EVERY login
- * in the organisation, so an 80-unit building with ~80 tenant logins was over even the Growth limit
- * on tenants alone and could never invite a colleague. Tenants and contractors are portal logins
- * that come in through their own flows, not team seats, and a deactivated account no longer
- * occupies one.
- *
+ * The plans sell team seats ("Up to 5 users", "Up to 20 users"). Tenants, contractors and caretakers
+ * are portal logins that come in through their own flows (a lease, a contractor profile, a property
+ * assignment), not team seats, and a deactivated account no longer occupies one.
  * Exported so the platform admin's "users / limit" figure uses exactly the same rule.
  */
-// Matches RECORD_BACKED_ROLES in user-management.tsx: these three are each tied to their own
-// business record (a lease, a contractor profile, a property assignment) via a dedicated page,
-// not invited as general team members — so they shouldn't eat into a "team seats" plan limit
-// any more than tenants should. A large complex can have many caretakers, one per building/shift.
 export const NON_SEAT_ROLES = ["tenant", "contractor", "caretaker"];
-export const countsTowardUserLimit = and(
-  notInArray(users.role, NON_SEAT_ROLES),
-  sql`${users.isActive} IS DISTINCT FROM false`,
-);
-
-async function getOrg(organizationId: number) {
-  const [org] = await db
-    .select({
-      subscriptionStatus: organizations.subscriptionStatus,
-      subscriptionPlan: organizations.subscriptionPlan,
-      maxProperties: organizations.maxProperties,
-      maxUsers: organizations.maxUsers,
-    })
-    .from(organizations)
-    .where(eq(organizations.id, organizationId))
-    .limit(1);
-  return org;
-}
+export const countsTowardUserLimit = seatRule;
 
 /**
- * Blocks the request if the org's subscription is not "active" or "trial".
- * Attach this first so limit checks below never run on expired accounts.
+ * Blocks the request if the org's subscription is not "active" or "trial", or its trial / paid
+ * period has ended. Attach this first so limit checks below never run on expired accounts.
  */
-export async function requireActiveSubscription(
-  req: Request,
-  res: Response,
-  next: NextFunction
-) {
+export async function requireActiveSubscription(req: Request, res: Response, next: NextFunction) {
   const orgId = (req as any).user?.organizationId as number | undefined;
   if (!orgId) return res.status(403).json({ message: "Organization context missing" });
-
   try {
-    const org = await getOrg(orgId);
-    if (!org) return res.status(403).json({ message: "Organization not found" });
-
-    const allowed = ["active", "trial"];
-    if (!allowed.includes(org.subscriptionStatus ?? "")) {
+    const ent = await getEntitlements(orgId);
+    if (!ent) return res.status(403).json({ message: "Organization not found" });
+    if (!ent.usable) {
       return res.status(402).json({
-        message:
-          "Your subscription is inactive. Please update your billing details to continue.",
+        message: ent.expired
+          ? (ent.status === "trial" ? "Your free trial has ended. Please choose a plan to continue." : "Your subscription period has ended. Please renew to continue.")
+          : "Your subscription is inactive. Please update your billing details to continue.",
         code: "SUBSCRIPTION_INACTIVE",
-        subscriptionStatus: org.subscriptionStatus,
+        subscriptionStatus: ent.expired ? "expired" : ent.status,
       });
     }
-
     next();
   } catch (err) {
     console.error("[billing] requireActiveSubscription error:", err);
@@ -82,80 +53,24 @@ export async function requireActiveSubscription(
   }
 }
 
-/**
- * Blocks property creation when the org has hit its maxProperties limit.
- */
-export async function enforcePropertyLimit(
-  req: Request,
-  res: Response,
-  next: NextFunction
-) {
-  const orgId = (req as any).user?.organizationId as number | undefined;
-  if (!orgId) return res.status(403).json({ message: "Organization context missing" });
-
-  try {
-    const org = await getOrg(orgId);
-    if (!org) return res.status(403).json({ message: "Organization not found" });
-
-    const [{ value }] = await db
-      .select({ value: count() })
-      .from(properties)
-      .where(eq(properties.organizationId, orgId));
-
-    const current = Number(value ?? 0);
-    const max = org.maxProperties ?? 5;
-
-    if (current >= max) {
-      return res.status(403).json({
-        message: `Your ${org.subscriptionPlan} plan allows a maximum of ${max} propert${max === 1 ? "y" : "ies"}. Upgrade your plan to add more.`,
-        code: "PROPERTY_LIMIT_REACHED",
-        current,
-        max,
-      });
+function limitGuard(key: LimitKey, label: string) {
+  return async (req: Request, res: Response, next: NextFunction) => {
+    const orgId = (req as any).user?.organizationId as number | undefined;
+    if (!orgId) return res.status(403).json({ message: "Organization context missing" });
+    try {
+      const result = await checkCanAdd(orgId, key, 1);
+      if (!result.ok) return res.status(result.status).json(result.body);
+      next();
+    } catch (err) {
+      console.error(`[billing] ${label} error:`, err);
+      res.status(500).json({ message: "Billing check failed" });
     }
-
-    next();
-  } catch (err) {
-    console.error("[billing] enforcePropertyLimit error:", err);
-    res.status(500).json({ message: "Billing check failed" });
-  }
+  };
 }
 
-/**
- * Blocks user/invite creation when the org has hit its maxUsers limit.
- */
-export async function enforceUserLimit(
-  req: Request,
-  res: Response,
-  next: NextFunction
-) {
-  const orgId = (req as any).user?.organizationId as number | undefined;
-  if (!orgId) return res.status(403).json({ message: "Organization context missing" });
-
-  try {
-    const org = await getOrg(orgId);
-    if (!org) return res.status(403).json({ message: "Organization not found" });
-
-    const [{ value }] = await db
-      .select({ value: count() })
-      .from(users)
-      .where(and(eq(users.organizationId, orgId), countsTowardUserLimit));
-
-    const current = Number(value ?? 0);
-    const max = org.maxUsers ?? 10;
-
-    if (current >= max) {
-      return res.status(403).json({
-        message: `Your ${org.subscriptionPlan} plan allows a maximum of ${max} user${max === 1 ? "" : "s"}. Upgrade your plan to add more.`,
-        code: "USER_LIMIT_REACHED",
-        current,
-        max,
-      });
-    }
-
-    next();
-  } catch (err) {
-    console.error("[billing] enforceUserLimit error:", err);
-    res.status(500).json({ message: "Billing check failed" });
-  }
-}
+/** Blocks property creation when the org has hit its property limit. */
+export const enforcePropertyLimit = limitGuard("maxProperties", "enforcePropertyLimit");
+/** Blocks user/invite creation when the org has hit its team-seat limit. */
+export const enforceUserLimit = limitGuard("maxUsers", "enforceUserLimit");
+/** Blocks single-unit creation when the org has hit its unit limit (bulk paths call checkCanAdd with a count). */
+export const enforceUnitLimit = limitGuard("maxUnits", "enforceUnitLimit");

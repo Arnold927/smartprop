@@ -43,19 +43,22 @@ function errMsg(e: any): string {
 /* ─── Backend types (matching real API responses) ───────────────────────────── */
 
 interface BillingPlan {
-  id: "starter" | "growth" | "enterprise";
+  id: string;
   name: string;
   priceKes: number;
-  maxProperties: number;
-  maxUsers: number;
+  maxProperties: number | null;
+  maxUsers: number | null;
   features: string[];
+  featureFlags?: Record<string, boolean>;
 }
 
 interface BillingStatus {
   subscriptionPlan: string;
   subscriptionStatus: string;
-  maxProperties: number;
-  maxUsers: number;
+  maxProperties: number | null;   // null = unlimited
+  maxUnits: number | null;
+  maxUsers: number | null;
+  usage?: { properties: number; units: number; users: number };
   planDetails: BillingPlan | null;
 }
 
@@ -141,8 +144,10 @@ function BrandingTab({ billingStatus }: { billingStatus: BillingStatus | undefin
   const [saved,  setSaved]  = useState(false);
   const { toast } = useToast();
 
-  const isEnterprise = billingStatus?.subscriptionPlan === "enterprise";
-  const isGrowthPlus = ["growth", "enterprise"].includes(billingStatus?.subscriptionPlan ?? "");
+  // What a plan switches on is set by the platform admin (plan feature flags); the old plan ids are the fallback.
+  const flags = billingStatus?.planDetails?.featureFlags;
+  const isEnterprise = flags?.customDomain ?? billingStatus?.subscriptionPlan === "enterprise";
+  const isGrowthPlus = flags?.whiteLabel ?? ["growth", "enterprise"].includes(billingStatus?.subscriptionPlan ?? "");
 
   // Load existing colours from the server on mount
   useEffect(() => {
@@ -888,7 +893,7 @@ export default function OrganizationManagement() {
           />
 
           {/* Capacity warning */}
-          {billingStatus && users.length >= billingStatus.maxUsers && (
+          {billingStatus && billingStatus.maxUsers != null && (billingStatus.usage?.users ?? users.length) >= billingStatus.maxUsers && (
             <div className="flex items-center gap-2 text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-4 py-2.5">
               <AlertTriangle className="h-4 w-4 shrink-0" />
               You've reached your user limit. Upgrade your plan to invite more team members.

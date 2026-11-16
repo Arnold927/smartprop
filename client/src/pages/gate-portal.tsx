@@ -745,6 +745,7 @@ export default function GatePortal() {
         method: "POST", data: { visitorCode: pendingCode, spaceId: selectedSpaceId },
       });
       toast({ title: "Space assigned", description: `Space ${data.spaceNumber} allocated.` });
+      setResult(prev => prev ? { ...prev, parking: { allocated: true, requiresManual: false, spaceNumber: data.spaceNumber, floor: data.floor, section: data.section } } : prev);
       setScreen("result");
     } catch (err: any) {
       toast({ title: "Failed", description: err.message, variant: "destructive" });
@@ -1146,24 +1147,31 @@ export default function GatePortal() {
 
             <Button className="w-full bg-emerald-600 hover:bg-emerald-700 h-12 font-semibold"
               onClick={async () => {
-                if (vehicleForm.plate.trim() && session) {
+                if (vehicleForm.plate.trim() && session && pendingCode) {
                   try {
-                    await guardRequest("/api/registered-vehicles", session.token, {
+                    // Saves the plate on the visit, registers the car for this property and gives it a bay
+                    // (before, the plate was written to the vehicle list only — the visit never got it, so no bay
+                    // was tracked and checkout could not release one).
+                    const r = await guardRequest("/api/guest-checkin/vehicle", session.token, {
                       method: "POST",
                       data: {
-                        propertyId: session.propertyId,
-                        ownerType: "visitor",
-                        plateNumber: vehicleForm.plate.trim().toUpperCase(),
-                        vehicleType: vehicleForm.type || "car",
-                        make: vehicleForm.make.trim() || "Unknown",
-                        model: vehicleForm.model.trim() || "Unknown",
-                        color: vehicleForm.color.trim() || "Unknown",
-                        isResident: false,
-                        status: "active",
-                        notes: `Captured at gate. Code: ${pendingCode}`,
+                        code: pendingCode,
+                        plate: vehicleForm.plate,
+                        vehicleType: vehicleForm.type,
+                        make: vehicleForm.make.trim(),
+                        model: vehicleForm.model.trim(),
+                        color: vehicleForm.color.trim(),
                       },
                     });
-                  } catch { /* non-fatal */ }
+                    setResult(prev => prev ? {
+                      ...prev,
+                      hasVehicle: true,
+                      visitor: prev.visitor ? { ...prev.visitor, vehiclePlate: r.plate, parkingSpot: r.parking?.allocated ? r.parking.spaceNumber : prev.visitor.parkingSpot } : prev.visitor,
+                      parking: r.parking,
+                    } : prev);
+                  } catch (err: any) {
+                    toast({ title: "Vehicle not saved", description: err.message, variant: "destructive" });
+                  }
                 }
                 setScreen("result");
               }}>

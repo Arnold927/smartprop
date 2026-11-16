@@ -50,17 +50,6 @@ export default function OrganizationOnboarding() {
           primaryColor: "#3B82F6",
           secondaryColor: "#EF4444",
           brandingEnabled: false,
-          subscriptionPlan: "professional",
-          maxProperties: 25,
-          maxUsers: 50,
-          features: {
-            multiProperty: true,
-            whiteLabel: false,
-            advancedReporting: true,
-            apiAccess: true,
-            smsNotifications: true,
-            customDomain: false,
-          },
         },
       }),
     onSuccess: () => {

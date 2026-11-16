@@ -33,6 +33,61 @@ const BCRYPT_ROUNDS     = 10;
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
+// PINs are 4–8 digits, so the login endpoint (public, no account) must not be guessable by trying them all.
+// Failed attempts are counted per (caller IP + property) and per property; successes don't count, so a gate post
+// where five guards sign in every morning from one shared IP is never locked out by its own good logins.
+const FAIL_WINDOW_MS = 15 * 60 * 1000;
+const MAX_FAILS_PER_IP_PROPERTY = 8;
+const MAX_FAILS_PER_PROPERTY = 30;
+const failedLogins = new Map<string, number[]>();
+function recentFails(key: string): number[] {
+  const now = Date.now();
+  const arr = (failedLogins.get(key) ?? []).filter((t) => now - t < FAIL_WINDOW_MS);
+  if (arr.length) failedLogins.set(key, arr); else failedLogins.delete(key);
+  return arr;
+}
+/** Minutes until the caller may try again, or 0 if they may try now. */
+function loginLockMinutes(ip: string, propertyId: number): number {
+  const a = recentFails(`ip:${ip}|${propertyId}`);
+  const b = recentFails(`p:${propertyId}`);
+  const lockedBy = a.length >= MAX_FAILS_PER_IP_PROPERTY ? a : b.length >= MAX_FAILS_PER_PROPERTY ? b : null;
+  if (!lockedBy) return 0;
+  return Math.max(1, Math.ceil((lockedBy[0] + FAIL_WINDOW_MS - Date.now()) / 60000));
+}
+function noteFailedLogin(ip: string, propertyId: number) {
+  if (failedLogins.size > 5000) failedLogins.clear();
+  for (const k of [`ip:${ip}|${propertyId}`, `p:${propertyId}`]) failedLogins.set(k, [...recentFails(k), Date.now()]);
+}
+/** For tests. */
+export function resetGateLoginLimits() { failedLogins.clear(); }
+
+/** Reject PINs that are trivially guessed: 0000, 1111, 1234, 4321, 123456 … */
+export function weakPinReason(pin: string): string | null {
+  if (/^(\d)\1+$/.test(pin)) return "That PIN is too easy to guess (all the same digit). Choose a different one.";
+  const d = pin.split("").map(Number);
+  const step = d[1] - d[0];
+  if ((step === 1 || step === -1) && d.every((x, i) => i === 0 || x - d[i - 1] === step)) {
+    return "That PIN is too easy to guess (a run of digits). Choose a different one.";
+  }
+  return null;
+}
+
+/** True if another ACTIVE PIN at this property already uses these digits — two guards sharing a PIN can't be told apart in the shift log. */
+async function pinAlreadyUsed(propertyId: number, pin: string, exceptId?: number): Promise<boolean> {
+  const rows = await db.select().from(gatePins).where(and(eq(gatePins.propertyId, propertyId), eq(gatePins.isActive, true)));
+  for (const r of rows) {
+    if (exceptId && r.id === exceptId) continue;
+    if (await bcrypt.compare(pin, r.pinHash)) return true;
+  }
+  return false;
+}
+
+function parseExpiry(v: any): { ok: true; value: Date | null } | { ok: false } {
+  if (v === undefined || v === null || v === "") return { ok: true, value: null };
+  const d = new Date(v);
+  return isNaN(d.getTime()) ? { ok: false } : { ok: true, value: d };
+}
+
 function sanitizePin(row: any) {
   return {
     id:         row.id,
@@ -107,6 +162,11 @@ adminRouter.post("/", ...auth, async (req: any, res: any) => {
     if (pin.length < 4)     return res.status(400).json({ message: "PIN must be at least 4 digits" });
     if (pin.length > 8)     return res.status(400).json({ message: "PIN must be at most 8 digits" });
     if (!/^\d+$/.test(pin)) return res.status(400).json({ message: "PIN must contain digits only" });
+    const weak = weakPinReason(String(pin));
+    if (weak) return res.status(400).json({ message: weak });
+    const expiry = parseExpiry(expiresAt);
+    if (!expiry.ok) return res.status(400).json({ message: "expiresAt is not a valid date" });
+    if (expiry.value && expiry.value.getTime() <= Date.now()) return res.status(400).json({ message: "expiresAt must be in the future" });
 
     // Verify property belongs to org — and, for a self-managing landlord,
     // that they specifically own it.
@@ -121,6 +181,10 @@ adminRouter.post("/", ...auth, async (req: any, res: any) => {
 
     if (!prop) return res.status(404).json({ message: "Property not found" });
 
+    if (await pinAlreadyUsed(prop.id, String(pin))) {
+      return res.status(409).json({ message: "Another active PIN at this property already uses those digits. Choose a different PIN." });
+    }
+
     const pinHash = await bcrypt.hash(pin, BCRYPT_ROUNDS);
 
     const [created] = await db
@@ -130,7 +194,7 @@ adminRouter.post("/", ...auth, async (req: any, res: any) => {
         label: label.trim(),
         pinHash,
         isActive:  true,
-        expiresAt: expiresAt ? new Date(expiresAt) : null,
+        expiresAt: expiry.value,
         createdBy: userId,
       } as any)
       .returning();
@@ -211,6 +275,66 @@ adminRouter.patch("/:id/toggle", ...auth, async (req: any, res: any) => {
 });
 
 // ══════════════════════════════════════════════════════════════════════════════
+// ADMIN: PUT /api/gate-pins/:id   { label?, pin?, expiresAt? }
+// Change a guard's PIN, rename it, or move its expiry — the guard portal tells guards "your manager can change it".
+// Replacing the digits issues a NEW PIN record (new id) and removes the old one, so anyone still signed in with the old
+// PIN is signed out at their next request — that is the point of changing a PIN when a guard leaves.
+// ══════════════════════════════════════════════════════════════════════════════
+adminRouter.put("/:id", ...auth, async (req: any, res: any) => {
+  try {
+    const id = parseInt(req.params.id);
+    const orgId = req.user.organizationId as number;
+    const role = req.user.role as string;
+    const [existing] = await db.select().from(gatePins).where(eq(gatePins.id, id)).limit(1);
+    if (!existing) return res.status(404).json({ message: "PIN not found" });
+    if (!(await canManagePinsFor(existing.propertyId, orgId, role, req.user.id))) {
+      return res.status(403).json({ message: "Access denied" });
+    }
+
+    const patch: any = { updatedAt: new Date() };
+    const { label, pin, expiresAt } = req.body ?? {};
+    if (label !== undefined) {
+      if (!String(label).trim()) return res.status(400).json({ message: "label cannot be empty" });
+      patch.label = String(label).trim().slice(0, 100);
+    }
+    if (expiresAt !== undefined) {
+      const expiry = parseExpiry(expiresAt);
+      if (!expiry.ok) return res.status(400).json({ message: "expiresAt is not a valid date" });
+      if (expiry.value && expiry.value.getTime() <= Date.now()) return res.status(400).json({ message: "expiresAt must be in the future" });
+      patch.expiresAt = expiry.value;
+    }
+    if (pin !== undefined) {
+      const p = String(pin);
+      if (!/^\d{4,8}$/.test(p)) return res.status(400).json({ message: "PIN must be 4 to 8 digits" });
+      const weak = weakPinReason(p);
+      if (weak) return res.status(400).json({ message: weak });
+      if (await pinAlreadyUsed(existing.propertyId, p, id)) {
+        return res.status(409).json({ message: "Another active PIN at this property already uses those digits. Choose a different PIN." });
+      }
+      const newHash = await bcrypt.hash(p, BCRYPT_ROUNDS);
+      const replaced = await db.transaction(async (tx) => {
+        await tx.delete(gatePins).where(eq(gatePins.id, id));
+        const [row] = await tx.insert(gatePins).values({
+          propertyId: existing.propertyId,
+          label: patch.label ?? existing.label,
+          pinHash: newHash,
+          isActive: existing.isActive ?? true,
+          expiresAt: patch.expiresAt !== undefined ? patch.expiresAt : existing.expiresAt,
+          createdBy: req.user.id,
+        } as any).returning();
+        return row;
+      });
+      return res.json(sanitizePin(replaced));
+    }
+    const [updated] = await db.update(gatePins).set(patch).where(eq(gatePins.id, id)).returning();
+    return res.json(sanitizePin(updated));
+  } catch (err) {
+    console.error("PUT /api/gate-pins/:id error:", err);
+    return res.status(500).json({ message: "Failed to update PIN" });
+  }
+});
+
+// ══════════════════════════════════════════════════════════════════════════════
 // ADMIN: DELETE /api/gate-pins/:id
 // ══════════════════════════════════════════════════════════════════════════════
 adminRouter.delete("/:id", ...auth, async (req: any, res: any) => {
@@ -252,6 +376,14 @@ authRouter.post("/login", async (req: any, res: any) => {
     if (!propertyId || !pin) {
       return res.status(400).json({ message: "propertyId and pin are required" });
     }
+    const propId = parseInt(String(propertyId));
+    if (!Number.isInteger(propId) || propId <= 0) return res.status(400).json({ message: "propertyId is not valid" });
+    const ip = String(req.ip ?? "");
+    const lock = loginLockMinutes(ip, propId);
+    if (lock > 0) {
+      res.setHeader("Retry-After", String(lock * 60));
+      return res.status(429).json({ message: `Too many wrong PINs. Try again in ${lock} minute${lock === 1 ? "" : "s"}, or ask your manager to check your PIN.` });
+    }
 
     // Load all active, non-expired PINs for this property
     const now = new Date();
@@ -260,7 +392,7 @@ authRouter.post("/login", async (req: any, res: any) => {
       .from(gatePins)
       .where(
         and(
-          eq(gatePins.propertyId, parseInt(propertyId)),
+          eq(gatePins.propertyId, propId),
           eq(gatePins.isActive, true),
         )
       );
@@ -277,10 +409,13 @@ authRouter.post("/login", async (req: any, res: any) => {
     }
 
     if (!matchedPin) {
+      noteFailedLogin(ip, propId);
       // Consistent timing to prevent enumeration
       await bcrypt.compare("dummy", "$2b$10$abcdefghijklmnopqrstuuABCDEFGHIJKLMNOPQRSTUVWXYZ01234");
       return res.status(401).json({ message: "Incorrect PIN. Please try again." });
     }
+
+    failedLogins.delete(`ip:${ip}|${propId}`);
 
     // Fetch property details for the token payload
     const [prop] = await db
@@ -341,7 +476,7 @@ authRouter.post("/login", async (req: any, res: any) => {
 // PUBLIC: GET /api/gate-auth/verify
 // Authorization: Bearer <guardToken>
 // ══════════════════════════════════════════════════════════════════════════════
-authRouter.get("/verify", (req: any, res: any) => {
+authRouter.get("/verify", async (req: any, res: any) => {
   try {
     const authHeader = req.headers.authorization;
     if (!authHeader?.startsWith("Bearer ")) {
@@ -353,6 +488,9 @@ authRouter.get("/verify", (req: any, res: any) => {
 
     if (decoded.role !== "guard") {
       return res.status(403).json({ valid: false, message: "Not a guard token" });
+    }
+    if (!(await guardPinUsable(decoded.pinId))) {
+      return res.status(401).json({ valid: false, message: "This PIN has been deactivated or has expired." });
     }
 
     return res.json({
@@ -370,6 +508,28 @@ authRouter.get("/verify", (req: any, res: any) => {
 // ══════════════════════════════════════════════════════════════════════════════
 // GUARD MIDDLEWARE — use in guest-checkin routes to accept guard tokens
 // ══════════════════════════════════════════════════════════════════════════════
+/** A guard session is only as good as its PIN: still there, still switched on, not past its expiry. */
+async function guardPinUsable(pinId: number | undefined): Promise<boolean> {
+  if (!pinId) return false;
+  const [pin] = await db.select({ isActive: gatePins.isActive, expiresAt: gatePins.expiresAt }).from(gatePins).where(eq(gatePins.id, pinId)).limit(1);
+  if (!pin || !pin.isActive) return false;
+  if (pin.expiresAt && new Date(pin.expiresAt).getTime() <= Date.now()) return false;
+  return true;
+}
+
+/**
+ * For routes behind authenticateJWT (which verifies a guard token's signature but knows nothing about PINs): a guard
+ * whose PIN was switched off, replaced or has expired must stop working there too, and a guard may only act at the
+ * property written in their token.
+ */
+export async function guardSessionActive(req: any, res: any, next: any) {
+  if (req.user?.role !== "guard") return next();
+  if (!req.user.propertyId || !(await guardPinUsable(req.user.pinId))) {
+    return res.status(401).json({ message: "This PIN has been deactivated or has expired. Please see your manager." });
+  }
+  return next();
+}
+
 export async function authenticateGuard(req: any, res: any, next: any) {
   try {
     const authHeader = req.headers.authorization;
@@ -388,14 +548,8 @@ export async function authenticateGuard(req: any, res: any, next: any) {
       // block future logins, but an already-issued session — up to 12
       // hours old, the token's TTL — kept working regardless, since
       // nothing here ever looked at the PIN's live isActive state again.
-      const [pin] = await db
-        .select({ isActive: gatePins.isActive })
-        .from(gatePins)
-        .where(eq(gatePins.id, decoded.pinId))
-        .limit(1);
-
-      if (!pin || !pin.isActive) {
-        return res.status(401).json({ message: "This PIN has been deactivated. Please see your manager." });
+      if (!(await guardPinUsable(decoded.pinId))) {
+        return res.status(401).json({ message: "This PIN has been deactivated or has expired. Please see your manager." });
       }
 
       req.user = {

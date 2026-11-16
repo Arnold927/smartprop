@@ -69,7 +69,14 @@ app.use(
 app.options("*", cors());
 
 // ── Body parsers ──────────────────────────────────────────────────────────────
-app.use(express.json({ limit: "10mb" }));
+// Hardware webhooks (cameras / readers) sign the exact bytes they send; keep those bytes for the HMAC check, because
+// re-serialising the parsed JSON rarely reproduces them (spacing, key order, number formatting).
+app.use(express.json({
+  limit: "10mb",
+  verify: (req: any, _res, buf) => {
+    if (req.originalUrl?.startsWith("/api/security/hardware-event")) req.rawBody = buf;
+  },
+}));
 app.use(express.urlencoded({ extended: false, limit: "10mb" }));
 app.use(cookieParser());
 

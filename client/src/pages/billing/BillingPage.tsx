@@ -18,19 +18,30 @@ import { PageShell, PageHeader, SectionCard, SPBadge, EmptyState, PrimaryButton,
 interface Plan {
   id: string;
   name: string;
+  description?: string | null;
   priceKes: number;
-  maxProperties: number;
-  maxUsers: number;
+  maxProperties: number | null;   // null = unlimited
+  maxUnits?: number | null;
+  maxUsers: number | null;
   features: string[];
 }
 
 interface BillingStatus {
   subscriptionPlan: string;
   subscriptionStatus: string;
-  maxProperties: number;
-  maxUsers: number;
+  maxProperties: number | null;
+  maxUnits: number | null;
+  maxUsers: number | null;
+  usage?: { properties: number; units: number; users: number };
+  trialEndsAt?: string | null;
+  currentPeriodEnd?: string | null;
+  priceKes?: number | null;
+  customPrice?: boolean;
   planDetails: Plan | null;
 }
+
+const lim = (n: number | null | undefined) => (n == null ? "unlimited" : n.toLocaleString());
+const fmtDay = (v?: string | null) => (v ? new Date(v).toLocaleDateString("en-KE", { day: "numeric", month: "short", year: "numeric" }) : "");
 
 const STATUS_COLORS: Record<string, string> = {
   active: "bg-emerald-50 text-emerald-700 border border-emerald-200",
@@ -38,6 +49,7 @@ const STATUS_COLORS: Record<string, string> = {
   past_due: "bg-yellow-100 text-yellow-800",
   cancelled: "bg-red-100 text-red-800",
   inactive: "bg-gray-100 text-muted-foreground",
+  expired: "bg-red-100 text-red-800",
 };
 
 const PLAN_ICONS: Record<string, React.ReactNode> = {
@@ -114,6 +126,7 @@ export default function BillingPage() {
 
   const statusLabel = status?.subscriptionStatus ?? "unknown";
   const isActive = statusLabel === "active" || statusLabel === "trial";
+  const u = status?.usage;
 
   return (
     <div className="max-w-5xl mx-auto p-6 space-y-8">
@@ -124,16 +137,23 @@ export default function BillingPage() {
           <div>
             <p className="text-sm text-muted-foreground">Current plan</p>
             <p className="text-xl font-semibold capitalize">
-              {status?.subscriptionPlan ?? "—"}
+              {status?.planDetails?.name ?? status?.subscriptionPlan ?? "—"}
             </p>
+            {status?.customPrice && status.priceKes != null && (
+              <p className="text-xs text-muted-foreground">Your price: KES {status.priceKes.toLocaleString()} / month</p>
+            )}
           </div>
         </div>
         <div className="flex flex-col items-start sm:items-end gap-1">
           <Badge className={STATUS_COLORS[statusLabel] ?? "bg-gray-100 text-muted-foreground"}>
             {statusLabel.replace("_", " ")}
           </Badge>
-          <p className="text-xs text-muted-foreground">
-            {status?.maxProperties ?? 0} properties · {status?.maxUsers ?? 0} users
+          <p className="text-xs text-muted-foreground text-right">
+            {u ? `${u.properties} of ${lim(status?.maxProperties)} properties` : `${lim(status?.maxProperties)} properties`}
+            {" · "}
+            {u ? `${u.units} of ${lim(status?.maxUnits)} units` : `${lim(status?.maxUnits)} units`}
+            {" · "}
+            {u ? `${u.users} of ${lim(status?.maxUsers)} team members` : `${lim(status?.maxUsers)} team members`}
           </p>
         </div>
       </div>
@@ -148,11 +168,19 @@ export default function BillingPage() {
           </p>
         </div>
       )}
+      {statusLabel === "expired" && (
+        <div className="flex items-start gap-3 rounded-lg border border-red-300 bg-red-50 p-4 text-red-800">
+          <AlertTriangle className="h-5 w-5 mt-0.5 shrink-0" />
+          <p className="text-sm">
+            Your {status?.currentPeriodEnd && !status?.trialEndsAt ? "subscription period" : "free trial"} has ended. Choose a plan below to keep adding properties, units and team members — everything you already have stays available.
+          </p>
+        </div>
+      )}
       {statusLabel === "trial" && (
         <div className="flex items-start gap-3 rounded-lg border border-blue-300 bg-blue-50 p-4 text-blue-800">
           <CheckCircle2 className="h-5 w-5 mt-0.5 shrink-0" />
           <p className="text-sm">
-            You're on a free trial. Upgrade to a paid plan to unlock higher limits and
+            You're on a free trial{status?.trialEndsAt ? ` until ${fmtDay(status.trialEndsAt)}` : ""}. Upgrade to a paid plan to unlock higher limits and
             ensure uninterrupted access.
           </p>
         </div>
@@ -180,7 +208,7 @@ export default function BillingPage() {
                 )}
                 <CardHeader className="pb-2">
                   <div className="flex items-center gap-2 mb-1 min-w-0">
-                    <span className="shrink-0 flex">{PLAN_ICONS[plan.id]}</span>
+                    <span className="shrink-0 flex">{PLAN_ICONS[plan.id] ?? <CreditCard className="h-6 w-6 text-emerald-500" />}</span>
                     <CardTitle className="text-lg min-w-0 break-words">{plan.name}</CardTitle>
                   </div>
                   <CardDescription>
@@ -189,6 +217,7 @@ export default function BillingPage() {
                     </span>
                     <span className="text-sm text-muted-foreground"> / month</span>
                   </CardDescription>
+                  {plan.description && <p className="text-xs text-muted-foreground mt-1">{plan.description}</p>}
                 </CardHeader>
                 <CardContent className="flex-1">
                   <ul className="space-y-2">

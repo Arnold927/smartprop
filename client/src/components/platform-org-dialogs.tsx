@@ -12,6 +12,7 @@ import { apiRequest } from "@/lib/queryClient";
 import { announceInvite } from "@/lib/invite-notice";
 import { InviteLinkDialog } from "@/components/invite-link-dialog";
 import { Loader2 } from "lucide-react";
+import { limitSummary, usePlatformPlans } from "@/lib/plans";
 
 /** apiRequest throws on a non-2xx response with the raw response TEXT as e.message. */
 function errMsg(e: any): string {
@@ -19,11 +20,6 @@ function errMsg(e: any): string {
   return e?.message || "Something went wrong";
 }
 
-const PLAN_LABEL: Record<string, string> = {
-  starter: "Starter — 5 properties, 5 users",
-  growth: "Growth — 25 properties, 20 users",
-  enterprise: "Enterprise — unlimited",
-};
 
 /**
  * Platform admin → "Add organisation": a landlord who runs their own properties (the common
@@ -37,13 +33,16 @@ export function AddOrganisationDialog({
   const { toast } = useToast();
   const qc = useQueryClient();
   const [accountType, setAccountType] = useState<"landlord" | "property_manager">("landlord");
-  const [plan, setPlan] = useState("starter");
+  const [plan, setPlan] = useState("");
+  const { data: planData } = usePlatformPlans();
+  const availablePlans = (planData?.plans ?? []).filter((p) => p.isActive);
+  const chosenPlan = plan || availablePlans[0]?.id || "starter";
   /** "own": a workspace of their own. "under": they work under an existing property-management organisation. */
   const [placement, setPlacement] = useState<"own" | "under">("own");
   const [parentId, setParentId] = useState("");
   const [created, setCreated] = useState<{ link: string; email: string; emailSent: boolean; name: string } | null>(null);
 
-  const reset = () => { setAccountType("landlord"); setPlan("starter"); setPlacement("own"); setParentId(""); };
+  const reset = () => { setAccountType("landlord"); setPlan(""); setPlacement("own"); setParentId(""); };
 
   const create = useMutation({
     mutationFn: async (data: Record<string, any>) => (await apiRequest("/api/platform/organizations", { method: "POST", data })).json(),
@@ -90,7 +89,7 @@ export function AddOrganisationDialog({
                 email: String(f.get("email") ?? "").trim(),
                 firstName: String(f.get("firstName") ?? "").trim(),
                 lastName: String(f.get("lastName") ?? "").trim(),
-                plan,
+                plan: chosenPlan,
               });
             }}
           >
@@ -150,10 +149,10 @@ export function AddOrganisationDialog({
             {!(accountType === "landlord" && placement === "under") && (
             <div className="space-y-1.5">
               <Label>Plan</Label>
-              <Select value={plan} onValueChange={setPlan}>
+              <Select value={chosenPlan} onValueChange={setPlan}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  {Object.entries(PLAN_LABEL).map(([id, label]) => <SelectItem key={id} value={id}>{label}</SelectItem>)}
+                  {availablePlans.map((p) => <SelectItem key={p.id} value={p.id}>{p.name} — {limitSummary(p)}</SelectItem>)}
                 </SelectContent>
               </Select>
               <p className="text-[11px] text-muted-foreground">Starts as a trial; change billing later as usual.</p>

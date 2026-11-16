@@ -9,10 +9,9 @@
  */
 import { Router } from "express";
 import { db } from "../db";
-import { visitors, visitorLog, tenants, units, properties,
-  parkingAssignments,
-} from "@shared/schema";
+import { visitors, visitorLog, tenants, units, properties } from "@shared/schema";
 import { eq, and, desc, inArray, notLike, isNull, or } from "drizzle-orm";
+import { checkInVisitor, checkOutVisitor, normalizePlate, isValidPlate } from "../services/gate-access";
 import { authenticateJWT } from "../middleware/auth";
 import { requireOrg } from "../middleware/requireOrg";
 import { storage } from "../storage";
@@ -70,6 +69,8 @@ function mapToFrontend(row: any): any {
     actual_arrival: row.actualArrival ?? null,
     actual_departure: row.actualDeparture ?? null,
     visitor_photo_url: row.photoUrl ?? null,
+    vehicle_plate: row.vehiclePlate ?? null,
+    parking_spot: row.parkingSpot ?? null,
     security_notes: row.notes ?? null,
     check_in_location: null,
     check_out_location: null,
@@ -138,6 +139,8 @@ router.get("/", ...auth, async (req: any, res: any) => {
         accessCode: visitors.accessCode,
         notes: visitors.notes,
         photoUrl: visitors.photoUrl,
+        vehiclePlate: visitors.vehiclePlate,
+        parkingSpot: visitors.parkingSpot,
         createdBy: visitors.createdBy,
         createdAt: visitors.createdAt,
         // Joined
@@ -201,27 +204,69 @@ router.post("/", ...auth, async (req: any, res: any) => {
       return res.status(404).json({ message: "Property not found" });
     }
 
-    const visitorCode = generateVisitorCode();
+    // Dates: a bad string used to become "Invalid Date" and fail with a 500; a departure before the arrival made a pass
+    // that was expired the moment it was issued.
+    const arrival = new Date(expectedArrival);
+    if (isNaN(arrival.getTime())) return res.status(400).json({ message: "Expected arrival is not a valid date" });
+    let departure: Date | null = null;
+    if (expectedDeparture) {
+      departure = new Date(expectedDeparture);
+      if (isNaN(departure.getTime())) return res.status(400).json({ message: "Expected departure is not a valid date" });
+      if (departure.getTime() < arrival.getTime()) return res.status(400).json({ message: "Expected departure can't be before the arrival" });
+    }
 
-    const [created] = await db
-      .insert(visitors)
-      .values({
-        propertyId: parseInt(propertyId),
-        unitId: hostUnitId ? parseInt(hostUnitId) : null,
-        tenantId: hostTenantId ? parseInt(hostTenantId) : null,
-        visitorName,
-        visitorPhone: visitorPhone || null,
-        idNumber: visitorIdNumber || null,
-        purposeOfVisit: visitPurpose,
-        expectedArrival: new Date(expectedArrival),
-        expectedDeparture: expectedDeparture ? new Date(expectedDeparture) : null,
-        status: "pending",
-        accessCode: visitorCode,
-        // Store access method in notes until schema is extended
-        notes: `access_method:${accessMethod || "qr_code"}`,
-        createdBy: userId,
-      } as any)
-      .returning();
+    // The host tenant / unit must really be at THIS property. They used to be taken from the request as-is, so a
+    // manager could attach a visitor to another organisation's tenant, whose name then showed up in the visitor list.
+    let tenantId: number | null = null;
+    let unitId: number | null = null;
+    if (hostTenantId) {
+      const [t] = await db.select({ id: tenants.id, unitId: tenants.unitId }).from(tenants)
+        .innerJoin(units, eq(tenants.unitId, units.id))
+        .where(and(eq(tenants.id, parseInt(hostTenantId)), eq(units.propertyId, prop.id))).limit(1);
+      if (!t) return res.status(404).json({ message: "That tenant does not live at this property" });
+      tenantId = t.id;
+      unitId = t.unitId;
+    }
+    if (hostUnitId) {
+      const [u] = await db.select({ id: units.id }).from(units).where(and(eq(units.id, parseInt(hostUnitId)), eq(units.propertyId, prop.id))).limit(1);
+      if (!u) return res.status(404).json({ message: "That unit is not at this property" });
+      if (unitId && unitId !== u.id) return res.status(400).json({ message: "That tenant does not live in the unit you chose" });
+      unitId = u.id;
+    }
+    let plate: string | null = null;
+    if (req.body.vehiclePlate) {
+      plate = normalizePlate(req.body.vehiclePlate);
+      if (!isValidPlate(plate)) return res.status(400).json({ message: "Vehicle plate can only contain letters and numbers (2–15 characters)" });
+    }
+
+    let created: typeof visitors.$inferSelect | undefined;
+    for (let attempt = 0; attempt < 5 && !created; attempt++) {
+      try {
+        [created] = await db
+          .insert(visitors)
+          .values({
+            propertyId: parseInt(propertyId),
+            unitId,
+            tenantId,
+            visitorName: String(visitorName).trim(),
+            visitorPhone: visitorPhone || null,
+            idNumber: visitorIdNumber || null,
+            purposeOfVisit: visitPurpose,
+            expectedArrival: arrival,
+            expectedDeparture: departure,
+            status: "pending",
+            accessCode: generateVisitorCode(),   // unique column — retry on the rare collision
+            vehiclePlate: plate,
+            // Store access method in notes until schema is extended
+            notes: `access_method:${accessMethod || "qr_code"}`,
+            createdBy: userId,
+          } as any)
+          .returning();
+      } catch (e: any) {
+        if (e?.code !== "23505") throw e;
+      }
+    }
+    if (!created) return res.status(500).json({ message: "Could not generate a unique visitor code. Please try again." });
 
     res.status(201).json(mapToFrontend({ ...created, propertyName: prop.name }));
   } catch (err) {
@@ -237,24 +282,25 @@ router.post("/", ...auth, async (req: any, res: any) => {
  *  caretaker/landlord) isn't at a property they're scoped to. */
 async function resolveVisitorForCaller(code: string, orgId: number, role: string, userId: string) {
   const [row] = await db
-    .select({ id: visitors.id, propertyId: visitors.propertyId })
+    .select({ v: visitors })
     .from(visitors)
     .innerJoin(properties, eq(visitors.propertyId, properties.id))
     .where(and(eq(visitors.accessCode, code), eq(properties.organizationId, orgId)))
     .limit(1);
   if (!row) return null;
+  const visitor = row.v;
 
   if (role === "caretaker") {
     const caretaker = await storage.getCaretakerByUserId(userId);
-    if (!caretaker?.propertyId || caretaker.propertyId !== row.propertyId) return null;
+    if (!caretaker?.propertyId || caretaker.propertyId !== visitor.propertyId) return null;
   } else if (role === "landlord") {
     const [prop] = await db.select({ id: properties.id }).from(properties)
-      .where(and(eq(properties.id, row.propertyId), eq(properties.ownerId, userId)))
+      .where(and(eq(properties.id, visitor.propertyId), eq(properties.ownerId, userId)))
       .limit(1);
     if (!prop) return null;
   }
 
-  return row;
+  return visitor;
 }
 
 // ── PATCH /api/visitor-access-management/:code/check-in ───────────────────────
@@ -275,26 +321,9 @@ router.patch("/:code/check-in", ...auth, async (req: any, res: any) => {
       return res.status(404).json({ message: "Visitor not found" });
     }
 
-    const [updated] = await db
-      .update(visitors)
-      .set({
-        status: "checked_in",
-        actualArrival: new Date() as any,
-        checkedInBy: safeUuid(req.user.id),
-        updatedAt: new Date() as any,
-      })
-      .where(eq(visitors.accessCode, code))
-      .returning();
-
-    // Log the check-in
-    await db.insert(visitorLog).values({
-      visitorId: visitor.id,
-      logType: "check_in",
-      location: location || "Main Gate",
-      notes: `Checked in at ${location || "Main Gate"}`,
-    } as any);
-
-    res.json(mapToFrontend(updated));
+    const result = await checkInVisitor(visitor, safeUuid(req.user.id), location || "Main Gate", "manager check-in");
+    if (!result.ok) return res.status(result.httpStatus).json({ message: result.message });
+    res.json({ ...mapToFrontend(result.visitor), parking: result.parking });
   } catch (err) {
     console.error("PATCH check-in error:", err);
     res.status(500).json({ message: "Failed to check in visitor" });
@@ -317,40 +346,9 @@ router.patch("/:code/check-out", ...auth, async (req: any, res: any) => {
       return res.status(404).json({ message: "Visitor not found" });
     }
 
-    const [updated] = await db
-      .update(visitors)
-      .set({
-        status: "checked_out",
-        actualDeparture: new Date() as any,
-        checkedOutBy: safeUuid(req.user.id),
-        updatedAt: new Date() as any,
-      })
-      .where(eq(visitors.accessCode, code))
-      .returning();
-
-    // Log the check-out
-    await db.insert(visitorLog).values({
-      visitorId: visitor.id,
-      logType: "check_out",
-      location: location || "Main Gate",
-      notes: `Checked out at ${location || "Main Gate"}`,
-    } as any);
-
-    // Free the parking space — same as guest-checkin/checkout does
-    // Non-blocking: if the visitor had no parking assignment this is a no-op
-    if (visitor.id) {
-      db.update(parkingAssignments)
-        .set({ status: "terminated" as any, updatedAt: new Date() as any })
-        .where(
-          and(
-            eq(parkingAssignments.vehicleId, visitor.id as any),
-            eq(parkingAssignments.status, "active" as any),
-          )
-        )
-        .catch((e: any) => console.warn("[checkout] parking termination failed:", e));
-    }
-
-    res.json(mapToFrontend(updated));
+    const result = await checkOutVisitor(visitor, safeUuid(req.user.id), location || "Main Gate");
+    if (!result.ok) return res.status(result.httpStatus).json({ message: result.message });
+    res.json(mapToFrontend(result.visitor));
   } catch (err) {
     console.error("PATCH check-out error:", err);
     res.status(500).json({ message: "Failed to check out visitor" });
@@ -372,6 +370,10 @@ router.patch("/:code/approve", ...auth, async (req: any, res: any) => {
       return res.status(404).json({ message: "Visitor not found" });
     }
 
+    if (visitor.status === "approved") return res.json(mapToFrontend(visitor));   // already approved — nothing to do
+    if (visitor.status !== "pending") {
+      return res.status(409).json({ message: `This visit is ${String(visitor.status).replace("_", " ")} and can't be approved.` });
+    }
     const [updated] = await db
       .update(visitors)
       .set({
@@ -380,8 +382,10 @@ router.patch("/:code/approve", ...auth, async (req: any, res: any) => {
         approvedAt: new Date() as any,
         updatedAt: new Date() as any,
       })
-      .where(eq(visitors.accessCode, code))
+      .where(and(eq(visitors.id, visitor.id), eq(visitors.status, "pending" as any)))
       .returning();
+    if (!updated) return res.status(409).json({ message: "This visit was just changed by someone else — refresh and try again." });
+    await db.insert(visitorLog).values({ visitorId: visitor.id, logType: "approval", notes: "Approved" } as any);
 
     res.json(mapToFrontend(updated));
   } catch (err) {
@@ -407,14 +411,21 @@ router.patch("/:code/revoke", ...auth, async (req: any, res: any) => {
       return res.status(404).json({ message: "Visitor not found" });
     }
 
+    if (visitor.status === "checked_in") {
+      return res.status(409).json({ message: "This visitor is inside right now. Check them out first." });
+    }
+    if (visitor.status === "checked_out") {
+      return res.status(409).json({ message: "This visit is already over." });
+    }
     const [updated] = await db
       .update(visitors)
       .set({
         status: "denied", // mapToFrontend() treats "denied" as access_revoked: true
         updatedAt: new Date() as any,
       })
-      .where(eq(visitors.accessCode, code))
+      .where(and(eq(visitors.id, visitor.id), inArray(visitors.status, ["pending", "approved", "expired", "denied"] as any)))
       .returning();
+    if (!updated) return res.status(409).json({ message: "This visitor was just checked in by someone else — refresh and try again." });
 
     await db.insert(visitorLog).values({
       visitorId: visitor.id,

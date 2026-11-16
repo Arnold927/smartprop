@@ -78,7 +78,7 @@ import contractorPortalRouter from "./contractor-portal";
 import { reportScheduleRouter } from "./report-schedule";
 import { titleVerificationRouter } from "./title-verification";
 import { regulatoryCertsRouter } from "./regulatory-certificates";
-import { securityHardwareRouter } from "./security-hardware";
+import { securityHardwareRouter, hardwareWebhookRouter } from "./security-hardware";
 import guardFeaturesRouter from "./guard-features";
 import tenantOnboardingRouter from "./tenant-onboarding";
 import { tenantShortRentalsRouter, shortTermBookingsRouter } from "./tenant-subletting";
@@ -161,6 +161,9 @@ export function registerModularRoutes(app: Express) {
 
   // Gate guard PIN login — its own short-lived JWT, not the main app JWT
   app.use("/api/gate-auth", gateAuthRouter);
+
+  // Security-camera / door-reader webhook — no JWT; authenticated by the HMAC signature (see security-hardware.ts)
+  app.use("/api/security/hardware-event", hardwareWebhookRouter);
 
   // Safaricom M-Pesa webhooks — no JWT. Safaricom sends no Authorization header.
   // Security: validate via payload structure; lock down by IP at the network/proxy layer.
@@ -253,7 +256,7 @@ export function registerModularRoutes(app: Express) {
   mount(app, "/api/report-schedule",                   reportScheduleRouter);
   mount(app, "/api/title-verification",                titleVerificationRouter);
   mount(app, "/api/regulatory-certificates",           regulatoryCertsRouter);
-  // Security hardware webhook — public endpoint (HMAC auth) + config endpoints (JWT auth)
+  // Security hardware: test-fire + config endpoints (JWT auth). The device webhook itself is mounted publicly above.
   mount(app, "/api/security",                          securityHardwareRouter);
   mount(app, "/api/service-contracts",                 serviceContractsRouter);
   mount(app, "/api/contractors/registry",              contractorRegistryListRouter);

@@ -8,6 +8,7 @@
  *   PATCH /:id          → full update (admin/manager only)
  *   PATCH /:id/me       → self-update — only phone, address, emergency contact
  */
+import { checkCanAdd } from "../services/plans";
 import { Router } from "express";
 import { db, pool } from "../db";
 import { staffMembers } from "@shared/schema";
@@ -159,6 +160,12 @@ router.post(
       const orgId: number = req.user.organizationId;
       const data = staffSchema.parse(req.body);
 
+      // A staff member with an email gets a portal login, which uses one of the plan's team seats.
+      if (data.email) {
+        const seat = await checkCanAdd(orgId, "maxUsers", 1);
+        if (!seat.ok) return res.status(seat.status).json(seat.body);
+      }
+
       const [created] = await db
         .insert(staffMembers)
         .values({
@@ -174,14 +181,17 @@ router.post(
       // with no way for that person to ever log in unless someone
       // separately used the unrelated admin "invite a user" flow and
       // happened to match the email manually.
-      const invite = await inviteStaffUser({
-        organizationId: orgId,
-        invitedByUserId: req.user.id,
-        email: created.email,
-        firstName: created.first_name,
-        lastName: created.last_name,
-        position: created.position ?? undefined,
-      });
+      // (No email → nothing to invite: the HR record alone is saved. This used to fail with a 500 after the record was created.)
+      const invite = created.email
+        ? await inviteStaffUser({
+            organizationId: orgId,
+            invitedByUserId: req.user.id,
+            email: created.email,
+            firstName: created.first_name,
+            lastName: created.last_name,
+            position: created.position ?? undefined,
+          })
+        : null;
 
       res.status(201).json({ ...created, invite });
     } catch (err: any) {

@@ -20,9 +20,10 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Building2, Users, Home, ChevronRight, CreditCard, Wallet, Plus, UserPlus, Link2 } from "lucide-react";
+import { Building2, Users, Home, ChevronRight, CreditCard, Wallet, Plus, UserPlus, Link2, Layers } from "lucide-react";
 import { AddOrganisationDialog, InviteOrgAdminDialog, LinkLandlordDialog } from "@/components/platform-org-dialogs";
 import { BulkPropertyDialog } from "@/components/bulk-property-dialog";
+import { OrgSubscriptionDialog } from "@/components/platform-subscription-dialogs";
 
 interface OrgRow {
   id: number;
@@ -30,8 +31,13 @@ interface OrgRow {
   slug: string;
   subscriptionPlan: string;
   subscriptionStatus: string;
-  maxProperties: number;
-  maxUsers: number;
+  maxProperties: number | null;   // null = unlimited
+  maxUnits: number | null;
+  maxUsers: number | null;
+  hasCustomTerms?: boolean;
+  unitCount?: number;
+  trialEndsAt?: string | null;
+  currentPeriodEnd?: string | null;
   isActive: boolean;
   createdAt: string;
   propertyCount: number;
@@ -67,6 +73,7 @@ export default function PlatformOrganizationsPage() {
   const [inviteOrg, setInviteOrg] = useState<{ id: number; name: string } | null>(null);
   const [linkOrg, setLinkOrg] = useState<{ id: number; name: string } | null>(null);
   const [bulkOrg, setBulkOrg] = useState<{ id: number; name: string } | null>(null);
+  const [subOrg, setSubOrg] = useState<{ id: number; name: string } | null>(null);
 
   const { data: orgs = [], isLoading, error } = useQuery<OrgRow[]>({
     queryKey: ["/api/platform/organizations", selectedMonth],
@@ -109,6 +116,7 @@ export default function PlatformOrganizationsPage() {
         organizationName={bulkOrg?.name}
         onCreated={(r) => { const id = bulkOrg?.id; setBulkOrg(null); if (id) navigate(`/properties/${r.property.id}?organizationId=${id}`); }}
       />
+      <OrgSubscriptionDialog org={subOrg} onOpenChange={(o) => { if (!o) setSubOrg(null); }} />
       <InviteOrgAdminDialog org={inviteOrg} onOpenChange={(o) => { if (!o) setInviteOrg(null); }} />
 
       {!isLoading && !error && orgs.length > 0 && (
@@ -178,6 +186,7 @@ export default function PlatformOrganizationsPage() {
                     <p className="text-sm font-semibold truncate">{org.name}</p>
                     <div className="flex items-center gap-2 mt-0.5">
                       <Badge variant="outline" className="text-[10px] px-1.5 py-0 capitalize">{org.subscriptionPlan}</Badge>
+                      {org.hasCustomTerms && <Badge variant="outline" className="text-[10px] px-1.5 py-0 text-violet-700 border-violet-200" title="This organisation has limits set just for it">custom limits</Badge>}
                       <Badge
                         variant="outline"
                         className={`text-[10px] px-1.5 py-0 capitalize ${
@@ -196,16 +205,28 @@ export default function PlatformOrganizationsPage() {
                 <div className="flex items-center flex-wrap gap-x-4 gap-y-1.5 text-sm text-muted-foreground pl-11 sm:pl-0">
                   <div className="flex items-center gap-1.5">
                     <Home className="h-3.5 w-3.5" />
-                    <span>{org.propertyCount}{org.maxProperties ? ` / ${org.maxProperties}` : ""}</span>
+                    <span title="Properties used / allowed">{org.propertyCount} / {org.maxProperties == null ? "∞" : org.maxProperties}</span>
                   </div>
                   <div className="flex items-center gap-1.5">
                     <Users className="h-3.5 w-3.5" />
-                    <span>{org.userCount}{org.maxUsers ? ` / ${org.maxUsers}` : ""}</span>
+                    <span title="Team members used / allowed">{org.userCount} / {org.maxUsers == null ? "∞" : org.maxUsers}</span>
                   </div>
                   <div className="flex items-center gap-1.5" title={`Revenue in ${monthOptions.find(m => m.value === selectedMonth)?.label} / all-time`}>
                     <CreditCard className="h-3.5 w-3.5" />
                     <span>{fmtKES(org.revenueThisMonth)} <span className="text-xs opacity-70">/ {fmtKES(org.revenueTotal)} total</span></span>
                   </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-7 text-xs gap-1.5"
+                    data-testid={`subscription-${org.id}`}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setSubOrg({ id: org.id, name: org.name });
+                    }}
+                  >
+                    <Layers className="h-3.5 w-3.5" /> Subscription
+                  </Button>
                   <Button
                     variant="outline"
                     size="sm"

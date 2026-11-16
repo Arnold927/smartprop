@@ -28,84 +28,50 @@ import {
   isPesapalConfigured,
 } from "../services/pesapal.js";
 import { randomUUID } from "crypto";
+import { listPlans, getPlan, getEntitlements, getUsage, syncOrgLimitColumns } from "../services/plans.js";
 
 const router = Router();
 export const billingPublicRouter = Router();
 
 // ── Plan catalogue ─────────────────────────────────────────────────────────────
-// Adjust prices and limits to match your actual pricing.
-export const PLANS = [
-  {
-    id: "starter",
-    name: "Starter",
-    priceKes: 2_500,
-    maxProperties: 5,
-    maxUsers: 5,
-    features: ["Up to 5 properties", "Up to 5 users", "M-Pesa rent collection", "Basic reports"],
-  },
-  {
-    id: "growth",
-    name: "Growth",
-    priceKes: 6_500,
-    maxProperties: 25,
-    maxUsers: 20,
-    features: [
-      "Up to 25 properties",
-      "Up to 20 users",
-      "M-Pesa rent collection",
-      "Advanced analytics",
-      "WhatsApp notifications",
-      "Work orders",
-    ],
-  },
-  {
-    id: "enterprise",
-    name: "Enterprise",
-    priceKes: 15_000,
-    maxProperties: 9999,
-    maxUsers: 9999,
-    features: [
-      "Unlimited properties & users",
-      "All Growth features",
-      "Dedicated support",
-      "Custom integrations",
-      "SLA guarantee",
-    ],
-  },
-] as const;
-
-type PlanId = (typeof PLANS)[number]["id"];
+// Plans live in the subscription_plans table and are managed by the platform admin
+// (see routes/platform-admin.ts and services/plans.ts).
 
 // ── GET /api/billing/plans ─────────────────────────────────────────────────────
-billingPublicRouter.get("/plans", (_req, res) => {
-  res.json(PLANS);
+billingPublicRouter.get("/plans", async (_req, res) => {
+  try {
+    const plans = await listPlans({ publicOnly: true });
+    res.json(plans.map((p) => ({
+      id: p.id, name: p.name, description: p.description, priceKes: p.priceKes,
+      maxProperties: p.maxProperties, maxUnits: p.maxUnits, maxUsers: p.maxUsers, features: p.features,
+    })));
+  } catch (err) {
+    console.error("[billing] plans error:", err);
+    res.status(500).json({ message: "Failed to load plans" });
+  }
 });
 
 // ── GET /api/billing/status ────────────────────────────────────────────────────
 router.get("/status", authenticateJWT as any, requireOrg as any, async (req: any, res) => {
   const orgId: number = req.user.organizationId;
   try {
-    const [org] = await db
-      .select({
-        subscriptionPlan: organizations.subscriptionPlan,
-        subscriptionStatus: organizations.subscriptionStatus,
-        maxProperties: organizations.maxProperties,
-        maxUsers: organizations.maxUsers,
-      })
-      .from(organizations)
-      .where(eq(organizations.id, orgId))
-      .limit(1);
-
-    if (!org) return res.status(404).json({ message: "Organization not found" });
-
-    const plan = PLANS.find((p) => p.id === org.subscriptionPlan) ?? null;
+    const ent = await getEntitlements(orgId);
+    if (!ent) return res.status(404).json({ message: "Organization not found" });
+    const usage = await getUsage(orgId);
 
     res.json({
-      subscriptionPlan: org.subscriptionPlan,
-      subscriptionStatus: org.subscriptionStatus,
-      maxProperties: org.maxProperties,
-      maxUsers: org.maxUsers,
-      planDetails: plan,
+      subscriptionPlan: ent.planId,
+      subscriptionStatus: ent.expired ? "expired" : ent.status,
+      // null = unlimited
+      maxProperties: ent.limits.maxProperties,
+      maxUnits: ent.limits.maxUnits,
+      maxUsers: ent.limits.maxUsers,
+      usage,
+      trialEndsAt: ent.trialEndsAt,
+      currentPeriodEnd: ent.currentPeriodEnd,
+      priceKes: ent.priceKes,
+      customPrice: ent.customPriceKes != null,
+      planDetails: ent.plan,
     });
   } catch (err) {
     console.error("[billing] status error:", err);
@@ -115,7 +81,7 @@ router.get("/status", authenticateJWT as any, requireOrg as any, async (req: any
 
 // ── POST /api/billing/checkout ─────────────────────────────────────────────────
 const checkoutSchema = z.object({
-  planId: z.enum(["starter", "growth", "enterprise"]),
+  planId: z.string().trim().min(1).max(50),
 });
 
 router.post("/checkout", authenticateJWT as any, requireOrg as any, async (req: any, res) => {
@@ -126,8 +92,8 @@ router.post("/checkout", authenticateJWT as any, requireOrg as any, async (req: 
     return res.status(400).json({ message: "Invalid plan", errors: parsed.error.errors });
   }
 
-  const plan = PLANS.find((p) => p.id === parsed.data.planId);
-  if (!plan) return res.status(400).json({ message: "Plan not found" });
+  const plan = await getPlan(parsed.data.planId);
+  if (!plan || !plan.isActive) return res.status(400).json({ message: "Plan not found" });
 
   if (!isPesapalConfigured()) {
     return res.status(503).json({ message: "Online payment is not configured yet. Please contact support to change your plan." });
@@ -143,12 +109,21 @@ router.post("/checkout", authenticateJWT as any, requireOrg as any, async (req: 
 
     if (!org) return res.status(404).json({ message: "Organization not found" });
 
+    // A plan the platform admin has hidden can only be renewed by an organisation already on it.
+    if (!plan.isPublic && org.subscriptionPlan !== plan.id) return res.status(400).json({ message: "Plan not found" });
+
+    // An organisation with a negotiated price keeps it when renewing the plan it is on.
+    const price = org.subscriptionPlan === plan.id && org.customPriceKes != null ? Number(org.customPriceKes) : plan.priceKes;
+    if (!(price > 0)) {
+      return res.status(400).json({ message: "This plan has no online price. Please contact support to switch to it." });
+    }
+
     const merchantReference = `SP-${orgId}-${plan.id}-${Date.now()}`;
     const appUrl = process.env.APP_URL ?? "http://localhost:5173";
 
     const { orderTrackingId, redirectUrl } = await submitOrder({
       merchantReference,
-      amount: plan.priceKes,
+      amount: price,
       currency: "KES",
       description: `SmartProp ${plan.name} plan — monthly subscription`,
       billingEmail: req.user.email,
@@ -171,6 +146,7 @@ router.post("/checkout", authenticateJWT as any, requireOrg as any, async (req: 
             merchantReference,
             orderTrackingId,
             planId: plan.id,
+            priceKes: price,
             createdAt: new Date().toISOString(),
           },
         },
@@ -273,30 +249,36 @@ async function activateSubscriptionIfPaid(orderTrackingId: string) {
 
   const features = (org.features as Record<string, any>) ?? {};
   const pending = features.pendingOrder;
-  const plan = PLANS.find((p) => p.id === pending?.planId);
+  const plan = await getPlan(pending?.planId);
   if (!plan) {
     console.error("[billing] unknown planId on pending order:", pending?.planId);
     return;
   }
 
+  // The price agreed at checkout (the plan may have been repriced since); older orders fall back to the plan price.
+  const expected = Number(pending?.priceKes ?? plan.priceKes);
   const paid = Number(status.amount);
-  if (Number.isFinite(paid) && paid + 0.001 < plan.priceKes) {
-    console.error(`[billing] amount ${paid} is below the ${plan.id} price ${plan.priceKes}; not activating`);
+  if (Number.isFinite(paid) && paid + 0.001 < expected) {
+    console.error(`[billing] amount ${paid} is below the ${plan.id} price ${expected}; not activating`);
     return;
   }
 
   const { pendingOrder: _done, ...rest } = features;
+  // Buying a different plan replaces the terms the platform admin had set by hand (per-organisation
+  // limits and a negotiated price); renewing the same plan keeps them.
+  const changedPlan = org.subscriptionPlan !== plan.id;
   await db
     .update(organizations)
     .set({
       subscriptionPlan: plan.id,
       subscriptionStatus: "active",
-      maxProperties: plan.maxProperties,
-      maxUsers: plan.maxUsers,
+      trialEndsAt: null,
+      ...(changedPlan ? { limitOverrides: null, customPriceKes: null } : {}),
       features: { ...rest, lastOrder: { ...pending, paidAt: new Date().toISOString() } },
       updatedAt: new Date(),
     })
     .where(eq(organizations.id, org.id));
+  await syncOrgLimitColumns([org.id]);
 
   console.log(`[billing] org ${org.id} upgraded to plan ${plan.id}`);
 }

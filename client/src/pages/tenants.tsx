@@ -22,7 +22,7 @@ import {
   Plus, Search, Users, Mail, Phone, Building, Calendar,
   Eye, Trash2,
   CheckCircle, Clock, XCircle, X, UserPlus, ChevronRight,
-  Shield, MessageCircle, Send,
+  Shield, MessageCircle, Send, Upload,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -33,6 +33,7 @@ import QueryError from "@/components/query-error";
 import { PageShell, PageHeader, SectionCard, SPBadge, EmptyState, PrimaryButton, SecondaryButton, FilterBar, SPTable, SPAvatar, StatTile, StatsGrid, KESAmount, ActionMenu, ConfirmDialog } from "@/components/ui/sp-ui";
 import { useRoleGuard, ROLES } from "@/hooks/useRoleGuard";
 import { InviteStatusChip } from "@/components/invite-status-chip";
+import { ImportTenantsDialog } from "@/components/import-tenants-dialog";
 
 
 interface Tenant {
@@ -192,6 +193,7 @@ export default function Tenants() {
   const [statusFilter, setStatusFilter] = useState("all");
   const [propertyFilter, setPropertyFilter] = useState("all");
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
   const [quickViewId, setQuickViewId] = useState<number | null>(null);
   const [messageOpen, setMessageOpen] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
@@ -375,6 +377,12 @@ export default function Tenants() {
             {/* Landlords can add tenants to their own properties directly —
                 many self-manage without a separate PM. /api/tenant-onboarding
                 now allows the landlord role (see requireRole.ts). */}
+            {/* Bulk import is for the organisation's admins and managers (the server route is too) */}
+            {!isLandlord && user?.role !== "platform_admin" && (
+              <SecondaryButton icon={<Upload className="w-4 h-4" />} onClick={() => setImportOpen(true)}>
+                <span className="hidden sm:inline">Import</span>
+              </SecondaryButton>
+            )}
             <PrimaryButton icon={<UserPlus className="w-4 h-4" />} onClick={() => setIsAddModalOpen(true)}>
               <span className="hidden sm:inline">Add tenant</span>
               <span className="sm:hidden">Add</span>
@@ -382,6 +390,8 @@ export default function Tenants() {
           </>
         }
       />
+
+      <ImportTenantsDialog open={importOpen} onOpenChange={setImportOpen} properties={properties.map((p) => ({ id: p.id, name: p.name }))} />
 
       {/* Landlord scope notice — shown only to landlords so they know the list is filtered */}
       {isLandlord && (

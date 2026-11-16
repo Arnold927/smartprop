@@ -187,7 +187,32 @@ export const organizations = pgTable("organizations", {
   maxProperties: integer("max_properties").default(5),
   maxUsers: integer("max_users").default(10),
   features: jsonb("features").default({}),
+  // Platform-admin controlled subscription terms (see subscription_plans). Limits here win over the plan's.
+  limitOverrides: jsonb("limit_overrides").$type<Partial<Record<"maxProperties" | "maxUnits" | "maxUsers", number | null>>>(),
+  customPriceKes: numeric("custom_price_kes", { precision: 12, scale: 2 }),
+  trialEndsAt: timestamp("trial_ends_at"),
+  currentPeriodEnd: timestamp("current_period_end"),
+  subscriptionNotes: text("subscription_notes"),
   isActive: boolean("is_active").default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// Plan catalogue. Only the platform admin edits it. A NULL limit means unlimited.
+export const subscriptionPlans = pgTable("subscription_plans", {
+  id: varchar("id", { length: 50 }).primaryKey(),
+  name: varchar("name", { length: 100 }).notNull(),
+  description: text("description"),
+  priceKes: numeric("price_kes", { precision: 12, scale: 2 }).notNull().default("0"),
+  maxProperties: integer("max_properties"),
+  maxUnits: integer("max_units"),
+  maxUsers: integer("max_users"),
+  features: jsonb("features").$type<string[]>().notNull().default([]),
+  featureFlags: jsonb("feature_flags").$type<Record<string, boolean>>().notNull().default({}),
+  trialDays: integer("trial_days"),
+  isActive: boolean("is_active").notNull().default(true),
+  isPublic: boolean("is_public").notNull().default(true),
+  sortOrder: integer("sort_order").notNull().default(0),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
@@ -2821,7 +2846,7 @@ export const registeredVehicles = pgTable("registered_vehicles", {
   propertyId: integer("property_id").notNull().references(() => properties.id),
   ownerId: varchar("owner_id"), // Can be tenant, visitor, or staff
   ownerType: varchar("owner_type", { enum: ["tenant", "visitor", "staff", "contractor", "guest"] }).notNull(),
-  plateNumber: varchar("plate_number").unique().notNull(),
+  plateNumber: varchar("plate_number").notNull(), // stored upper-case without spaces/dashes; unique per property
   vehicleType: varchar("vehicle_type").notNull(), // car, motorcycle, truck, van, bicycle
   make: varchar("make").notNull(),
   model: varchar("model").notNull(),
@@ -2835,7 +2860,9 @@ export const registeredVehicles = pgTable("registered_vehicles", {
   notes: text("notes"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
-});
+}, (t) => ({
+  plateUniquePerProperty: uniqueIndex("registered_vehicles_property_plate_uidx").on(t.propertyId, t.plateNumber),
+}));
 
 // Parking Spaces - Individual parking spot management
 export const parkingSpaces = pgTable("parking_spaces", {

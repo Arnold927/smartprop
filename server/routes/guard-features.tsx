@@ -28,6 +28,7 @@ import { authenticateGuard } from "./gate-pins";
 import { authenticateJWT } from "../middleware/auth";
 import { requireOrg } from "../middleware/requireOrg";
 import { logger } from "../lib/logger";
+import { normalizePlate, isValidPlate, isBlacklisted, displayPassStatus } from "../services/gate-access";
 import crypto from "crypto";
 
 const router = Router();
@@ -200,6 +201,15 @@ router.post("/adhoc-pass", ...guard, async (req: any, res: any) => {
       if (!tenantRow) return res.status(404).json({ message: "Tenant not found at your property" });
     }
 
+    let plate: string | null = null;
+    if (vehiclePlate?.trim()) {
+      plate = normalizePlate(vehiclePlate);
+      if (!isValidPlate(plate)) return res.status(400).json({ message: "Vehicle plate can only contain letters and numbers (2–15 characters)." });
+      if (await isBlacklisted(propertyId, plate)) {
+        return res.status(403).json({ message: `Vehicle ${plate} is blacklisted at this property. Do not admit it.`, blacklisted: true });
+      }
+    }
+
     const accessCode = generateVisitorCode();
     const now = new Date();
 
@@ -216,7 +226,7 @@ router.post("/adhoc-pass", ...guard, async (req: any, res: any) => {
         status:            "checked_in" as any,
         actualArrival:     now as any,
         accessCode,
-        vehiclePlate:  vehiclePlate?.trim().toUpperCase() || null,
+        vehiclePlate:  plate,
         notes:         `adhoc_pass:true\ncreated_by_guard:${guardLabel}`,
         createdBy:     "00000000-0000-0000-0000-000000000000", // guard has no user UUID
       } as any)
@@ -274,25 +284,36 @@ router.post("/vehicle-log", ...guard, async (req: any, res: any) => {
     if (!["in", "out"].includes(direction)) {
       return res.status(400).json({ message: "direction must be 'in' or 'out'" });
     }
+    const plate = normalizePlate(plateNumber);
+    if (!isValidPlate(plate)) return res.status(400).json({ message: "Plate number can only contain letters and numbers (2–15 characters)." });
+    // A shift id must be this property's own — it used to be stored as sent.
+    let shiftRef: number | null = null;
+    if (shiftId) {
+      const [sh] = await db.select({ id: guardShifts.id }).from(guardShifts)
+        .where(and(eq(guardShifts.id, parseInt(shiftId)), eq(guardShifts.propertyId, propertyId))).limit(1);
+      shiftRef = sh?.id ?? null;
+    }
+    const blacklisted = await isBlacklisted(propertyId, plate);
 
     const [entry] = await db
       .insert(vehicleMovementLog)
       .values({
         propertyId,
-        shiftId:     shiftId ? parseInt(shiftId) : null,
-        plateNumber: plateNumber.trim().toUpperCase(),
+        shiftId:     shiftRef,
+        plateNumber: plate,
         vehicleType: vehicleType || "car",
         direction:   direction as "in" | "out",
         purpose:     purpose?.trim() || null,
         unitNumber:  unitNumber?.trim() || null,
         driverName:  driverName?.trim() || null,
-        notes:       notes?.trim() || null,
+        notes:       [blacklisted ? "BLACKLISTED VEHICLE" : null, notes?.trim() || null].filter(Boolean).join(" · ") || null,
         loggedAt:    new Date(),
         loggedBy:    guardLabel,
       } as any)
       .returning();
 
-    return res.status(201).json(entry);
+    // The movement is always recorded (it happened); the flag tells the guard to act on it.
+    return res.status(201).json({ ...entry, blacklisted });
   } catch (err) {
     logger.error("POST /api/guard/vehicle-log error:", err);
     return res.status(500).json({ message: "Failed to log vehicle movement" });
@@ -453,7 +474,7 @@ router.get("/gate-passes", ...guard, async (req: any, res: any) => {
         const rest = notes.split("\n").slice(1).join("\n").trim();
         notes = rest || null;
       }
-      return { ...r, passType, notes };
+      return { ...r, passType, notes, status: displayPassStatus(r.status, r.expectedDeparture) };
     });
 
     return res.json(passes);

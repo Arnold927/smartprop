@@ -13,6 +13,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { QrCode, Plus, UserCheck, Clock, CheckCircle, XCircle, Shield, Download, Trash2, Ban } from "lucide-react";
 import QRCode from "qrcode";
 import { useToast } from "@/hooks/use-toast";
+import { apiErrorMessage } from "@/lib/maintenance-flow";
 import { apiRequest, ensureArray } from "@/lib/queryClient";
 import { PageShell, PageHeader, SectionCard, SPBadge, EmptyState, PrimaryButton, SecondaryButton, FilterBar, SPTable, SPAvatar, StatTile, StatsGrid, KESAmount, ActionMenu, ConfirmDialog } from "@/components/ui/sp-ui";
 import { useRoleGuard, ROLES } from "@/hooks/useRoleGuard";
@@ -216,7 +217,7 @@ export default function VisitorManagement() {
       toast({ title: "Success", description: "Visitor access created with QR code" });
     },
     onError: (error: any) => {
-      toast({ title: "Error", description: error.message || "Failed to create visitor access", variant: "destructive" });
+      toast({ title: "Error", description: apiErrorMessage(error, "Failed to create visitor access"), variant: "destructive" });
     },
   });
 
@@ -235,7 +236,7 @@ export default function VisitorManagement() {
       toast({ title: "Success", description: "Visitor checked in successfully" });
     },
     onError: (error: any) => {
-      toast({ title: "Error", description: error.message || "Failed to check in visitor", variant: "destructive" });
+      toast({ title: "Error", description: apiErrorMessage(error, "Failed to check in visitor"), variant: "destructive" });
     },
   });
 
@@ -253,7 +254,7 @@ export default function VisitorManagement() {
       toast({ title: "Success", description: "Visitor checked out successfully" });
     },
     onError: (error: any) => {
-      toast({ title: "Error", description: error.message || "Failed to check out visitor", variant: "destructive" });
+      toast({ title: "Error", description: apiErrorMessage(error, "Failed to check out visitor"), variant: "destructive" });
     },
   });
 
@@ -271,7 +272,7 @@ export default function VisitorManagement() {
       toast({ title: "Success", description: "Visitor approved" });
     },
     onError: (error: any) => {
-      toast({ title: "Error", description: error.message || "Failed to approve visitor", variant: "destructive" });
+      toast({ title: "Error", description: apiErrorMessage(error, "Failed to approve visitor"), variant: "destructive" });
     },
   });
 
@@ -289,7 +290,7 @@ export default function VisitorManagement() {
       toast({ title: "Access Revoked", description: "Visitor access has been revoked" });
     },
     onError: (error: any) => {
-      toast({ title: "Error", description: error.message || "Failed to revoke access", variant: "destructive" });
+      toast({ title: "Error", description: apiErrorMessage(error, "Failed to revoke access"), variant: "destructive" });
     },
   });
 
@@ -307,7 +308,7 @@ export default function VisitorManagement() {
       toast({ title: "Deleted", description: "Visitor record deleted successfully" });
     },
     onError: (error: any) => {
-      toast({ title: "Error", description: error.message || "Failed to delete visitor record", variant: "destructive" });
+      toast({ title: "Error", description: apiErrorMessage(error, "Failed to delete visitor record"), variant: "destructive" });
     },
   });
 
@@ -643,7 +644,7 @@ export default function VisitorManagement() {
                           onClick: () => handleCheckOut(visitor.visitor_code),
                           disabled: checkOutVisitorMutation.isPending,
                         }] : []),
-                        ...((visitor.status === "approved" || visitor.status === "checked_in") ? [{
+                        ...((visitor.status === "pending" || visitor.status === "approved") ? [{
                           label: "Revoke Access", icon: <Ban className="h-4 w-4" />, destructive: true,
                           onClick: () => revokeVisitorMutation.mutate(visitor.visitor_code),
                           disabled: revokeVisitorMutation.isPending,
@@ -1070,7 +1071,7 @@ export default function VisitorManagement() {
                       <XCircle className="h-4 w-4 mr-1.5" /> Check Out
                     </Button>
                   )}
-                  {(detailsVisitor.status === "approved" || detailsVisitor.status === "checked_in") && (
+                  {(detailsVisitor.status === "pending" || detailsVisitor.status === "approved") && (
                     <Button size="sm" variant="outline" className="text-orange-600 border-orange-200 hover:bg-orange-50" onClick={() => { revokeVisitorMutation.mutate(detailsVisitor.visitor_code); setDetailsVisitor(null); }}>
                       <Ban className="h-4 w-4 mr-1.5" /> Revoke
                     </Button>

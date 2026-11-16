@@ -40,6 +40,7 @@ import { requireOrg } from "../middleware/requireOrg";
 import {
   requireActiveSubscription,
   enforcePropertyLimit,
+  enforceUnitLimit,
 } from "../middleware/billing";
 import { storage } from "../storage";
 import { rentCollectionSummary, rentCashRows } from "../services/rent-ledger";
@@ -69,6 +70,7 @@ const unitRouter = createCRUDRouter({
   table: units,
   insertSchema: insertUnitSchema as unknown as AnyZodObject,
   organizationScoped: true,
+  preCreateMiddleware: [requireActiveSubscription, enforceUnitLimit],
 });
 
 // ── Property Expenses Router ──────────────────────────────────────────────────

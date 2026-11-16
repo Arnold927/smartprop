@@ -31,6 +31,7 @@ import { properties, units, users, externalLandlords } from "@shared/schema";
 import { authenticateJWT } from "../middleware/auth";
 import { requireOrg } from "../middleware/requireOrg";
 import { requireActiveSubscription, enforcePropertyLimit } from "../middleware/billing";
+import { checkCanAdd } from "../services/plans";
 import { auditLog } from "../middleware/auditLog";
 
 const router = Router();
@@ -156,6 +157,10 @@ router.post(
         rowErrors,
       });
     }
+
+    // ── Unit limit: the whole batch must fit, otherwise nothing is created ──
+    const unitRoom = await checkCanAdd(orgId, "maxUnits", clean.length);
+    if (!unitRoom.ok) return res.status(unitRoom.status).json(unitRoom.body);
 
     try {
       // ── Owner ──

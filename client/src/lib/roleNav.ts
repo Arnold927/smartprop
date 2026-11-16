@@ -12,7 +12,7 @@ import {
   Shield, UserCog, Users2, Receipt, Building, FileText, Globe,
   ClipboardCheck, BookOpen, MessageCircle, MessageSquare, User,
   FolderOpen, CreditCard, Star, UserPlus, Droplets, Settings, Leaf,
-  Plane, Camera, CalendarDays,
+  Plane, Camera, CalendarDays, Layers,
 } from "lucide-react";
 
 export type UserRole = "admin" | "manager" | "landlord" | "staff" | "caretaker" | "tenant" | "guard" | "contractor";
@@ -406,6 +406,7 @@ const getPlatformAdminNav = (t: (k: string) => string): NavGroup[] => [
     label: t("nav.group_platform"),
     items: [
       { name: t("nav.organisations"), href: "/organisations", icon: Building },
+      { name: t("nav.plans"), href: "/plans", icon: Layers },
     ],
   },
 ];

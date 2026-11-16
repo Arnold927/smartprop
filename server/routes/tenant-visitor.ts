@@ -26,7 +26,8 @@ import {
   parkingAssignments,
   registeredVehicles,
 } from "@shared/schema";
-import { eq, and, desc, or, notExists } from "drizzle-orm";
+import { eq, and, desc, or, notExists, sql, count, inArray } from "drizzle-orm";
+import { checkInVisitor, checkOutVisitor, allocateVisitorParking, findVehicle, normalizePlate, isValidPlate, isBlacklisted, syncSpaceFlag } from "../services/gate-access";
 import { authenticateJWT } from "../middleware/auth";
 import { requireOrg } from "../middleware/requireOrg";
 import { authenticateGuard } from "./gate-pins";
@@ -38,68 +39,6 @@ import { sendVisitorInviteEmail } from "../lib/visitor-email";
 
 function generateVisitorCode(): string {
   return "VAC-" + crypto.randomBytes(3).toString("hex").toUpperCase();
-}
-
-/** Find first available visitor or standard parking space for a property.
- *
- * Uses a NOT EXISTS subquery against parking_assignments to derive real
- * occupancy from live assignment data — not the isAvailable flag, which can
- * drift out of sync when assignments are manually terminated or created
- * outside the check-in/checkout flow.
- */
-async function findAvailableSpace(propertyId: number): Promise<{ id: number; spaceNumber: string; floor?: string | null; section?: string | null } | null> {
-  const spaces = await db
-    .select({
-      id: parkingSpaces.id,
-      spaceNumber: parkingSpaces.spaceNumber,
-      floor: parkingSpaces.floor,
-      section: parkingSpaces.section,
-      spaceType: parkingSpaces.spaceType,
-    })
-    .from(parkingSpaces)
-    .where(
-      and(
-        eq(parkingSpaces.propertyId, propertyId),
-        eq(parkingSpaces.isReserved, false),
-        // A space is truly available only if it has no active assignment —
-        // regardless of what the isAvailable flag says.
-        notExists(
-          db
-            .select({ one: parkingAssignments.id })
-            .from(parkingAssignments)
-            .where(
-              and(
-                eq(parkingAssignments.parkingSpaceId, parkingSpaces.id),
-                eq(parkingAssignments.status, "active" as any),
-              )
-            )
-        ),
-      )
-    )
-    .limit(10);
-
-  // Prefer visitor-type spaces, then standard, then any available
-  const preferred = spaces.find((s) => s.spaceType === "visitor") ??
-                    spaces.find((s) => s.spaceType === "standard") ??
-                    spaces[0] ?? null;
-
-  return preferred ?? null;
-}
-
-/** Mark a parking space as occupied */
-async function markSpaceOccupied(spaceId: number): Promise<void> {
-  await db
-    .update(parkingSpaces)
-    .set({ isAvailable: false, updatedAt: new Date() as any })
-    .where(eq(parkingSpaces.id, spaceId));
-}
-
-/** Release a parking space */
-async function markSpaceAvailable(spaceId: number): Promise<void> {
-  await db
-    .update(parkingSpaces)
-    .set({ isAvailable: true, updatedAt: new Date() as any })
-    .where(eq(parkingSpaces.id, spaceId));
 }
 
 // ─── Routers ──────────────────────────────────────────────────────────────────
@@ -152,6 +91,21 @@ tenantVisitorRouter.post("/invite-visitor", ...auth, async (req: any, res: any) 
     }
     if (!visitPurpose?.trim()) return res.status(400).json({ message: "visitPurpose is required" });
     if (!expectedArrival)      return res.status(400).json({ message: "expectedArrival is required" });
+    const arrivalDate = new Date(expectedArrival);
+    if (isNaN(arrivalDate.getTime())) return res.status(400).json({ message: "Expected arrival is not a valid date" });
+    // Yesterday is allowed (a guest already on the way); further back is a typo, and the gate would reject the code anyway.
+    if (arrivalDate.getTime() < Date.now() - 24 * 3600_000) return res.status(400).json({ message: "Expected arrival is in the past. Choose today or a later date." });
+    let departureDate: Date | null = null;
+    if (expectedDeparture) {
+      departureDate = new Date(expectedDeparture);
+      if (isNaN(departureDate.getTime())) return res.status(400).json({ message: "Expected departure is not a valid date" });
+      if (departureDate.getTime() < arrivalDate.getTime()) return res.status(400).json({ message: "Expected departure can't be before the arrival." });
+    }
+    let plate: string | null = null;
+    if (vehiclePlate?.trim()) {
+      plate = normalizePlate(vehiclePlate);
+      if (!isValidPlate(plate)) return res.status(400).json({ message: "Vehicle plate can only contain letters and numbers (2–15 characters)." });
+    }
 
     // ── Resolve tenant → unit → property ─────────────────────────────────────
     const [tenantRow] = await db
@@ -160,6 +114,7 @@ tenantVisitorRouter.post("/invite-visitor", ...auth, async (req: any, res: any) 
         firstName: tenants.firstName,
         lastName: tenants.lastName,
         unitId: tenants.unitId,
+        status: tenants.status,
         unitNumber: units.unitNumber,
         propertyId: units.propertyId,
         propertyName: properties.name,
@@ -174,11 +129,21 @@ tenantVisitorRouter.post("/invite-visitor", ...auth, async (req: any, res: any) 
     if (!tenantRow || !tenantRow.propertyId) {
       return res.status(403).json({ message: "Tenant profile not found or not linked to a unit" });
     }
+    // A tenant who has moved out (or whose tenancy ended) can no longer invite people to the building.
+    if (tenantRow.status && tenantRow.status !== "active") {
+      return res.status(403).json({ message: "Your tenancy is no longer active, so you can't invite visitors." });
+    }
+    // Stop one account from filling the gate list (and a lot of inboxes): cap invitations still waiting to be used.
+    const [waiting] = await db.select({ n: count() }).from(visitors)
+      .where(and(eq(visitors.tenantId, tenantRow.id), inArray(visitors.status, ["pending", "approved"] as any), sql`${visitors.expectedArrival} > NOW() - INTERVAL '1 day'`));
+    if (Number(waiting?.n ?? 0) >= 30) {
+      return res.status(429).json({ message: "You already have 30 visitor invitations waiting. Cancel some, or wait until they have been used." });
+    }
 
     const propertyId = tenantRow.propertyId;
     const hostTenantName = `${tenantRow.firstName} ${tenantRow.lastName}`.trim();
 
-    const hasVehicle = !!vehiclePlate?.trim();
+    const hasVehicle = !!plate;
 
     // ── Create visitor record — retry on the rare accessCode collision ───────
     // accessCode now has a real unique constraint (previously none existed,
@@ -202,12 +167,12 @@ tenantVisitorRouter.post("/invite-visitor", ...auth, async (req: any, res: any) 
             visitorEmail: visitorEmail?.trim() ? visitorEmail.trim().toLowerCase() : null,
             idNumber: visitorIdNumber?.trim() || null,
             purposeOfVisit: visitPurpose.trim(),
-            expectedArrival: new Date(expectedArrival),
-            expectedDeparture: expectedDeparture ? new Date(expectedDeparture) : null,
+            expectedArrival: arrivalDate,
+            expectedDeparture: departureDate,
             status: "pending" as any,
             accessCode,
-            vehiclePlate: vehiclePlate?.trim().toUpperCase() || null,
-            notes: `access_method:qr_code\nvehicle:${hasVehicle ? vehiclePlate.trim().toUpperCase() : "none"}`,
+            vehiclePlate: plate,
+            notes: `access_method:qr_code\nvehicle:${plate ?? "none"}`,
             createdBy: userId,
           } as any)
           .returning();
@@ -228,8 +193,8 @@ tenantVisitorRouter.post("/invite-visitor", ...auth, async (req: any, res: any) 
           propertyId,
           ownerId: visitorEmail?.trim() ? visitorEmail.trim().toLowerCase() : (visitorPhone?.trim() || accessCode),
           ownerType: "visitor" as any,
-          plateNumber: vehiclePlate.trim().toUpperCase(),
-          vehicleType: vehicleType || "car",
+          plateNumber: plate!,
+          vehicleType: ["car", "motorcycle", "truck", "van", "bicycle"].includes(String(vehicleType).toLowerCase()) ? String(vehicleType).toLowerCase() : "car",
           make: vehicleMake.trim(),
           model: vehicleModel.trim(),
           color: vehicleColor.trim(),
@@ -255,8 +220,8 @@ tenantVisitorRouter.post("/invite-visitor", ...auth, async (req: any, res: any) 
         propertyAddress: tenantRow.propertyAddress ?? null,
         hostTenantName,
         hostUnitNumber: tenantRow.unitNumber ?? null,
-        expectedArrival: new Date(expectedArrival),
-        expectedDeparture: expectedDeparture ? new Date(expectedDeparture) : null,
+        expectedArrival: arrivalDate,
+        expectedDeparture: departureDate,
         visitPurpose: visitPurpose.trim(),
         hasVehicle,
       });
@@ -443,175 +408,14 @@ guestCheckinRouter.post("/scan", ...guardAuth, async (req: any, res: any) => {
       });
     }
 
-    // ── Status guards ─────────────────────────────────────────────────────────
-    if (visitor.status === "checked_in") {
-      return res.status(409).json({
-        success: false,
-        message: "This visitor is already checked in.",
-        visitor,
-      });
+    // ── Check in (status rules, expiry, blacklist, parking — see services/gate-access.ts) ─────────────
+    const [full] = await db.select().from(visitors).where(eq(visitors.id, visitor.id)).limit(1);
+    const result = await checkInVisitor(full, safeUuid(req.user.id), location, code.trim().toUpperCase().startsWith("VAC") ? "access code" : "QR scan");
+    if (!result.ok) {
+      return res.status(result.httpStatus).json({ success: false, message: result.message, visitor: result.visitor ?? visitor });
     }
-    if (visitor.status === "denied" || visitor.status === "expired") {
-      return res.status(403).json({
-        success: false,
-        message: `Access denied — visitor status is "${visitor.status}".`,
-        visitor,
-      });
-    }
-    if (visitor.status === "checked_out") {
-      return res.status(409).json({
-        success: false,
-        message: "This visitor has already checked out.",
-        visitor,
-      });
-    }
-
-    // ── QR expiry check ───────────────────────────────────────────────────────
-    // Reject if visitor had an expected departure that has already passed
-    if (visitor.expectedDeparture && new Date(visitor.expectedDeparture) < new Date()) {
-      // Mark as expired in DB
-      await db
-        .update(visitors)
-        .set({ status: "expired" as any, updatedAt: new Date() as any })
-        .where(eq(visitors.id, visitor.id));
-      return res.status(403).json({
-        success: false,
-        message: `This access code expired on ${new Date(visitor.expectedDeparture).toLocaleString("en-KE")}. Ask the tenant to send a new invitation.`,
-        visitor: { ...visitor, status: "expired" },
-      });
-    }
-
-    // Reject if the expected arrival date was more than 24 hours ago and visitor is still pending
-    if (visitor.status === "pending" && visitor.expectedArrival) {
-      const cutoff = new Date(visitor.expectedArrival);
-      cutoff.setHours(cutoff.getHours() + 24);
-      if (cutoff < new Date()) {
-        await db
-          .update(visitors)
-          .set({ status: "expired" as any, updatedAt: new Date() as any })
-          .where(eq(visitors.id, visitor.id));
-        return res.status(403).json({
-          success: false,
-          message: "This access code has expired (visit window passed). Ask the tenant to send a new invitation.",
-          visitor: { ...visitor, status: "expired" },
-        });
-      }
-    }
-
-    // ── Do check-in ───────────────────────────────────────────────────────────
-    await db
-      .update(visitors)
-      .set({
-        status: "checked_in" as any,
-        actualArrival: new Date() as any,
-        checkedInBy: safeUuid(req.user.id),
-        updatedAt: new Date() as any,
-      })
-      .where(eq(visitors.id, visitor.id));
-
-    // ── Log the check-in ──────────────────────────────────────────────────────
-    await db.insert(visitorLog).values({
-      visitorId: visitor.id,
-      logType: "check_in",
-      location,
-      notes: `Checked in via ${code.startsWith("VAC") ? "access code" : "QR scan"} at ${location}`,
-    } as any);
-
-    // ── Auto-allocate parking ─────────────────────────────────────────────────
-    let parkingResult: {
-      allocated: boolean;
-      requiresManual: boolean;
-      spaceNumber?: string;
-      floor?: string | null;
-      section?: string | null;
-      spaceId?: number;
-      assignmentId?: number;
-    } = { allocated: false, requiresManual: false };
-
-    const hasVehicle = !!visitor.vehiclePlate;
-
-    if (hasVehicle) {
-      const space = await findAvailableSpace(visitor.propertyId);
-
-      if (space) {
-        // Auto-assign
-        await markSpaceOccupied(space.id);
-
-        // Update visitor record with parking spot
-        await db
-          .update(visitors)
-          .set({ parkingSpot: space.spaceNumber, updatedAt: new Date() as any })
-          .where(eq(visitors.id, visitor.id));
-
-        // Find or create vehicle record
-        let vehicleId: number | null = null;
-        const [existingVehicle] = await db
-          .select({ id: registeredVehicles.id })
-          .from(registeredVehicles)
-          .where(eq(registeredVehicles.plateNumber, visitor.vehiclePlate!))
-          .limit(1);
-
-        if (existingVehicle) {
-          vehicleId = existingVehicle.id;
-          // Activate vehicle on entry
-          await db
-            .update(registeredVehicles)
-            .set({ status: "active" as any, updatedAt: new Date() as any })
-            .where(eq(registeredVehicles.id, vehicleId));
-        } else {
-          // Create minimal vehicle record on the fly
-          const [newVehicle] = await db
-            .insert(registeredVehicles)
-            .values({
-              propertyId: visitor.propertyId,
-              ownerType: "visitor" as any,
-              plateNumber: visitor.vehiclePlate!,
-              vehicleType: "car",
-              make: "Unknown",
-              model: "Unknown",
-              color: "Unknown",
-              isResident: false,
-              status: "active" as any,
-              notes: `Auto-created at check-in. Visitor code: ${code}`,
-            } as any)
-            .returning({ id: registeredVehicles.id });
-          vehicleId = newVehicle?.id ?? null;
-        }
-
-        // Create parking assignment
-        let assignmentId: number | undefined;
-        if (vehicleId) {
-          const [assignment] = await db
-            .insert(parkingAssignments)
-            .values({
-              parkingSpaceId: space.id,
-              vehicleId,
-              tenantId: visitor.tenantId ?? null,
-              assignmentType: "visitor" as any,
-              startDate: new Date(),
-              endDate: visitor.expectedDeparture ?? null,
-              status: "active" as any,
-              assignedBy: safeUuid(req.user.id) ?? "00000000-0000-0000-0000-000000000000",
-              notes: `Auto-allocated at visitor check-in. Code: ${code}`,
-            } as any)
-            .returning({ id: parkingAssignments.id });
-          assignmentId = assignment?.id;
-        }
-
-        parkingResult = {
-          allocated: true,
-          requiresManual: false,
-          spaceNumber: space.spaceNumber,
-          floor: space.floor,
-          section: space.section,
-          spaceId: space.id,
-          assignmentId,
-        };
-      } else {
-        // No space found — guard must manually assign
-        parkingResult = { allocated: false, requiresManual: true };
-      }
-    }
+    const parking = result.parking;
+    const hasVehicle = !!result.visitor.vehiclePlate;
 
     return res.json({
       success: true,
@@ -620,10 +424,10 @@ guestCheckinRouter.post("/scan", ...guardAuth, async (req: any, res: any) => {
         ...visitor,
         status: "checked_in",
         actualArrival: new Date().toISOString(),
-        parkingSpot: parkingResult.allocated ? parkingResult.spaceNumber : visitor.parkingSpot,
+        parkingSpot: parking.allocated ? parking.spaceNumber : result.visitor.parkingSpot ?? visitor.parkingSpot,
       },
       hasVehicle,
-      parking: parkingResult,
+      parking,
     });
   } catch (err) {
     console.error("POST /api/guest-checkin/scan error:", err);
@@ -693,120 +497,129 @@ guestCheckinRouter.get("/spaces", ...guardAuth, async (req: any, res: any) => {
 });
 
 // ══════════════════════════════════════════════════════════════════════════════
+// GUARD: POST /api/guest-checkin/vehicle
+// The guard writes down the plate of a visitor's car at the gate (walk-in, or different from the invitation).
+// Body: { code, plate, vehicleType?, make?, model?, color? }
+// Before this existed the portal saved the vehicle but never put the plate on the visit, so no parking assignment
+// was ever created for it and the space it was given was never released.
+// ══════════════════════════════════════════════════════════════════════════════
+const VEHICLE_TYPES_OK = ["car", "motorcycle", "truck", "van", "bicycle"];
+
+async function scopedVisitorForGuard(req: any, code: string) {
+  const [visitor] = await db.select().from(visitors).where(eq(visitors.accessCode, String(code).trim().toUpperCase())).limit(1);
+  if (!visitor) return null;
+  if (req.user.role === "guard") {
+    if (!req.user.propertyId || visitor.propertyId !== req.user.propertyId) return null;
+  } else {
+    const [prop] = await db.select({ organizationId: properties.organizationId }).from(properties).where(eq(properties.id, visitor.propertyId)).limit(1);
+    if (!prop || prop.organizationId !== req.user.organizationId) return null;
+  }
+  return visitor;
+}
+
+guestCheckinRouter.post("/vehicle", ...guardAuth, async (req: any, res: any) => {
+  try {
+    const { code, plate: rawPlate, vehicleType, make, model, color } = req.body ?? {};
+    if (!code) return res.status(400).json({ message: "Access code is required" });
+    const plate = normalizePlate(rawPlate);
+    if (!isValidPlate(plate)) return res.status(400).json({ message: "Enter the plate number (letters and numbers only)." });
+
+    const visitor = await scopedVisitorForGuard(req, code);
+    if (!visitor) return res.status(404).json({ message: "Visitor not found" });
+    if (visitor.status !== "checked_in") return res.status(409).json({ message: "Check the visitor in before adding their vehicle." });
+
+    if (await isBlacklisted(visitor.propertyId, plate)) {
+      return res.status(403).json({ message: `Vehicle ${plate} is blacklisted at this property. Do not admit it.`, blacklisted: true });
+    }
+
+    // register / refresh the vehicle record for this property
+    const type = VEHICLE_TYPES_OK.includes(String(vehicleType).toLowerCase()) ? String(vehicleType).toLowerCase() : "car";
+    const clean = (v: any) => (typeof v === "string" && v.trim() ? v.trim().slice(0, 40) : null);
+    const existing = await findVehicle(visitor.propertyId, plate);
+    if (!existing) {
+      await db.insert(registeredVehicles).values({
+        propertyId: visitor.propertyId, ownerType: "visitor" as any, plateNumber: plate, vehicleType: type,
+        make: clean(make) ?? "Unknown", model: clean(model) ?? "Unknown", color: clean(color) ?? "Unknown",
+        isResident: false, status: "active" as any, notes: `Captured at gate. Visitor code: ${visitor.accessCode}`,
+      } as any).onConflictDoNothing();
+    }
+
+    const changedPlate = normalizePlate(visitor.vehiclePlate) !== plate;
+    if (changedPlate) {
+      // the plate on the visit changed — let go of any bay given to the old one
+      const { releaseVisitorParking } = await import("../services/gate-access");
+      await releaseVisitorParking(visitor);
+      await db.update(visitors).set({ vehiclePlate: plate, parkingSpot: null, updatedAt: new Date() as any }).where(eq(visitors.id, visitor.id));
+    }
+    const fresh = { ...visitor, vehiclePlate: plate };
+    const parking = await allocateVisitorParking(fresh as any, safeUuid(req.user.id), `Allocated after vehicle captured at gate. Code: ${visitor.accessCode}`)
+      .catch(() => ({ allocated: false, requiresManual: true } as any));
+    return res.json({ success: true, plate, parking });
+  } catch (err) {
+    console.error("POST /api/guest-checkin/vehicle error:", err);
+    return res.status(500).json({ message: "Could not save the vehicle" });
+  }
+});
+
+// ══════════════════════════════════════════════════════════════════════════════
 // GUARD: POST /api/guest-checkin/assign-space
 // Manual parking space assignment after auto-allocation failed
 // Body: { visitorCode, spaceId }
 // ══════════════════════════════════════════════════════════════════════════════
 guestCheckinRouter.post("/assign-space", ...guardAuth, async (req: any, res: any) => {
   try {
-    const { visitorCode, spaceId } = req.body;
+    const { visitorCode, spaceId } = req.body ?? {};
+    if (!visitorCode || !spaceId) return res.status(400).json({ message: "visitorCode and spaceId are required" });
 
-    if (!visitorCode || !spaceId) {
-      return res.status(400).json({ message: "visitorCode and spaceId are required" });
-    }
-
-    const [visitor] = await db
-      .select()
-      .from(visitors)
-      .where(eq(visitors.accessCode, visitorCode.trim().toUpperCase()))
-      .limit(1);
-
+    const visitor = await scopedVisitorForGuard(req, visitorCode);
     if (!visitor) return res.status(404).json({ message: "Visitor not found" });
+    if (visitor.status !== "checked_in") return res.status(409).json({ message: "Check the visitor in before giving them a parking space." });
+    const plate = normalizePlate(visitor.vehiclePlate);
+    if (!plate) return res.status(400).json({ message: "This visitor has no vehicle plate yet. Enter the plate first." });
+    if (await isBlacklisted(visitor.propertyId, plate)) return res.status(403).json({ message: `Vehicle ${plate} is blacklisted at this property.` });
 
-    // Same scoping rule as /scan — previously unchecked, so a guard (or an
-    // admin/manager token) could assign parking for a visitor invited to a
-    // completely different property.
-    if (req.user.role === "guard") {
-      if (!req.user.propertyId || visitor.propertyId !== req.user.propertyId) {
-        return res.status(404).json({ message: "Visitor not found" });
+    const out = await db.transaction(async (tx) => {
+      // lock the bay so two guards can't give it to two cars
+      const [space] = await tx.select().from(parkingSpaces)
+        .where(and(eq(parkingSpaces.id, parseInt(spaceId)), eq(parkingSpaces.propertyId, visitor.propertyId), eq(parkingSpaces.isReserved, false)))
+        .for("update");
+      if (!space) return { status: 409, message: "Space is not available — it may be reserved or at another property." };
+      const [busy] = await tx.select({ id: parkingAssignments.id }).from(parkingAssignments)
+        .where(and(eq(parkingAssignments.parkingSpaceId, space.id), eq(parkingAssignments.status, "active" as any))).limit(1);
+      if (busy) return { status: 409, message: "Space is not available — it may already be occupied" };
+
+      let vehicle = await findVehicle(visitor.propertyId, plate, tx);
+      if (!vehicle) {
+        await tx.insert(registeredVehicles).values({
+          propertyId: visitor.propertyId, ownerType: "visitor" as any, plateNumber: plate, vehicleType: "car",
+          make: "Unknown", model: "Unknown", color: "Unknown", isResident: false, status: "active" as any,
+          notes: `Auto-created when parking was assigned. Visitor code: ${visitor.accessCode}`,
+        } as any).onConflictDoNothing();
+        vehicle = await findVehicle(visitor.propertyId, plate, tx);
       }
-    } else {
-      const [prop] = await db.select({ organizationId: properties.organizationId }).from(properties).where(eq(properties.id, visitor.propertyId)).limit(1);
-      if (!prop || prop.organizationId !== req.user.organizationId) {
-        return res.status(404).json({ message: "Visitor not found" });
+      if (!vehicle) return { status: 500, message: "Could not register the vehicle" };
+
+      // this car already has a bay → move it: end the old assignment first
+      const old = await tx.select({ id: parkingAssignments.id, spaceId: parkingAssignments.parkingSpaceId }).from(parkingAssignments)
+        .where(and(eq(parkingAssignments.vehicleId, vehicle.id), eq(parkingAssignments.status, "active" as any), eq(parkingAssignments.assignmentType, "visitor" as any)));
+      for (const o of old) {
+        await tx.update(parkingAssignments).set({ status: "terminated" as any, endDate: new Date() as any, updatedAt: new Date() as any }).where(eq(parkingAssignments.id, o.id));
+        await syncSpaceFlag(tx, o.spaceId);
       }
-    }
 
-    // Check the space exists, belongs to the SAME property as the visitor,
-    // and has no active assignment (not just the flag) — previously the
-    // space's property was never checked at all, so a space from a totally
-    // different property could be assigned to this visitor.
-    const [space] = await db
-      .select()
-      .from(parkingSpaces)
-      .where(
-        and(
-          eq(parkingSpaces.id, parseInt(spaceId)),
-          eq(parkingSpaces.propertyId, visitor.propertyId),
-          eq(parkingSpaces.isReserved, false),
-          notExists(
-            db
-              .select({ one: parkingAssignments.id })
-              .from(parkingAssignments)
-              .where(
-                and(
-                  eq(parkingAssignments.parkingSpaceId, parkingSpaces.id),
-                  eq(parkingAssignments.status, "active" as any),
-                )
-              )
-          ),
-        )
-      )
-      .limit(1);
-
-    if (!space) return res.status(409).json({ message: "Space is not available — it may already be occupied" });
-
-    await markSpaceOccupied(space.id);
-
-    await db
-      .update(visitors)
-      .set({ parkingSpot: space.spaceNumber, updatedAt: new Date() as any })
-      .where(eq(visitors.id, visitor.id));
-
-    // Find vehicle
-    let vehicleId: number | null = null;
-    if (visitor.vehiclePlate) {
-      const [v] = await db
-        .select({ id: registeredVehicles.id })
-        .from(registeredVehicles)
-        .where(eq(registeredVehicles.plateNumber, visitor.vehiclePlate))
-        .limit(1);
-      vehicleId = v?.id ?? null;
-    }
-
-    let assignmentId: number | null = null;
-    if (vehicleId) {
-      const [a] = await db
-        .insert(parkingAssignments)
-        .values({
-          parkingSpaceId: space.id,
-          vehicleId,
-          tenantId: visitor.tenantId ?? null,
-          assignmentType: "visitor" as any,
-          startDate: new Date(),
-          endDate: visitor.expectedDeparture ?? null,
-          status: "active" as any,
-          assignedBy: safeUuid(req.user.id) ?? "00000000-0000-0000-0000-000000000000",
-          notes: `Manually assigned by guard. Visitor code: ${visitorCode}`,
-        } as any)
-        .returning({ id: parkingAssignments.id });
-      assignmentId = a?.id ?? null;
-    }
-
-    await db.insert(visitorLog).values({
-      visitorId: visitor.id,
-      logType: "status_change",
-      location: space.spaceNumber,
-      notes: `Parking manually assigned to space ${space.spaceNumber} by guard`,
-    } as any);
-
-    return res.json({
-      success: true,
-      spaceNumber: space.spaceNumber,
-      floor: space.floor,
-      section: space.section,
-      assignmentId,
+      const [a] = await tx.insert(parkingAssignments).values({
+        parkingSpaceId: space.id, vehicleId: vehicle.id, tenantId: visitor.tenantId ?? null, assignmentType: "visitor" as any,
+        startDate: new Date(), endDate: visitor.expectedDeparture ?? null, status: "active" as any,
+        assignedBy: safeUuid(req.user.id) ?? "00000000-0000-0000-0000-000000000000",
+        notes: `Manually assigned by guard. Visitor code: ${visitor.accessCode}`,
+      } as any).returning({ id: parkingAssignments.id });
+      await syncSpaceFlag(tx, space.id);
+      await tx.update(visitors).set({ parkingSpot: space.spaceNumber, updatedAt: new Date() as any }).where(eq(visitors.id, visitor.id));
+      await tx.insert(visitorLog).values({ visitorId: visitor.id, logType: "status_change", location: space.spaceNumber, notes: `Parking manually assigned to space ${space.spaceNumber} by guard` } as any);
+      return { status: 200, body: { success: true, spaceNumber: space.spaceNumber, floor: space.floor, section: space.section, assignmentId: a?.id ?? null } };
     });
+    if (out.status !== 200) return res.status(out.status).json({ message: (out as any).message });
+    return res.json((out as any).body);
   } catch (err) {
     console.error("POST /api/guest-checkin/assign-space error:", err);
     return res.status(500).json({ message: "Failed to assign parking space" });
@@ -819,82 +632,12 @@ guestCheckinRouter.post("/assign-space", ...guardAuth, async (req: any, res: any
 // ══════════════════════════════════════════════════════════════════════════════
 guestCheckinRouter.post("/checkout", ...guardAuth, async (req: any, res: any) => {
   try {
-    const { code, location = "Main Gate" } = req.body;
-
+    const { code, location = "Main Gate" } = req.body ?? {};
     if (!code?.trim()) return res.status(400).json({ message: "Access code is required" });
-
-    const [visitor] = await db
-      .select()
-      .from(visitors)
-      .where(eq(visitors.accessCode, code.trim().toUpperCase()))
-      .limit(1);
-
+    const visitor = await scopedVisitorForGuard(req, code);
     if (!visitor) return res.status(404).json({ message: "Visitor not found" });
-
-    // Same scoping rule as /scan and /assign-space.
-    if (req.user.role === "guard") {
-      if (!req.user.propertyId || visitor.propertyId !== req.user.propertyId) {
-        return res.status(404).json({ message: "Visitor not found" });
-      }
-    } else {
-      const [prop] = await db.select({ organizationId: properties.organizationId }).from(properties).where(eq(properties.id, visitor.propertyId)).limit(1);
-      if (!prop || prop.organizationId !== req.user.organizationId) {
-        return res.status(404).json({ message: "Visitor not found" });
-      }
-    }
-
-    if (visitor.status !== "checked_in") {
-      return res.status(409).json({ message: `Visitor status is "${visitor.status}", not checked_in` });
-    }
-
-    await db
-      .update(visitors)
-      .set({
-        status: "checked_out" as any,
-        actualDeparture: new Date() as any,
-        checkedOutBy: safeUuid(req.user.id),
-        updatedAt: new Date() as any,
-      })
-      .where(eq(visitors.id, visitor.id));
-
-    // Release parking space
-    if (visitor.vehiclePlate) {
-      const [vehicle] = await db
-        .select({ id: registeredVehicles.id })
-        .from(registeredVehicles)
-        .where(eq(registeredVehicles.plateNumber, visitor.vehiclePlate))
-        .limit(1);
-
-      if (vehicle) {
-        // Terminate parking assignment
-        const activeAssignments = await db
-          .select({ id: parkingAssignments.id, spaceId: parkingAssignments.parkingSpaceId })
-          .from(parkingAssignments)
-          .where(
-            and(
-              eq(parkingAssignments.vehicleId, vehicle.id),
-              eq(parkingAssignments.status, "active" as any),
-            )
-          );
-
-        for (const assignment of activeAssignments) {
-          await db
-            .update(parkingAssignments)
-            .set({ status: "terminated" as any, endDate: new Date() as any, updatedAt: new Date() as any })
-            .where(eq(parkingAssignments.id, assignment.id));
-
-          await markSpaceAvailable(assignment.spaceId);
-        }
-      }
-    }
-
-    await db.insert(visitorLog).values({
-      visitorId: visitor.id,
-      logType: "check_out",
-      location,
-      notes: `Checked out at ${location}`,
-    } as any);
-
+    const result = await checkOutVisitor(visitor, safeUuid(req.user.id), location);
+    if (!result.ok) return res.status(result.httpStatus).json({ message: result.message });
     return res.json({ success: true, message: "Visitor checked out successfully" });
   } catch (err) {
     console.error("POST /api/guest-checkin/checkout error:", err);
