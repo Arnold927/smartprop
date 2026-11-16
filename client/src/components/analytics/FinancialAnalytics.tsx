@@ -1,3 +1,4 @@
+import { AnimatedNumber } from "@/components/ui/motion";
 import { useQuery } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -44,7 +45,7 @@ export function FinancialAnalytics({ timeframe = '30d', propertyId }: FinancialA
  <div className="flex items-center justify-between">
  <div>
  <p className="text-sm font-medium text-muted-foreground">Total Revenue</p>
- <p className="text-2xl font-bold text-foreground">KES {Number(data.totalRevenue ?? 0).toLocaleString()}</p>
+ <p className="text-2xl font-bold text-foreground"><AnimatedNumber value={`KES ${Number(data.totalRevenue ?? 0).toLocaleString()}`} /></p>
  <div className="flex items-center mt-1">
  <TrendingUp className="h-4 w-4 text-green-600 mr-1" />
  <span className={`text-sm ${(data.revenueTrend ?? "0").startsWith("-") ? "text-red-600" : "text-green-600"}`}>{data.revenueTrend ?? "—"}%</span>
@@ -60,7 +61,7 @@ export function FinancialAnalytics({ timeframe = '30d', propertyId }: FinancialA
  <div className="flex items-center justify-between">
  <div>
  <p className="text-sm font-medium text-muted-foreground">Net Income</p>
- <p className="text-2xl font-bold text-foreground">KES {Number(data.netIncome ?? 0).toLocaleString()}</p>
+ <p className="text-2xl font-bold text-foreground"><AnimatedNumber value={`KES ${Number(data.netIncome ?? 0).toLocaleString()}`} /></p>
  <div className="flex items-center mt-1">
  <TrendingUp className="h-4 w-4 text-green-600 mr-1" />
  <span className={`text-sm ${Number(data.netIncome ?? 0) >= 0 ? "text-green-600" : "text-red-600"}`}>{data.profitMargin ?? 0}% margin</span>
@@ -76,7 +77,7 @@ export function FinancialAnalytics({ timeframe = '30d', propertyId }: FinancialA
  <div className="flex items-center justify-between">
  <div>
  <p className="text-sm font-medium text-muted-foreground">Profit Margin</p>
- <p className="text-2xl font-bold text-foreground">{data.profitMargin}%</p>
+ <p className="text-2xl font-bold text-foreground"><AnimatedNumber value={`${data.profitMargin}%`} /></p>
  <p className={`text-sm ${Number(data.profitMargin ?? 0) >= 60 ? "text-green-600" : Number(data.profitMargin ?? 0) >= 30 ? "text-amber-600" : "text-red-600"}`}>{Number(data.profitMargin ?? 0) >= 60 ? "Excellent" : Number(data.profitMargin ?? 0) >= 30 ? "Good" : "Needs attention"}</p>
  </div>
  <TrendingUp className="h-8 w-8 text-purple-600" />
@@ -90,7 +91,7 @@ export function FinancialAnalytics({ timeframe = '30d', propertyId }: FinancialA
  <div className="flex items-center justify-between">
  <div>
  <p className="text-sm font-medium text-muted-foreground">Collection Rate</p>
- <p className="text-2xl font-bold text-foreground">{data.collectionRate}%</p>
+ <p className="text-2xl font-bold text-foreground"><AnimatedNumber value={`${data.collectionRate}%`} /></p>
  <p className="text-sm text-green-600">Above target</p>
  </div>
  <CreditCard className="h-8 w-8 text-orange-600" />
@@ -221,28 +222,28 @@ export function FinancialAnalytics({ timeframe = '30d', propertyId }: FinancialA
  <div className="flex items-center justify-center mb-2">
  <TrendingUp className="h-8 w-8 text-green-600" />
  </div>
- <p className="text-2xl font-bold text-foreground">KES {data.cashFlow.inflow.toLocaleString()}</p>
+ <p className="text-2xl font-bold text-foreground"><AnimatedNumber value={`KES ${data.cashFlow.inflow.toLocaleString()}`} /></p>
  <p className="text-sm text-muted-foreground">Cash Inflow</p>
  </div>
  <div className="text-center">
  <div className="flex items-center justify-center mb-2">
  <TrendingDown className="h-8 w-8 text-red-600" />
  </div>
- <p className="text-2xl font-bold text-foreground">KES {data.cashFlow.outflow.toLocaleString()}</p>
+ <p className="text-2xl font-bold text-foreground"><AnimatedNumber value={`KES ${data.cashFlow.outflow.toLocaleString()}`} /></p>
  <p className="text-sm text-muted-foreground">Cash Outflow</p>
  </div>
  <div className="text-center">
  <div className="flex items-center justify-center mb-2">
  <DollarSign className="h-8 w-8 text-blue-600" />
  </div>
- <p className="text-2xl font-bold text-foreground">KES {data.cashFlow.netCashFlow.toLocaleString()}</p>
+ <p className="text-2xl font-bold text-foreground"><AnimatedNumber value={`KES ${data.cashFlow.netCashFlow.toLocaleString()}`} /></p>
  <p className="text-sm text-muted-foreground">Net Cash Flow</p>
  </div>
  <div className="text-center">
  <div className="flex items-center justify-center mb-2">
  <AlertTriangle className="h-8 w-8 text-orange-600" />
  </div>
- <p className="text-2xl font-bold text-foreground">KES {data.cashFlow.burnRate.toLocaleString()}</p>
+ <p className="text-2xl font-bold text-foreground"><AnimatedNumber value={`KES ${data.cashFlow.burnRate.toLocaleString()}`} /></p>
  <p className="text-sm text-muted-foreground">Daily Burn Rate</p>
  </div>
  </div>
@@ -258,15 +259,15 @@ export function FinancialAnalytics({ timeframe = '30d', propertyId }: FinancialA
  <CardContent>
  <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
  <div className="text-center p-4 bg-blue-50 rounded-lg">
- <p className="text-2xl font-bold text-blue-600">{data.kpis.roi}%</p>
+ <p className="text-2xl font-bold text-blue-600"><AnimatedNumber value={`${data.kpis.roi}%`} /></p>
  <p className="text-sm text-muted-foreground">Return on Investment</p>
  </div>
  <div className="text-center p-4 bg-green-50 rounded-lg">
- <p className="text-2xl font-bold text-green-600">{data.kpis.capRate}%</p>
+ <p className="text-2xl font-bold text-green-600"><AnimatedNumber value={`${data.kpis.capRate}%`} /></p>
  <p className="text-sm text-muted-foreground">Cap Rate</p>
  </div>
  <div className="text-center p-4 bg-purple-50 rounded-lg">
- <p className="text-2xl font-bold text-purple-600">{data.kpis.grossYield}%</p>
+ <p className="text-2xl font-bold text-purple-600"><AnimatedNumber value={`${data.kpis.grossYield}%`} /></p>
  <p className="text-sm text-muted-foreground">Gross Yield</p>
  </div>
  <div className="text-center p-4 bg-orange-50 rounded-lg">

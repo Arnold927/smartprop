@@ -1,3 +1,4 @@
+import { AnimatedNumber } from "@/components/ui/motion";
 import { useQuery } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -43,7 +44,7 @@ export function TenantAnalytics({ timeframe = '30d' }: TenantAnalyticsProps) {
  <div className="flex items-center justify-between">
  <div>
  <p className="text-sm font-medium text-muted-foreground">Total Tenants</p>
- <p className="text-2xl font-bold text-foreground">{data.totalTenants}</p>
+ <p className="text-2xl font-bold text-foreground"><AnimatedNumber value={`${data.totalTenants}`} /></p>
  <p className="text-sm text-green-600">+{data.newTenants} this month</p>
  </div>
  <Calendar className="h-8 w-8 text-blue-600" />
@@ -56,7 +57,7 @@ export function TenantAnalytics({ timeframe = '30d' }: TenantAnalyticsProps) {
  <div className="flex items-center justify-between">
  <div>
  <p className="text-sm font-medium text-muted-foreground">Payment Performance</p>
- <p className="text-2xl font-bold text-foreground">{data.paymentPerformance}%</p>
+ <p className="text-2xl font-bold text-foreground"><AnimatedNumber value={`${data.paymentPerformance}%`} /></p>
  <p className="text-sm text-green-600">On-time payments</p>
  </div>
  <CreditCard className="h-8 w-8 text-green-600" />
@@ -70,7 +71,7 @@ export function TenantAnalytics({ timeframe = '30d' }: TenantAnalyticsProps) {
  <div className="flex items-center justify-between">
  <div>
  <p className="text-sm font-medium text-muted-foreground">Satisfaction Score</p>
- <p className="text-2xl font-bold text-foreground">{data.satisfactionScore}/5</p>
+ <p className="text-2xl font-bold text-foreground"><AnimatedNumber value={`${data.satisfactionScore}/5`} /></p>
  <div className="flex items-center mt-1">
  {[...Array(5)].map((_, i) => (
  <Star
@@ -90,7 +91,7 @@ export function TenantAnalytics({ timeframe = '30d' }: TenantAnalyticsProps) {
  <div className="flex items-center justify-between">
  <div>
  <p className="text-sm font-medium text-muted-foreground">Avg Response Time</p>
- <p className="text-2xl font-bold text-foreground">{data.communicationStats.avgResponseTime}h</p>
+ <p className="text-2xl font-bold text-foreground"><AnimatedNumber value={`${data.communicationStats.avgResponseTime}h`} /></p>
  <p className="text-sm text-green-600">Communication efficiency</p>
  </div>
  <Clock className="h-8 w-8 text-purple-600" />
@@ -192,17 +193,17 @@ export function TenantAnalytics({ timeframe = '30d' }: TenantAnalyticsProps) {
  <div className="grid grid-cols-3 gap-4">
  <div className="text-center">
  <MessageCircle className="h-6 w-6 text-green-600 mx-auto mb-2" />
- <p className="text-2xl font-bold text-foreground">{data.communicationStats.channels.whatsapp}</p>
+ <p className="text-2xl font-bold text-foreground"><AnimatedNumber value={`${data.communicationStats.channels.whatsapp}`} /></p>
  <p className="text-sm text-muted-foreground">WhatsApp</p>
  </div>
  <div className="text-center">
  <Calendar className="h-6 w-6 text-blue-600 mx-auto mb-2" />
- <p className="text-2xl font-bold text-foreground">{data.communicationStats.channels.email}</p>
+ <p className="text-2xl font-bold text-foreground"><AnimatedNumber value={`${data.communicationStats.channels.email}`} /></p>
  <p className="text-sm text-muted-foreground">Email</p>
  </div>
  <div className="text-center">
  <AlertCircle className="h-6 w-6 text-purple-600 mx-auto mb-2" />
- <p className="text-2xl font-bold text-foreground">{data.communicationStats.channels.portal}</p>
+ <p className="text-2xl font-bold text-foreground"><AnimatedNumber value={`${data.communicationStats.channels.portal}`} /></p>
  <p className="text-sm text-muted-foreground">Portal</p>
  </div>
  </div>

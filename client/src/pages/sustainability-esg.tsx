@@ -1,3 +1,4 @@
+import { AnimatedNumber } from "@/components/ui/motion";
 import React, { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -1191,7 +1192,7 @@ const SustainabilityESG = () => {
               {loading ? (
                 <div className="h-8 w-20 bg-muted animate-pulse rounded" />
               ) : (
-                <div className="text-2xl font-bold">{value}</div>
+                <div className="text-2xl font-bold"><AnimatedNumber value={`${value}`} /></div>
               )}
               <p className="text-xs text-muted-foreground mt-1">{sub}</p>
             </CardContent>

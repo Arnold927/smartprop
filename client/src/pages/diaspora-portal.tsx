@@ -897,7 +897,7 @@ export default function DiasporaBuyerPortal() {
 
                           <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-4 gap-y-1 text-xs text-muted-foreground">
                             <span>Paid: <strong className="text-foreground">{fmtMoney(contract.totalPaid, contract.currency)}</strong></span>
-                            <span>Remaining: <strong className="text-foreground">{fmtMoney(contract.remainingBalance, contract.currency)}</strong></span>
+                            <span className="whitespace-nowrap">Remaining: <strong className="text-foreground">{fmtMoney(contract.remainingBalance, contract.currency)}</strong></span>
                             <span>Next due: <strong className={overdue ? "text-red-600" : "text-foreground"}>{fmt(due)}</strong></span>
                             {contract.constructionProgress != null && (
                               <span>Built: <strong className="text-foreground">{fmtPct(contract.constructionProgress)}</strong></span>

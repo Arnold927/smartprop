@@ -1,3 +1,4 @@
+import { AnimatedNumber } from "@/components/ui/motion";
 import { useQuery } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -86,7 +87,7 @@ function AnalyticsWidget({ title, value, change, trend, icon, description, color
         </div>
         <div className="mt-4">
           <h3 className="text-sm font-medium text-muted-foreground">{title}</h3>
-          <p className="text-2xl font-bold text-foreground">{value}</p>
+          <p className="text-2xl font-bold text-foreground"><AnimatedNumber value={`${value}`} /></p>
           {description && (
             <p className="text-sm text-muted-foreground mt-1">{description}</p>
           )}

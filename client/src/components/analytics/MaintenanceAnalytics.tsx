@@ -1,3 +1,4 @@
+import { AnimatedNumber } from "@/components/ui/motion";
 import { useQuery } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -43,7 +44,7 @@ export function MaintenanceAnalytics({ timeframe = '30d' }: MaintenanceAnalytics
  <div className="flex items-center justify-between">
  <div>
  <p className="text-sm font-medium text-muted-foreground">Total Requests</p>
- <p className="text-2xl font-bold text-foreground">{data.totalRequests}</p>
+ <p className="text-2xl font-bold text-foreground"><AnimatedNumber value={`${data.totalRequests}`} /></p>
  <p className="text-sm text-blue-600">{data.openRequests} currently open</p>
  </div>
  <Wrench className="h-8 w-8 text-blue-600" />
@@ -56,7 +57,7 @@ export function MaintenanceAnalytics({ timeframe = '30d' }: MaintenanceAnalytics
  <div className="flex items-center justify-between">
  <div>
  <p className="text-sm font-medium text-muted-foreground">Avg Response Time</p>
- <p className="text-2xl font-bold text-foreground">{data.avgResponseTime}h</p>
+ <p className="text-2xl font-bold text-foreground"><AnimatedNumber value={`${data.avgResponseTime}h`} /></p>
  <p className="text-sm text-green-600">Within SLA target</p>
  </div>
  <Clock className="h-8 w-8 text-green-600" />
@@ -69,7 +70,7 @@ export function MaintenanceAnalytics({ timeframe = '30d' }: MaintenanceAnalytics
  <div className="flex items-center justify-between">
  <div>
  <p className="text-sm font-medium text-muted-foreground">Completion Rate</p>
- <p className="text-2xl font-bold text-foreground">{data.completionRate}%</p>
+ <p className="text-2xl font-bold text-foreground"><AnimatedNumber value={`${data.completionRate}%`} /></p>
  <p className="text-sm text-green-600">This month</p>
  </div>
  <CheckCircle className="h-8 w-8 text-purple-600" />
@@ -83,7 +84,7 @@ export function MaintenanceAnalytics({ timeframe = '30d' }: MaintenanceAnalytics
  <div className="flex items-center justify-between">
  <div>
  <p className="text-sm font-medium text-muted-foreground">Monthly Cost</p>
- <p className="text-2xl font-bold text-foreground">KES {Number(data.costThisMonth ?? 0).toLocaleString()}</p>
+ <p className="text-2xl font-bold text-foreground"><AnimatedNumber value={`KES ${Number(data.costThisMonth ?? 0).toLocaleString()}`} /></p>
  <p className="text-sm text-orange-600">+7.2% vs last month</p>
  </div>
  <TrendingUp className="h-8 w-8 text-orange-600" />
@@ -230,21 +231,21 @@ export function MaintenanceAnalytics({ timeframe = '30d' }: MaintenanceAnalytics
  />
  ))}
  </div>
- <p className="text-2xl font-bold text-foreground">{data.satisfactionMetrics.avgRating}/5</p>
+ <p className="text-2xl font-bold text-foreground"><AnimatedNumber value={`${data.satisfactionMetrics.avgRating}/5`} /></p>
  <p className="text-sm text-muted-foreground">Average Rating</p>
  </div>
  <div className="text-center">
  <div className="w-16 h-16 mx-auto mb-2 bg-blue-100 rounded-full flex items-center justify-center">
  <AlertTriangle className="h-8 w-8 text-blue-600" />
  </div>
- <p className="text-2xl font-bold text-foreground">{data.satisfactionMetrics.responseRate}%</p>
+ <p className="text-2xl font-bold text-foreground"><AnimatedNumber value={`${data.satisfactionMetrics.responseRate}%`} /></p>
  <p className="text-sm text-muted-foreground">Response Rate</p>
  </div>
  <div className="text-center">
  <div className="w-16 h-16 mx-auto mb-2 bg-green-100 rounded-full flex items-center justify-center">
  <CheckCircle className="h-8 w-8 text-green-600" />
  </div>
- <p className="text-2xl font-bold text-foreground">{data.satisfactionMetrics.totalFeedback}</p>
+ <p className="text-2xl font-bold text-foreground"><AnimatedNumber value={`${data.satisfactionMetrics.totalFeedback}`} /></p>
  <p className="text-sm text-muted-foreground">Total Feedback</p>
  </div>
  </div>

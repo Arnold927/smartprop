@@ -12,7 +12,7 @@
  */
 
 import { AnimatedNumber } from "@/components/ui/motion";
-import { Building2 as Building2Ic, Lock as LockIc } from "lucide-react";
+import { Building2 as Building2Ic, Lock as LockIc, PieChart as PieChartIcon } from "lucide-react";
 import { EntityMedia } from "@/components/entity-media";
 import { PortalHeader, PortalChip, PortalMeta } from "@/components/portal-header";
 import { downloadDocPdf } from "@/lib/document-theme";
@@ -360,9 +360,9 @@ function KPICard({
 }) {
   return (
     <Card className="border border-border shadow-sm overflow-hidden hover:shadow-md transition-all duration-200">
-      <CardContent className="p-5">
+      <CardContent className="p-4 sm:p-5">
         <div className="flex justify-between items-start mb-3">
-          <div className={`${bg} p-2.5 rounded-xl`}>
+          <div className={`${bg} p-2 sm:p-2.5 rounded-xl`}>
             <Icon className={`h-5 w-5 ${color}`} />
           </div>
           {trend && (
@@ -380,9 +380,9 @@ function KPICard({
           )}
         </div>
         <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">{title}</p>
-        <h3 className="text-2xl font-bold mt-1 text-foreground tabular-nums">
+        <h3 className="text-[15px] sm:text-xl xl:text-2xl font-bold mt-1 text-foreground tabular-nums tracking-tight sm:tracking-normal">
           {isCurrency
-            ? <CurrencyDisplay amount={Number(value ?? 0)} currency="KES" locale="en-KE" />
+            ? <CurrencyDisplay amount={Number(value ?? 0)} currency="KES" locale="en-KE" animate />
             : <AnimatedNumber value={String(value ?? "—")} />}
         </h3>
         {sparkData && sparkData.length > 1 && (
@@ -2416,8 +2416,8 @@ export default function LandlordPortal({ ownerId }: LandlordPortalProps) {
               </div>
             )}
 
-            {/* KPIs */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+            {/* KPIs: two across even on a phone, so the page is not a tall single column */}
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-6">
               <KPICard title="Gross Revenue"       value={summary.totalRevenue ?? "0"} icon={DollarSign} color="text-blue-600"   bg="bg-blue-50 dark:bg-blue-950/30"   trend={revenueTrend?.value} trendUp={revenueTrend?.up} trendLabel={revenueTrend?.delta != null ? `KES ${Math.abs(Number(revenueTrend.delta)).toLocaleString("en-KE")} vs last mo` : undefined} />
               <KPICard title="Net Operating Income" value={summary.netIncome ?? "0"}   icon={TrendingUp}  color="text-emerald-600" bg="bg-emerald-50" trend={netTrend?.value}     trendUp={netTrend?.up} trendLabel={netTrend?.delta != null ? `KES ${Math.abs(Number(netTrend.delta)).toLocaleString("en-KE")} vs last mo` : undefined} />
               <KPICard title="Portfolio Occupancy"  value={`${Number(summary.occupancyRate ?? 0).toFixed(1)}%`} icon={Users} color="text-purple-600" bg="bg-purple-50 dark:bg-purple-950/30" isCurrency={false} />
@@ -2474,7 +2474,7 @@ export default function LandlordPortal({ ownerId }: LandlordPortalProps) {
                 <Card className="border border-border shadow-sm rounded-xl">
                   <CardContent className="p-4 flex items-start gap-3">
                     <div className="w-9 h-9 rounded-xl bg-blue-50 flex items-center justify-center shrink-0">
-                      <PieChart className="w-4 h-4 text-blue-600" />
+                      <PieChartIcon className="w-4 h-4 text-blue-600" />
                     </div>
                     <div className="min-w-0">
                       <p className="text-sm font-semibold">

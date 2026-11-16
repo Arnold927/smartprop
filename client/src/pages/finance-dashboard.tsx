@@ -4,6 +4,7 @@
  * 4 KPI tiles · collection donut · monthly bar trend · transaction list.
  */
 
+import { AnimatedNumber } from "@/components/ui/motion";
 import { useAuth } from "@/hooks/useAuth";
 import { useQuery } from "@tanstack/react-query";
 import { apiRequest, ensureArray } from "@/lib/queryClient";
@@ -30,7 +31,7 @@ function Tile({ label, value, sub, icon: Icon, accent, positive = true }: {
       <div className={`absolute top-0 left-0 w-1 h-full ${accent} rounded-l-2xl`} />
       <div className="ml-3 flex flex-col sm:block">
         <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide sm:tracking-widest mb-3 sm:pr-11">{label}</p>
-        <p className="text-xl sm:text-2xl font-bold text-foreground tracking-tight tabular-nums leading-tight break-words">{value}</p>
+        <p className="text-xl sm:text-2xl font-bold text-foreground tracking-tight tabular-nums leading-tight break-words"><AnimatedNumber value={`${value}`} /></p>
         <p className="text-xs text-muted-foreground mt-2">{sub}</p>
         <div className={`order-first sm:order-none mb-2 sm:mb-0 sm:absolute sm:right-5 sm:top-5 w-8 h-8 sm:w-9 sm:h-9 ${accent.replace("bg-", "bg-").replace("-500","-500/10")} rounded-xl flex items-center justify-center`}>
           <Icon className={`w-4.5 h-4.5 ${accent.replace("bg-", "text-")}`} />

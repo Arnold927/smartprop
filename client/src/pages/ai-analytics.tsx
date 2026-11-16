@@ -1,3 +1,4 @@
+import { AnimatedNumber } from "@/components/ui/motion";
 import { apiRequest, ensureArray } from "@/lib/queryClient";
 import React, { useState, useMemo } from "react";
 import {
@@ -836,7 +837,7 @@ export default function AIAnalytics() {
                         <>
                           <div className="grid grid-cols-2 gap-3 mb-3">
                             <div className={`text-center p-3 rounded-xl ${slaBreachRate > 30 ? "bg-red-50 dark:bg-red-950/30" : "bg-green-50 dark:bg-green-950/30"}`}>
-                              <p className={`text-2xl font-bold ${slaBreachRate > 30 ? "text-red-600" : "text-green-600"}`}>{slaBreachRate}%</p>
+                              <p className={`text-2xl font-bold ${slaBreachRate > 30 ? "text-red-600" : "text-green-600"}`}><AnimatedNumber value={`${slaBreachRate}%`} /></p>
                               <p className="text-[10px] text-muted-foreground mt-0.5">SLA breach rate</p>
                             </div>
                             <div className="text-center p-3 bg-muted/50 rounded-xl">

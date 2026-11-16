@@ -202,7 +202,7 @@ export default function Properties() {
   return (
     <PageShell>
       {/* ── Page header ── */}
-      <div className="bg-card dark:bg-gray-900 border-b border-border dark:border-gray-800 px-2 sm:px-8 py-5 sm:py-6">
+      <div className="bg-card border-b border-border px-2 sm:px-8 py-5 sm:py-6">
         <div className="max-w-7xl mx-auto">
           {/* Only shown when we arrived here via platform_admin selecting an
               org — previously there was no way back to Organisations at all. */}

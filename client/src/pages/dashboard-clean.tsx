@@ -214,7 +214,7 @@ function Sparkline({ data, color = "#10b981", height = 32 }: { data: number[]; c
     return `${x},${y}`;
   }).join(" ");
   return (
-    <svg viewBox={`0 0 ${w} ${height}`} height={height} className="opacity-60 shrink-0 w-14 sm:w-20" preserveAspectRatio="none" aria-hidden="true">
+    <svg viewBox={`0 0 ${w} ${height}`} height={height} className="hidden lg:block opacity-60 shrink-0 w-14 xl:w-20" preserveAspectRatio="none" aria-hidden="true">
       <polyline className="sp-spark" pathLength={1} points={pts} fill="none" stroke={color} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   );

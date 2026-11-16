@@ -50,6 +50,7 @@ import ForgotPasswordPage from "@/pages/auth/forgot-password";
 import ResetPasswordPage  from "@/pages/auth/reset-password";
 import VerifyEmailPage    from "@/pages/auth/verify-email";
 import AcceptInvitePage   from "@/pages/auth/accept-invite";
+import { PullToRefresh } from "@/components/pull-to-refresh";
 import GatePortal         from "@/pages/gate-portal";  // guard PIN login — no main JWT
 
 // ── Lazy pages grouped by feature domain ────────────────────────────────────
@@ -512,6 +513,7 @@ function App() {
         <NotificationProvider>
           <TooltipProvider>
             <Toaster />
+            <PullToRefresh />
             <InviteLinkHost />
             <Router />
           </TooltipProvider>

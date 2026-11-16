@@ -1,3 +1,4 @@
+import { AnimatedNumber } from "@/components/ui/motion";
 import React, { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -402,7 +403,7 @@ const FacilityManagement = () => {
                 { label: "Total Tenants", count: tenants.length,      cls: "text-blue-600",   bg: "bg-blue-50 dark:bg-blue-950"    },
               ].map(s => (
                 <div key={s.label} className={`${s.bg} rounded-xl p-3 text-center`}>
-                  <p className={`text-2xl font-bold ${s.cls}`}>{s.count}</p>
+                  <p className={`text-2xl font-bold ${s.cls}`}><AnimatedNumber value={`${s.count}`} /></p>
                   <p className="text-xs text-muted-foreground mt-0.5">{s.label}</p>
                 </div>
               ))}
@@ -596,7 +597,7 @@ const FacilityManagement = () => {
                 { label: "Critical",    count: workOrders.filter(w => ["critical","urgent"].includes(w.priority)).length, cls: "text-red-600", bg: "bg-red-50 dark:bg-red-950" },
               ].map(s => (
                 <div key={s.label} className={`${s.bg} rounded-xl p-3 text-center`}>
-                  <p className={`text-2xl font-bold ${s.cls}`}>{s.count}</p>
+                  <p className={`text-2xl font-bold ${s.cls}`}><AnimatedNumber value={`${s.count}`} /></p>
                   <p className="text-xs text-muted-foreground mt-0.5">{s.label}</p>
                 </div>
               ))}

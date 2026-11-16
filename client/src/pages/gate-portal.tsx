@@ -12,6 +12,8 @@
  *  5. Session auto-expires after 12 hours (one shift)
  */
 
+import { haptic } from "@/lib/feel";
+import { SuccessBurst, DeniedBurst } from "@/components/ui/motion";
 import { CheckCircle2 as CheckCircle2Ic, AlertTriangle as AlertTriangleIc, Zap as ZapIc } from "lucide-react";
 import { PortalHeader } from "@/components/portal-header";
 import { useState, useRef, useEffect, useCallback } from "react";
@@ -690,6 +692,7 @@ export default function GatePortal() {
     if (!session) return;
     setCheckinLoading(true);
     setPendingCode(code);
+    haptic("select");
     try {
       const data: CheckInResult = await guardRequest(
         "/api/guest-checkin/scan",
@@ -1183,13 +1186,12 @@ export default function GatePortal() {
         {/* ════════════════ RESULT SCREEN ════════════════ */}
         {screen === "result" && result && (
           <div className="space-y-4">
-            <div className={`rounded-xl p-5 text-center ${
+            <div className={`sp-pop rounded-xl p-5 text-center ${
               result.success ? "bg-green-950/60 border border-green-700" : "bg-red-950/60 border border-red-700"
             }`}>
-              {result.success
-                ? <CheckCircle className="w-12 h-12 text-green-400 mx-auto mb-2" />
-                : <XCircle className="w-12 h-12 text-red-400 mx-auto mb-2" />
-              }
+              <div className="mb-3">
+                {result.success ? <SuccessBurst size={60} confetti={false} /> : <DeniedBurst size={60} />}
+              </div>
               <p className={`font-semibold text-lg ${result.success ? "text-green-300" : "text-red-300"}`}>
                 {result.success ? t("gatePortal.accessGranted") : t("gatePortal.accessDenied")}
               </p>
@@ -1335,7 +1337,7 @@ export default function GatePortal() {
               /* Success state */
               <div className="space-y-4">
                 <div className="rounded-xl bg-green-950/60 border border-green-700 p-5 text-center">
-                  <CheckCircle className="w-12 h-12 text-green-400 mx-auto mb-2" />
+                  <div className="mb-3"><SuccessBurst size={60} confetti={false} /></div>
                   <p className="font-semibold text-green-300 text-lg">Pass Issued</p>
                   <p className="text-muted-foreground text-sm mt-1">{adhocResult.visitorName} is now checked in</p>
                 </div>

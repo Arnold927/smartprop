@@ -577,7 +577,7 @@ export default function BroadcastMessaging({ embedded = false }: { embedded?: bo
           </Button>
         </div>
       ) : (
-        <div className="bg-card dark:bg-gray-900 border-b border-border dark:border-gray-800 px-6 py-5">
+        <div className="bg-card border-b border-border px-6 py-5">
           <div className="flex flex-col max-w-7xl mx-auto gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <h1 className="text-xl font-semibold text-foreground">Broadcast Messaging</h1>

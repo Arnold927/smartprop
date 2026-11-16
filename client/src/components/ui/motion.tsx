@@ -119,3 +119,19 @@ export function SuccessBurst({ size = 64, confetti = true, className }: { size?:
     </div>
   );
 }
+
+// ── DeniedBurst ──────────────────────────────────────────────────────────────
+
+/** The "no" moment (e.g. a gate pass that is not valid): a red cross that pops in with a short shake, and a firm double buzz. Never celebratory. */
+export function DeniedBurst({ size = 64, className }: { size?: number; className?: string }) {
+  React.useEffect(() => { haptic("warn"); }, []);
+  return (
+    <div className={cn("relative mx-auto flex items-center justify-center", className)} style={{ width: size, height: size }}>
+      <span className="sp-pop-spring sp-shake relative flex h-full w-full items-center justify-center rounded-full bg-red-500 text-white shadow-lg shadow-red-500/30">
+        <svg width={size * 0.45} height={size * 0.45} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" aria-hidden="true">
+          <path d="M6 6l12 12M18 6L6 18" />
+        </svg>
+      </span>
+    </div>
+  );
+}

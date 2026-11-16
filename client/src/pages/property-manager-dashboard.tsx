@@ -10,6 +10,7 @@
  *  ✅ Mobile responsive (sm: breakpoints throughout)
  */
 
+import { AnimatedNumber } from "@/components/ui/motion";
 import { timeGreeting } from "@/lib/feel";
 import { TechnicianSelect, useAssignTechnician } from "@/components/technician-picker";
 import { PortalHeader, PortalMeta } from "@/components/portal-header";
@@ -136,7 +137,7 @@ function MaintenancePanel() {
         ].map(s => (
           <div key={s.label} className={`${s.bg} border rounded-xl p-3 text-center`}>
             <s.icon className={`h-5 w-5 ${s.color} mx-auto mb-1`} />
-            <p className={`text-2xl font-bold ${s.color}`}>{s.value}</p>
+            <p className={`text-2xl font-bold ${s.color}`}><AnimatedNumber value={`${s.value}`} /></p>
             <p className="text-xs text-muted-foreground mt-0.5">{s.label}</p>
           </div>
         ))}
@@ -495,7 +496,7 @@ function OrgRatingsPanel() {
         <Card className="rounded-2xl border-border shadow-none">
           <CardContent className="p-4">
             <p className="text-xs text-muted-foreground mb-1">Total Reviews</p>
-            <p className="text-2xl font-bold text-foreground">{totalRatings}</p>
+            <p className="text-2xl font-bold text-foreground"><AnimatedNumber value={`${totalRatings}`} /></p>
           </CardContent>
         </Card>
         {summary.map((s: any) => (

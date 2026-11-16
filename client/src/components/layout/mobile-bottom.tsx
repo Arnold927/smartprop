@@ -157,8 +157,6 @@ const getConfigs = (t: (key: string) => string): Record<string, RoleConfig> => {
         {
           label: t("nav.group_operations"),
           items: [
-            { label: t("nav.properties"), href: "/properties",   icon: Home },
-            { label: t("nav.inspections"), href: "/inspections", icon: ClipboardList },
             { label: t("nav.messages"),   href: "/messages",     icon: MessageSquare },
             { label: t("nav.my_profile"), href: "/profile",      icon: UserCog },
           ],

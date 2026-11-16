@@ -83,7 +83,7 @@ export function RentPaymentCard({
   return (
     <>
       <div
-        className="relative bg-card dark:bg-gray-900 border-b border-border dark:border-gray-800 px-4 py-3.5 active:bg-muted transition-colors cursor-pointer"
+        className="relative bg-card border-b border-border px-4 py-3.5 active:bg-muted transition-colors cursor-pointer"
         onClick={() => canAct && setIsSheetOpen(true)}
       >
         <div className="flex items-center justify-between gap-2">

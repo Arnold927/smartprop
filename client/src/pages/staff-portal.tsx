@@ -28,6 +28,7 @@
  *   - Everything else: org-scoped (existing APIs), shown as read-only view
  */
 
+import { AnimatedNumber } from "@/components/ui/motion";
 import { timeGreeting } from "@/lib/feel";
 import { Building2 as Building2Ic, Lock as LockIc } from "lucide-react";
 import { PortalHeader, PortalMeta } from "@/components/portal-header";
@@ -230,7 +231,7 @@ function MaintenancePanel({ user, staffProfile }: { user: any; staffProfile: any
           { label: "Done Today",  value: mine.filter((r:any) => r.status === "completed" && r.completedAt && isToday(new Date(r.completedAt))).length, color: "text-green-600" },
         ].map(s => (
           <div key={s.label} className="bg-card rounded-xl border border-border p-3 text-center shadow-sm">
-            <p className={`text-2xl font-bold ${s.color}`}>{s.value}</p>
+            <p className={`text-2xl font-bold ${s.color}`}><AnimatedNumber value={`${s.value}`} /></p>
             <p className="text-xs text-muted-foreground mt-0.5">{s.label}</p>
           </div>
         ))}
@@ -394,7 +395,7 @@ function SecurityPanel() {
         ].map(s => (
           <div key={s.label} className="bg-card rounded-xl border border-border p-3 text-center shadow-sm">
             <s.icon className={`h-5 w-5 ${s.color} mx-auto mb-1`} />
-            <p className={`text-2xl font-bold ${s.color}`}>{s.value}</p>
+            <p className={`text-2xl font-bold ${s.color}`}><AnimatedNumber value={`${s.value}`} /></p>
             <p className="text-xs text-muted-foreground mt-0.5 leading-tight">{s.label}</p>
           </div>
         ))}
@@ -686,7 +687,7 @@ function LeasingPanel() {
         ].map(s => (
           <div key={s.label} className="bg-card rounded-xl border border-border p-3 text-center shadow-sm">
             <s.icon className={`h-5 w-5 ${s.color} mx-auto mb-1`} />
-            <p className={`text-2xl font-bold ${s.color}`}>{s.value}</p>
+            <p className={`text-2xl font-bold ${s.color}`}><AnimatedNumber value={`${s.value}`} /></p>
             <p className="text-xs text-muted-foreground mt-0.5 leading-tight">{s.label}</p>
           </div>
         ))}

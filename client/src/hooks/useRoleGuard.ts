@@ -10,6 +10,7 @@
  * unnecessary API calls from roles that can't use the page.
  */
 import { useAuth } from "@/hooks/useAuth";
+import { getHomeForRole } from "@/lib/roleNav";
 import React from "react";
 
 export type AppRole =
@@ -95,11 +96,20 @@ export function useRoleGuard(allowedRoles: AppRole[]): GuardResult {
           React.createElement("path", { strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: 2, d: "M12 15v2m0 0v2m0-2h2m-2 0H10m2-6V7a4 4 0 00-8 0v4h8z" })
         )
       ),
-      React.createElement("h2", { className: "text-xl font-semibold" }, "Access Restricted"),
+      React.createElement("h2", { className: "text-xl font-semibold" }, "This page isn't part of your account"),
       React.createElement(
         "p",
         { className: "text-muted-foreground max-w-sm text-sm" },
-        `This page is not available for your role (${role}). Contact your administrator if you believe this is an error.`
+        `Your ${String(role).replace("_", " ")} account doesn't include this page. If you think it should, ask your administrator.`
+      ),
+      // Never leave someone at a dead end: one tap takes them back to the screen made for them.
+      React.createElement(
+        "a",
+        {
+          href: getHomeForRole(role),
+          className: "sp-press inline-flex items-center rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-emerald-700",
+        },
+        "Take me to my home screen"
       )
     );
   }

@@ -1,3 +1,4 @@
+import { AnimatedNumber } from "@/components/ui/motion";
 import { useQuery } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -43,7 +44,7 @@ export function MarketingAnalytics({ timeframe = '30d' }: MarketingAnalyticsProp
  <div className="flex items-center justify-between">
  <div>
  <p className="text-sm font-medium text-muted-foreground">Campaigns Sent</p>
- <p className="text-2xl font-bold text-foreground">{data.campaignsSent}</p>
+ <p className="text-2xl font-bold text-foreground"><AnimatedNumber value={`${data.campaignsSent}`} /></p>
  <div className="flex items-center mt-1">
  <TrendingUp className="h-4 w-4 text-green-600 mr-1" />
  <span className="text-sm text-green-600">+23.7%</span>
@@ -59,7 +60,7 @@ export function MarketingAnalytics({ timeframe = '30d' }: MarketingAnalyticsProp
  <div className="flex items-center justify-between">
  <div>
  <p className="text-sm font-medium text-muted-foreground">Average Open Rate</p>
- <p className="text-2xl font-bold text-foreground">{data.avgOpenRate}%</p>
+ <p className="text-2xl font-bold text-foreground"><AnimatedNumber value={`${data.avgOpenRate}%`} /></p>
  <p className="text-sm text-green-600">Above industry avg</p>
  </div>
  <Eye className="h-8 w-8 text-green-600" />
@@ -73,7 +74,7 @@ export function MarketingAnalytics({ timeframe = '30d' }: MarketingAnalyticsProp
  <div className="flex items-center justify-between">
  <div>
  <p className="text-sm font-medium text-muted-foreground">Click Rate</p>
- <p className="text-2xl font-bold text-foreground">{data.avgClickRate}%</p>
+ <p className="text-2xl font-bold text-foreground"><AnimatedNumber value={`${data.avgClickRate}%`} /></p>
  <p className="text-sm text-blue-600">Strong engagement</p>
  </div>
  <MousePointer className="h-8 w-8 text-purple-600" />
@@ -87,7 +88,7 @@ export function MarketingAnalytics({ timeframe = '30d' }: MarketingAnalyticsProp
  <div className="flex items-center justify-between">
  <div>
  <p className="text-sm font-medium text-muted-foreground">New Leads</p>
- <p className="text-2xl font-bold text-foreground">{data.newLeads}</p>
+ <p className="text-2xl font-bold text-foreground"><AnimatedNumber value={`${data.newLeads}`} /></p>
  <div className="flex items-center mt-1">
  <TrendingUp className="h-4 w-4 text-green-600 mr-1" />
  <span className="text-sm text-green-600">+30.8%</span>

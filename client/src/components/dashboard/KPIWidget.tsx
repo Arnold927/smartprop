@@ -1,4 +1,5 @@
 import React from 'react';
+import { AnimatedNumber } from '@/components/ui/motion';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { TrendingUp, TrendingDown, Minus, ArrowUpRight } from 'lucide-react';
@@ -104,7 +105,7 @@ export function KPIWidget({
  "text-3xl font-bold tracking-tight",
  variant === 'primary' || variant === 'success' || variant === 'warning' ? 'text-white' : 'text-foreground'
  )}>
- {value}
+ <AnimatedNumber value={value} />
  </div>
  
  {subtitle && (

@@ -286,13 +286,7 @@ const getCaretakerNav = (t: (k: string) => string): NavGroup[] => [
     label: t("nav.group_property"),
     items: [
       { name: t("nav.dashboard"),  href: "/caretaker-portal", icon: LayoutDashboard },
-      {
-        name: t("nav.properties"), href: "/properties", icon: Home,
-        children: [
-          { name: t("nav.properties"),  href: "/properties" },
-          { name: t("nav.inspections"), href: "/inspections" },
-        ],
-      },
+      // The server doesn't let caretakers open Properties or Inspections, so no links to them — they led to a dead end.
     ],
   },
   {

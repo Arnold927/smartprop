@@ -2617,10 +2617,7 @@ export default function TenantPortal({ tenantId, initialTenantData }: TenantPort
   // Notices derived from real data
   const notices = useMemo(() => {
     const n: Array<{ title: string; content: string; type: "info" | "warning" | "success"; date?: string }> = [];
-    if (overduePayments.length > 0) {
-      const total = overduePayments.reduce((s, p) => s + Number(p.amount ?? 0), 0);
-      n.push({ type: "warning", title: `Overdue Payment — ${fmtKES(total)}`, content: "You have overdue rent payments. Please settle immediately to avoid penalties." });
-    }
+    // Overdue rent is already shown as the red banner above the payment form and the "overdue" chip in the header; a third copy here just adds noise.
     if (leaseEndDays !== null && leaseEndDays > 0 && leaseEndDays <= 90) {
       n.push({ type: "warning", title: `Lease Expiring in ${leaseEndDays} days`, content: `Your lease ends on ${fmtDate(tenant?.leaseEndDate)}. Contact your property manager about renewal.` });
     }
@@ -3280,7 +3277,7 @@ export default function TenantPortal({ tenantId, initialTenantData }: TenantPort
                 { label: "Overdue", count: overduePayments.length,  value: overduePayments.reduce((s, p) => s + Number(p.amount ?? 0), 0),  cls: "text-red-600",    bg: "bg-red-50    dark:bg-red-950/40",    border: "border-red-100 dark:border-red-900"       },
               ].map(s => (
                 <div key={s.label} className={`${s.bg} border ${s.border} rounded-2xl p-4 text-center`}>
-                  <p className={`text-2xl font-bold ${s.cls}`}>{s.count}</p>
+                  <p className={`text-2xl font-bold ${s.cls}`}><AnimatedNumber value={`${s.count}`} /></p>
                   <p className="text-xs text-muted-foreground mt-0.5 font-medium">{s.label}</p>
                   <p className="text-[11px] text-muted-foreground/70 mt-0.5">{fmtKES(s.value)}</p>
                 </div>

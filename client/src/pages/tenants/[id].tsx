@@ -439,7 +439,7 @@ export default function TenantDetails() {
     <div className="min-h-screen bg-background">
 
       {/* ── Hero header ── */}
-      <div className="bg-card dark:bg-gray-900 border-b border-border dark:border-gray-800" >
+      <div className="bg-card border-b border-border" >
         <div className="max-w-4xl mx-auto px-4 md:px-6">
 
           {/* Back nav */}

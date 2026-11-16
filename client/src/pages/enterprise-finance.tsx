@@ -1,3 +1,4 @@
+import { AnimatedNumber } from "@/components/ui/motion";
 import { downloadCsvTextAsExcel } from "@/lib/excel";
 import React, { useState, useRef, useCallback } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -87,7 +88,7 @@ const MetricCard = ({ title, value, description, icon, trend, color = "blue" }: 
       <div className={`h-4 w-4 text-${color}-600`}>{icon}</div>
     </CardHeader>
     <CardContent>
-      <div className="text-2xl font-semibold">{value}</div>
+      <div className="text-2xl font-semibold"><AnimatedNumber value={typeof value === "number" ? value : String(value)} /></div>
       <p className="text-xs text-muted-foreground">{description}</p>
       {trend && (
         <div className="flex items-center pt-1">

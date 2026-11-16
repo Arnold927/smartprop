@@ -108,7 +108,11 @@ export function MpesaStatusAlert() {
           )}
           <div className="flex-1 min-w-0">
             <span className="font-medium">{alert.message}. </span>
-            <span className="opacity-80">{alert.detail}</span>
+            {/* The full explanation is long (env var names): keep it one tap away so it doesn't push the page down on a phone. */}
+            <details className="sm:inline">
+              <summary className="inline cursor-pointer underline underline-offset-2 opacity-80">What to do</summary>
+              <span className="block mt-1 opacity-80">{alert.detail}</span>
+            </details>
           </div>
         </div>
       ))}

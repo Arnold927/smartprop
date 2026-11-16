@@ -1,3 +1,4 @@
+import { AnimatedNumber } from "@/components/ui/motion";
 import { useQuery } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -44,7 +45,7 @@ export function PropertyAnalytics({ propertyId, timeframe = '30d' }: PropertyAna
  <div className="flex items-center justify-between">
  <div>
  <p className="text-sm font-medium text-muted-foreground">Occupancy Rate</p>
- <p className="text-2xl font-bold text-foreground">{data.occupancyRate}%</p>
+ <p className="text-2xl font-bold text-foreground"><AnimatedNumber value={`${data.occupancyRate}%`} /></p>
  <div className="flex items-center mt-1">
  <TrendingUp className="h-4 w-4 text-green-600 mr-1" />
  <span className="text-sm text-green-600">+{data.trends.occupancy}%</span>
@@ -61,7 +62,7 @@ export function PropertyAnalytics({ propertyId, timeframe = '30d' }: PropertyAna
  <div className="flex items-center justify-between">
  <div>
  <p className="text-sm font-medium text-muted-foreground">Rent Collection</p>
- <p className="text-2xl font-bold text-foreground">{data.rentCollection}%</p>
+ <p className="text-2xl font-bold text-foreground"><AnimatedNumber value={`${data.rentCollection}%`} /></p>
  <div className="flex items-center mt-1">
  <TrendingUp className="h-4 w-4 text-green-600 mr-1" />
  <span className="text-sm text-green-600">On track</span>
@@ -78,7 +79,7 @@ export function PropertyAnalytics({ propertyId, timeframe = '30d' }: PropertyAna
  <div className="flex items-center justify-between">
  <div>
  <p className="text-sm font-medium text-muted-foreground">Monthly Revenue</p>
- <p className="text-2xl font-bold text-foreground">KES {Number(data.revenue ?? 0).toLocaleString()}</p>
+ <p className="text-2xl font-bold text-foreground"><AnimatedNumber value={`KES ${Number(data.revenue ?? 0).toLocaleString()}`} /></p>
  <div className="flex items-center mt-1">
  <TrendingUp className="h-4 w-4 text-green-600 mr-1" />
  <span className="text-sm text-green-600">+{data.trends.revenue}%</span>
@@ -94,7 +95,7 @@ export function PropertyAnalytics({ propertyId, timeframe = '30d' }: PropertyAna
  <div className="flex items-center justify-between">
  <div>
  <p className="text-sm font-medium text-muted-foreground">Maintenance Costs</p>
- <p className="text-2xl font-bold text-foreground">KES {Number(data.maintenanceCosts ?? 0).toLocaleString()}</p>
+ <p className="text-2xl font-bold text-foreground"><AnimatedNumber value={`KES ${Number(data.maintenanceCosts ?? 0).toLocaleString()}`} /></p>
  <div className="flex items-center mt-1">
  <TrendingDown className="h-4 w-4 text-green-600 mr-1" />
  <span className="text-sm text-green-600">{data.trends.maintenance}%</span>

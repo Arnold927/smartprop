@@ -308,7 +308,7 @@ function MobileMaintenanceCard({
   return (
     <>
       <div
-        className="relative bg-card dark:bg-gray-900 border-b border-border dark:border-gray-800 px-4 py-3.5 active:bg-muted transition-colors cursor-pointer"
+        className="relative bg-card border-b border-border px-4 py-3.5 active:bg-muted transition-colors cursor-pointer"
         onClick={() => setIsSheetOpen(true)}
       >
         <div className="flex items-start gap-3">
@@ -501,7 +501,7 @@ export default function Maintenance() {
 
  return (
  <div className="min-h-screen bg-background">
- <div className="bg-card dark:bg-gray-900 border-b border-border dark:border-gray-800 px-4 md:px-6 py-4 md:py-5">
+ <div className="bg-card border-b border-border px-4 md:px-6 py-4 md:py-5">
  <div className="flex flex-col max-w-7xl mx-auto gap-3 sm:flex-row sm:items-center sm:justify-between">
  <div>
  <h1 className="text-xl font-semibold text-foreground">Maintenance</h1>

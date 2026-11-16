@@ -25,6 +25,7 @@
  *   POST /messages                  — send message
  */
 
+import { AnimatedNumber } from "@/components/ui/motion";
 import { timeGreeting } from "@/lib/feel";
 import { Building2 as Building2Ic, Lock as LockIc } from "lucide-react";
 import { PortalHeader, PortalChip, PortalMeta } from "@/components/portal-header";
@@ -1124,12 +1125,12 @@ function RatingsTab({ ratings, profile }: { ratings: RatingsData | undefined; pr
       <div className="grid grid-cols-2 gap-3">
         <div className="rounded-2xl bg-card border border-border p-4 text-center">
           <Trophy className="w-5 h-5 text-emerald-700 dark:text-emerald-400 mx-auto mb-2" />
-          <p className="text-2xl font-bold text-foreground">{ratings.completedJobs}</p>
+          <p className="text-2xl font-bold text-foreground"><AnimatedNumber value={`${ratings.completedJobs}`} /></p>
           <p className="text-xs text-muted-foreground mt-0.5">Jobs Completed</p>
         </div>
         <div className="rounded-2xl bg-card border border-border p-4 text-center">
           <Award className="w-5 h-5 text-amber-700 dark:text-amber-400 mx-auto mb-2" />
-          <p className="text-2xl font-bold text-foreground">{ratings.ratingCount}</p>
+          <p className="text-2xl font-bold text-foreground"><AnimatedNumber value={`${ratings.ratingCount}`} /></p>
           <p className="text-xs text-muted-foreground mt-0.5">Jobs Rated</p>
         </div>
       </div>

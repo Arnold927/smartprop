@@ -11,6 +11,7 @@
  *   7. RRT Notices           — Rent Restriction Tribunal notices (Cap 296)
  */
 
+import { AnimatedNumber } from "@/components/ui/motion";
 import { AlertTriangle as AlertTriangleIc } from "lucide-react";
 import { SearchableSelect } from "@/components/ui/searchable-select";
 import { downloadExcel } from "@/lib/excel";
@@ -1900,7 +1901,7 @@ function EtimsTab() {
           { label: "Rejected/Error",  value: stats.rejected, color: "text-red-600"       },
         ].map(s => (
           <Card key={s.label} className="text-center py-3">
-            <p className={`text-2xl font-bold ${s.color}`}>{s.value}</p>
+            <p className={`text-2xl font-bold ${s.color}`}><AnimatedNumber value={`${s.value}`} /></p>
             <p className="text-xs text-muted-foreground mt-0.5">{s.label}</p>
           </Card>
         ))}

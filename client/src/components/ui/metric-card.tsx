@@ -1,3 +1,4 @@
+import { AnimatedNumber } from "@/components/ui/motion";
 import { Card, CardContent } from "@/components/ui/card";
 import { LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -32,7 +33,7 @@ export default function MetricCard({
         <div className="flex items-center">
           <div className="flex-1">
             <p className="text-sm font-medium text-muted-foreground">{title}</p>
-            <p className={cn("text-3xl font-bold tracking-tight", valueColor)}>{value}</p>
+            <p className={cn("text-3xl font-bold tracking-tight", valueColor)}><AnimatedNumber value={typeof value === "number" ? value : String(value)} /></p>
             {subtitle && (
               <p className="text-sm text-muted-foreground mt-1">{subtitle}</p>
             )}

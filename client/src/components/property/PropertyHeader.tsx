@@ -60,7 +60,7 @@ export function PropertyHeader({ property, onAddUnit, onAddTenant, onEdit, onDel
                           "bg-red-400";
 
   return (
-    <div className="bg-card dark:bg-gray-900 border-b border-border dark:border-gray-800" >
+    <div className="bg-card border-b border-border" >
       <div className="max-w-7xl mx-auto px-4 md:px-6">
 
         {/* Back nav */}

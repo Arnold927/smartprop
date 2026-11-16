@@ -93,17 +93,17 @@ export default function PlatformOrganizationsPage() {
   return (
     <div className="max-w-5xl mx-auto px-4 py-6 md:py-8">
       <MpesaStatusAlert />
-      <div className="flex items-center gap-3 mb-6">
+      <div className="flex flex-wrap items-center gap-3 mb-6">
         <div className="rounded-xl bg-emerald-500/10 p-2.5">
           <Building2 className="h-5 w-5 text-emerald-600" />
         </div>
-        <div className="flex-1 min-w-0">
+        <div className="flex-1 min-w-[12rem]">
           <h1 className="text-lg font-semibold text-foreground">Organisations</h1>
           <p className="text-xs text-muted-foreground mt-0.5">
             Every organisation on the platform. Pick one to see its properties.
           </p>
         </div>
-        <Button size="sm" className="gap-1.5 shrink-0" onClick={() => setAddOpen(true)}>
+        <Button size="sm" className="gap-1.5 shrink-0 w-full sm:w-auto" onClick={() => setAddOpen(true)}>
           <Plus className="h-4 w-4" /> Add landlord / organisation
         </Button>
       </div>

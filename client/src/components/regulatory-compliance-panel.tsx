@@ -12,6 +12,7 @@
  *   • Direct link to upload a document (document_url field)
  */
 
+import { AnimatedNumber } from "@/components/ui/motion";
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
@@ -484,7 +485,7 @@ export function RegulatoryCompliancePanel({ propertyId, propertyName, orgIdParam
           <Card key={s.label} className="text-center">
             <CardContent className="py-4">
               <s.icon className={`h-5 w-5 mx-auto mb-1 ${s.cls}`} />
-              <p className={`text-2xl font-bold ${s.cls}`}>{s.value}</p>
+              <p className={`text-2xl font-bold ${s.cls}`}><AnimatedNumber value={`${s.value}`} /></p>
               <p className="text-xs text-muted-foreground">{s.label}</p>
             </CardContent>
           </Card>

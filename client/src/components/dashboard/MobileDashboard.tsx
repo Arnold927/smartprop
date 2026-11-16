@@ -1,3 +1,4 @@
+import { AnimatedNumber } from "@/components/ui/motion";
 import React from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -135,7 +136,7 @@ const MobileDashboard = () => {
  <div className="flex items-center justify-between">
  <div>
  <p className="text-sm font-medium text-muted-foreground">Mobile Users</p>
- <p className="text-2xl font-bold text-foreground">{formatNumber(mobileUsers)}</p>
+ <p className="text-2xl font-bold text-foreground"><AnimatedNumber value={`${formatNumber(mobileUsers)}`} /></p>
  <p className="text-xs text-green-600 flex items-center mt-1">
  <TrendingUp className="h-3 w-3 mr-1" />
  +12% from last month
@@ -153,7 +154,7 @@ const MobileDashboard = () => {
  <div className="flex items-center justify-between">
  <div>
  <p className="text-sm font-medium text-muted-foreground">Mobile Actions</p>
- <p className="text-2xl font-bold text-foreground">{formatNumber(mobileActions)}</p>
+ <p className="text-2xl font-bold text-foreground"><AnimatedNumber value={`${formatNumber(mobileActions)}`} /></p>
  <p className="text-xs text-green-600 flex items-center mt-1">
  <Activity className="h-3 w-3 mr-1" />
  Real-time sync
@@ -171,7 +172,7 @@ const MobileDashboard = () => {
  <div className="flex items-center justify-between">
  <div>
  <p className="text-sm font-medium text-muted-foreground">Android Users</p>
- <p className="text-2xl font-bold text-foreground">{formatNumber(androidUsers)}</p>
+ <p className="text-2xl font-bold text-foreground"><AnimatedNumber value={`${formatNumber(androidUsers)}`} /></p>
  <p className="text-xs text-muted-foreground">
  Avg: {androidAvgDuration.toFixed(1)}m session
  </p>
@@ -188,7 +189,7 @@ const MobileDashboard = () => {
  <div className="flex items-center justify-between">
  <div>
  <p className="text-sm font-medium text-muted-foreground">iOS Users</p>
- <p className="text-2xl font-bold text-foreground">{formatNumber(iosUsers)}</p>
+ <p className="text-2xl font-bold text-foreground"><AnimatedNumber value={`${formatNumber(iosUsers)}`} /></p>
  <p className="text-xs text-muted-foreground">
  Avg: {iosAvgDuration.toFixed(1)}m session
  </p>

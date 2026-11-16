@@ -22,7 +22,11 @@ import { useAuth } from "@/hooks/useAuth";
 
 // ─── helpers ────────────────────────────────────────────────────────────────
 const fmt = (n: number) => `KES ${Math.abs(n).toLocaleString("en-KE", { maximumFractionDigits: 0 })}`;
-const fmtShort = (n: number) => n >= 1_000_000 ? `KES ${(n/1_000_000).toFixed(1)}M` : n >= 1_000 ? `KES ${(n/1_000).toFixed(0)}K` : `KES ${n}`;
+const fmtShort = (n: number) => {
+  const sign = n < 0 ? "-" : "";
+  const a = Math.abs(n);
+  return a >= 1_000_000 ? `${sign}KES ${(a/1_000_000).toFixed(1)}M` : a >= 1_000 ? `${sign}KES ${(a/1_000).toFixed(0)}K` : `${sign}KES ${Math.round(a).toLocaleString("en-KE")}`;
+};
 
 function MethodBadge({ m }: { m: string }) {
  if (!m) return <span className="text-xs text-muted-foreground">—</span>;
@@ -272,7 +276,7 @@ export default function Finances() {
  <Tabs value={tab} onValueChange={setTab}>
  <TabsList className="bg-card dark:bg-gray-900 border border-border dark:border-gray-800 rounded-xl p-1 h-auto">
  {[["overview","Overview"],["transactions","Transactions"],["payments","Payment methods"]].map(([v,l]) => (
- <TabsTrigger key={v} value={v} className="rounded-lg text-sm data-[state=active]:bg-blue-600 data-[state=active]:text-white px-4 py-1.5">{l}</TabsTrigger>
+ <TabsTrigger key={v} value={v} className="rounded-lg text-sm data-[state=active]:bg-emerald-600 data-[state=active]:text-white px-4 py-1.5">{l}</TabsTrigger>
  ))}
  </TabsList>
 
