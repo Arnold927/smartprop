@@ -84,6 +84,7 @@ import guardFeaturesRouter from "./guard-features";
 import tenantOnboardingRouter from "./tenant-onboarding";
 import { tenantShortRentalsRouter, shortTermBookingsRouter } from "./tenant-subletting";
 import { publicStaysRouter } from "./public-stays";
+import { demoRequestsRouter } from "./demo-requests";
 import { icalExportRouter } from "./ical-export";
 import {
   rentToOwnAgreementsRouter,
@@ -179,6 +180,9 @@ export function registerModularRoutes(app: Express) {
   // deliberately cross-organisation, unauthenticated surface in this app.
   // See public-stays.ts for the specific care taken with what it exposes.
   app.use("/api/public/stays", publicStaysRouter);
+
+  // Landing page "book a demo" form: anonymous, rate limited, sends one email to the SmartProp team
+  app.use("/api/public/demo-request", demoRequestsRouter);
 
   // Public iCal export — external platforms (Airbnb, VRBO, Booking.com)
   // fetch these URLs on their own schedule to read a listing's booked/

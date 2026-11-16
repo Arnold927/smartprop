@@ -21,6 +21,8 @@ import { useState, useEffect, useRef } from "react";
 import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import {
   Building2, Users, Wrench, ShieldCheck, MessageSquare,
   BarChart3, CreditCard, Globe, Menu, X,
@@ -343,7 +345,7 @@ function DashboardMockup() {
         <span className="w-2.5 h-2.5 rounded-full bg-red-500/70" />
         <span className="w-2.5 h-2.5 rounded-full bg-amber-500/70" />
         <span className="w-2.5 h-2.5 rounded-full bg-emerald-500/70" />
-        <span className="ml-3 text-[11px] text-white/25 font-mono">smartprop.co.ke/dashboard</span>
+        <span className="ml-3 text-xs text-white/25 font-mono">smartprop.co.ke/dashboard</span>
       </div>
 
       <div className="flex" style={{ height: "420px" }}>
@@ -351,14 +353,14 @@ function DashboardMockup() {
           <div className="flex items-center gap-2 px-2 py-2.5 mb-2">
             <BrandMark size={24} />
             <div>
-              <span className="text-white text-[11px] font-bold leading-none">SmartProp</span>
-              <p className="text-slate-400 text-[9px] leading-none mt-0.5">Property Mgmt</p>
+              <span className="text-white text-xs font-bold leading-none">SmartProp</span>
+              <p className="text-slate-400 text-xs leading-none mt-0.5">Property Mgmt</p>
             </div>
           </div>
           {sidebarItems.map(({ icon: Icon, label, active, badge }: any) => (
             <div
               key={label}
-              className={`flex items-center gap-2 px-2.5 py-2 rounded-lg text-[11px] transition-colors relative ${
+              className={`flex items-center gap-2 px-2.5 py-2 rounded-lg text-xs transition-colors relative ${
                 active ? "bg-emerald-600 text-white shadow-sm" : "text-slate-400"
               }`}
             >
@@ -375,30 +377,30 @@ function DashboardMockup() {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-white/80 text-sm font-semibold">Dashboard</p>
-              <p className="text-white/30 text-[10px]">Good morning · May 2026</p>
+              <p className="text-white/50 text-xs">Good morning · {new Date().toLocaleDateString("en-GB", { month: "long", year: "numeric" })}</p>
             </div>
             <div className="flex items-center gap-1.5">
               <div className="w-6 h-6 rounded-md bg-gray-800 border border-white/10 flex items-center justify-center">
                 <Bell className="w-3 h-3 text-white/40" />
               </div>
-              <div className="w-6 h-6 rounded-full bg-emerald-700 flex items-center justify-center text-white text-[10px] font-bold">A</div>
+              <div className="w-6 h-6 rounded-full bg-emerald-700 flex items-center justify-center text-white text-xs font-bold">A</div>
             </div>
           </div>
 
           <div className="grid grid-cols-4 gap-2">
             {kpis.map(k => (
               <div key={k.label} className="bg-gray-900 rounded-xl p-2.5 border border-white/8">
-                <p className="text-white/35 text-[9px] mb-1 leading-tight">{k.label}</p>
+                <p className="text-white/35 text-xs mb-1 leading-tight">{k.label}</p>
                 <p className={`text-[13px] font-bold text-${k.color}-400 leading-none`}>{k.value}</p>
-                <p className="text-white/25 text-[9px] mt-1 leading-tight">{k.sub}</p>
+                <p className="text-white/25 text-xs mt-1 leading-tight">{k.sub}</p>
               </div>
             ))}
           </div>
 
           <div className="bg-gray-900 rounded-xl border border-white/8 flex-1 overflow-hidden flex flex-col">
             <div className="flex items-center justify-between px-3.5 py-2 border-b border-white/8">
-              <span className="text-white/50 text-[10px] font-semibold uppercase tracking-wider">Recent Payments</span>
-              <span className="flex items-center gap-1 text-[9px] text-emerald-400 font-medium">
+              <span className="text-white/50 text-xs font-semibold uppercase tracking-wider">Recent Payments</span>
+              <span className="flex items-center gap-1 text-xs text-emerald-400 font-medium">
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse inline-block" />
                 Live · C2B Active
               </span>
@@ -410,13 +412,13 @@ function DashboardMockup() {
                     <Check className={`w-2.5 h-2.5 ${r.ok ? "text-emerald-400" : "text-amber-400"}`} />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="text-white/75 text-[10px] font-medium truncate">
-                      {r.name} <span className="text-white/30 font-normal">· {r.unit}</span>
+                    <p className="text-white/75 text-xs font-medium truncate">
+                      {r.name} <span className="text-white/55 font-normal">· {r.unit}</span>
                     </p>
                   </div>
                   <div className="text-right flex-shrink-0">
-                    <p className={`text-[10px] font-semibold ${r.ok ? "text-emerald-400" : "text-amber-400"}`}>KES {r.amount}</p>
-                    <p className="text-white/25 text-[9px]">{r.time}</p>
+                    <p className={`text-xs font-semibold ${r.ok ? "text-emerald-400" : "text-amber-400"}`}>KES {r.amount}</p>
+                    <p className="text-white/25 text-xs">{r.time}</p>
                   </div>
                 </div>
               ))}
@@ -425,8 +427,8 @@ function DashboardMockup() {
 
           <div className="bg-gray-900 rounded-xl border border-white/8 px-3.5 py-2.5">
             <div className="flex items-center justify-between mb-1.5">
-              <span className="text-white/50 text-[10px] font-semibold uppercase tracking-wider">Open Work Orders</span>
-              <span className="text-[9px] text-amber-400 font-medium">3 pending</span>
+              <span className="text-white/50 text-xs font-semibold uppercase tracking-wider">Open Work Orders</span>
+              <span className="text-xs text-amber-400 font-medium">3 pending</span>
             </div>
             <div className="flex items-center gap-1.5 flex-wrap">
               {[
@@ -436,7 +438,7 @@ function DashboardMockup() {
               ].map(t => (
                 <span
                   key={t.label}
-                  className={`text-[9px] px-2 py-0.5 rounded-full bg-${t.color}-500/10 text-${t.color}-400 border border-${t.color}-500/20`}
+                  className={`text-xs px-2 py-0.5 rounded-full bg-${t.color}-500/10 text-${t.color}-400 border border-${t.color}-500/20`}
                 >
                   {t.label}
                 </span>
@@ -486,7 +488,7 @@ function Navbar({ containerRef }: { containerRef?: React.RefObject<HTMLElement> 
         </div>
 
         <button
-          className={`md:hidden p-2 rounded-md transition-colors ${scrolled ? "text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white" : "text-white/60 hover:text-white"}`}
+          className={`md:hidden p-3 -mr-2 rounded-md transition-colors ${scrolled ? "text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white" : "text-white/60 hover:text-white"}`}
           onClick={() => setOpen(!open)}
           aria-label="Toggle menu"
         >
@@ -498,13 +500,13 @@ function Navbar({ containerRef }: { containerRef?: React.RefObject<HTMLElement> 
         <div className="md:hidden bg-slate-900 border-b border-white/10 px-4 pb-5 pt-2 space-y-1">
           {NAV_LINKS.map(l => (
             <a key={l.href} href={l.href} onClick={() => setOpen(false)}
-              className="block px-3 py-2 rounded-md text-sm text-white/60 hover:text-white hover:bg-white/5">
+              className="flex items-center min-h-[44px] px-3 rounded-md text-sm text-white/70 hover:text-white hover:bg-white/5">
               {l.label}
             </a>
           ))}
           <div className="pt-3">
             <Link href="/auth">
-              <Button variant="outline" className="w-full bg-white/10 border-white/25 text-white hover:bg-white/20 hover:text-white" onClick={() => setOpen(false)}>Sign in</Button>
+              <Button variant="outline" className="w-full min-h-[44px] bg-white/10 border-white/25 text-white hover:bg-white/20 hover:text-white" onClick={() => setOpen(false)}>Sign in</Button>
             </Link>
           </div>
         </div>
@@ -548,21 +550,21 @@ function Hero({ containerRef }: { containerRef: React.RefObject<HTMLElement> }) 
               statements — so your whole team runs from a single system, not a
               group of WhatsApp threads.
             </p>
-            <p className="text-sm text-white/30 mb-9 max-w-lg">
+            <p className="text-sm text-white/55 mb-9 max-w-lg">
               Built specifically for Kenyan property management. Not adapted. Not translated. Built here, for here.
             </p>
 
-            <div className="flex flex-col sm:flex-row gap-3 mb-9">
-              <Link href="/auth">
-                <Button size="lg" variant="outline" className="text-base px-8 border-white/20 text-white hover:bg-white/8 hover:text-white hover:border-white/30 bg-transparent gap-2">
-                  Sign in to your account <ArrowRight className="w-4 h-4" />
-                </Button>
-              </Link>
+            <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-6 mb-9">
               <a href="#contact">
-                <Button size="lg" className="text-base px-8 bg-emerald-600 hover:bg-emerald-500 text-white gap-2">
-                  Book a free demo
+                <Button size="lg" className="w-full sm:w-auto text-base px-8 bg-emerald-600 hover:bg-emerald-500 text-white gap-2 shadow-lg shadow-emerald-900/40">
+                  Book a free demo <ArrowRight className="w-4 h-4" />
                 </Button>
               </a>
+              <Link href="/auth">
+                <a className="inline-flex items-center justify-center min-h-[44px] text-sm text-white/70 hover:text-white underline-offset-4 hover:underline transition-colors">
+                  Already a customer? Sign in
+                </a>
+              </Link>
             </div>
 
             <div className="flex flex-wrap gap-2">
@@ -574,7 +576,7 @@ function Hero({ containerRef }: { containerRef: React.RefObject<HTMLElement> }) 
                 { icon: Lock,          text: "Data encrypted" },
                 { icon: UserCheck,     text: "8 role types" },
               ].map(({ icon: Icon, text }) => (
-                <div key={text} className="flex items-center gap-1.5 text-xs text-white/45 bg-white/5 border border-white/10 rounded-full px-3 py-1.5 hover:bg-white/8 transition-colors">
+                <div key={text} className="flex items-center gap-1.5 text-xs text-white/65 bg-white/5 border border-white/10 rounded-full px-3 py-1.5 hover:bg-white/8 transition-colors">
                   <Icon className="w-3 h-3 text-emerald-400 flex-shrink-0" />
                   {text}
                 </div>
@@ -590,7 +592,7 @@ function Hero({ containerRef }: { containerRef: React.RefObject<HTMLElement> }) 
       </div>
 
       <button
-        className="absolute bottom-8 left-1/2 -translate-x-1/2 z-20 text-white/20 hover:text-white/50 animate-bounce transition-colors cursor-pointer"
+        className="absolute bottom-8 left-1/2 -translate-x-1/2 z-20 text-white/50 hover:text-white/50 animate-bounce transition-colors cursor-pointer"
         aria-label="Scroll to next section"
         onClick={() => {
           const container = containerRef.current;
@@ -679,7 +681,7 @@ function PainStrip() {
 
 function MpesaSection() {
   return (
-    <section className="py-24 bg-white dark:bg-gray-950 overflow-hidden">
+    <section className="py-14 sm:py-24 bg-white dark:bg-gray-950 overflow-hidden">
       <div className="max-w-6xl mx-auto px-4 sm:px-6">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-14 items-center">
 
@@ -767,10 +769,10 @@ function MpesaSection() {
 
 function Features() {
   return (
-    <section id="features" className="py-24 bg-gray-50 dark:bg-gray-900/50">
+    <section id="features" className="py-14 sm:py-24 bg-gray-50 dark:bg-gray-900/50">
       <div className="max-w-6xl mx-auto px-4 sm:px-6">
         <Fade>
-          <div className="text-center mb-16">
+          <div className="text-center mb-10 sm:mb-16">
             <h2 className="text-3xl sm:text-4xl font-bold text-foreground mb-4">
               Everything your portfolio needs
             </h2>
@@ -780,17 +782,17 @@ function Features() {
             </p>
           </div>
         </Fade>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-5">
           {FEATURES.map((f, i) => {
             const Icon = f.icon;
             return (
               <Fade key={f.title} delay={i * 45}>
-                <div className={`bg-white dark:bg-gray-900 rounded-2xl p-6 border border-border border-t-2 border-t-transparent ${f.border} hover:shadow-md transition-all duration-200 h-full`}>
+                <div className={`bg-white dark:bg-gray-900 rounded-2xl p-4 sm:p-6 border border-border border-t-2 border-t-transparent ${f.border} hover:shadow-md transition-all duration-200 h-full`}>
                   <div className={`w-10 h-10 rounded-xl ${f.bg} flex items-center justify-center mb-4`}>
                     <Icon className={`w-5 h-5 ${f.color}`} />
                   </div>
                   <h3 className="font-semibold text-foreground text-sm mb-2">{f.title}</h3>
-                  <p className="text-muted-foreground text-sm leading-relaxed">{f.desc}</p>
+                  <p className="hidden sm:block text-muted-foreground text-sm leading-relaxed">{f.desc}</p>
                 </div>
               </Fade>
             );
@@ -805,10 +807,10 @@ function Features() {
 
 function HowItWorks() {
   return (
-    <section id="how" className="py-24 bg-white dark:bg-gray-950">
+    <section id="how" className="py-14 sm:py-24 bg-white dark:bg-gray-950">
       <div className="max-w-4xl mx-auto px-4 sm:px-6">
         <Fade>
-          <div className="text-center mb-16">
+          <div className="text-center mb-10 sm:mb-16">
             <h2 className="text-3xl sm:text-4xl font-bold text-foreground mb-4">
               Up and running in a day
             </h2>
@@ -850,7 +852,7 @@ function HowItWorks() {
 
 function GatedSection() {
   return (
-    <section className="py-24 bg-gray-50 dark:bg-gray-900/50 overflow-hidden">
+    <section className="py-14 sm:py-24 bg-gray-50 dark:bg-gray-900/50 overflow-hidden">
       <div className="max-w-6xl mx-auto px-4 sm:px-6">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-14 items-center">
 
@@ -932,12 +934,45 @@ function GatedSection() {
 
 // ─── Who It's For — All 8 roles ────────────────────────────────────────────
 
+/** One audience card. On phones the bullet list folds away behind the title so the section isn't four screens tall. */
+function RoleCard({ role }: { role: (typeof ROLES)[number] }) {
+  const [open, setOpen] = useState(false);
+  const Icon = role.icon;
+  return (
+    <div className="bg-gray-50 dark:bg-gray-900 rounded-2xl border border-border p-4 sm:p-6 h-full hover:border-emerald-200 dark:hover:border-emerald-800 hover:shadow-md transition-all duration-200 flex flex-col">
+      <button
+        type="button"
+        onClick={() => setOpen(o => !o)}
+        aria-expanded={open}
+        className="flex items-start gap-3 text-left w-full min-h-[44px] md:cursor-default md:pointer-events-none"
+      >
+        <div className="w-9 h-9 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 flex items-center justify-center flex-shrink-0">
+          <Icon className="w-4 h-4 text-emerald-600" />
+        </div>
+        <div className="flex-1">
+          <h3 className="font-semibold text-foreground text-sm leading-tight">{role.title}</h3>
+          <span className={`inline-block text-xs font-semibold px-2 py-0.5 rounded-full border mt-1 ${role.tagColor}`}>{role.tag}</span>
+        </div>
+        <ChevronDown className={`w-4 h-4 text-muted-foreground mt-2 md:hidden transition-transform ${open ? "rotate-180" : ""}`} />
+      </button>
+      <ul className={`space-y-2 flex-1 mt-4 ${open ? "block" : "hidden"} md:block`}>
+        {role.points.map(p => (
+          <li key={p} className="flex items-start gap-2 text-xs sm:text-sm text-muted-foreground">
+            <Check className="w-3.5 h-3.5 text-emerald-600 flex-shrink-0 mt-0.5" />
+            {p}
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
 function WhoItsFor() {
   return (
-    <section id="who" className="py-24 bg-white dark:bg-gray-950">
+    <section id="who" className="py-14 sm:py-24 bg-white dark:bg-gray-950">
       <div className="max-w-6xl mx-auto px-4 sm:px-6">
         <Fade>
-          <div className="max-w-2xl mb-16">
+          <div className="max-w-2xl mb-10 sm:mb-16">
             <h2 className="text-3xl sm:text-4xl font-bold text-foreground mb-4">
               One system, every person on your estate
             </h2>
@@ -949,34 +984,11 @@ function WhoItsFor() {
           </div>
         </Fade>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
-          {ROLES.map((role, i) => {
-            const Icon = role.icon;
-            return (
-              <Fade key={role.title} delay={i * 55}>
-                <div className="bg-gray-50 dark:bg-gray-900 rounded-2xl border border-border p-6 h-full hover:border-emerald-200 dark:hover:border-emerald-800 hover:shadow-md transition-all duration-200 flex flex-col">
-                  <div className="flex items-start gap-3 mb-4">
-                    <div className="w-9 h-9 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 flex items-center justify-center flex-shrink-0">
-                      <Icon className="w-4 h-4 text-emerald-600" />
-                    </div>
-                    <div>
-                      <h3 className="font-semibold text-foreground text-sm leading-tight">{role.title}</h3>
-                      <span className={`inline-block text-[10px] font-semibold px-2 py-0.5 rounded-full border mt-1 ${role.tagColor}`}>
-                        {role.tag}
-                      </span>
-                    </div>
-                  </div>
-                  <ul className="space-y-2 flex-1">
-                    {role.points.map(p => (
-                      <li key={p} className="flex items-start gap-2 text-xs text-muted-foreground">
-                        <Check className="w-3.5 h-3.5 text-emerald-600 flex-shrink-0 mt-0.5" />
-                        {p}
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              </Fade>
-            );
-          })}
+          {ROLES.map((role, i) => (
+            <Fade key={role.title} delay={i * 55}>
+              <RoleCard role={role} />
+            </Fade>
+          ))}
         </div>
       </div>
     </section>
@@ -987,10 +999,10 @@ function WhoItsFor() {
 
 function ComplianceSection() {
   return (
-    <section id="compliance" className="py-24 bg-gray-50 dark:bg-gray-900/50">
+    <section id="compliance" className="py-14 sm:py-24 bg-gray-50 dark:bg-gray-900/50">
       <div className="max-w-6xl mx-auto px-4 sm:px-6">
         <Fade>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-14 items-start mb-16">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8 md:gap-14 items-start mb-0 md:mb-16">
             <div>
               <Badge className="mb-4 bg-indigo-50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-800">
                 Everything In One System
@@ -1004,7 +1016,7 @@ function ComplianceSection() {
                 from the moment it happens — not bolted on afterwards, but built into
                 every transaction from day one.
               </p>
-              <p className="text-muted-foreground text-base leading-relaxed">
+              <p className="hidden sm:block text-muted-foreground text-base leading-relaxed">
                 No separate spreadsheet for deposits. No manual reconciliation.
                 No scramble assembling records at month-end. Everything is
                 maintained in real time and ready the moment you need it.
@@ -1037,7 +1049,7 @@ function ComplianceSection() {
           </div>
         </Fade>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+        <div className="hidden md:grid md:grid-cols-2 lg:grid-cols-3 gap-5">
           {COMPLIANCE_MODULES.map((m, i) => {
             const Icon = m.icon;
             return (
@@ -1062,7 +1074,7 @@ function ComplianceSection() {
 
 function DiasporaSection() {
   return (
-    <section className="py-24 relative overflow-hidden">
+    <section className="py-14 sm:py-24 relative overflow-hidden">
       <div className="absolute inset-0 bg-gradient-to-br from-slate-900 via-slate-900 to-emerald-950" />
       <div
         className="absolute inset-0 opacity-[0.06]"
@@ -1165,12 +1177,100 @@ function FounderNote() {
 
 // ─── Contact ───────────────────────────────────────────────────────────────
 
+const WA_DEMO = "https://wa.me/254759657590?text=Hi%2C%20I%27d%20like%20to%20book%20a%20SmartProp%20demo";
+const PORTFOLIO_OPTIONS = ["1-10 units", "11-50 units", "51-200 units", "200+ units", "Gated estate / mall", "Diaspora investor"];
+
+/** Short demo request for visitors who would rather not start a WhatsApp chat. Posts to the public endpoint; WhatsApp stays as the fallback. */
+function DemoForm() {
+  const [f, setF] = useState({ name: "", phone: "", email: "", portfolio: "", website: "" });
+  const [state, setState] = useState<"idle" | "sending" | "sent">("idle");
+  const [emailSent, setEmailSent] = useState(true);
+  const [error, setError] = useState("");
+  const set = (k: keyof typeof f) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => setF(prev => ({ ...prev, [k]: e.target.value }));
+
+  async function submit(e: React.FormEvent) {
+    e.preventDefault();
+    setError("");
+    setState("sending");
+    try {
+      const res = await fetch("/api/public/demo-request", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(f),
+      });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(body?.message || "Something went wrong. Please try WhatsApp instead.");
+      setEmailSent(body.emailSent !== false);
+      setState("sent");
+    } catch (err: any) {
+      setError(err?.message || "Something went wrong. Please try WhatsApp instead.");
+      setState("idle");
+    }
+  }
+
+  if (state === "sent") {
+    return (
+      <div className="max-w-md mx-auto bg-white/5 border border-emerald-500/30 rounded-2xl p-6 text-center" role="status">
+        <div className="mx-auto mb-3 flex h-11 w-11 items-center justify-center rounded-full bg-emerald-500/20">
+          <Check className="h-5 w-5 text-emerald-400" />
+        </div>
+        <p className="text-white font-semibold">Thanks, {f.name.split(" ")[0]}.</p>
+        <p className="text-white/70 text-sm mt-1">
+          {emailSent
+            ? "We'll call or WhatsApp you on the number you gave to agree a time."
+            : "We couldn't pass your details on automatically. Please send us a quick WhatsApp so we get your request:"}
+        </p>
+        {!emailSent && (
+          <a href={WA_DEMO} target="_blank" rel="noopener noreferrer" className="inline-block mt-3">
+            <Button className="bg-emerald-600 hover:bg-emerald-500 text-white gap-2 min-h-[44px]"><Phone className="w-4 h-4" /> Message us on WhatsApp</Button>
+          </a>
+        )}
+      </div>
+    );
+  }
+
+  const field = "bg-white/10 border-white/20 text-white placeholder:text-white/40 focus-visible:ring-emerald-500 h-11";
+  return (
+    <form onSubmit={submit} className="max-w-md mx-auto bg-white/5 border border-white/10 rounded-2xl p-5 sm:p-6 text-left space-y-4" aria-label="Request a demo">
+      <div className="space-y-1.5">
+        <Label htmlFor="demo-name" className="text-white/80">Your name</Label>
+        <Input id="demo-name" required minLength={2} maxLength={100} autoComplete="name" value={f.name} onChange={set("name")} className={field} />
+      </div>
+      <div className="space-y-1.5">
+        <Label htmlFor="demo-phone" className="text-white/80">Phone / WhatsApp number</Label>
+        <Input id="demo-phone" type="tel" required maxLength={25} autoComplete="tel" placeholder="07xx xxx xxx" value={f.phone} onChange={set("phone")} className={field} />
+      </div>
+      <div className="space-y-1.5">
+        <Label htmlFor="demo-email" className="text-white/80">Email <span className="text-white/50 font-normal">(optional)</span></Label>
+        <Input id="demo-email" type="email" maxLength={120} autoComplete="email" value={f.email} onChange={set("email")} className={field} />
+      </div>
+      <div className="space-y-1.5">
+        <Label htmlFor="demo-portfolio" className="text-white/80">What do you manage? <span className="text-white/50 font-normal">(optional)</span></Label>
+        <select id="demo-portfolio" value={f.portfolio} onChange={set("portfolio")}
+          className="flex w-full h-11 rounded-md border border-white/20 bg-slate-800 px-3 text-sm text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500">
+          <option value="">Select…</option>
+          {PORTFOLIO_OPTIONS.map(o => <option key={o} value={o}>{o}</option>)}
+        </select>
+      </div>
+      {/* honeypot: people never see or fill this, bots do */}
+      <div aria-hidden="true" className="absolute -left-[9999px] h-0 w-0 overflow-hidden">
+        <label>Website<input tabIndex={-1} autoComplete="off" value={f.website} onChange={set("website")} /></label>
+      </div>
+      {error && <p className="text-sm text-red-300" role="alert">{error}</p>}
+      <Button type="submit" disabled={state === "sending"} className="w-full min-h-[44px] bg-emerald-600 hover:bg-emerald-500 text-white font-semibold">
+        {state === "sending" ? "Sending…" : "Request a demo"}
+      </Button>
+      <p className="text-white/50 text-xs text-center">We'll only use your details to arrange the demo.</p>
+    </form>
+  );
+}
+
 function Contact() {
   return (
-    <section id="contact" className="py-24 bg-slate-900 border-t border-white/10">
+    <section id="contact" className="py-14 sm:py-24 bg-slate-900 border-t border-white/10">
       <div className="max-w-4xl mx-auto px-4 sm:px-6">
 
-        <div className="text-center mb-14">
+        <div className="text-center">
           <span className="inline-block bg-emerald-600/20 text-emerald-400 text-xs font-semibold tracking-widest uppercase px-4 py-1.5 rounded-full mb-5">
             No commitment · No pitch deck
           </span>
@@ -1183,58 +1283,31 @@ function Contact() {
             and answer every question you have. No pressure.
           </p>
 
-          <div className="grid sm:grid-cols-3 gap-4 max-w-3xl mx-auto mb-10">
+          <DemoForm />
+          <p className="text-white/55 text-xs mt-4 mb-10">Usually responds within minutes · Kenya time (EAT)</p>
+          <p className="text-white/60 text-sm mb-4">Prefer to talk? Reach us directly:</p>
+          <div className="grid sm:grid-cols-3 gap-4 max-w-3xl mx-auto mb-0">
             {[
-              { emoji: MessageCircleIc, label: "WhatsApp", desc: "Message us to book a time", href: "https://wa.me/254759657590?text=Hi%2C%20I%27d%20like%20to%20book%20a%20SmartProp%20demo", cta: "Open WhatsApp" },
+              { emoji: MessageCircleIc, label: "WhatsApp", desc: "Message us to book a time", href: WA_DEMO, cta: "Open WhatsApp" },
               { emoji: MailIc, label: "Email", desc: "We'll reply within a few hours", href: "mailto:noreply@smartprop.co.ke?subject=SmartProp Demo Request", cta: "Send Email" },
               { emoji: PhoneIc, label: "Call us", desc: "+254 759 657 590", href: "tel:+254759657590", cta: "Call Now" },
             ].map(({ emoji: Emoji, label, desc, href, cta }) => (
               <a key={label} href={href}
                 target={href.startsWith("http") ? "_blank" : undefined}
                 rel={href.startsWith("http") ? "noopener noreferrer" : undefined}
-                className="group flex flex-col items-center gap-3 bg-white/5 hover:bg-emerald-600/20 border border-white/10 hover:border-emerald-500/40 rounded-2xl px-5 py-6 transition-all duration-200 cursor-pointer">
-                <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-700"><Emoji className="h-6 w-6" /></span>
-                <div>
+                className="group flex flex-row sm:flex-col items-center gap-4 sm:gap-3 text-left sm:text-center bg-white/5 hover:bg-emerald-600/20 border border-white/10 hover:border-emerald-500/40 rounded-2xl px-4 sm:px-5 py-3 sm:py-6 min-h-[64px] transition-all duration-200 cursor-pointer">
+                <span className="flex h-10 w-10 sm:h-12 sm:w-12 flex-shrink-0 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-700"><Emoji className="h-5 w-5 sm:h-6 sm:w-6" /></span>
+                <div className="flex-1 sm:flex-none">
                   <div className="font-semibold text-white text-sm">{label}</div>
                   <div className="text-white/50 text-xs mt-0.5">{desc}</div>
                 </div>
-                <span className="text-emerald-400 text-xs font-semibold group-hover:text-emerald-300 transition-colors">
+                <span className="text-emerald-400 text-xs font-semibold group-hover:text-emerald-300 transition-colors whitespace-nowrap">
                   {cta} →
                 </span>
               </a>
             ))}
           </div>
 
-          <a href="https://wa.me/254759657590?text=Hi%2C%20I%27d%20like%20to%20book%20a%20SmartProp%20demo"
-            target="_blank" rel="noopener noreferrer">
-            <Button size="lg"
-              className="bg-emerald-600 hover:bg-emerald-500 text-white gap-2 px-10 py-5 text-base font-semibold rounded-xl shadow-lg shadow-emerald-900/40 transition-all">
-              <Phone className="w-5 h-5" />
-              Book a free demo on WhatsApp
-            </Button>
-          </a>
-          <p className="text-white/30 text-xs mt-4">Usually responds within minutes · Kenya time (EAT)</p>
-        </div>
-
-        <div className="border-t border-white/10 mb-10" />
-
-        <div className="flex flex-col sm:flex-row items-center justify-between gap-6 text-center sm:text-left">
-          <div>
-            <p className="text-white font-semibold text-lg">Still have questions?</p>
-            <p className="text-white/50 text-sm mt-1">We're a WhatsApp message away — any time.</p>
-          </div>
-          <div className="flex flex-col sm:flex-row gap-3">
-            <a href="https://wa.me/254759657590" target="_blank" rel="noopener noreferrer">
-              <Button size="sm" className="bg-emerald-600 hover:bg-emerald-700 text-white gap-2 w-full sm:w-auto">
-                <Phone className="w-4 h-4" /> WhatsApp us
-              </Button>
-            </a>
-            <a href="mailto:noreply@smartprop.co.ke">
-              <Button size="sm" className="bg-transparent border border-white/30 text-white hover:bg-white/10 hover:border-white/50 gap-2 w-full sm:w-auto">
-                <Mail className="w-4 h-4" /> Email us
-              </Button>
-            </a>
-          </div>
         </div>
 
       </div>
@@ -1255,15 +1328,15 @@ function Footer() {
           </span>
           <span className="ml-1">© {new Date().getFullYear()}</span>
         </div>
-        <div className="flex flex-wrap justify-center gap-5">
-          <Link href="/auth"><a className="hover:text-white transition-colors">Sign in</a></Link>
-          <a href="#features"    className="hover:text-white transition-colors">Features</a>
-          <a href="#how"         className="hover:text-white transition-colors">How it works</a>
-          <a href="#who"         className="hover:text-white transition-colors">Who it's for</a>
-          <a href="#compliance"  className="hover:text-white transition-colors">Records</a>
-          <a href="#contact"     className="hover:text-white transition-colors">Contact</a>
+        <div className="flex flex-wrap justify-center gap-x-5 gap-y-1">
+          <Link href="/auth"><a className="inline-flex items-center min-h-[44px] px-1 hover:text-white transition-colors">Sign in</a></Link>
+          <a href="#features"    className="inline-flex items-center min-h-[44px] px-1 hover:text-white transition-colors">Features</a>
+          <a href="#how"         className="inline-flex items-center min-h-[44px] px-1 hover:text-white transition-colors">How it works</a>
+          <a href="#who"         className="inline-flex items-center min-h-[44px] px-1 hover:text-white transition-colors">Who it's for</a>
+          <a href="#compliance"  className="inline-flex items-center min-h-[44px] px-1 hover:text-white transition-colors">Records</a>
+          <a href="#contact"     className="inline-flex items-center min-h-[44px] px-1 hover:text-white transition-colors">Contact</a>
         </div>
-        <div className="flex items-center gap-2 text-xs text-white/30">
+        <div className="flex items-center gap-2 text-xs text-white/55">
           <Shield className="w-3 h-3" />
           <span>ODPC compliant · Built in Kenya 🇰🇪</span>
         </div>

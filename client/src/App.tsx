@@ -12,7 +12,6 @@
  * Keep-eager (no lazy):
  *   - Shell components: Sidebar, MobileHeader, TopBar, MobileBottomNav
  *   - Auth pages: login, forgot-password, reset-password, verify-email
- *   - Landing page (first thing unauthenticated users see)
  *   - NotFound, ProtectedRoute, WhatsAppWidget
  *   - GatePortal (guards log in here without the main app JWT)
  */
@@ -42,7 +41,6 @@ import SectionTabs      from "@/components/layout/section-tabs";
 import ModuleUnavailable from "@/components/module-unavailable";
 import WhatsAppWidget   from "@/components/ui/whatsapp-widget"; // kept for future use
 import NotFound         from "@/pages/not-found";
-import PayPropLanding   from "@/pages/payprop-landing";
 import StaysBrowsePage  from "@/pages/public/stays-browse";
 import StayDetailPage   from "@/pages/public/stay-detail";
 import ManageBookingPage from "@/pages/public/manage-booking";
@@ -61,6 +59,8 @@ import GatePortal         from "@/pages/gate-portal";  // guard PIN login — no
 // Core
 const DashboardClean    = lazy(() => import("@/pages/dashboard-clean"));
 const Pricing           = lazy(() => import("@/pages/pricing"));
+const PayPropLandingPage = lazy(() => import("@/pages/payprop-landing"));
+const PayPropLanding = () => <Suspense fallback={<div style={{ minHeight: "100vh", background: "#0f172a" }} />}><PayPropLandingPage /></Suspense>;
 
 // Role portals — each role only ever loads their own portal
 const TenantPortal      = lazy(() => import("@/pages/tenant-portal"));

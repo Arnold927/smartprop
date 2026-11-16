@@ -922,3 +922,37 @@ export async function sendPlainEmail({ to, subject, html, text }: { to: string; 
     throw new Error(`Failed to send email: ${msg}`);
   }
 }
+
+/** Makes text from a stranger safe to place inside the HTML of an email. */
+export function escapeHtml(value: unknown): string {
+  return String(value ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c] as string));
+}
+
+/**
+ * Tells the SmartProp team that someone asked for a demo on the public landing page. Goes to DEMO_REQUEST_TO.
+ * Returns false when no address is configured (the page then offers the visitor WhatsApp instead, so the request isn't lost).
+ */
+export async function sendDemoRequestEmail(req: { name: string; phone: string; email?: string; portfolio?: string; message?: string }): Promise<boolean> {
+  const to = (process.env.DEMO_REQUEST_TO ?? "").trim();
+  if (!to || !process.env.RESEND_API_KEY) return false;
+  const client = getResendClient();
+  const row = (label: string, value?: string) =>
+    value ? `<tr><td style="padding:4px 12px 4px 0;color:#6b7280;">${label}</td><td style="padding:4px 0;"><strong>${escapeHtml(value)}</strong></td></tr>` : "";
+  const { error } = await client.emails.send({
+    from: getFromEmail(),
+    to,
+    ...(req.email ? { replyTo: req.email } : {}),
+    subject: `Demo request — ${req.name.slice(0, 60)}`,
+    html: `
+      <div style="font-family: Arial, sans-serif; line-height: 1.6; max-width: 600px; margin: 0 auto;">
+        <h2 style="color:#047857;">New demo request</h2>
+        <table style="border-collapse:collapse;">
+          ${row("Name", req.name)}${row("Phone / WhatsApp", req.phone)}${row("Email", req.email)}${row("Portfolio", req.portfolio)}
+        </table>
+        ${req.message ? `<p style="margin-top:12px;white-space:pre-wrap;">${escapeHtml(req.message)}</p>` : ""}
+        <p style="color:#6b7280;font-size:13px;">Sent from the SmartProp landing page.</p>
+      </div>`,
+  });
+  if (error) throw new Error((error as any).message ?? "Failed to send the demo request");
+  return true;
+}
