@@ -507,7 +507,7 @@ function Navbar({ containerRef }: { containerRef?: React.RefObject<HTMLElement> 
           ))}
           <div className="pt-3">
             <Link href="/auth">
-              <Button variant="outline" className="w-full border-white/20 text-white hover:bg-white/10" onClick={() => setOpen(false)}>Sign in</Button>
+              <Button variant="outline" className="w-full bg-white/10 border-white/25 text-white hover:bg-white/20 hover:text-white" onClick={() => setOpen(false)}>Sign in</Button>
             </Link>
           </div>
         </div>
