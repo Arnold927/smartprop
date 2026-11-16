@@ -12,6 +12,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { useToast } from '@/hooks/use-toast';
 import { Checkbox } from '@/components/ui/checkbox';
 import { apiRequest, ensureArray } from "@/lib/queryClient";
+import { apiErrorMessage } from "@/lib/maintenance-flow";
 import { CurrencyDisplay } from '@/components/ui/currency-display';
 import { useRoleGuard, ROLES } from "@/hooks/useRoleGuard";
 import { useAuth } from "@/hooks/useAuth";
@@ -97,6 +98,7 @@ export default function ContractorsManagement() {
   const [pageSize, setPageSize] = useState(9);
   const [currentPage, setCurrentPage] = useState(1);
   const [selectedContractor, setSelectedContractor] = useState<Contractor | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState<Contractor | null>(null);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [isViewOpen, setIsViewOpen] = useState(false);
@@ -125,7 +127,7 @@ export default function ContractorsManagement() {
       toast({ title: "Contractor registered successfully" });
       announceInvite(created?.invite, vars?.email, vars?.companyName || vars?.name);
     },
-    onError: (e: any) => toast({ title: "Error", description: e?.message || "Failed to register contractor", variant: "destructive" }),
+    onError: (e: any) => toast({ title: "Error", description: apiErrorMessage(e, "Failed to register contractor"), variant: "destructive" }),
   });
 
   const updateMutation = useMutation({
@@ -136,7 +138,7 @@ export default function ContractorsManagement() {
       setSelectedContractor(null);
       toast({ title: "Contractor updated successfully" });
     },
-    onError: (e: any) => toast({ title: "Error", description: e?.message || "Failed to update contractor", variant: "destructive" }),
+    onError: (e: any) => toast({ title: "Error", description: apiErrorMessage(e, "Failed to update contractor"), variant: "destructive" }),
   });
 
   const deleteMutation = useMutation({
@@ -147,7 +149,7 @@ export default function ContractorsManagement() {
       setSelectedContractor(null);
       toast({ title: "Contractor removed" });
     },
-    onError: (e: any) => toast({ title: "Error", description: e?.message || "Failed to delete contractor", variant: "destructive" }),
+    onError: (e: any) => toast({ title: "Error", description: apiErrorMessage(e, "Failed to delete contractor"), variant: "destructive" }),
   });
 
   const verifyMutation = useMutation({
@@ -157,7 +159,7 @@ export default function ContractorsManagement() {
       queryClient.invalidateQueries({ queryKey: ["/api/contractors"] });
       toast({ title: "Contractor verified" });
     },
-    onError: (e: any) => toast({ title: "Error", description: e?.message || "Failed to verify contractor", variant: "destructive" }),
+    onError: (e: any) => toast({ title: "Error", description: apiErrorMessage(e, "Failed to verify contractor"), variant: "destructive" }),
   });
 
   const parseForm = (e: React.FormEvent<HTMLFormElement>) => {
@@ -378,7 +380,7 @@ export default function ContractorsManagement() {
                     </Button>
                     <ActionMenu items={[
                       { label: "Edit", icon: <Edit className="h-4 w-4" />, onClick: () => { setSelectedContractor(c); setIsEditOpen(true); } },
-                      { label: "Delete", icon: <Trash2 className="h-4 w-4" />, onClick: () => deleteMutation.mutate(c.id), destructive: true, separator: true },
+                      { label: "Delete", icon: <Trash2 className="h-4 w-4" />, onClick: () => setConfirmDelete(c), destructive: true, separator: true },
                     ]} />
                   </div>
                 </CardContent>
@@ -509,7 +511,7 @@ export default function ContractorsManagement() {
                 )}
               </div>
               <div className="flex flex-wrap items-center justify-between gap-3 px-4 sm:px-6 py-4 border-t bg-muted/20">
-                <Button variant="destructive" size="sm" onClick={() => { deleteMutation.mutate(selectedContractor.id); }}>
+                <Button variant="destructive" size="sm" onClick={() => { const c = selectedContractor; setIsViewOpen(false); setConfirmDelete(c); }}>
                   <Trash2 className="h-3.5 w-3.5 mr-1.5" />Delete
                 </Button>
                 <Button size="sm" onClick={() => { setIsViewOpen(false); setIsEditOpen(true); }}>
@@ -588,6 +590,15 @@ export default function ContractorsManagement() {
           )}
         </DialogContent>
       </Dialog>
+      <ConfirmDialog
+        open={!!confirmDelete}
+        onClose={() => setConfirmDelete(null)}
+        onConfirm={() => { const c = confirmDelete; setConfirmDelete(null); if (c) deleteMutation.mutate(c.id); }}
+        title="Remove this contractor?"
+        description={`${confirmDelete?.name || confirmDelete?.companyName || "This contractor"} will be removed. A contractor with job, expense or contract history can't be removed; mark them unavailable instead.`}
+        confirmLabel="Remove contractor"
+        destructive
+      />
     </PageShell>
   );
 }

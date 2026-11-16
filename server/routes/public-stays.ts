@@ -23,13 +23,13 @@
 import { Router } from "express";
 import { db } from "../db";
 import { eq, and, ne, lt, gte, sql } from "drizzle-orm";
-import { tenantShortRentals, tenantShortBookings, listingBlockedDates, units, properties, tenants, users } from "@shared/schema";
+import { tenantShortRentals, tenantShortBookings, listingBlockedDates, units, properties, tenants, users, mpesaTransactions } from "@shared/schema";
 import { z } from "zod";
 import { resolveFromUnitId } from "../utils/resolvePaymentConfig";
 import { createMPesaServiceForOverrides } from "../services/mpesa";
 import { storage } from "../storage";
 import { hasBlockedDateOverlap, expireStalePendingBookings } from "./tenant-subletting";
-import { sendRefundOwedEmail } from "../lib/email";
+import { StayError, cancelStayBooking, nightsBetween, stayFinancials } from "../services/stay-bookings";
 
 /** Derives a general area from a full address — e.g. "12 Riverside Drive,
  *  Kilimani, Nairobi" becomes "Kilimani, Nairobi". A guest browsing or
@@ -220,8 +220,8 @@ publicStaysRouter.get("/:slug/booked-dates", async (req: any, res: any) => {
 });
 
 const bookRequestSchema = z.object({
-  guestName: z.string().min(1).max(100),
-  guestEmail: z.string().email(),
+  guestName: z.string().trim().min(1).max(100),
+  guestEmail: z.string().trim().email().max(100).transform(v => v.toLowerCase()),
   guestPhone: z.string().min(7).max(20),
   guestCount: z.number().int().min(1),
   checkInDate: z.string(),
@@ -255,7 +255,9 @@ publicStaysRouter.post("/:slug/book", async (req: any, res: any) => {
     if (isNaN(checkIn.getTime()) || isNaN(checkOut.getTime()) || checkOut <= checkIn) {
       return res.status(400).json({ message: "Invalid check-in/check-out dates." });
     }
-    const numberOfNights = Math.round((checkOut.getTime() - checkIn.getTime()) / (1000 * 60 * 60 * 24));
+    const today = new Date(); today.setUTCHours(0, 0, 0, 0);
+    if (checkIn < today) return res.status(400).json({ message: "The check-in date can't be in the past." });
+    const numberOfNights = nightsBetween(checkIn, checkOut);
     if (numberOfNights < listing.minimumNights) {
       return res.status(400).json({ message: `This listing requires a minimum stay of ${listing.minimumNights} night(s).` });
     }
@@ -299,12 +301,7 @@ publicStaysRouter.post("/:slug/book", async (req: any, res: any) => {
     // platform fees) rather than from tenantEarningsShare directly, so the
     // three figures always sum exactly to totalAmount even if a listing's
     // configured percentages don't add up to precisely 100.
-    const nightlyRate = Number(listing.nightlyRate);
-    const totalAmountNum = nightlyRate * numberOfNights;
-    const totalAmount = totalAmountNum.toFixed(2);
-    const propertyManagerCommission = (totalAmountNum * (Number(listing.propertyManagerCommission) / 100)).toFixed(2);
-    const platformFees = (totalAmountNum * (Number(listing.platformFees) / 100)).toFixed(2);
-    const tenantPayout = (totalAmountNum - Number(propertyManagerCommission) - Number(platformFees)).toFixed(2);
+    const { totalAmount, propertyManagerCommission, platformFees, tenantPayout } = stayFinancials(listing, numberOfNights);
     const bookingReference = `BK-${Date.now()}-${Math.random().toString(36).substring(2, 7).toUpperCase()}`;
 
     const [created] = await db.insert(tenantShortBookings).values({
@@ -412,6 +409,13 @@ publicStaysRouter.post("/:slug/bookings/:bookingId/pay", async (req: any, res: a
     if (booking.bookingStatus === "cancelled") {
       return res.status(409).json({ message: "This booking has been cancelled." });
     }
+    if (booking.bookingStatus === "expired") {
+      // Its dates have been released and may already be sold to someone else, so it can't be paid any more.
+      return res.status(409).json({ message: "This booking expired before it was paid. Please make a new booking.", code: "BOOKING_EXPIRED" });
+    }
+    if (["checked_in", "checked_out"].includes(booking.bookingStatus)) {
+      return res.status(409).json({ message: "This stay has already started." });
+    }
     if (booking.paymentStatus === "paid") {
       return res.status(409).json({ message: "This booking has already been paid." });
     }
@@ -419,6 +423,17 @@ publicStaysRouter.post("/:slug/bookings/:bookingId/pay", async (req: any, res: a
     const phoneNumber = normalizeKenyanPhone(parsed.data.phoneNumber);
     if (!phoneNumber) {
       return res.status(400).json({ message: "Enter a valid Kenyan phone number, e.g. 07XXXXXXXX." });
+    }
+
+    // A prompt is already on the guest's phone: a second one now could take the money twice.
+    const [inFlight] = await db.select({ id: mpesaTransactions.id }).from(mpesaTransactions)
+      .where(and(
+        eq(mpesaTransactions.shortTermBookingId, booking.id),
+        eq(mpesaTransactions.status, "pending"),
+        gte(mpesaTransactions.createdAt, sql`now() - interval '2 minutes'`),
+      )).limit(1);
+    if (inFlight) {
+      return res.status(409).json({ message: "A payment request was just sent to your phone. Enter your M-Pesa PIN, or wait a couple of minutes and try again.", code: "PAYMENT_IN_PROGRESS" });
     }
 
     // Reuses the exact same cascade every other payment flow in this app
@@ -484,7 +499,7 @@ publicStaysRouter.get("/bookings/lookup", async (req: any, res: any) => {
     const [booking] = await db.select().from(tenantShortBookings)
       .where(and(
         eq(tenantShortBookings.bookingReference, parsed.data.bookingReference),
-        eq(tenantShortBookings.guestEmail, parsed.data.guestEmail.toLowerCase()),
+        sql`lower(${tenantShortBookings.guestEmail}) = ${parsed.data.guestEmail.toLowerCase()}`,
       )).limit(1);
     if (!booking) return res.status(404).json({ message: "No booking found with that reference and email." });
 
@@ -516,7 +531,7 @@ publicStaysRouter.get("/bookings/lookup", async (req: any, res: any) => {
 // since this is a genuinely separate entry point into the same table.
 publicStaysRouter.post("/bookings/:reference/cancel", async (req: any, res: any) => {
   try {
-    const { guestEmail } = req.body;
+    const { guestEmail } = req.body ?? {};
     if (!guestEmail || typeof guestEmail !== "string") {
       return res.status(400).json({ message: "The email you booked with is required to cancel." });
     }
@@ -524,54 +539,15 @@ publicStaysRouter.post("/bookings/:reference/cancel", async (req: any, res: any)
     const [booking] = await db.select().from(tenantShortBookings)
       .where(and(
         eq(tenantShortBookings.bookingReference, req.params.reference),
-        eq(tenantShortBookings.guestEmail, guestEmail.toLowerCase()),
+        sql`lower(${tenantShortBookings.guestEmail}) = ${guestEmail.toLowerCase()}`,
       )).limit(1);
     if (!booking) return res.status(404).json({ message: "No booking found with that reference and email." });
-    if (booking.bookingStatus === "cancelled") return res.status(409).json({ message: "This booking is already cancelled." });
-    if (booking.bookingStatus === "checked_out") return res.status(409).json({ message: "A completed stay can't be cancelled." });
 
-    const wasPaid = booking.paymentStatus === "paid";
-    const [updated] = await db.update(tenantShortBookings)
-      .set({
-        bookingStatus: "cancelled",
-        ...(wasPaid ? { refundStatus: "owed", refundAmount: booking.totalAmount } : {}),
-        updatedAt: new Date(),
-      })
-      .where(eq(tenantShortBookings.id, booking.id))
-      .returning();
-
-    if (wasPaid) {
-      try {
-        const [listingRow] = await db.select().from(tenantShortRentals).where(eq(tenantShortRentals.id, booking.rentalListingId)).limit(1);
-        let hostEmail: string | null = null;
-        let hostName = "there";
-        if (listingRow?.tenantId) {
-          const [tenantRow] = await db.select({ email: tenants.email, firstName: tenants.firstName }).from(tenants).where(eq(tenants.id, listingRow.tenantId)).limit(1);
-          hostEmail = tenantRow?.email ?? null;
-          hostName = tenantRow?.firstName ?? hostName;
-        } else if (listingRow?.ownerId) {
-          const [ownerRow] = await db.select({ email: users.email, firstName: users.firstName }).from(users).where(eq(users.id, listingRow.ownerId)).limit(1);
-          hostEmail = ownerRow?.email ?? null;
-          hostName = ownerRow?.firstName ?? hostName;
-        }
-        if (hostEmail) {
-          await sendRefundOwedEmail({
-            to: hostEmail,
-            hostName,
-            guestName: booking.guestName,
-            guestPhone: booking.guestPhone,
-            bookingReference: booking.bookingReference,
-            amount: String(booking.totalAmount),
-            currency: booking.currency,
-          });
-        }
-      } catch (emailErr) {
-        console.error("Guest cancelled a paid booking, but refund-owed notice failed to send:", emailErr);
-      }
-    }
-
+    // Same rules as a cancel by staff, plus: a guest can't cancel once the stay has started.
+    const updated = await cancelStayBooking(booking.id, { guestEmail, guestSide: true });
     res.json({ bookingStatus: updated.bookingStatus, refundStatus: updated.refundStatus });
   } catch (err) {
+    if (err instanceof StayError) return res.status(err.status).json({ message: err.message, ...(err.code ? { code: err.code } : {}) });
     console.error("[public-stays] POST /bookings/:reference/cancel:", err);
     res.status(500).json({ message: "Failed to cancel booking" });
   }

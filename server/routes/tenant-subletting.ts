@@ -7,9 +7,13 @@
  */
 import { Router } from "express";
 import { db } from "../db";
-import { eq, and, ne, lt, inArray } from "drizzle-orm";
+import { eq, and, ne, lt, inArray, sql } from "drizzle-orm";
 import { s3Upload, resolveUploadUrl } from "../middleware/s3Upload";
-import { sendSubletNoticeToLandlordEmail, sendRefundOwedEmail, sendRefundProcessedEmail } from "../lib/email";
+import { sendSubletNoticeToLandlordEmail, sendRefundProcessedEmail } from "../lib/email";
+import {
+  StayError, stayFail, MAX_NIGHTLY_RATE, nightsBetween, stayFinancials, STAY_TRANSITIONS,
+  cancelStayBooking, assertPublicFeedUrl,
+} from "../services/stay-bookings";
 import { authenticateJWT } from "../middleware/auth";
 import { requireOrg } from "../middleware/requireOrg";
 import crypto from "crypto";
@@ -57,6 +61,65 @@ async function generateUniqueSlug(base: string, excludeId?: number): Promise<str
     candidate = `${baseSlug}-${suffix}`;
     suffix++;
   }
+}
+
+
+/** One place that turns an error thrown by the stay rules into the response. */
+function sendStayError(res: any, err: any, fallback: string, log: string) {
+  if (err instanceof StayError) return res.status(err.status).json({ message: err.message, ...(err.code ? { code: err.code } : {}) });
+  if (err instanceof z.ZodError) return res.status(400).json({ errors: err.errors });
+  console.error(log, err);
+  return res.status(500).json({ message: fallback });
+}
+
+const MANAGER_ROLES = ["admin", "manager"];
+const MAX_LISTING_PHOTOS = 12;
+const MAX_FEEDS_PER_LISTING = 10;
+const MAX_FEED_EVENTS = 500;
+
+/**
+ * Checks and tidies the numbers and times of a listing. Returns an error message, or null when it is fine.
+ * Commission, platform fee and host share are the manager's to set: for anyone else they are removed here, so a tenant
+ * can never pay themselves a bigger share of their own listing.
+ */
+function cleanListingInput(body: any, role: string, partial: boolean): string | null {
+  if (!MANAGER_ROLES.includes(role)) {
+    for (const k of ["propertyManagerCommission", "tenantEarningsShare", "platformFees"]) delete body[k];
+  }
+  const num = (v: any) => (v === "" || v === null || v === undefined ? NaN : Number(v));
+  if (body.listingTitle !== undefined || !partial) {
+    const t = String(body.listingTitle ?? "").trim();
+    if (!t) return "Give the listing a title.";
+    if (t.length > 200) return "The listing title is too long.";
+    body.listingTitle = t;
+  }
+  if (body.nightlyRate !== undefined || !partial) {
+    const r = num(body.nightlyRate);
+    if (!isFinite(r) || r <= 0) return "The nightly rate must be more than zero.";
+    if (r > MAX_NIGHTLY_RATE) return "That nightly rate is too high.";
+  }
+  for (const [k, label, max] of [["minimumNights", "Minimum nights", 365], ["maximumNights", "Maximum nights", 365], ["maxGuests", "Maximum guests", 50]] as const) {
+    if (body[k] !== undefined) {
+      const v = num(body[k]);
+      if (!Number.isInteger(v) || v < 1 || v > max) return `${label} must be a whole number from 1 to ${max}.`;
+      body[k] = v;
+    }
+  }
+  if (body.minimumNights !== undefined && body.maximumNights !== undefined && body.maximumNights < body.minimumNights) {
+    return "Maximum nights can't be less than minimum nights.";
+  }
+  for (const [k, label] of [["propertyManagerCommission", "Manager commission"], ["platformFees", "Platform fee"], ["tenantEarningsShare", "Host share"]] as const) {
+    if (body[k] !== undefined) {
+      const v = num(body[k]);
+      if (!isFinite(v) || v < 0 || v > 100) return `${label} must be between 0 and 100 percent.`;
+    }
+  }
+  if (num(body.propertyManagerCommission) + num(body.platformFees) > 100) return "Commission and platform fee together can't be more than 100%.";
+  if (body.currency !== undefined && !/^[A-Z]{3}$/.test(String(body.currency))) return "Use a three-letter currency code such as KES.";
+  for (const k of ["checkInTime", "checkOutTime"] as const) {
+    if (body[k] !== undefined && !/^([01]\d|2[0-3]):[0-5]\d$/.test(String(body[k]))) return "Times must look like 14:00.";
+  }
+  return null;
 }
 
 // ── Tenant Short Rentals Router ───────────────────────────────────────────────
@@ -190,6 +253,11 @@ tenantShortRentalsRouter.post("/", async (req: any, res: any) => {
     }
 
     const formattedBody = { ...req.body };
+    // Review and system fields are never taken from the caller (a tenant could otherwise create a listing that is
+    // already "approved by the landlord", or with their own secret calendar token).
+    for (const k of ["approvedBy", "approvedAt", "landlordNotifiedAt", "landlordConsentConfirmed", "icalExportToken", "isActive", "listingPhotos", "id", "createdAt", "updatedAt"]) delete formattedBody[k];
+    const invalid = cleanListingInput(formattedBody, role, false);
+    if (invalid) return res.status(400).json({ message: invalid });
     ["nightlyRate", "propertyManagerCommission", "tenantEarningsShare", "platformFees"].forEach(field => {
       if (formattedBody[field] !== undefined && typeof formattedBody[field] === "number") {
         formattedBody[field] = formattedBody[field].toString();
@@ -206,9 +274,10 @@ tenantShortRentalsRouter.post("/", async (req: any, res: any) => {
 
     if (isTenant) {
       // A tenant can only list their own leased unit.
-      const [tenantRow] = await db.select({ id: tenants.id, unitId: tenants.unitId })
+      const [tenantRow] = await db.select({ id: tenants.id, unitId: tenants.unitId, status: tenants.status })
         .from(tenants).where(and(eq(tenants.userId, req.user.id), eq(tenants.organizationId, orgId))).limit(1);
       if (!tenantRow) return res.status(403).json({ message: "No tenant record found for your account." });
+      if (tenantRow.status !== "active") return res.status(403).json({ message: "Only a tenant with a current tenancy can sublet a unit." });
       if (!tenantRow.unitId) return res.status(400).json({ message: "You don't have a unit assigned to sublet." });
       tenantId = tenantRow.id;
       unitId = tenantRow.unitId;
@@ -245,6 +314,13 @@ tenantShortRentalsRouter.post("/", async (req: any, res: any) => {
         if (!ownerRow) return res.status(404).json({ message: "Landlord not found in your organisation." });
         ownerId = ownerRow.id;
       }
+    }
+
+    // One live listing per unit: two listings for the same unit would sell the same nights twice.
+    if (unitId) {
+      const [dup] = await db.select({ id: tenantShortRentals.id }).from(tenantShortRentals)
+        .where(and(eq(tenantShortRentals.unitId, unitId), eq(tenantShortRentals.isActive, true), ne(tenantShortRentals.approvalStatus, "rejected"))).limit(1);
+      if (dup) return res.status(409).json({ message: "This unit already has a short-stay listing. Edit that one, or remove it first.", code: "UNIT_ALREADY_LISTED" });
     }
 
     const slug = await generateUniqueSlug(formattedBody.slug || formattedBody.listingTitle || "listing");
@@ -325,6 +401,12 @@ tenantShortRentalsRouter.put("/:id", async (req: any, res: any) => {
     delete formattedBody.organizationId;
     delete formattedBody.approvalStatus;
     delete formattedBody.isPubliclyListed;
+    // …and neither can the unit be swapped, the review trail rewritten, the secret calendar token replaced, or the listing
+    // switched on or off here (removing a listing has its own action).
+    for (const k of ["id", "unitId", "approvedBy", "approvedAt", "landlordNotifiedAt", "landlordConsentConfirmed", "icalExportToken", "isActive", "listingPhotos", "createdAt", "updatedAt"]) delete formattedBody[k];
+    const invalid = cleanListingInput(formattedBody, req.user.role, true);
+    if (invalid) return res.status(400).json({ message: invalid });
+    if (!existing.isActive) return res.status(409).json({ message: "This listing has been removed." });
 
     ["nightlyRate", "propertyManagerCommission", "tenantEarningsShare", "platformFees"].forEach(field => {
       if (formattedBody[field] !== undefined && typeof formattedBody[field] === "number") {
@@ -497,6 +579,9 @@ tenantShortRentalsRouter.post("/:id/photos", s3Upload.single("photo"), async (re
 
     const photoUrl = resolveUploadUrl(req.file as any);
     const existingPhotos = Array.isArray(listing.listingPhotos) ? listing.listingPhotos : [];
+    if (existingPhotos.length >= MAX_LISTING_PHOTOS) {
+      return res.status(409).json({ message: `A listing can have up to ${MAX_LISTING_PHOTOS} photos. Remove one first.` });
+    }
     const [updated] = await db.update(tenantShortRentals)
       .set({ listingPhotos: [...existingPhotos, photoUrl], updatedAt: new Date() })
       .where(eq(tenantShortRentals.id, id))
@@ -688,6 +773,9 @@ tenantShortRentalsRouter.post("/:id/ical-feeds", async (req: any, res: any) => {
 
     const parsed = addFeedSchema.safeParse(req.body);
     if (!parsed.success) return res.status(400).json({ message: "A valid platform and feed URL are required." });
+    await assertPublicFeedUrl(parsed.data.feedUrl);
+    const [{ n: feedCount }] = await db.select({ n: sql<number>`count(*)::int` }).from(externalCalendarFeeds).where(eq(externalCalendarFeeds.rentalListingId, id));
+    if (feedCount >= MAX_FEEDS_PER_LISTING) return res.status(409).json({ message: `A listing can import up to ${MAX_FEEDS_PER_LISTING} calendars.` });
 
     const payload = insertExternalCalendarFeedSchema.parse({
       rentalListingId: id,
@@ -698,9 +786,7 @@ tenantShortRentalsRouter.post("/:id/ical-feeds", async (req: any, res: any) => {
     const [created] = await db.insert(externalCalendarFeeds).values(payload).returning();
     res.status(201).json(created);
   } catch (err) {
-    if (err instanceof z.ZodError) return res.status(400).json({ errors: err.errors });
-    console.error("Error adding ical feed:", err);
-    res.status(500).json({ message: "Failed to add calendar feed" });
+    return sendStayError(res, err, "Failed to add calendar feed", "Error adding ical feed:");
   }
 });
 
@@ -745,28 +831,32 @@ tenantShortRentalsRouter.post("/:id/ical-feeds/:feedId/sync", async (req: any, r
       .where(and(eq(externalCalendarFeeds.id, feedId), eq(externalCalendarFeeds.rentalListingId, id))).limit(1);
     if (!feed) return res.status(404).json({ message: "Feed not found" });
 
+    // The link was checked when it was added, but a name can later point somewhere else: check again before fetching.
+    await assertPublicFeedUrl(feed.feedUrl);
     try {
       const parsed = await ical.async.fromURL(feed.feedUrl);
-      const events = Object.values(parsed).filter((e: any) => e.type === "VEVENT" && e.start && e.end);
+      const events = Object.values(parsed)
+        .filter((e: any) => e.type === "VEVENT" && e.start && e.end && !isNaN(new Date(e.start).getTime()) && !isNaN(new Date(e.end).getTime()))
+        .slice(0, MAX_FEED_EVENTS);
 
-      // Replace this feed's own prior blocks — never touches a host's
-      // manually-added ones or another feed's, since both are scoped by
-      // externalFeedId.
-      await db.delete(listingBlockedDates).where(and(eq(listingBlockedDates.externalFeedId, feedId), eq(listingBlockedDates.rentalListingId, id)));
-
-      if (events.length > 0) {
-        await db.insert(listingBlockedDates).values(
-          events.map((e: any) => ({
-            rentalListingId: id,
-            startDate: new Date(e.start),
-            endDate: new Date(e.end),
-            reason: `Synced from ${feed.platform}`,
-            source: feed.platform,
-            externalFeedId: feedId,
-            externalEventUid: String(e.uid ?? ""),
-          }))
-        );
-      }
+      // Replace this feed's own prior blocks in one step, so a failure half way never leaves the calendar empty — it never
+      // touches a host's manually-added blocks or another feed's, since both are scoped by externalFeedId.
+      await db.transaction(async (tx) => {
+        await tx.delete(listingBlockedDates).where(and(eq(listingBlockedDates.externalFeedId, feedId), eq(listingBlockedDates.rentalListingId, id)));
+        if (events.length > 0) {
+          await tx.insert(listingBlockedDates).values(
+            events.map((e: any) => ({
+              rentalListingId: id,
+              startDate: new Date(e.start),
+              endDate: new Date(e.end),
+              reason: `Synced from ${feed.platform}`,
+              source: feed.platform,
+              externalFeedId: feedId,
+              externalEventUid: String(e.uid ?? "").slice(0, 250),
+            }))
+          );
+        }
+      });
 
       const [updated] = await db.update(externalCalendarFeeds)
         .set({ lastSyncedAt: new Date(), lastSyncStatus: "success", lastSyncError: null })
@@ -781,8 +871,7 @@ tenantShortRentalsRouter.post("/:id/ical-feeds/:feedId/sync", async (req: any, r
       res.status(502).json({ message: "Could not fetch or parse that calendar feed. Double-check the URL.", feed: updated });
     }
   } catch (err) {
-    console.error("Error syncing ical feed:", err);
-    res.status(500).json({ message: "Failed to sync calendar feed" });
+    return sendStayError(res, err, "Failed to sync calendar feed", "Error syncing ical feed:");
   }
 });
 
@@ -851,278 +940,243 @@ shortTermBookingsRouter.get("/:id", async (req: any, res: any) => {
   }
 });
 
-// POST /api/short-term-bookings
+const bookingGuestSchema = z.object({
+  guestName: z.string().trim().min(1, "Enter the guest's name.").max(100),
+  guestEmail: z.string().trim().email("Enter a valid guest email.").max(100).transform(v => v.toLowerCase()),
+  guestPhone: z.string().trim().min(7, "Enter the guest's phone number.").max(20),
+  guestCount: z.coerce.number().int().min(1, "At least one guest.").max(50),
+});
+
+const startOfTodayUtc = () => { const d = new Date(); d.setUTCHours(0, 0, 0, 0); return d; };
+
+/** Whether these dates clash with another live booking (other than `exceptId`) or a host block on the listing. */
+async function datesUnavailable(listingId: number, checkIn: Date, checkOut: Date, exceptId?: number): Promise<string | null> {
+  await expireStalePendingBookings(listingId);
+  const conflicting = await db
+    .select({ checkOutDate: tenantShortBookings.checkOutDate })
+    .from(tenantShortBookings)
+    .where(and(
+      eq(tenantShortBookings.rentalListingId, listingId),
+      ...(exceptId ? [ne(tenantShortBookings.id, exceptId)] : []),
+      ne(tenantShortBookings.bookingStatus, "cancelled"),
+      ne(tenantShortBookings.bookingStatus, "expired"),
+      lt(tenantShortBookings.checkInDate, checkOut),
+    ));
+  if (conflicting.some(b => new Date(b.checkOutDate) > checkIn)) return "Those dates conflict with another booking on this listing.";
+  if (await hasBlockedDateOverlap(listingId, checkIn, checkOut)) return "Those dates are blocked by the host and aren't available for booking.";
+  return null;
+}
+
+function parseStayDates(inRaw: any, outRaw: any): { checkIn: Date; checkOut: Date } {
+  const checkIn = new Date(inRaw);
+  const checkOut = new Date(outRaw);
+  if (isNaN(checkIn.getTime()) || isNaN(checkOut.getTime())) return stayFail(400, "Enter valid check-in and check-out dates.");
+  if (checkOut <= checkIn) return stayFail(400, "Check-out date must be after check-in date.");
+  return { checkIn, checkOut };
+}
+
+function assertNightsAllowed(listing: { minimumNights: number; maximumNights: number }, nights: number) {
+  if (nights < listing.minimumNights) stayFail(400, `This listing requires a minimum stay of ${listing.minimumNights} night(s).`);
+  if (nights > listing.maximumNights) stayFail(400, `This listing allows a maximum stay of ${listing.maximumNights} night(s).`);
+}
+
+// POST /api/short-term-bookings — a booking recorded by staff, the landlord or the host.
+// Every money figure is worked out here from the listing's own rate and split. Nothing financial is taken from the
+// request: only a manager can record a booking as already paid (cash or bank transfer received).
 shortTermBookingsRouter.post("/", async (req: any, res: any) => {
   try {
     const orgId: number = req.user.organizationId;
-    // Auto-generate booking reference if not provided
-    const bookingReference =
-      req.body.bookingReference ??
-      `BK-${Date.now()}-${Math.random().toString(36).substring(2, 7).toUpperCase()}`;
-    // Ensure numeric fields are strings for decimal validation
-    const formattedBody = { ...req.body };
-    ["nightlyRate", "totalAmount", "cleaningFee", "platformFees", "propertyManagerCommission", "tenantPayout", "securityDeposit"].forEach(field => {
-      if (formattedBody[field] !== undefined && typeof formattedBody[field] === "number") {
-        formattedBody[field] = formattedBody[field].toString();
-      }
+    const role: string = req.user.role;
+    const body = req.body ?? {};
+    const isManager = MANAGER_ROLES.includes(role);
+
+    const listingId = parseInt(body.rentalListingId);
+    if (!Number.isInteger(listingId)) return stayFail(400, "Choose the listing this booking is for.");
+    const [listing] = await db.select().from(tenantShortRentals)
+      .where(and(eq(tenantShortRentals.id, listingId), eq(tenantShortRentals.organizationId, orgId))).limit(1);
+    if (!listing) return stayFail(404, "Listing not found.");
+    if (!(await canAccessListing(listing, req.user))) return stayFail(403, "Not permitted.");
+    if (!listing.isActive) return stayFail(409, "This listing has been removed.");
+    if (listing.approvalStatus !== "approved") return stayFail(409, "This listing hasn't been approved yet, so it can't take bookings.");
+
+    const guest = bookingGuestSchema.parse(body);
+    if (guest.guestCount > listing.maxGuests) return stayFail(400, `This listing sleeps a maximum of ${listing.maxGuests} guest(s).`);
+    const { checkIn, checkOut } = parseStayDates(body.checkInDate, body.checkOutDate);
+    if (checkIn < startOfTodayUtc()) return stayFail(400, "The check-in date can't be in the past.");
+    const nights = nightsBetween(checkIn, checkOut);
+    assertNightsAllowed(listing, nights);
+
+    const paidNow = isManager && body.paymentStatus === "paid";
+    const bookingStatus = paidNow || (isManager && body.bookingStatus === "confirmed") ? "confirmed" : "pending";
+    const platformSource = isManager && ["direct", "airbnb", "booking.com", "other"].includes(body.platformSource) ? body.platformSource : "direct";
+    const specialRequests = typeof body.specialRequests === "string" ? body.specialRequests.slice(0, 1000) : undefined;
+    const fin = stayFinancials(listing, nights);
+    const bookingReference = `BK-${Date.now()}-${Math.random().toString(36).substring(2, 7).toUpperCase()}`;
+
+    const created = await db.transaction(async (tx) => {
+      // Booking the same nights at the same moment: the second request waits here until the first has been saved.
+      await tx.select({ id: tenantShortRentals.id }).from(tenantShortRentals).where(eq(tenantShortRentals.id, listing.id)).for("update");
+      const clash = await datesUnavailable(listing.id, checkIn, checkOut);
+      if (clash) return stayFail(409, clash, "BOOKING_DATES_UNAVAILABLE");
+      const [row] = await tx.insert(tenantShortBookings).values({
+        organizationId: orgId, rentalListingId: listing.id, bookingReference, ...guest,
+        checkInDate: checkIn, checkOutDate: checkOut, numberOfNights: nights, ...fin, currency: listing.currency,
+        bookingStatus, paymentStatus: paidNow ? "paid" : "pending", platformSource, specialRequests,
+      }).returning();
+      return row;
     });
-
-    const payload = insertTenantShortBookingSchema.parse({
-      ...formattedBody,
-      bookingReference,
-      organizationId: orgId,
-    });
-
-    const [targetListing] = await db.select({ maxGuests: tenantShortRentals.maxGuests })
-      .from(tenantShortRentals).where(eq(tenantShortRentals.id, payload.rentalListingId as any)).limit(1);
-    if (!targetListing) return res.status(404).json({ message: "Listing not found." });
-    if (payload.guestCount && payload.guestCount > targetListing.maxGuests) {
-      return res.status(400).json({ message: `This listing sleeps a maximum of ${targetListing.maxGuests} guest(s).` });
-    }
-
-    // Double-booking prevention — the actual core requirement of any
-    // booking system, previously entirely missing here. Two stays overlap
-    // if one starts before the other ends, in both directions. Cancelled
-    // bookings don't block new ones; every other status does, since even
-    // a "pending" hold on these dates shouldn't be double-sold while it's
-    // being resolved.
-    const checkIn = new Date(payload.checkInDate as any);
-    const checkOut = new Date(payload.checkOutDate as any);
-    if (checkOut <= checkIn) {
-      return res.status(400).json({ message: "Check-out date must be after check-in date." });
-    }
-    await expireStalePendingBookings(payload.rentalListingId as any);
-    const conflicting = await db
-      .select({ id: tenantShortBookings.id, checkInDate: tenantShortBookings.checkInDate, checkOutDate: tenantShortBookings.checkOutDate })
-      .from(tenantShortBookings)
-      .where(and(
-        eq(tenantShortBookings.rentalListingId, payload.rentalListingId as any),
-        ne(tenantShortBookings.bookingStatus, "cancelled"),
-        ne(tenantShortBookings.bookingStatus, "expired"),
-        lt(tenantShortBookings.checkInDate, checkOut),
-      ));
-    const hasOverlap = conflicting.some(b => new Date(b.checkOutDate) > checkIn);
-    if (hasOverlap) {
-      return res.status(409).json({
-        message: "Those dates are no longer available for this listing — someone else has already booked an overlapping stay.",
-        code: "BOOKING_DATES_UNAVAILABLE",
-      });
-    }
-    if (await hasBlockedDateOverlap(payload.rentalListingId as any, checkIn, checkOut)) {
-      return res.status(409).json({
-        message: "Those dates are blocked by the host and aren't available for booking.",
-        code: "BOOKING_DATES_UNAVAILABLE",
-      });
-    }
-
-    const [created] = await db.insert(tenantShortBookings).values(payload).returning();
     return res.status(201).json(created);
   } catch (err: any) {
-    if (err instanceof z.ZodError) {
-      return res.status(400).json({ errors: err.errors });
-    }
-    // Postgres exclusion-constraint violation (code 23P01) — the
-    // application-level check above is "look, then write", so a genuinely
-    // concurrent request can still slip past it; this is the database's
-    // own guarantee catching what the check alone couldn't.
-    if (err?.code === "23P01") {
-      return res.status(409).json({
-        message: "Those dates were just booked by someone else — please pick different dates.",
-        code: "BOOKING_DATES_UNAVAILABLE",
-      });
-    }
-    console.error("Error creating short term booking:", err);
-    return res.status(500).json({ message: "Failed to create booking" });
+    // The database's own no-overlap guarantee catching a genuinely simultaneous request.
+    if (err?.code === "23P01") return res.status(409).json({ message: "Those dates were just booked by someone else — please pick different dates.", code: "BOOKING_DATES_UNAVAILABLE" });
+    return sendStayError(res, err, "Failed to create booking", "Error creating short term booking:");
   }
 });
 
-// PUT /api/short-term-bookings/:id
+// PUT /api/short-term-bookings/:id — change the guest's details or dates, or move the stay along
+// (pending → confirmed → checked in → checked out). Prices, payment and refund fields are not editable here, and
+// cancelling is its own action because a paid booking then owes a refund.
 shortTermBookingsRouter.put("/:id", async (req: any, res: any) => {
   try {
     const id = parseInt(req.params.id);
     const orgId: number = req.user.organizationId;
+    const role: string = req.user.role;
+    const body = req.body ?? {};
 
     const [existing] = await db.select().from(tenantShortBookings)
       .where(and(eq(tenantShortBookings.id, id), eq(tenantShortBookings.organizationId, orgId))).limit(1);
-    if (!existing) return res.status(404).json({ message: "Not found" });
-    if (!(await canAccessBooking(existing, req.user))) return res.status(403).json({ message: "Not permitted." });
+    if (!existing) return stayFail(404, "Not found");
+    if (!(await canAccessBooking(existing, req.user))) return stayFail(403, "Not permitted.");
+    if (["cancelled", "expired", "checked_out"].includes(existing.bookingStatus)) {
+      return stayFail(409, `A ${existing.bookingStatus.replace("_", " ")} booking can't be changed.`);
+    }
+    const [listing] = await db.select().from(tenantShortRentals).where(eq(tenantShortRentals.id, existing.rentalListingId)).limit(1);
+    if (!listing) return stayFail(404, "Listing not found.");
 
-    const formattedBody = { ...req.body };
-    // Not editable via a general update — moving a booking to a different
-    // listing/org, or renumbering its reference, isn't a normal edit.
-    delete formattedBody.rentalListingId;
-    delete formattedBody.organizationId;
-    delete formattedBody.bookingReference;
+    const patch: Record<string, any> = {};
+    if (body.guestName !== undefined || body.guestEmail !== undefined || body.guestPhone !== undefined || body.guestCount !== undefined) {
+      const g = bookingGuestSchema.parse({
+        guestName: body.guestName ?? existing.guestName, guestEmail: body.guestEmail ?? existing.guestEmail,
+        guestPhone: body.guestPhone ?? existing.guestPhone, guestCount: body.guestCount ?? existing.guestCount,
+      });
+      if (g.guestCount > listing.maxGuests) return stayFail(400, `This listing sleeps a maximum of ${listing.maxGuests} guest(s).`);
+      Object.assign(patch, g);
+    }
+    if (body.specialRequests !== undefined) patch.specialRequests = String(body.specialRequests ?? "").slice(0, 1000);
+    if (body.checkInCode !== undefined) patch.checkInCode = String(body.checkInCode ?? "").slice(0, 20) || null;
 
-    ["nightlyRate", "totalAmount", "cleaningFee", "platformFees", "propertyManagerCommission", "tenantPayout", "securityDeposit"].forEach(field => {
-      if (formattedBody[field] !== undefined && typeof formattedBody[field] === "number") {
-        formattedBody[field] = formattedBody[field].toString();
+    // Moving the dates
+    const datesChanging = body.checkInDate !== undefined || body.checkOutDate !== undefined;
+    if (datesChanging) {
+      if (existing.bookingStatus === "checked_in") return stayFail(409, "The guest has already checked in, so the dates can't be moved.");
+      const { checkIn, checkOut } = parseStayDates(body.checkInDate ?? existing.checkInDate, body.checkOutDate ?? existing.checkOutDate);
+      if (checkIn < startOfTodayUtc() && checkIn.getTime() !== new Date(existing.checkInDate).getTime()) return stayFail(400, "The check-in date can't be in the past.");
+      const nights = nightsBetween(checkIn, checkOut);
+      assertNightsAllowed(listing, nights);
+      if (existing.paymentStatus === "paid" && nights !== existing.numberOfNights) {
+        return stayFail(409, "This stay is already paid for. Keep the same number of nights, or cancel it and make a new booking.", "PAID_NIGHTS_CHANGE");
       }
-    });
-
-    const payload = insertTenantShortBookingSchema.partial().parse(formattedBody);
-
-    // If the stay's dates are changing, the same double-booking risk from
-    // creation applies here too — re-check for overlaps against every other
-    // booking on this listing before allowing the change through.
-    if (payload.checkInDate || payload.checkOutDate) {
-      const checkIn = new Date((payload.checkInDate ?? existing.checkInDate) as any);
-      const checkOut = new Date((payload.checkOutDate ?? existing.checkOutDate) as any);
-      if (checkOut <= checkIn) {
-        return res.status(400).json({ message: "Check-out date must be after check-in date." });
-      }
-      await expireStalePendingBookings(existing.rentalListingId);
-      const conflicting = await db
-        .select({ id: tenantShortBookings.id, checkInDate: tenantShortBookings.checkInDate, checkOutDate: tenantShortBookings.checkOutDate })
-        .from(tenantShortBookings)
-        .where(and(
-          eq(tenantShortBookings.rentalListingId, existing.rentalListingId),
-          ne(tenantShortBookings.id, id),
-          ne(tenantShortBookings.bookingStatus, "cancelled"),
-          ne(tenantShortBookings.bookingStatus, "expired"),
-          lt(tenantShortBookings.checkInDate, checkOut),
-        ));
-      const hasOverlap = conflicting.some(b => new Date(b.checkOutDate) > checkIn);
-      if (hasOverlap) {
-        return res.status(409).json({
-          message: "Those dates conflict with another existing booking on this listing.",
-          code: "BOOKING_DATES_UNAVAILABLE",
-        });
-      }
-      if (await hasBlockedDateOverlap(existing.rentalListingId, checkIn, checkOut)) {
-        return res.status(409).json({
-          message: "Those dates are blocked by the host and aren't available.",
-          code: "BOOKING_DATES_UNAVAILABLE",
-        });
-      }
+      const clash = await datesUnavailable(existing.rentalListingId, checkIn, checkOut, id);
+      if (clash) return stayFail(409, clash, "BOOKING_DATES_UNAVAILABLE");
+      patch.checkInDate = checkIn; patch.checkOutDate = checkOut; patch.numberOfNights = nights;
+      // The price follows the nights until it has been paid.
+      if (existing.paymentStatus !== "paid") Object.assign(patch, stayFinancials({ nightlyRate: existing.nightlyRate, propertyManagerCommission: listing.propertyManagerCommission, platformFees: listing.platformFees }, nights));
     }
 
-    const rows = await db
-      .update(tenantShortBookings)
-      .set({ ...payload, updatedAt: new Date() })
-      .where(and(eq(tenantShortBookings.id, id), eq(tenantShortBookings.organizationId, orgId)))
-      .returning();
-    if (!rows.length) return res.status(404).json({ message: "Not found" });
-    return res.json(rows[0]);
-  } catch (err) {
-    if (err instanceof z.ZodError) {
-      return res.status(400).json({ errors: err.errors });
+    // Moving the stay along
+    if (body.bookingStatus !== undefined && body.bookingStatus !== existing.bookingStatus) {
+      const next = String(body.bookingStatus);
+      if (next === "cancelled") return stayFail(400, "Use Cancel booking to cancel a stay, so any refund owed is recorded.");
+      if (!(STAY_TRANSITIONS[existing.bookingStatus] ?? []).includes(next)) {
+        return stayFail(409, `A ${existing.bookingStatus.replace("_", " ")} booking can't go straight to ${next.replace("_", " ")}.`, "BAD_STATUS_MOVE");
+      }
+      if (next === "confirmed" && !MANAGER_ROLES.includes(role) && existing.paymentStatus !== "paid") {
+        return stayFail(403, "Only a manager can confirm a booking that hasn't been paid.");
+      }
+      patch.bookingStatus = next;
     }
-    console.error("Error updating short term booking:", err);
-    return res.status(500).json({ message: "Failed to update booking" });
+
+    if (!Object.keys(patch).length) return res.json(existing);
+    const [updated] = await db.update(tenantShortBookings).set({ ...patch, updatedAt: new Date() })
+      .where(and(eq(tenantShortBookings.id, id), eq(tenantShortBookings.organizationId, orgId))).returning();
+    return res.json(updated);
+  } catch (err: any) {
+    if (err?.code === "23P01") return res.status(409).json({ message: "Those dates conflict with another booking on this listing.", code: "BOOKING_DATES_UNAVAILABLE" });
+    return sendStayError(res, err, "Failed to update booking", "Error updating short term booking:");
   }
 });
 
-// DELETE /api/short-term-bookings/:id
+// DELETE /api/short-term-bookings/:id — cancel. A soft cancel: the booking stays on record, the dates free up, and a
+// paid booking is marked as owing a refund.
 shortTermBookingsRouter.delete("/:id", async (req: any, res: any) => {
   try {
     const id = parseInt(req.params.id);
     const orgId: number = req.user.organizationId;
     const [existing] = await db.select().from(tenantShortBookings)
       .where(and(eq(tenantShortBookings.id, id), eq(tenantShortBookings.organizationId, orgId))).limit(1);
-    if (!existing) return res.status(404).json({ message: "Not found" });
-    if (!(await canAccessBooking(existing, req.user))) return res.status(403).json({ message: "Not permitted." });
-    if (existing.bookingStatus === "cancelled") {
-      return res.status(409).json({ message: "This booking is already cancelled." });
-    }
-    if (existing.bookingStatus === "checked_out") {
-      return res.status(409).json({ message: "A completed stay can't be cancelled." });
-    }
-
-    // Soft-cancel, not a hard delete — preserves the booking's history and
-    // audit trail, and lets other logic (double-booking checks, revenue
-    // reporting) correctly distinguish "never happened" from "was booked,
-    // then cancelled". The dates become available again automatically,
-    // since every overlap check already excludes cancelled bookings.
-    const wasPaid = existing.paymentStatus === "paid";
-    const [updated] = await db
-      .update(tenantShortBookings)
-      .set({
-        bookingStatus: "cancelled",
-        ...(wasPaid ? { refundStatus: "owed", refundAmount: existing.totalAmount } : {}),
-        updatedAt: new Date(),
-      })
-      .where(eq(tenantShortBookings.id, id))
-      .returning();
-
-    // A guest who already paid shouldn't just lose that money silently —
-    // notify whoever needs to actually send the refund. Isolated in its
-    // own try/catch, same reasoning as every other notification email
-    // here: an email failure shouldn't undo the cancellation itself.
-    if (wasPaid) {
-      try {
-        const [listingRow] = await db.select().from(tenantShortRentals).where(eq(tenantShortRentals.id, existing.rentalListingId)).limit(1);
-        let hostEmail: string | null = null;
-        let hostName = "there";
-        if (listingRow?.tenantId) {
-          const [tenantRow] = await db.select({ email: tenants.email, firstName: tenants.firstName }).from(tenants).where(eq(tenants.id, listingRow.tenantId)).limit(1);
-          hostEmail = tenantRow?.email ?? null;
-          hostName = tenantRow?.firstName ?? hostName;
-        } else if (listingRow?.ownerId) {
-          const [ownerRow] = await db.select({ email: users.email, firstName: users.firstName }).from(users).where(eq(users.id, listingRow.ownerId)).limit(1);
-          hostEmail = ownerRow?.email ?? null;
-          hostName = ownerRow?.firstName ?? hostName;
-        }
-        if (hostEmail) {
-          await sendRefundOwedEmail({
-            to: hostEmail,
-            hostName,
-            guestName: existing.guestName,
-            guestPhone: existing.guestPhone,
-            bookingReference: existing.bookingReference,
-            amount: String(existing.totalAmount),
-            currency: existing.currency,
-          });
-        }
-      } catch (emailErr) {
-        console.error("Booking cancelled, but refund-owed notice failed to send:", emailErr);
-      }
-    }
-
-    return res.json(updated);
+    if (!existing) return stayFail(404, "Not found");
+    if (!(await canAccessBooking(existing, req.user))) return stayFail(403, "Not permitted.");
+    return res.json(await cancelStayBooking(id, { orgId }));
   } catch (err) {
-    console.error("Error cancelling short term booking:", err);
-    return res.status(500).json({ message: "Failed to cancel booking" });
+    return sendStayError(res, err, "Failed to cancel booking", "Error cancelling short term booking:");
   }
 });
 
-// POST /api/short-term-bookings/:id/mark-refunded — records that a refund
-// owed on this booking has actually been sent (manually, via the host's
-// own M-Pesa), and who confirmed it. This is the accountability half of
-// refund tracking — a refund isn't done until someone attests it's done.
+// POST /api/short-term-bookings/:id/mark-paid — a manager records money received outside the M-Pesa page (cash, bank).
+shortTermBookingsRouter.post("/:id/mark-paid", async (req: any, res: any) => {
+  try {
+    if (!MANAGER_ROLES.includes(req.user.role)) return stayFail(403, "Only an admin or manager can record a payment.");
+    const id = parseInt(req.params.id);
+    const orgId: number = req.user.organizationId;
+    const updated = await db.transaction(async (tx) => {
+      const [b] = await tx.select().from(tenantShortBookings)
+        .where(and(eq(tenantShortBookings.id, id), eq(tenantShortBookings.organizationId, orgId))).for("update").limit(1);
+      if (!b) return stayFail(404, "Not found");
+      if (["cancelled", "expired", "checked_out"].includes(b.bookingStatus)) return stayFail(409, `A ${b.bookingStatus.replace("_", " ")} booking can't take a payment.`);
+      if (b.paymentStatus === "paid") return stayFail(409, "This booking is already paid.");
+      const [row] = await tx.update(tenantShortBookings).set({
+        paymentStatus: "paid", bookingStatus: b.bookingStatus === "pending" ? "confirmed" : b.bookingStatus, updatedAt: new Date(),
+      }).where(eq(tenantShortBookings.id, id)).returning();
+      return row;
+    });
+    return res.json(updated);
+  } catch (err) {
+    return sendStayError(res, err, "Failed to record the payment", "Error marking booking paid:");
+  }
+});
+
+// POST /api/short-term-bookings/:id/mark-refunded — records that a refund owed on this booking has actually been
+// sent (manually, via the host's own M-Pesa), and who confirmed it. A refund isn't done until someone attests it is.
 shortTermBookingsRouter.post("/:id/mark-refunded", async (req: any, res: any) => {
   try {
     const id = parseInt(req.params.id);
     const orgId: number = req.user.organizationId;
-    const { notes } = req.body;
-    const [existing] = await db.select().from(tenantShortBookings)
+    const notes = typeof req.body?.notes === "string" ? req.body.notes.slice(0, 500) : "";
+    const [peek] = await db.select().from(tenantShortBookings)
       .where(and(eq(tenantShortBookings.id, id), eq(tenantShortBookings.organizationId, orgId))).limit(1);
-    if (!existing) return res.status(404).json({ message: "Not found" });
-    if (!(await canAccessBooking(existing, req.user))) return res.status(403).json({ message: "Not permitted." });
-    if (existing.refundStatus !== "owed") {
-      return res.status(409).json({ message: "This booking doesn't currently have a refund owed." });
-    }
+    if (!peek) return stayFail(404, "Not found");
+    if (!(await canAccessBooking(peek, req.user))) return stayFail(403, "Not permitted.");
 
-    const [updated] = await db.update(tenantShortBookings)
-      .set({ refundStatus: "completed", refundedBy: req.user.id, refundedAt: new Date(), refundNotes: notes || null, updatedAt: new Date() })
-      .where(eq(tenantShortBookings.id, id))
-      .returning();
+    // Claimed under a lock: two people pressing the button must not both send the guest a "refund sent" email.
+    const { updated, existing } = await db.transaction(async (tx) => {
+      const [b] = await tx.select().from(tenantShortBookings).where(eq(tenantShortBookings.id, id)).for("update").limit(1);
+      if (!b || b.refundStatus !== "owed") return stayFail(409, "This booking doesn't currently have a refund owed.");
+      const [u] = await tx.update(tenantShortBookings)
+        .set({ refundStatus: "completed", ...(["cancelled", "expired"].includes(b.bookingStatus) ? { paymentStatus: "refunded" } : {}), refundedBy: req.user.id, refundedAt: new Date(), refundNotes: notes || null, updatedAt: new Date() })
+        .where(eq(tenantShortBookings.id, id)).returning();
+      return { updated: u, existing: b };
+    });
 
     try {
       await sendRefundProcessedEmail({
-        to: existing.guestEmail,
-        guestName: existing.guestName,
-        bookingReference: existing.bookingReference,
-        amount: String(existing.refundAmount ?? existing.totalAmount),
-        currency: existing.currency,
+        to: existing.guestEmail, guestName: existing.guestName, bookingReference: existing.bookingReference,
+        amount: String(existing.refundAmount ?? existing.totalAmount), currency: existing.currency,
       });
     } catch (emailErr) {
       console.error("Refund marked complete, but confirmation email to guest failed:", emailErr);
     }
-
-    res.json(updated);
+    return res.json(updated);
   } catch (err) {
-    console.error("Error marking refund complete:", err);
-    res.status(500).json({ message: "Failed to mark refund complete" });
+    return sendStayError(res, err, "Failed to mark refund complete", "Error marking refund complete:");
   }
 });

@@ -42,12 +42,22 @@ import { syncFromWorkOrder } from "../services/maintenance-workflow";
 const router = Router();
 const auth = [authenticateJWT as any, requireOrg as any];
 
+class PortalError extends Error { constructor(public status: number, message: string) { super(message); } }
+const MAX_MONEY = 99_999_999;
+/** Reads a money amount from a request. Returns null when it is not a sensible amount. */
+function readAmount(v: unknown, opts: { allowZero?: boolean } = {}): number | null {
+  const n = Number(v);
+  if (v === "" || v === null || v === undefined || !isFinite(n)) return null;
+  if (n < 0 || (n === 0 && !opts.allowZero) || n > MAX_MONEY) return null;
+  return Math.round(n * 100) / 100;
+}
+
 async function resolveContractor(userEmail: string, orgId: number) {
   if (!userEmail) return null;
   const [contractor] = await db
     .select()
     .from(contractors)
-    .where(and(eq(contractors.email, userEmail.toLowerCase()), eq(contractors.organizationId, orgId)))
+    .where(and(sql`lower(${contractors.email}) = ${userEmail.trim().toLowerCase()}`, eq(contractors.organizationId, orgId)))
     .limit(1);
   return contractor ?? null;
 }
@@ -226,9 +236,13 @@ router.patch("/work-orders/:id/accept", ...auth, async (req: any, res: any) => {
     if (!contractor) return res.status(404).json({ message: "Contractor profile not found" });
     const row = await resolveWorkOrderForContractor(parseInt(req.params.id), contractor.id);
     if (!row) return res.status(404).json({ message: "Work order not found" });
-    if (!["assigned", "approved", "pending_approval"].includes(row.workOrder.status ?? ""))
-      return res.status(400).json({ message: `Cannot accept a work order with status '${row.workOrder.status}'` });
-    const [updated] = await db.update(workOrders).set({ status: "in_progress", actualStartDate: new Date(), updatedAt: new Date() }).where(eq(workOrders.id, row.workOrder.id)).returning();
+    // A job still waiting for the manager's approval can't be started by the contractor.
+    if (row.workOrder.status === "pending_approval")
+      return res.status(409).json({ message: "This work order is waiting for the manager's approval. You can start it once it is approved." });
+    // The status is claimed in the same statement that checks it, so two taps (or two devices) can't both start the job.
+    const [updated] = await db.update(workOrders).set({ status: "in_progress", actualStartDate: new Date(), updatedAt: new Date() })
+      .where(and(eq(workOrders.id, row.workOrder.id), eq(workOrders.contractorId, contractor.id), sql`${workOrders.status} in ('assigned','approved')`)).returning();
+    if (!updated) return res.status(400).json({ message: `Cannot accept a work order with status '${row.workOrder.status}'` });
     res.json({ message: "Work order accepted", workOrder: updated });
 
     // Keep the maintenance request in step: the job is now in progress.
@@ -260,7 +274,9 @@ router.patch("/work-orders/:id/reject", ...auth, async (req: any, res: any) => {
     if (!row) return res.status(404).json({ message: "Work order not found" });
     if (!["assigned", "approved", "pending_approval"].includes(row.workOrder.status ?? ""))
       return res.status(400).json({ message: `Cannot reject a work order with status '${row.workOrder.status}'` });
-    const [updated] = await db.update(workOrders).set({ status: "rejected", rejectionReason: reason.trim(), contractorId: null, updatedAt: new Date() }).where(eq(workOrders.id, row.workOrder.id)).returning();
+    const [updated] = await db.update(workOrders).set({ status: "rejected", rejectionReason: reason.trim().slice(0, 500), contractorId: null, updatedAt: new Date() })
+      .where(and(eq(workOrders.id, row.workOrder.id), eq(workOrders.contractorId, contractor.id), sql`${workOrders.status} in ('assigned','approved','pending_approval')`)).returning();
+    if (!updated) return res.status(409).json({ message: "This work order has already changed. Refresh and try again." });
     res.json({ message: "Work order rejected", workOrder: updated });
 
     // The job goes back to the manager to hand to someone else.
@@ -293,10 +309,22 @@ router.patch("/work-orders/:id/complete", ...auth, async (req: any, res: any) =>
     if (!row) return res.status(404).json({ message: "Work order not found" });
     if (!["in_progress", "assigned"].includes(row.workOrder.status ?? ""))
       return res.status(400).json({ message: `Cannot complete a work order with status '${row.workOrder.status}'` });
-    const updateData: any = { status: "completed", completionNotes: completionNotes.trim(), actualEndDate: new Date(), updatedAt: new Date() };
-    if (actualCost !== undefined && !isNaN(Number(actualCost))) updateData.actualCost = String(actualCost);
-    const [updated] = await db.update(workOrders).set(updateData).where(eq(workOrders.id, row.workOrder.id)).returning();
-    await db.update(contractors).set({ completedJobs: (contractor.completedJobs ?? 0) + 1 }).where(eq(contractors.id, contractor.id));
+    const updateData: any = { status: "completed", completionNotes: String(completionNotes).trim().slice(0, 4000), actualEndDate: new Date(), updatedAt: new Date() };
+    if (actualCost !== undefined && actualCost !== null && actualCost !== "") {
+      const amount = readAmount(actualCost, { allowZero: true });
+      if (amount === null) return res.status(400).json({ message: "The actual cost must be a valid amount." });
+      updateData.actualCost = String(amount);
+    }
+    // Finishing is claimed under a row lock: the status is checked and changed together, so a double tap can't count the
+    // job twice, post the cost twice or notify the tenant twice.
+    const updated = await db.transaction(async (tx) => {
+      const [wo] = await tx.select().from(workOrders)
+        .where(and(eq(workOrders.id, row.workOrder.id), eq(workOrders.contractorId, contractor.id))).for("update").limit(1);
+      if (!wo || !["in_progress", "assigned"].includes(wo.status ?? "")) throw new PortalError(400, `Cannot complete a work order with status '${wo?.status}'`);
+      const [u] = await tx.update(workOrders).set(updateData).where(eq(workOrders.id, wo.id)).returning();
+      await tx.update(contractors).set({ completedJobs: sql`coalesce(${contractors.completedJobs}, 0) + 1`, updatedAt: new Date() }).where(eq(contractors.id, contractor.id));
+      return u;
+    });
 
     // Complete the maintenance request itself (stamps completed_at, tells the tenant to rate) — the contractor
     // finishing a work order used to leave the request open forever.
@@ -373,31 +401,55 @@ router.patch("/work-orders/:id/complete", ...auth, async (req: any, res: any) =>
     res.json({ message: "Work order completed", workOrder: updated });
     _notifyComplete();
   } catch (err) {
+    if (err instanceof PortalError) return res.status(err.status).json({ message: err.message });
     console.error("contractor-portal complete error:", err);
     res.status(500).json({ message: "Failed to complete work order" });
   }
 });
 
 // POST /work-orders/:id/invoice
+// An invoice is the contractor's bill for a finished job. It is accepted once, only after the job is marked complete, and
+// when it changes the cost the expense already booked for the job is brought into line (the manager is told both figures).
 router.post("/work-orders/:id/invoice", ...auth, async (req: any, res: any) => {
   try {
-    const { invoiceAmount, invoiceNotes, invoiceRef } = req.body;
-    if (!invoiceAmount || isNaN(Number(invoiceAmount))) return res.status(400).json({ message: "A valid invoice amount is required" });
+    const { invoiceAmount, invoiceNotes, invoiceRef } = req.body ?? {};
+    const amount = readAmount(invoiceAmount);
+    if (amount === null) return res.status(400).json({ message: "A valid invoice amount is required" });
     const contractor = await resolveContractor(req.user.email ?? "", req.user.organizationId);
     if (!contractor) return res.status(404).json({ message: "Contractor profile not found" });
     const row = await resolveWorkOrderForContractor(parseInt(req.params.id), contractor.id);
     if (!row) return res.status(404).json({ message: "Work order not found" });
-    const invoiceMeta = [`\n\n--- INVOICE SUBMITTED ---`, `Amount: ${invoiceAmount}`, invoiceRef ? `Reference: ${invoiceRef}` : null, invoiceNotes ? `Notes: ${invoiceNotes}` : null, `Submitted: ${new Date().toISOString()}`].filter(Boolean).join("\n");
-    const currentNotes = row.workOrder.completionNotes ?? "";
-    const [updated] = await db.update(workOrders).set({ actualCost: String(invoiceAmount), completionNotes: currentNotes + invoiceMeta, updatedAt: new Date() }).where(eq(workOrders.id, row.workOrder.id)).returning();
-    res.json({ message: "Invoice submitted", workOrder: updated });
 
+    const result = await db.transaction(async (tx) => {
+      const [wo] = await tx.select().from(workOrders)
+        .where(and(eq(workOrders.id, row.workOrder.id), eq(workOrders.contractorId, contractor.id))).for("update").limit(1);
+      if (!wo) throw new PortalError(404, "Work order not found");
+      if (wo.status !== "completed") throw new PortalError(409, "You can send an invoice once the job is marked complete.");
+      const currentNotes = wo.completionNotes ?? "";
+      if (currentNotes.includes("--- INVOICE SUBMITTED ---")) throw new PortalError(409, "An invoice has already been submitted for this job. Contact your manager to change it.");
+      const invoiceMeta = [
+        `\n\n--- INVOICE SUBMITTED ---`, `Amount: ${amount}`,
+        invoiceRef ? `Reference: ${String(invoiceRef).slice(0, 100)}` : null,
+        invoiceNotes ? `Notes: ${String(invoiceNotes).slice(0, 500)}` : null,
+        `Submitted: ${new Date().toISOString()}`,
+      ].filter(Boolean).join("\n");
+      const previous = wo.actualCost ?? wo.estimatedCost ?? null;
+      const [u] = await tx.update(workOrders).set({ actualCost: String(amount), completionNotes: currentNotes + invoiceMeta, updatedAt: new Date() }).where(eq(workOrders.id, wo.id)).returning();
+      // The expense posted when the job was completed must say what was actually billed.
+      await tx.update(propertyExpenses).set({ amount: String(amount) })
+        .where(and(eq(propertyExpenses.contractorId, contractor.id), sql`${propertyExpenses.notes} LIKE ${"%" + `WO ID: ${wo.id}`}`));
+      return { workOrder: u, previous };
+    });
+    res.json({ message: "Invoice submitted", workOrder: result.workOrder });
+
+    const changed = result.previous !== null && Number(result.previous) !== amount ? ` (the job was recorded at ${Number(result.previous).toLocaleString()})` : "";
     // Notify manager (non-blocking)
     notifyWorkOrderEvent(row.workOrder.id, req.user.organizationId, {
       managerTitle:   "Invoice submitted",
-      managerMessage: `${contractor.name || contractor.companyName} has submitted an invoice of ${row.workOrder.currency || "KES"} ${Number(invoiceAmount).toLocaleString()} for work order ${row.workOrder.ticketNumber}.`,
+      managerMessage: `${contractor.name || contractor.companyName} has submitted an invoice of ${row.workOrder.currency || "KES"} ${amount.toLocaleString()} for work order ${row.workOrder.ticketNumber}${changed}.`,
     }).catch(() => {});
   } catch (err) {
+    if (err instanceof PortalError) return res.status(err.status).json({ message: err.message });
     console.error("contractor-portal invoice error:", err);
     res.status(500).json({ message: "Failed to submit invoice" });
   }
@@ -586,13 +638,20 @@ router.post("/messages", ...auth, async (req: any, res: any) => {
     const { subject, content, toUserId } = req.body;
     if (!content?.trim()) return res.status(400).json({ message: "Message content is required" });
 
-    let recipientId = toUserId;
-    if (!recipientId) {
+    if (String(content).length > 5000) return res.status(400).json({ message: "That message is too long (5,000 characters at most)." });
+    // A contractor writes to the management team of their own organisation, nobody else.
+    let recipientId: string | undefined = typeof toUserId === "string" ? toUserId : undefined;
+    if (recipientId) {
+      const [target] = await db.select({ id: users.id }).from(users)
+        .where(and(eq(users.id, recipientId), eq(users.organizationId, orgId), sql`${users.role} in ('admin','manager')`)).limit(1);
+      if (!target) return res.status(403).json({ message: "You can only message the property management team." });
+    } else {
       const [admin] = await db.select({ id: users.id }).from(users).where(and(eq(users.organizationId, orgId), eq(users.role as any, "admin"))).limit(1);
-      recipientId = admin?.id ?? userId;
+      if (!admin) return res.status(409).json({ message: "There is nobody in the management team to receive this message yet." });
+      recipientId = admin.id;
     }
 
-    const [msg] = await db.insert(messages).values({ fromUserId: userId, toUserId: recipientId, subject: subject?.trim() || "Message from contractor", content: content.trim(), organizationId: orgId, isRead: false, createdAt: new Date() } as any).returning();
+    const [msg] = await db.insert(messages).values({ fromUserId: userId, toUserId: recipientId, subject: (subject?.trim() || "Message from contractor").slice(0, 200), content: content.trim(), organizationId: orgId, isRead: false, createdAt: new Date() } as any).returning();
 
     // Push real-time notification to the recipient
     notifyNewMessage(recipientId, {

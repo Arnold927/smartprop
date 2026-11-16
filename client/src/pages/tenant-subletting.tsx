@@ -25,6 +25,7 @@ import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { apiRequest, ensureArray } from "@/lib/queryClient";
+import { apiErrorMessage } from "@/lib/maintenance-flow";
 import { formatCurrency } from "@shared/currency";
 import type { CurrencyCode } from "@shared/schema";
 import { PageShell, PageHeader, SectionCard, SPBadge, EmptyState, PrimaryButton, SecondaryButton, FilterBar, SPTable, SPAvatar, StatTile, StatsGrid, KESAmount, ActionMenu, ConfirmDialog } from "@/components/ui/sp-ui";
@@ -527,7 +528,7 @@ export default function TenantSubletting() {
       setIsAddListingOpen(false);
       toast({ title: "Success", description: "Short-term rental listing created successfully" });
     },
-    onError: () => toast({ title: "Error", description: "Failed to create listing", variant: "destructive" }),
+    onError: (err: any) => toast({ title: "Couldn't create the listing", description: apiErrorMessage(err, "Failed to create listing"), variant: "destructive" }),
   });
 
   const updateListingStatusMutation = useMutation({
@@ -538,11 +539,12 @@ export default function TenantSubletting() {
       toast({ title: "Success", description: "Listing status updated" });
     },
     onError: (err: any) => {
-      if (err?.code === "LANDLORD_CONSENT_REQUIRED") {
-        toast({ title: "Landlord consent required", description: err.message, variant: "destructive" });
+      const raw = String(err?.message ?? "");
+      if (err?.code === "LANDLORD_CONSENT_REQUIRED" || raw.includes("LANDLORD_CONSENT_REQUIRED")) {
+        toast({ title: "Landlord consent required", description: apiErrorMessage(err, "Confirm the landlord is aware before approving."), variant: "destructive" });
         return;
       }
-      toast({ title: "Error", description: "Failed to update listing status", variant: "destructive" });
+      toast({ title: "Error", description: apiErrorMessage(err, "Failed to update listing status"), variant: "destructive" });
     },
   });
 
@@ -558,7 +560,7 @@ export default function TenantSubletting() {
           : "Listing removed from the public marketplace — still bookable via its direct link",
       });
     },
-    onError: (err: any) => toast({ title: "Error", description: err?.message || "Failed to update visibility", variant: "destructive" }),
+    onError: (err: any) => toast({ title: "Error", description: apiErrorMessage(err, "Failed to update visibility"), variant: "destructive" }),
   });
 
   const updateListingMutation = useMutation({
@@ -569,7 +571,7 @@ export default function TenantSubletting() {
       setEditingListing(null);
       toast({ title: "Success", description: "Listing updated successfully" });
     },
-    onError: () => toast({ title: "Error", description: "Failed to update listing", variant: "destructive" }),
+    onError: (err: any) => toast({ title: "Couldn't save the listing", description: apiErrorMessage(err, "Failed to update listing"), variant: "destructive" }),
   });
 
   const deleteListingMutation = useMutation({
@@ -578,7 +580,7 @@ export default function TenantSubletting() {
       queryClient.invalidateQueries({ queryKey: ["/api/tenant-short-rentals"] });
       toast({ title: "Success", description: "Listing deleted successfully" });
     },
-    onError: () => toast({ title: "Error", description: "Failed to delete listing", variant: "destructive" }),
+    onError: (err: any) => toast({ title: "Error", description: apiErrorMessage(err, "Failed to delete listing"), variant: "destructive" }),
   });
 
   const cancelBookingMutation = useMutation({
@@ -588,7 +590,17 @@ export default function TenantSubletting() {
       toast({ title: "Booking cancelled", description: "The dates are now available again." });
       setSelectedBooking(null);
     },
-    onError: (err: any) => toast({ title: "Error", description: err?.message || "Failed to cancel booking", variant: "destructive" }),
+    onError: (err: any) => toast({ title: "Error", description: apiErrorMessage(err, "Failed to cancel booking"), variant: "destructive" }),
+  });
+
+  const markPaidMutation = useMutation({
+    mutationFn: (id: number) => apiRequest(`/api/short-term-bookings/${id}/mark-paid`, { method: "POST" }),
+    onSuccess: (_d: any) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/short-term-bookings"] });
+      toast({ title: "Payment recorded", description: "The booking is now paid and confirmed." });
+      setSelectedBooking(null);
+    },
+    onError: (err: any) => toast({ title: "Error", description: apiErrorMessage(err, "Failed to record payment"), variant: "destructive" }),
   });
 
   const markRefundedMutation = useMutation({
@@ -598,7 +610,7 @@ export default function TenantSubletting() {
       queryClient.invalidateQueries({ queryKey: ["/api/short-term-bookings"] });
       toast({ title: "Refund recorded", description: "The guest has been notified it was sent." });
     },
-    onError: (err: any) => toast({ title: "Error", description: err?.message || "Failed to record refund", variant: "destructive" }),
+    onError: (err: any) => toast({ title: "Error", description: apiErrorMessage(err, "Failed to record refund"), variant: "destructive" }),
   });
 
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
@@ -625,7 +637,7 @@ export default function TenantSubletting() {
     },
     onError: (err: any) => {
       setUploadingPhoto(false);
-      toast({ title: "Error", description: err?.message || "Failed to upload photo", variant: "destructive" });
+      toast({ title: "Error", description: apiErrorMessage(err, "Failed to upload photo"), variant: "destructive" });
     },
   });
 
@@ -637,7 +649,7 @@ export default function TenantSubletting() {
       setEditingListing(data);
       toast({ title: "Photo removed" });
     },
-    onError: (err: any) => toast({ title: "Error", description: err?.message || "Failed to remove photo", variant: "destructive" }),
+    onError: (err: any) => toast({ title: "Error", description: apiErrorMessage(err, "Failed to remove photo"), variant: "destructive" }),
   });
 
   const handleSubmitListing = (e: React.FormEvent<HTMLFormElement>) => {
@@ -917,14 +929,32 @@ export default function TenantSubletting() {
               </div>
             )}
 
-            {!["cancelled", "checked_out"].includes(booking.bookingStatus) && (
+            {isManager && booking.paymentStatus !== "paid" && ["pending", "confirmed"].includes(booking.bookingStatus) && (
+              <div className="pt-2 border-t">
+                <Button
+                  className="w-full bg-emerald-600 hover:bg-emerald-700"
+                  disabled={markPaidMutation.isPending}
+                  onClick={() => {
+                    if (confirm(`Record that ${formatCurrency(Number(booking.totalAmount), booking.currency)} has been received for this stay (cash or bank transfer)?`)) {
+                      markPaidMutation.mutate(booking.id);
+                    }
+                  }}
+                >
+                  <CheckCircle className="h-4 w-4 mr-2" /> {markPaidMutation.isPending ? "Recording…" : "Record payment received"}
+                </Button>
+              </div>
+            )}
+
+            {!["cancelled", "checked_out", "checked_in", "expired"].includes(booking.bookingStatus) && (
               <div className="pt-2 border-t">
                 <Button
                   variant="outline"
                   className="text-red-600 border-red-200 hover:bg-red-50 hover:text-red-700"
                   disabled={cancelBookingMutation.isPending}
                   onClick={() => {
-                    if (confirm("Cancel this booking? This will free up the dates for someone else.")) {
+                    if (confirm(booking.paymentStatus === "paid"
+                      ? "Cancel this booking? The dates become free again and the guest's payment will be marked as a refund you owe."
+                      : "Cancel this booking? This will free up the dates for someone else.")) {
                       cancelBookingMutation.mutate(booking.id);
                     }
                   }}
@@ -959,7 +989,7 @@ export default function TenantSubletting() {
         setBlockStart(""); setBlockEnd(""); setBlockReason("");
         toast({ title: "Dates blocked", description: "Those dates are no longer bookable." });
       },
-      onError: (err: any) => toast({ title: "Error", description: err?.message || "Failed to block dates", variant: "destructive" }),
+      onError: (err: any) => toast({ title: "Error", description: apiErrorMessage(err, "Failed to block dates"), variant: "destructive" }),
     });
 
     const removeBlockMutation = useMutation({
@@ -968,7 +998,7 @@ export default function TenantSubletting() {
         queryClient.invalidateQueries({ queryKey: ["/api/tenant-short-rentals", listing.id, "blocked-dates"] });
         toast({ title: "Unblocked", description: "Those dates are bookable again." });
       },
-      onError: (err: any) => toast({ title: "Error", description: err?.message || "Failed to unblock dates", variant: "destructive" }),
+      onError: (err: any) => toast({ title: "Error", description: apiErrorMessage(err, "Failed to unblock dates"), variant: "destructive" }),
     });
 
     return (
@@ -1049,7 +1079,7 @@ export default function TenantSubletting() {
         setFeedUrl("");
         toast({ title: "Calendar added", description: "Click Sync now to import its dates." });
       },
-      onError: (err: any) => toast({ title: "Error", description: err?.message || "Failed to add calendar", variant: "destructive" }),
+      onError: (err: any) => toast({ title: "Error", description: apiErrorMessage(err, "Failed to add calendar"), variant: "destructive" }),
     });
 
     const removeFeedMutation = useMutation({
@@ -1058,7 +1088,7 @@ export default function TenantSubletting() {
         queryClient.invalidateQueries({ queryKey: ["/api/tenant-short-rentals", listing.id, "ical-feeds"] });
         toast({ title: "Calendar removed" });
       },
-      onError: () => toast({ title: "Error", description: "Failed to remove calendar", variant: "destructive" }),
+      onError: (err: any) => toast({ title: "Error", description: apiErrorMessage(err, "Failed to remove calendar"), variant: "destructive" }),
     });
 
     const syncFeedMutation = useMutation({
@@ -1067,7 +1097,7 @@ export default function TenantSubletting() {
         queryClient.invalidateQueries({ queryKey: ["/api/tenant-short-rentals", listing.id, "ical-feeds"] });
         toast({ title: "Synced", description: `Imported ${data.eventsImported ?? 0} date range(s).` });
       },
-      onError: (err: any) => toast({ title: "Sync failed", description: err?.message || "Could not sync that calendar.", variant: "destructive" }),
+      onError: (err: any) => toast({ title: "Sync failed", description: apiErrorMessage(err, "Could not sync that calendar."), variant: "destructive" }),
     });
 
     const platformLabel: Record<string, string> = { airbnb: "🏠 Airbnb", vrbo: "🏡 VRBO", booking: "🌐 Booking.com", google: "📅 Google Calendar", other: "Other" };

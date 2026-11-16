@@ -48,6 +48,7 @@ import {
   contractorVerifyRouter,
   contractorRegistryListRouter,
   contractorCreateHookRouter,
+  contractorGuardRouter,
 } from "./contractors-extended";
 import { broadcastToOrg } from "../ws";
 import { authenticateJWT } from "../middleware/auth";
@@ -261,6 +262,7 @@ export function registerModularRoutes(app: Express) {
   mount(app, "/api/service-contracts",                 serviceContractsRouter);
   mount(app, "/api/contractors/registry",              contractorRegistryListRouter);
   mount(app, "/api/contractors",                       contractorCreateHookRouter);
+  mount(app, "/api/contractors",                       contractorGuardRouter);
   mount(app, "/api/contractors",                       contractorRouter);
   mount(app, "/api/contractors",                       contractorVerifyRouter);
   mount(app, "/api/work-orders",                       workOrdersRouter);

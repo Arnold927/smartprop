@@ -22,6 +22,7 @@ import { Router }          from 'express';
 import { z }               from 'zod';
 import { db }              from '../db';
 import { rentPayments, tenants, mpesaTransactions, utilityBills, tenantShortBookings, tenantShortRentals, users } from '@shared/schema';
+import { applyStayPayment, notifyRefundOwed } from '../services/stay-bookings';
 import { eq, and, or, like, gte, lte, isNull, inArray, ne, asc, desc, sql } from 'drizzle-orm';
 import { authenticateJWT } from '../middleware/auth';
 import { safaricomIpOnly } from '../middleware/safaricomIp';
@@ -432,7 +433,8 @@ mpesaWebhookRouter.post('/callback', safaricomIpOnly, async (req, res) => {
       if ((transaction as any).shortTermBookingId) {
         await db.update(tenantShortBookings)
           .set({ paymentStatus: 'failed', updatedAt: new Date() })
-          .where(eq(tenantShortBookings.id, (transaction as any).shortTermBookingId));
+          // a failed second attempt must never turn an already-paid booking back into a failed one
+          .where(and(eq(tenantShortBookings.id, (transaction as any).shortTermBookingId), ne(tenantShortBookings.paymentStatus, 'paid')));
       }
       console.log(`[M-Pesa] STK failed — code ${resultCode}: ${resultDesc}`);
       return;
@@ -448,6 +450,11 @@ mpesaWebhookRouter.post('/callback', safaricomIpOnly, async (req, res) => {
     // don't fall through to that logic.
     if ((transaction as any).shortTermBookingId) {
       const bookingId = (transaction as any).shortTermBookingId;
+      // Safaricom can deliver the same result more than once: a payment already recorded is never applied again.
+      if (transaction.status === 'completed') {
+        console.log(`[M-Pesa] STK callback for booking ${bookingId} already processed — ignored`);
+        return;
+      }
       await storage.updateMpesaTransaction(transaction.id, {
         status: 'completed',
         mpesaReceiptNumber,
@@ -455,10 +462,16 @@ mpesaWebhookRouter.post('/callback', safaricomIpOnly, async (req, res) => {
         resultDesc,
         callbackData: req.body,
       });
-      const [updatedBooking] = await db.update(tenantShortBookings)
-        .set({ bookingStatus: 'confirmed', paymentStatus: 'paid', updatedAt: new Date() })
-        .where(eq(tenantShortBookings.id, bookingId))
-        .returning();
+      // What the money means for the booking is decided in one place, under a row lock (see stay-bookings.ts): a payment
+      // that arrives after the booking was cancelled or expired, a second payment for the same booking, or less than the
+      // price is recorded as a refund owed instead of silently confirming (or re-confirming) a stay.
+      const applied = await applyStayPayment(bookingId, Number(amount));
+      if (applied.outcome !== 'confirmed') {
+        console.warn(`[M-Pesa] Booking ${bookingId}: payment ${mpesaReceiptNumber} recorded as ${applied.outcome} — refund owed`);
+        if (applied.booking) await notifyRefundOwed(applied.booking, String(Number(amount)));
+        return;
+      }
+      const updatedBooking = applied.booking;
       console.log(`[M-Pesa] Booking ${bookingId} confirmed via STK — receipt ${mpesaReceiptNumber}`);
 
       // Email notifications — deliberately isolated in their own try/catch.
