@@ -563,7 +563,7 @@
 // </div>
 // </div>
 // <div className="p-3 bg-amber-50 rounded-lg">
-// <Shield className="h-6 w-6 text-amber-600" />
+// <Shield className="h-6 w-6 text-amber-700" />
 // </div>
 // </div>
 // </CardContent>

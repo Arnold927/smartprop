@@ -596,9 +596,9 @@ export function EditWorkOrderDialog({
  <p>
  <span className="font-medium text-blue-700">Priority:</span>
  <span className={`ml-1 px-2 py-0.5 rounded-full text-xs font-medium ${
- selectedMR.priority === 'critical' ? 'bg-red-100 text-red-800' :
- selectedMR.priority === 'high' ? 'bg-orange-100 text-orange-800' :
- selectedMR.priority === 'medium' ? 'bg-yellow-100 text-yellow-800' :
+ selectedMR.priority === 'critical' ? 'bg-red-100 text-red-800 dark:bg-red-500/20 dark:text-red-300' :
+ selectedMR.priority === 'high' ? 'bg-orange-100 text-orange-800 dark:bg-orange-500/20 dark:text-orange-300' :
+ selectedMR.priority === 'medium' ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-500/20 dark:text-yellow-300' :
  'bg-emerald-50 text-emerald-700 border border-emerald-200'
  }`}>
  {selectedMR.priority}

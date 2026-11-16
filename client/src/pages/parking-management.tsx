@@ -248,7 +248,7 @@ export default function ParkingManagement() {
             <h1 className="text-xl font-semibold">Parking & Vehicles</h1>
             <p className="text-sm text-muted-foreground mt-0.5">
               {totalSpaces} spaces · {availableCount} available · {occupiedCount} occupied
-              {pendingCount > 0 && <span className="ml-2 text-amber-600 font-medium">· {pendingCount} pending approval</span>}
+              {pendingCount > 0 && <span className="ml-2 text-amber-700 font-medium">· {pendingCount} pending approval</span>}
             </p>
           </div>
           <div className="flex gap-2">
@@ -274,11 +274,11 @@ export default function ParkingManagement() {
                     </div>
                   </div>
                   <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-1.5"><Label>Monthly Rate (KSh)</Label><Input type="number" name="monthlyRate" placeholder="0" /></div>
+                    <div className="space-y-1.5"><Label>Monthly Rate (KES)</Label><Input type="number" name="monthlyRate" placeholder="0" /></div>
                     <div className="flex items-center gap-2 pt-6"><input type="checkbox" id="ev" name="ev" /><Label htmlFor="ev">EV Charging</Label></div>
                   </div>
                   <div className="flex gap-2 pt-1">
-                    <Button type="submit" disabled={createSpaceMut.isPending} className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white">{createSpaceMut.isPending?"Creating...":"Create Space"}</Button>
+                    <Button type="submit" disabled={createSpaceMut.isPending} className="flex-1 bg-emerald-700 hover:bg-emerald-800 text-white">{createSpaceMut.isPending?"Creating...":"Create Space"}</Button>
                     <Button type="button" variant="outline" onClick={()=>setIsAddSpaceOpen(false)}>Cancel</Button>
                   </div>
                 </form>
@@ -288,7 +288,7 @@ export default function ParkingManagement() {
             {/* Register Vehicle */}
             <Dialog open={isAddVehicleOpen} onOpenChange={setIsAddVehicleOpen}>
               <DialogTrigger asChild>
-                <Button size="sm" className="bg-emerald-600 hover:bg-emerald-700 text-white"><Car className="h-4 w-4 mr-1.5" />Register Vehicle</Button>
+                <Button size="sm" className="bg-emerald-700 hover:bg-emerald-800 text-white"><Car className="h-4 w-4 mr-1.5" />Register Vehicle</Button>
               </DialogTrigger>
               <DialogContent>
                 <DialogHeader><DialogTitle>Register Vehicle</DialogTitle><DialogDescription>Add a vehicle to the property registry.</DialogDescription></DialogHeader>
@@ -312,7 +312,7 @@ export default function ParkingManagement() {
                   </div>
                   <div className="space-y-1.5"><Label>Colour *</Label><Input name="color" required /></div>
                   <div className="flex gap-2 pt-1">
-                    <Button type="submit" disabled={createVehicleMut.isPending} className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white">{createVehicleMut.isPending?"Registering...":"Register"}</Button>
+                    <Button type="submit" disabled={createVehicleMut.isPending} className="flex-1 bg-emerald-700 hover:bg-emerald-800 text-white">{createVehicleMut.isPending?"Registering...":"Register"}</Button>
                     <Button type="button" variant="outline" onClick={()=>setIsAddVehicleOpen(false)}>Cancel</Button>
                   </div>
                 </form>
@@ -330,7 +330,7 @@ export default function ParkingManagement() {
             { label:"Available",        value:availableCount, icon:CheckCircle, color:"text-emerald-600", bg:"bg-emerald-50", click:()=>{setSpacesAvail("available");setActiveTab("spaces");} },
             { label:"Occupied",         value:occupiedCount,  icon:XCircle,   color:"text-red-500",    bg:"bg-red-50",     click:()=>{setSpacesAvail("occupied");setActiveTab("spaces");} },
             { label:"Vehicles",         value:vehicles.filter(v=>v.status==="active").length, icon:Car, color:"text-purple-600", bg:"bg-purple-50" },
-            { label:"Active Assignments", value:activeAssigns, icon:Link2,   color:"text-amber-600",  bg:"bg-amber-50" },
+            { label:"Active Assignments", value:activeAssigns, icon:Link2,   color:"text-amber-700",  bg:"bg-amber-50" },
           ].map(({ label, value, icon:Icon, color, bg, click }:any) => (
             <Card key={label} onClick={click} className={`rounded-xl border border-slate-100 shadow-sm ${click?"cursor-pointer hover:shadow-md transition-shadow":""}`}>
               <div className="p-4 flex items-center gap-3">
@@ -454,7 +454,7 @@ export default function ParkingManagement() {
                             </span>
                           )}
                           {space.monthlyRate != null && (
-                            <span className="ml-auto text-xs font-semibold text-foreground">KSh {Number(space.monthlyRate).toLocaleString()}<span className="font-normal text-muted-foreground">/mo</span></span>
+                            <span className="ml-auto text-xs font-semibold text-foreground">KES {Number(space.monthlyRate).toLocaleString()}<span className="font-normal text-muted-foreground">/mo</span></span>
                           )}
                         </div>
                       </div>
@@ -504,7 +504,7 @@ export default function ParkingManagement() {
                 {/* Pending approval banner — shown above table when there are pending vehicles */}
                 {filteredVehicles.some(v=>v.status==="pending_approval") && (
                   <div className="flex items-center gap-2 px-4 py-2.5 bg-amber-50 border-b border-amber-100">
-                    <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
+                    <AlertCircle className="w-4 h-4 text-amber-700 shrink-0" />
                     <span className="text-sm text-amber-700 font-medium">{filteredVehicles.filter(v=>v.status==="pending_approval").length} vehicle{filteredVehicles.filter(v=>v.status==="pending_approval").length!==1?"s":""} awaiting approval</span>
                   </div>
                 )}
@@ -602,7 +602,7 @@ export default function ParkingManagement() {
               {/* New Assignment button sits in toolbar */}
               <Dialog open={isAddAssignOpen} onOpenChange={setIsAddAssignOpen}>
                 <DialogTrigger asChild>
-                  <Button size="sm" className="bg-emerald-600 hover:bg-emerald-700 text-white ml-auto"><Plus className="h-4 w-4 mr-1.5" />New Assignment</Button>
+                  <Button size="sm" className="bg-emerald-700 hover:bg-emerald-800 text-white ml-auto"><Plus className="h-4 w-4 mr-1.5" />New Assignment</Button>
                 </DialogTrigger>
                 <DialogContent>
                   <DialogHeader><DialogTitle>New Assignment</DialogTitle><DialogDescription>Link a vehicle to an available space.</DialogDescription></DialogHeader>
@@ -627,10 +627,10 @@ export default function ParkingManagement() {
                       <div className="space-y-1.5"><Label>Start Date *</Label><Input type="date" name="startDate" required /></div>
                       <div className="space-y-1.5"><Label>End Date</Label><Input type="date" name="endDate" /></div>
                     </div>
-                    <div className="space-y-1.5"><Label>Monthly Fee (KSh)</Label><Input type="number" name="fee" placeholder="0" /></div>
+                    <div className="space-y-1.5"><Label>Monthly Fee (KES)</Label><Input type="number" name="fee" placeholder="0" /></div>
                     <div className="space-y-1.5"><Label>Notes</Label><Input name="notes" placeholder="Optional..." /></div>
                     <div className="flex gap-2 pt-1">
-                      <Button type="submit" disabled={createAssignMut.isPending} className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white">{createAssignMut.isPending?"Creating...":"Create Assignment"}</Button>
+                      <Button type="submit" disabled={createAssignMut.isPending} className="flex-1 bg-emerald-700 hover:bg-emerald-800 text-white">{createAssignMut.isPending?"Creating...":"Create Assignment"}</Button>
                       <Button type="button" variant="outline" onClick={()=>setIsAddAssignOpen(false)}>Cancel</Button>
                     </div>
                   </form>
@@ -697,7 +697,7 @@ export default function ParkingManagement() {
                               <p className="text-xs text-muted-foreground">{format(new Date(a.startDate),"MMM d, yyyy")}{a.endDate ? ` → ${format(new Date(a.endDate),"MMM d, yyyy")}` : ""}</p>
                             </td>
                             <td className="px-4 py-3 hidden lg:table-cell">
-                              {a.monthlyFee!=null ? <span className="font-semibold">KSh {Number(a.monthlyFee).toLocaleString()}<span className="font-normal text-muted-foreground text-xs">/mo</span></span> : <span className="text-muted-foreground">—</span>}
+                              {a.monthlyFee!=null ? <span className="font-semibold">KES {Number(a.monthlyFee).toLocaleString()}<span className="font-normal text-muted-foreground text-xs">/mo</span></span> : <span className="text-muted-foreground">—</span>}
                             </td>
                             <td className="px-4 py-3">
                               <span className={`text-xs font-medium px-2 py-0.5 rounded-full border ${ASSIGN_STATUS_STYLES[a.status] || ASSIGN_STATUS_STYLES.expired}`}>
@@ -748,7 +748,7 @@ export default function ParkingManagement() {
                 <div className="space-y-1.5"><Label>Section</Label><Input name="section" defaultValue={editingSpace.section||""} /></div>
               </div>
               <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-1.5"><Label>Monthly Rate (KSh)</Label><Input type="number" name="rate" defaultValue={editingSpace.monthlyRate||""} /></div>
+                <div className="space-y-1.5"><Label>Monthly Rate (KES)</Label><Input type="number" name="rate" defaultValue={editingSpace.monthlyRate||""} /></div>
                 <div className="space-y-1.5"><Label>Status</Label><Select name="avail" defaultValue={editingSpace.isAvailable?"true":"false"}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="true">Available</SelectItem><SelectItem value="false">Occupied</SelectItem></SelectContent></Select></div>
               </div>
               <div className="flex items-center gap-2"><input type="checkbox" id="eev" name="ev" defaultChecked={editingSpace.hasElectricCharging} /><Label htmlFor="eev">EV Charging</Label></div>
@@ -796,7 +796,7 @@ export default function ParkingManagement() {
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-1.5"><Label>Type *</Label><Select name="at" defaultValue={editingAssignment.assignmentType}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{assignTypeOptions.map(t=><SelectItem key={t} value={t}>{t[0].toUpperCase()+t.slice(1)}</SelectItem>)}</SelectContent></Select></div>
-                  <div className="space-y-1.5"><Label>Monthly Fee (KSh)</Label><Input type="number" name="fee" defaultValue={editingAssignment.monthlyFee||""} /></div>
+                  <div className="space-y-1.5"><Label>Monthly Fee (KES)</Label><Input type="number" name="fee" defaultValue={editingAssignment.monthlyFee||""} /></div>
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-1.5"><Label>Start *</Label><Input type="date" name="sd" defaultValue={editingAssignment.startDate?.split("T")[0]} required /></div>

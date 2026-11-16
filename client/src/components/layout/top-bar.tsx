@@ -1,3 +1,4 @@
+import { SwipeRow } from "@/components/ui/swipe-row";
 import { useState, useEffect, useRef } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import React from "react";
@@ -58,7 +59,7 @@ function GlobalSearch() {
 // ── Notification bell ──────────────────────────────────────────────────────
 const notifColors: Record<string, string> = {
  maintenance: "bg-red-100 dark:bg-red-950/50 text-red-600 dark:text-red-400",
- payment: "bg-amber-100 dark:bg-amber-950/50 text-amber-600 dark:text-amber-400",
+ payment: "bg-amber-100 dark:bg-amber-950/50 text-amber-700 dark:text-amber-400",
  lease: "bg-blue-100 dark:bg-blue-950/50 text-blue-600 dark:text-blue-400",
  message: "bg-emerald-100 dark:bg-emerald-950/50 text-emerald-600 dark:text-emerald-400",
  general: "bg-muted text-muted-foreground",
@@ -229,8 +230,15 @@ export function NotificationBell() {
               const canReply = n.type === "message";
 
               return (
-                <div
+                <SwipeRow
                   key={n.id}
+                  disabled={isReplying}
+                  trailing={[
+                    { key: "read", label: "Read", icon: CheckCheck, tone: "blue", hidden: !!n.read, onAction: () => markAsRead(n.id) },
+                    { key: "dismiss", label: "Dismiss", icon: X, tone: "slate", onAction: () => dismissNotification(n.id) },
+                  ]}
+                >
+                <div
                   className={cn(
                     "px-4 py-3 transition-colors group",
                     !n.read && "bg-primary/5"
@@ -251,7 +259,7 @@ export function NotificationBell() {
                         <div className="flex-1 min-w-0">
                           <p className="text-sm font-medium leading-tight">{n.title}</p>
                           <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">{n.message}</p>
-                          <p className="text-[10px] text-muted-foreground/60 mt-1">{timeAgo(n.ts)}</p>
+                          <p className="text-[10px] text-muted-foreground mt-1">{timeAgo(n.ts)}</p>
                         </div>
                         {/* Unread dot */}
                         {!n.read && (
@@ -314,7 +322,7 @@ export function NotificationBell() {
                               if (e.key === "Escape") { setReplyingTo(null); setReplyText(""); }
                             }}
                             placeholder="Type your reply… (Ctrl+Enter to send)"
-                            className="w-full rounded-lg border border-border bg-background text-sm px-3 py-2 resize-none focus:outline-none focus:ring-2 focus:ring-emerald-500/30 placeholder:text-muted-foreground/60"
+                            className="w-full rounded-lg border border-border bg-background text-sm px-3 py-2 resize-none focus:outline-none focus:ring-2 focus:ring-emerald-500/30 placeholder:text-muted-foreground"
                           />
                           <div className="flex items-center gap-2 justify-end">
                             <button
@@ -326,7 +334,7 @@ export function NotificationBell() {
                             <button
                               disabled={!replyText.trim() || replySending}
                               onClick={() => handleReply(n.id)}
-                              className="text-xs bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white px-3 py-1.5 rounded-lg font-medium transition-colors flex items-center gap-1"
+                              className="text-xs bg-emerald-700 hover:bg-emerald-800 disabled:opacity-50 text-white px-3 py-1.5 rounded-lg font-medium transition-colors flex items-center gap-1"
                             >
                               {replySending
                                 ? <><span className="w-3 h-3 border border-white/40 border-t-white rounded-full animate-spin" /> Sending…</>
@@ -339,6 +347,7 @@ export function NotificationBell() {
                     </div>
                   </div>
                 </div>
+                </SwipeRow>
               );
             })}
           </div>

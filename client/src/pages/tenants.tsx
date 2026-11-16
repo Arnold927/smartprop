@@ -31,6 +31,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import ComprehensiveTenantModal from "@/components/modals/comprehensive-tenant-modal";
 import QueryError from "@/components/query-error";
 import { PageShell, PageHeader, SectionCard, SPBadge, EmptyState, PrimaryButton, SecondaryButton, FilterBar, SPTable, SPAvatar, StatTile, StatsGrid, KESAmount, ActionMenu, ConfirmDialog } from "@/components/ui/sp-ui";
+import { SwipeRow } from "@/components/ui/swipe-row";
 import { useRoleGuard, ROLES } from "@/hooks/useRoleGuard";
 import { InviteStatusChip } from "@/components/invite-status-chip";
 import { ImportTenantsDialog } from "@/components/import-tenants-dialog";
@@ -87,6 +88,7 @@ function SwipeTenantCard({
   onDelete,
   selected,
   onToggleSelect,
+  peek,
 }: {
   t: Tenant;
   onView: () => void;
@@ -97,55 +99,23 @@ function SwipeTenantCard({
   onDelete: () => void;
   selected?: boolean;
   onToggleSelect?: () => void;
+  peek?: boolean;
 }) {
-  const [swipeX, setSwipeX] = useState(0);
-  const [swiped, setSwiped] = useState(false);
-  const startX = useRef(0);
-  const THRESHOLD = 60;
-  const PANEL_W = 240;
-
   const days = daysUntil(t.leaseEndDate);
 
-  const onTouchStart = (e: React.TouchEvent) => { startX.current = e.touches[0].clientX; };
-  const onTouchMove = (e: React.TouchEvent) => {
-    const dx = startX.current - e.touches[0].clientX;
-    if (dx > 0) setSwipeX(Math.min(dx, PANEL_W));
-  };
-  const onTouchEnd = () => {
-    if (swipeX >= THRESHOLD) { setSwiped(true); setSwipeX(PANEL_W); }
-    else { setSwiped(false); setSwipeX(0); }
-  };
-  const closeSwipe = () => { setSwiped(false); setSwipeX(0); };
-
   return (
-    <div className="relative overflow-hidden">
-      <div className="absolute right-0 top-0 bottom-0 flex items-stretch" style={{ width: PANEL_W }}>
-        <button className="flex-1 bg-emerald-600 text-white flex flex-col items-center justify-center gap-1 text-xs font-medium disabled:opacity-40"
-          disabled={!t.phone} onClick={() => { closeSwipe(); onCall(); }}>
-          <Phone className="w-4 h-4" />Call
-        </button>
-        <button className="flex-1 bg-green-600 text-white flex flex-col items-center justify-center gap-1 text-xs font-medium disabled:opacity-40"
-          disabled={!onWhatsApp} onClick={() => { closeSwipe(); onWhatsApp?.(); }}>
-          <MessageCircle className="w-4 h-4" />WhatsApp
-        </button>
-        <button className="flex-1 bg-blue-500 text-white flex flex-col items-center justify-center gap-1 text-xs font-medium"
-          onClick={() => { closeSwipe(); onView(); }}>
-          <Eye className="w-4 h-4" />Profile
-        </button>
-        <button className="flex-1 bg-red-500 text-white flex flex-col items-center justify-center gap-1 text-xs font-medium"
-          onClick={() => { closeSwipe(); onDelete(); }}>
-          <Trash2 className="w-4 h-4" />Delete
-        </button>
-      </div>
-
-      <div
-        className="relative bg-card border-b border-border px-4 py-3 transition-transform will-change-transform"
-        style={{ transform: `translateX(-${swipeX}px)` }}
-        onTouchStart={onTouchStart}
-        onTouchMove={onTouchMove}
-        onTouchEnd={onTouchEnd}
-        onClick={swipeX > 10 ? closeSwipe : onOpen}
-      >
+    <SwipeRow
+      peek={peek}
+      onTap={onOpen}
+      trailing={[
+        { key: "call", label: "Call", icon: Phone, tone: "emerald", disabled: !t.phone, onAction: onCall },
+        { key: "wa", label: "WhatsApp", icon: MessageCircle, tone: "green", disabled: !onWhatsApp, onAction: () => onWhatsApp?.() },
+        { key: "profile", label: "Profile", icon: Eye, tone: "blue", onAction: onView },
+        { key: "delete", label: "Delete", icon: Trash2, tone: "red", onAction: onDelete },
+      ]}
+      leading={[{ key: "email", label: "Email", icon: Mail, tone: "violet", disabled: !t.email, onAction: onEmail }]}
+    >
+      <div className="border-b border-border px-4 py-3">
         <div className="flex items-center gap-3">
           {onToggleSelect && (
             <div onClick={e => e.stopPropagation()} onTouchStart={e => e.stopPropagation()}>
@@ -169,7 +139,7 @@ function SwipeTenantCard({
                 </span>
               )}
               {days !== null && days > 0 && days <= 60 && (
-                <span className={`text-xs px-1.5 py-0.5 rounded font-medium ${days <= 14 ? "bg-red-100 text-red-600" : "bg-amber-100 text-amber-600"}`}>
+                <span className={`text-xs px-1.5 py-0.5 rounded font-medium ${days <= 14 ? "bg-red-100 text-red-600" : "bg-amber-100 text-amber-700"}`}>
                   {days}d left
                 </span>
               )}
@@ -178,7 +148,7 @@ function SwipeTenantCard({
           <ChevronRight className="w-4 h-4 text-muted-foreground flex-shrink-0" />
         </div>
       </div>
-    </div>
+    </SwipeRow>
   );
 }
 
@@ -476,11 +446,12 @@ export default function Tenants() {
             ) : (
               <>
                 <div className="px-4 py-2 bg-muted border-b border-border">
-                  <p className="text-xs text-muted-foreground">Tap a tenant for a summary · swipe left to call, WhatsApp or open the profile</p>
+                  <p className="text-xs text-muted-foreground">Tap a tenant for a summary · swipe left to call or message, right to email</p>
                 </div>
-                {paginated.map(t => (
+                {paginated.map((t, i) => (
                   <SwipeTenantCard
                     key={t.id}
+                    peek={i === 0}
                     t={t}
                     onView={() => navigate(withOrgParam(`/tenants/${t.id}`, orgIdParam))}
                     onOpen={() => setQuickViewId(t.id)}
@@ -585,7 +556,7 @@ export default function Tenants() {
                               })}
                             </p>
                             {days !== null && days <= 60 && days > 0 && (
-                              <span className={`text-xs px-1.5 py-0.5 rounded font-medium ${days <= 14 ? "bg-red-100 text-red-600" : "bg-amber-100 text-amber-600"}`}>
+                              <span className={`text-xs px-1.5 py-0.5 rounded font-medium ${days <= 14 ? "bg-red-100 text-red-600" : "bg-amber-100 text-amber-700"}`}>
                                 {days}d left
                               </span>
                             )}

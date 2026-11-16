@@ -63,15 +63,15 @@ function constructionLabel(status: string) {
 function statusColor(status: string) {
   if (status === "completed") return "bg-emerald-50 text-emerald-700 border border-emerald-200";
   if (status === "active")    return "bg-emerald-100 text-blue-800 border-emerald-200";
-  if (status === "suspended") return "bg-amber-100 text-amber-800 border-amber-200";
-  if (status === "cancelled") return "bg-red-100 text-red-800 border-red-200";
+  if (status === "suspended") return "bg-amber-100 text-amber-800 dark:bg-amber-500/20 dark:text-amber-300 border-amber-200";
+  if (status === "cancelled") return "bg-red-100 text-red-800 dark:bg-red-500/20 dark:text-red-300 border-red-200";
   return "bg-gray-100 text-muted-foreground border-gray-200";
 }
 
 function paymentStatusColor(status: string) {
   if (status === "confirmed") return "bg-emerald-50 text-emerald-700 border border-emerald-200";
-  if (status === "pending")   return "bg-amber-100 text-amber-800";
-  if (status === "failed")    return "bg-red-100 text-red-800";
+  if (status === "pending")   return "bg-amber-100 text-amber-800 dark:bg-amber-500/20 dark:text-amber-300";
+  if (status === "failed")    return "bg-red-100 text-red-800 dark:bg-red-500/20 dark:text-red-300";
   return "bg-gray-100 text-muted-foreground";
 }
 
@@ -570,7 +570,7 @@ function CertificateTab({ contractId }: { contractId: number }) {
           <CardContent className="pt-5">
             <div className="flex items-start gap-4">
               <div className="rounded-xl bg-amber-100 dark:bg-amber-900/30 p-3 shrink-0">
-                <Award className="h-7 w-7 text-amber-600" />
+                <Award className="h-7 w-7 text-amber-700" />
               </div>
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 flex-wrap">
@@ -579,7 +579,7 @@ function CertificateTab({ contractId }: { contractId: number }) {
                   </h3>
                   <Badge variant="outline" className={
                     c.status === "issued" ? "bg-emerald-50 text-emerald-700 border border-emerald-200" :
-                    c.status === "pending" ? "bg-amber-100 text-amber-800" : ""
+                    c.status === "pending" ? "bg-amber-100 text-amber-800 dark:bg-amber-500/20 dark:text-amber-300" : ""
                   }>
                     {c.status}
                   </Badge>
@@ -877,7 +877,7 @@ export default function DiasporaBuyerPortal() {
                               {contract.status ?? "active"}
                             </Badge>
                             {overdue && (
-                              <Badge variant="outline" className="bg-red-100 text-red-800 border-red-200">
+                              <Badge variant="outline" className="bg-red-100 text-red-800 dark:bg-red-500/20 dark:text-red-300 border-red-200">
                                 Payment overdue
                               </Badge>
                             )}
@@ -960,7 +960,7 @@ export default function DiasporaBuyerPortal() {
             <p className="text-sm font-medium text-emerald-800 dark:text-emerald-300 mb-1">Message your Property Manager</p>
             <p className="text-xs text-emerald-700/70 dark:text-emerald-400/70 mb-3">Ask about your contract, payment confirmations, construction updates, or any concerns.</p>
             <Button
-              className="bg-emerald-600 hover:bg-emerald-700 text-white gap-2 font-medium"
+              className="bg-emerald-700 hover:bg-emerald-800 text-white gap-2 font-medium"
               onClick={() => setComposeOpen(true)}
             >
               <MessageSquare className="w-4 h-4" /> New Message
@@ -988,7 +988,7 @@ export default function DiasporaBuyerPortal() {
                     Cancel
                   </Button>
                   <Button
-                    className="bg-emerald-600 hover:bg-emerald-700 text-white flex-1"
+                    className="bg-emerald-700 hover:bg-emerald-800 text-white flex-1"
                     disabled={!msgContent.trim() || sendMut.isPending}
                     onClick={() => sendMut.mutate()}
                   >
@@ -1022,7 +1022,7 @@ export default function DiasporaBuyerPortal() {
                   <div className="flex items-center justify-between gap-3 mb-2">
                     <div className="flex items-center gap-2">
                       <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold ${
-                        msg.isOwn ? "bg-emerald-600 text-white" : "bg-muted text-muted-foreground"
+                        msg.isOwn ? "bg-emerald-700 text-white" : "bg-muted text-muted-foreground"
                       }`}>
                         {(msg.isOwn ? "Me" : msg.fromName).charAt(0).toUpperCase()}
                       </div>

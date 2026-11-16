@@ -381,7 +381,7 @@ export default function AuthPage() {
                 <Button
                   type="submit"
                   disabled={loginMutation.isPending}
-                  className="w-full h-10 bg-emerald-600 hover:bg-emerald-700 text-white font-medium rounded-lg text-sm gap-2"
+                  className="w-full h-10 bg-emerald-700 hover:bg-emerald-800 text-white font-medium rounded-lg text-sm gap-2"
                 >
                   {loginMutation.isPending ? (
                     <>
@@ -440,7 +440,7 @@ export default function AuthPage() {
                 <Button
                   type="submit"
                   disabled={signupMutation.isPending}
-                  className="w-full h-10 bg-emerald-600 hover:bg-emerald-700 text-white font-medium rounded-lg text-sm gap-2"
+                  className="w-full h-10 bg-emerald-700 hover:bg-emerald-800 text-white font-medium rounded-lg text-sm gap-2"
                 >
                   {signupMutation.isPending ? (
                     <><Loader2 className="w-4 h-4 animate-spin" />Creating account…</>

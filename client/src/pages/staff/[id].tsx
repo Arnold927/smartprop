@@ -57,8 +57,8 @@ interface PayrollRecord {
 const statusColors: Record<string, string> = {
  active: "bg-emerald-50 text-emerald-700 border border-emerald-200",
  inactive: "bg-muted dark:bg-gray-800 text-foreground dark:text-muted-foreground",
- terminated: "bg-red-100 text-red-800",
- on_leave: "bg-blue-100 text-blue-800"
+ terminated: "bg-red-100 text-red-800 dark:bg-red-500/20 dark:text-red-300",
+ on_leave: "bg-blue-100 text-blue-800 dark:bg-blue-500/20 dark:text-blue-300"
 };
 
 export default function StaffDetailsPage() {
@@ -221,7 +221,7 @@ export default function StaffDetailsPage() {
  <p className="text-muted-foreground mt-2">The staff member you're looking for doesn't exist or has been removed.</p>
  <Button 
  onClick={() => setLocation('/workforce-management')}
- className="mt-6 bg-emerald-600 hover:bg-emerald-700"
+ className="mt-6 bg-emerald-700 hover:bg-emerald-800"
  >
  <ArrowLeft className="mr-2 h-4 w-4" />
  Back to Workforce
@@ -597,7 +597,7 @@ export default function StaffDetailsPage() {
    record.payment_status === 'paid' 
      ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
      : record.payment_status === 'pending'
-     ? 'bg-yellow-100 text-yellow-800'
+     ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-500/20 dark:text-yellow-300'
      : 'bg-muted text-foreground'
  }>
  {record.payment_status || 'Pending'}
@@ -633,7 +633,7 @@ export default function StaffDetailsPage() {
  </Button>
  <Button 
  onClick={() => setIsEditModalOpen(true)}
- className="bg-emerald-600 hover:bg-emerald-700"
+ className="bg-emerald-700 hover:bg-emerald-800"
  size="sm"
  >
  <Edit className="h-4 w-4 mr-2" />

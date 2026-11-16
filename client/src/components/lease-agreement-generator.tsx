@@ -283,7 +283,7 @@ export default function LeaseAgreementGenerator({
                 </p>
                 <div className="flex flex-wrap gap-1.5 mt-2">
                   {missing.map(m => (
-                    <Badge key={m} className="text-[11px] bg-yellow-100 text-yellow-800 border-yellow-200">{m}</Badge>
+                    <Badge key={m} className="text-[11px] bg-yellow-100 text-yellow-800 dark:bg-yellow-500/20 dark:text-yellow-300 border-yellow-200">{m}</Badge>
                   ))}
                 </div>
               </div>

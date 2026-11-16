@@ -565,6 +565,29 @@ export default function VisitorManagement() {
             <SPTable
               data={paginatedVisitors}
               onRowClick={(visitor: any) => setDetailsVisitor(visitor)}
+              mobileCard={(visitor: any) => (
+                <div className="flex items-center gap-3 px-4 py-3">
+                  <div className="min-w-0 flex-1">
+                    <p className="font-medium text-sm truncate">{visitor.visitor_name}</p>
+                    <p className="text-xs text-muted-foreground font-mono truncate">{visitor.visitor_code}</p>
+                    <p className="text-xs text-muted-foreground truncate mt-0.5">
+                      {visitor.property_name ?? "—"}{visitor.unit_number ? ` · Unit ${visitor.unit_number}` : ""}
+                    </p>
+                    <p className="text-[11px] text-muted-foreground mt-0.5">Expected {new Date(visitor.expected_arrival).toLocaleString([], { dateStyle: "medium", timeStyle: "short" })}</p>
+                  </div>
+                  <SPBadge status={visitor.status || "pending"} />
+                </div>
+              )}
+              swipe={(visitor: any) => ({
+                trailing: [
+                  { key: "approve", label: "Approve", icon: CheckCircle, tone: "blue", hidden: visitor.status !== "pending", disabled: approveVisitorMutation.isPending, onAction: () => approveVisitorMutation.mutate(visitor.visitor_code) },
+                  { key: "checkin", label: "Check in", icon: UserCheck, tone: "green", hidden: visitor.status !== "approved",
+                    onAction: () => { setSelectedVisitor(visitor); setFormCheckInLocation("Main Gate"); setIsCheckInDialogOpen(true); } },
+                  { key: "checkout", label: "Check out", icon: XCircle, tone: "amber", hidden: visitor.status !== "checked_in", disabled: checkOutVisitorMutation.isPending, onAction: () => handleCheckOut(visitor.visitor_code) },
+                  { key: "revoke", label: "Revoke", icon: Ban, tone: "red", hidden: !(visitor.status === "pending" || visitor.status === "approved"), disabled: revokeVisitorMutation.isPending, onAction: () => revokeVisitorMutation.mutate(visitor.visitor_code) },
+                ],
+                leading: [{ key: "qr", label: "QR code", icon: QrCode, tone: "violet", onAction: () => setQrModalVisitor(visitor) }],
+              })}
               emptyState={
                 <EmptyState
                   icon={<UserCheck />}
@@ -803,8 +826,8 @@ export default function VisitorManagement() {
                 {[
                   { label: "Main Gate Integration", cls: "bg-emerald-50 text-emerald-700 border border-emerald-200", status: "Connected" },
                   { label: "Pedestrian Gate", cls: "bg-emerald-50 text-emerald-700 border border-emerald-200", status: "Connected" },
-                  { label: "Emergency Access", cls: "bg-yellow-100 text-yellow-800", status: "Manual Override" },
-                  { label: "Biometric Scanner", cls: "bg-blue-100 text-blue-800", status: "Optional" },
+                  { label: "Emergency Access", cls: "bg-yellow-100 text-yellow-800 dark:bg-yellow-500/20 dark:text-yellow-300", status: "Manual Override" },
+                  { label: "Biometric Scanner", cls: "bg-blue-100 text-blue-800 dark:bg-blue-500/20 dark:text-blue-300", status: "Optional" },
                 ].map((item) => (
                   <div key={item.label} className="flex items-center justify-between">
                     <span className="text-sm">{item.label}</span>

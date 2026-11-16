@@ -83,7 +83,7 @@ export default function VerifyEmailPage() {
                 <MailCheck className="h-16 w-16 text-blue-500 mb-4" />
                 <p className="text-center text-muted-foreground mb-6">{message}</p>
                 <Button
-                  className="w-full bg-emerald-600 hover:bg-emerald-700"
+                  className="w-full bg-emerald-700 hover:bg-emerald-800"
                   onClick={() => setLocation("/auth")}
                 >
                   Back to Login <ArrowRight className="ml-2 h-4 w-4" />
@@ -96,7 +96,7 @@ export default function VerifyEmailPage() {
                 <CheckCircle2 className="h-16 w-16 text-green-500 mb-4" />
                 <p className="text-center text-muted-foreground mb-6">{message}</p>
                 <Button
-                  className="w-full bg-emerald-600 hover:bg-emerald-700"
+                  className="w-full bg-emerald-700 hover:bg-emerald-800"
                   onClick={() => setLocation("/auth")}
                 >
                   Go to Login <ArrowRight className="ml-2 h-4 w-4" />

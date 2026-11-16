@@ -23,6 +23,7 @@
  *   LoadingRow         — single skeleton row for inline loaders
  */
 
+import { SwipeRow, type SwipeAction } from "@/components/ui/swipe-row";
 import React, { useState } from "react";
 import { AnimatedNumber } from "@/components/ui/motion";
 import { haptic } from "@/lib/feel";
@@ -50,11 +51,11 @@ const ACCENT_COLORS = [
 ];
 
 const AVATAR_COLORS = [
-  "bg-emerald-100 text-emerald-700",
-  "bg-blue-100 text-blue-700",
-  "bg-violet-100 text-violet-700",
-  "bg-amber-100 text-amber-700",
-  "bg-rose-100 text-rose-700",
+  "bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300",
+  "bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-300",
+  "bg-violet-100 text-violet-700 dark:bg-violet-500/20 dark:text-violet-300",
+  "bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-300",
+  "bg-rose-100 text-rose-700 dark:bg-rose-500/20 dark:text-rose-300",
 ];
 
 // ── PageShell ─────────────────────────────────────────────────────────────────
@@ -185,7 +186,7 @@ interface StatTileProps {
   const ACCENT_MAP: Record<string, { bar: string; icon: string; trend_up: string; trend_dn: string }> = {
   emerald: { bar: "bg-emerald-500", icon: "bg-emerald-50 text-emerald-600 dark:bg-emerald-950 dark:text-emerald-400", trend_up: "bg-emerald-50 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-400", trend_dn: "bg-red-50 text-red-600 dark:bg-red-950 dark:text-red-400" },
   blue:    { bar: "bg-blue-500",    icon: "bg-blue-50 text-blue-600 dark:bg-blue-950 dark:text-blue-400",           trend_up: "bg-emerald-50 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-400", trend_dn: "bg-red-50 text-red-600 dark:bg-red-950 dark:text-red-400" },
-  amber:   { bar: "bg-amber-500",   icon: "bg-amber-50 text-amber-600 dark:bg-amber-950 dark:text-amber-400",       trend_up: "bg-emerald-50 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-400", trend_dn: "bg-red-50 text-red-600 dark:bg-red-950 dark:text-red-400" },
+  amber:   { bar: "bg-amber-500",   icon: "bg-amber-50 text-amber-700 dark:bg-amber-950 dark:text-amber-400",       trend_up: "bg-emerald-50 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-400", trend_dn: "bg-red-50 text-red-600 dark:bg-red-950 dark:text-red-400" },
   red:     { bar: "bg-red-500",     icon: "bg-red-50 text-red-600 dark:bg-red-950 dark:text-red-400",               trend_up: "bg-emerald-50 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-400", trend_dn: "bg-red-50 text-red-600 dark:bg-red-950 dark:text-red-400" },
   violet:  { bar: "bg-violet-500",  icon: "bg-violet-50 text-violet-600 dark:bg-violet-950 dark:text-violet-400",   trend_up: "bg-emerald-50 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-400", trend_dn: "bg-red-50 text-red-600 dark:bg-red-950 dark:text-red-400" },
   orange:  { bar: "bg-orange-500",  icon: "bg-orange-50 text-orange-600 dark:bg-orange-950 dark:text-orange-400",   trend_up: "bg-emerald-50 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-400", trend_dn: "bg-red-50 text-red-600 dark:bg-red-950 dark:text-red-400" },
@@ -352,7 +353,7 @@ export function EmptyState({ icon, title, description, action, size = "md" }: Em
       {action && (
         <button
           onClick={action.onClick}
-          className="sp-press inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-medium shadow-sm shadow-emerald-600/20"
+          className="sp-press inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-medium shadow-sm shadow-emerald-600/20"
         >
           {action.icon ?? <Plus className="w-3.5 h-3.5" />}
           {action.label}
@@ -411,11 +412,17 @@ interface SPTableProps<T = any> {
   emptyState?: React.ReactNode;
   loading?: boolean;
   className?: string;
+  /**
+   * Phones only: when BOTH are given, rows are shown as swipeable cards instead of a table (swipe left for `trailing`,
+   * right for `leading`). Desktop keeps the table. Every swipe action should also exist in the row's menu.
+   */
+  mobileCard?: (row: T) => React.ReactNode;
+  swipe?: (row: T) => { trailing?: SwipeAction[]; leading?: SwipeAction[] };
 }
 
 export function SPTable<T>({
   columns, data, keyField = "id" as keyof T, onRowClick,
-  emptyState, loading = false, className = "",
+  emptyState, loading = false, className = "", mobileCard, swipe,
 }: SPTableProps<T>) {
   if (loading) {
     return (
@@ -440,8 +447,29 @@ export function SPTable<T>({
     );
   }
 
+  const cards = mobileCard && swipe;
   return (
-    <div className={cn("bg-card rounded-xl border border-border shadow-sm overflow-hidden", className)}>
+    <>
+    {cards && (
+      <div className={cn("sm:hidden bg-card rounded-xl border border-border shadow-sm overflow-hidden", className)}>
+        {data.map((row, ri) => {
+          const sw = swipe!(row);
+          return (
+            <SwipeRow
+              key={String((row as any)[keyField] ?? ri)}
+              peek={ri === 0}
+              trailing={sw.trailing}
+              leading={sw.leading}
+              onTap={onRowClick ? () => onRowClick(row) : undefined}
+              className="border-b border-border last:border-0"
+            >
+              {mobileCard!(row)}
+            </SwipeRow>
+          );
+        })}
+      </div>
+    )}
+    <div className={cn("bg-card rounded-xl border border-border shadow-sm overflow-hidden", cards && "hidden sm:block", className)}>
       <div className="overflow-x-auto">
         <table className="w-full border-collapse text-sm">
           <thead>
@@ -493,6 +521,7 @@ export function SPTable<T>({
         </table>
       </div>
     </div>
+    </>
   );
 }
 
@@ -581,7 +610,7 @@ export function ConfirmDialog({
               "flex-1 rounded-lg",
               destructive
                 ? "bg-red-600 hover:bg-red-700 text-white"
-                : "bg-emerald-600 hover:bg-emerald-700 text-white",
+                : "bg-emerald-700 hover:bg-emerald-800 text-white",
             )}
           >
             {loading ? "Please wait…" : confirmLabel}
@@ -672,7 +701,7 @@ export function PrimaryButton({
       onClick={onClick}
       disabled={disabled || loading}
       className={cn(
-        "sp-press inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-medium whitespace-nowrap shrink-0 shadow-sm shadow-emerald-600/20 hover:shadow-md hover:shadow-emerald-600/25 disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-none",
+        "sp-press inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-emerald-700 hover:bg-emerald-800 text-white text-sm font-medium whitespace-nowrap shrink-0 shadow-sm shadow-emerald-600/20 hover:shadow-md hover:shadow-emerald-600/25 disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-none",
         className,
       )}
     >

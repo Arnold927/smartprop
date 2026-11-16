@@ -171,7 +171,7 @@ export default function ApplyPage() {
             <div aria-hidden="true" style={{ position: "absolute", left: "-10000px", height: 0, overflow: "hidden" }}>
               <label>Website<input tabIndex={-1} autoComplete="off" value={f.website} onChange={e => set("website", e.target.value)} /></label>
             </div>
-            <Button type="submit" disabled={!ready || submit.isPending} className="w-full bg-emerald-600 hover:bg-emerald-700 text-white">
+            <Button type="submit" disabled={!ready || submit.isPending} className="w-full bg-emerald-700 hover:bg-emerald-800 text-white">
               {submit.isPending && <Loader2 className="h-4 w-4 animate-spin mr-2" />}Submit application
             </Button>
             <p className="text-[11px] text-muted-foreground text-center">Your details are shared only with {data.organization.name} and used to assess your application.</p>

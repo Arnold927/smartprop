@@ -544,7 +544,7 @@ function AdminVehicleLog({ properties: props }: { properties: any[] }) {
             {(["all", "in", "out"] as const).map((d, i) => (
               <button key={d} onClick={() => setDirFilter(d)}
                 className={`px-3 text-xs font-medium transition-colors ${
-                  dirFilter === d ? "bg-emerald-600 text-white" : "bg-background text-muted-foreground hover:bg-muted"
+                  dirFilter === d ? "bg-emerald-700 text-white" : "bg-background text-muted-foreground hover:bg-muted"
                 } ${i > 0 ? "border-l border-border" : ""}`}>
                 {d === "in" ? "↓ Entry" : d === "out" ? "↑ Exit" : "All"}
               </button>
@@ -571,7 +571,7 @@ function AdminVehicleLog({ properties: props }: { properties: any[] }) {
         <div className="rounded-xl border border-border bg-card p-12 text-center">
           <Car className="w-10 h-10 text-muted-foreground/40 mx-auto mb-3" />
           <p className="text-sm font-medium text-muted-foreground">Select a property to view its vehicle log</p>
-          <p className="text-xs text-muted-foreground/60 mt-1">All gate entries and exits for the selected date appear here.</p>
+          <p className="text-xs text-muted-foreground mt-1">All gate entries and exits for the selected date appear here.</p>
         </div>
       )}
 
@@ -1475,7 +1475,7 @@ export default function SecurityPage() {
                       <div key={v.id} className="flex items-center gap-3 px-4 py-2.5">
                         <Car className="w-4 h-4 text-red-500 flex-shrink-0" />
                         <div><p className="text-sm font-mono font-semibold">{v.plateNumber}</p><p className="text-xs text-muted-foreground">{v.make} {v.model}</p></div>
-                        <span className="ml-auto text-[10px] font-bold px-2 py-0.5 rounded-full bg-red-100 text-red-700 border border-red-200">Blacklisted</span>
+                        <span className="ml-auto text-[10px] font-bold px-2 py-0.5 rounded-full bg-red-100 text-red-700 dark:bg-red-500/20 dark:text-red-300 border border-red-200">Blacklisted</span>
                       </div>
                     ))}
                   </div>
@@ -1509,10 +1509,10 @@ export default function SecurityPage() {
               <div className="rounded-xl border border-border bg-card overflow-hidden">
                 <div className="flex items-center justify-between px-5 py-4 border-b border-border">
                   <div className="flex items-center gap-2">
-                    <div className="w-6 h-6 rounded-lg bg-amber-50 flex items-center justify-center"><AlertCircle className="w-3.5 h-3.5 text-amber-600" /></div>
+                    <div className="w-6 h-6 rounded-lg bg-amber-50 flex items-center justify-center"><AlertCircle className="w-3.5 h-3.5 text-amber-700" /></div>
                     <h3 className="text-sm font-semibold">Pending Approvals</h3>
                   </div>
-                  {pendingApprovals > 0 && <span className="text-xs font-semibold text-amber-600">{pendingApprovals} waiting</span>}
+                  {pendingApprovals > 0 && <span className="text-xs font-semibold text-amber-700">{pendingApprovals} waiting</span>}
                 </div>
                 <div className="divide-y divide-border max-h-60 overflow-y-auto">
                   {pendingApprovals === 0 ? (
@@ -1526,7 +1526,7 @@ export default function SecurityPage() {
                         <p className="text-xs text-muted-foreground">{visitor.visit_purpose} · {safeDate(visitor.expected_arrival, "MMM d, HH:mm")}</p>
                         <p className="text-[10px] font-mono text-muted-foreground mt-0.5">{visitor.visitor_code}</p>
                       </div>
-                      <Button size="sm" className="h-7 text-xs bg-emerald-600 hover:bg-emerald-700 text-white flex-shrink-0"
+                      <Button size="sm" className="h-7 text-xs bg-emerald-700 hover:bg-emerald-800 text-white flex-shrink-0"
                         onClick={() => approveMutation.mutate(visitor.visitor_code)} disabled={approveMutation.isPending}>
                         <CheckCircle className="w-3 h-3 mr-1" />Approve
                       </Button>
@@ -1549,7 +1549,7 @@ export default function SecurityPage() {
                   <div className="flex flex-wrap gap-2">
                     {[{ mode: "camera" as const, icon: Camera, label: "Camera" }, { mode: "manual" as const, icon: Scan, label: "Manual" }].map(({ mode, icon: Icon, label }) => (
                       <Button key={mode} size="sm" variant={qrScanMode === mode ? "default" : "outline"}
-                        className={qrScanMode === mode ? "bg-emerald-600 hover:bg-emerald-700 text-white" : ""}
+                        className={qrScanMode === mode ? "bg-emerald-700 hover:bg-emerald-800 text-white" : ""}
                         onClick={() => { if (mode === "manual") stopCamera(); setScanResult(null); setQrScanMode(mode); }}>
                         <Icon className="w-3.5 h-3.5 mr-1.5" />{label}
                       </Button>
@@ -1567,7 +1567,7 @@ export default function SecurityPage() {
                           <Camera className="w-12 h-12 text-emerald-400 mx-auto" />
                           <p className="font-medium">Ready to scan</p>
                           <p className="text-sm text-muted-foreground">Point camera at a QR code — it scans automatically.</p>
-                          <Button onClick={startCamera} className="bg-emerald-600 hover:bg-emerald-700 text-white"><Camera className="w-4 h-4 mr-2" />Start Camera</Button>
+                          <Button onClick={startCamera} className="bg-emerald-700 hover:bg-emerald-800 text-white"><Camera className="w-4 h-4 mr-2" />Start Camera</Button>
                         </div>
                       )}
                       {cameraStatus === "requesting" && (
@@ -1612,7 +1612,7 @@ export default function SecurityPage() {
                         onChange={e => setManualQrCode(e.target.value)}
                         onKeyDown={e => e.key === "Enter" && handleQrScan()} className="flex-1" />
                       <Button onClick={handleQrScan} disabled={!manualQrCode.trim() || qrScanMutation.isPending}
-                        className="bg-emerald-600 hover:bg-emerald-700 text-white">
+                        className="bg-emerald-700 hover:bg-emerald-800 text-white">
                         {qrScanMutation.isPending ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Scan className="w-4 h-4" />}
                       </Button>
                     </div>
@@ -1711,7 +1711,7 @@ export default function SecurityPage() {
                               <td className="px-4 py-3">
                                 <div className="flex items-center gap-1">
                                   {visitor.status === "pending" && (
-                                    <Button size="sm" className="h-7 px-2 text-xs bg-emerald-600 hover:bg-emerald-700 text-white"
+                                    <Button size="sm" className="h-7 px-2 text-xs bg-emerald-700 hover:bg-emerald-800 text-white"
                                       onClick={() => approveMutation.mutate(visitor.visitor_code)} disabled={approveMutation.isPending}>Approve</Button>
                                   )}
                                   {visitor.status === "checked_in" && (
@@ -1755,7 +1755,7 @@ export default function SecurityPage() {
                 <SelectTrigger className="w-24 h-9"><SelectValue /></SelectTrigger>
                 <SelectContent><SelectItem value="10">10/page</SelectItem><SelectItem value="25">25/page</SelectItem></SelectContent>
               </Select>
-              <Button size="sm" className="ml-auto bg-emerald-600 hover:bg-emerald-700 text-white h-9" onClick={() => setIsGatePassOpen(true)}>
+              <Button size="sm" className="ml-auto bg-emerald-700 hover:bg-emerald-800 text-white h-9" onClick={() => setIsGatePassOpen(true)}>
                 <Plus className="w-3.5 h-3.5 mr-1.5" />New Pass
               </Button>
             </div>
@@ -1776,7 +1776,7 @@ export default function SecurityPage() {
                       <FileText className="w-12 h-12 text-muted-foreground/30 mb-3" />
                       <p className="font-semibold">No gate passes</p>
                       <p className="text-sm text-muted-foreground mt-1 mb-4">Create passes for contractors, vendors, or visitors.</p>
-                      <Button size="sm" className="bg-emerald-600 hover:bg-emerald-700 text-white" onClick={() => setIsGatePassOpen(true)}><Plus className="w-3.5 h-3.5 mr-1.5" />New Gate Pass</Button>
+                      <Button size="sm" className="bg-emerald-700 hover:bg-emerald-800 text-white" onClick={() => setIsGatePassOpen(true)}><Plus className="w-3.5 h-3.5 mr-1.5" />New Gate Pass</Button>
                     </div>
                   ) : <>
                     <div className="overflow-x-auto">
@@ -1848,7 +1848,7 @@ export default function SecurityPage() {
                 <SelectTrigger className="w-24 h-9"><SelectValue /></SelectTrigger>
                 <SelectContent><SelectItem value="10">10/page</SelectItem><SelectItem value="25">25/page</SelectItem></SelectContent>
               </Select>
-              <Button size="sm" className="ml-auto bg-emerald-600 hover:bg-emerald-700 text-white h-9" onClick={() => setIsVehicleOpen(true)}>
+              <Button size="sm" className="ml-auto bg-emerald-700 hover:bg-emerald-800 text-white h-9" onClick={() => setIsVehicleOpen(true)}>
                 <Car className="w-3.5 h-3.5 mr-1.5" />Register Vehicle
               </Button>
             </div>
@@ -1872,7 +1872,7 @@ export default function SecurityPage() {
                   ) : <>
                     {filtered.some((v: any) => v.status === "pending_approval") && (
                       <div className="flex items-center gap-2 px-4 py-2.5 bg-amber-50 border-b border-amber-100">
-                        <AlertCircle className="w-4 h-4 text-amber-600 flex-shrink-0" />
+                        <AlertCircle className="w-4 h-4 text-amber-700 flex-shrink-0" />
                         <span className="text-sm text-amber-700 font-medium">{filtered.filter((v: any) => v.status === "pending_approval").length} vehicle(s) awaiting approval</span>
                       </div>
                     )}
@@ -1901,7 +1901,7 @@ export default function SecurityPage() {
                                 {v.status === "pending_approval" ? (
                                   <div className="flex items-center gap-1">
                                     <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full border bg-amber-50 text-amber-700 border-amber-200">Pending</span>
-                                    <Button size="sm" className="h-6 px-2 text-[10px] bg-emerald-600 hover:bg-emerald-700 text-white"
+                                    <Button size="sm" className="h-6 px-2 text-[10px] bg-emerald-700 hover:bg-emerald-800 text-white"
                                       onClick={() => updateVehicleStatusMutation.mutate({ id: v.id, status: "active" })} disabled={updateVehicleStatusMutation.isPending}>Approve</Button>
                                     <Button size="sm" variant="outline" className="h-6 px-2 text-[10px] border-red-200 text-red-700 hover:bg-red-50"
                                       onClick={() => updateVehicleStatusMutation.mutate({ id: v.id, status: "inactive" })} disabled={updateVehicleStatusMutation.isPending}>Reject</Button>
@@ -1997,7 +1997,7 @@ export default function SecurityPage() {
             </div>
             <div className="flex gap-2 pt-1">
               <Button variant="outline" onClick={() => setIsVehicleOpen(false)} className="flex-1">Cancel</Button>
-              <Button disabled={!vehicleFormValid || registerVehicleMutation.isPending} className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white"
+              <Button disabled={!vehicleFormValid || registerVehicleMutation.isPending} className="flex-1 bg-emerald-700 hover:bg-emerald-800 text-white"
                 onClick={() => registerVehicleMutation.mutate(vehicleForm)}>
                 {registerVehicleMutation.isPending ? <><RefreshCw className="w-3.5 h-3.5 mr-1.5 animate-spin" />Registering…</> : "Register Vehicle"}
               </Button>
@@ -2043,7 +2043,7 @@ export default function SecurityPage() {
             </div>
             <div className="flex gap-2 pt-1">
               <Button variant="outline" onClick={() => setIsGatePassOpen(false)} className="flex-1">Cancel</Button>
-              <Button disabled={!gatePassFormValid || createGatePassMutation.isPending} className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white"
+              <Button disabled={!gatePassFormValid || createGatePassMutation.isPending} className="flex-1 bg-emerald-700 hover:bg-emerald-800 text-white"
                 onClick={() => createGatePassMutation.mutate(gatePassForm)}>
                 {createGatePassMutation.isPending ? <><RefreshCw className="w-3.5 h-3.5 mr-1.5 animate-spin" />Creating…</> : "Create Gate Pass"}
               </Button>

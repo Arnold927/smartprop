@@ -57,7 +57,7 @@ export function OfflineBanner() {
           <div className="flex items-center gap-2">
             {isOffline
               ? <CloudOff  className="w-4 h-4 text-red-600 shrink-0" />
-              : <CloudUpload className="w-4 h-4 text-amber-600 shrink-0" />
+              : <CloudUpload className="w-4 h-4 text-amber-700 shrink-0" />
             }
 
             <AlertDescription className="text-sm">

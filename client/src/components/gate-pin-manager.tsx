@@ -216,7 +216,7 @@ export default function GatePinManager() {
           </DialogHeader>
           <div className="space-y-4">
             <div className="rounded-xl bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 p-3 flex items-start gap-2">
-              <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+              <AlertTriangle className="w-4 h-4 text-amber-700 shrink-0 mt-0.5" />
               <p className="text-xs text-amber-800 dark:text-amber-300">
                 This PIN will not be shown again. Share it with the guard now and store it securely.
               </p>
@@ -278,7 +278,7 @@ export default function GatePinManager() {
               </Button>
               <Button
                 size="sm"
-                className="bg-emerald-600 hover:bg-emerald-700 text-white"
+                className="bg-emerald-700 hover:bg-emerald-800 text-white"
                 disabled={!selectedPropertyId}
                 onClick={() => {
                   setNewPin(generatePin());
@@ -341,7 +341,7 @@ export default function GatePinManager() {
                         {pin.isActive ? "Active" : "Inactive"}
                       </Badge>
                       {pin.expiresAt && new Date(pin.expiresAt) < new Date() && (
-                        <Badge className="text-[10px] px-2 py-0.5 border bg-red-100 text-red-700 border-red-200" >
+                        <Badge className="text-[10px] px-2 py-0.5 border bg-red-100 text-red-700 dark:bg-red-500/20 dark:text-red-300 border-red-200" >
                           Expired
                         </Badge>
                       )}
@@ -483,7 +483,7 @@ export default function GatePinManager() {
             <div className="flex justify-end gap-2">
               <Button variant="outline" onClick={() => setChanging(null)}>Cancel</Button>
               <Button
-                className="bg-emerald-600 hover:bg-emerald-700 text-white"
+                className="bg-emerald-700 hover:bg-emerald-800 text-white"
                 data-testid="change-pin-save"
                 disabled={changePinValue.length < 4 || changeMutation.isPending}
                 onClick={() => changing && changeMutation.mutate({ id: changing.id, pin: changePinValue })}
@@ -557,7 +557,7 @@ export default function GatePinManager() {
             </div>
 
             <Button
-              className="w-full bg-emerald-600 hover:bg-emerald-700 text-white"
+              className="w-full bg-emerald-700 hover:bg-emerald-800 text-white"
               disabled={!newLabel.trim() || newPin.length < 4 || createMutation.isPending}
               onClick={() => createMutation.mutate({ label: newLabel.trim(), pin: newPin, phone: guardPhone.trim() })}
             >

@@ -570,7 +570,7 @@ export default function PropertyDetailsPage() {
                   <div className="mt-4">
                     <div className="flex justify-between text-xs mb-1">
                       <span className="text-muted-foreground">Collection rate (12 mo)</span>
-                      <span className={`font-semibold ${collectionRate >= 80 ? "text-green-600" : collectionRate >= 60 ? "text-amber-600" : "text-red-500"}`}>
+                      <span className={`font-semibold ${collectionRate >= 80 ? "text-green-600" : collectionRate >= 60 ? "text-amber-700" : "text-red-500"}`}>
                         {collectionRate}%
                       </span>
                     </div>
@@ -585,8 +585,8 @@ export default function PropertyDetailsPage() {
                   {/* Pending this month */}
                   {pendingThisMonth > 0 && (
                     <div className="mt-3 flex items-center justify-between text-xs">
-                      <span className="text-amber-600 dark:text-amber-400 font-medium">Pending / overdue</span>
-                      <span className="font-semibold text-amber-600 dark:text-amber-400">KES {pendingThisMonth.toLocaleString()}</span>
+                      <span className="text-amber-700 dark:text-amber-400 font-medium">Pending / overdue</span>
+                      <span className="font-semibold text-amber-700 dark:text-amber-400">KES {pendingThisMonth.toLocaleString()}</span>
                     </div>
                   )}
                 </CardContent>
@@ -742,7 +742,7 @@ export default function PropertyDetailsPage() {
                       const isWarning  = daysLeft <= 30 && daysLeft > 14;
                       const urgencyColor = isExpired ? "text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950/40 border-red-200 dark:border-red-800"
                         : isUrgent  ? "text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950/40 border-red-200 dark:border-red-800"
-                        : isWarning ? "text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/40 border-amber-200 dark:border-amber-800"
+                        : isWarning ? "text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/40 border-amber-200 dark:border-amber-800"
                                     : "text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/40 border-blue-200 dark:border-blue-800" ;
                       return (
                         <div

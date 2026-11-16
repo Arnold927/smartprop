@@ -331,7 +331,7 @@ export default function Finances() {
  </div>
  ))}
  <div className="pt-2 border-t border-border dark:border-gray-800 grid grid-cols-2 gap-2 text-xs text-center">
- <div className="bg-amber-50 dark:bg-amber-950 rounded-lg p-2"><p className="font-semibold text-amber-700">{fmt(totalPending)}</p><p className="text-amber-600">Pending</p></div>
+ <div className="bg-amber-50 dark:bg-amber-950 rounded-lg p-2"><p className="font-semibold text-amber-700">{fmt(totalPending)}</p><p className="text-amber-700">Pending</p></div>
  <div className="bg-green-50 dark:bg-green-950 rounded-lg p-2"><p className="font-semibold text-green-700">{fmt(totalRevenue)}</p><p className="text-green-600">Collected</p></div>
  </div>
  </CardContent>
@@ -448,7 +448,7 @@ export default function Finances() {
  <div className="space-y-3">
  <div className="flex justify-between"><span className="text-sm text-muted-foreground dark:text-muted-foreground">EFT payments</span><span className="font-semibold">{eftCount}</span></div>
  <div className="flex justify-between"><span className="text-sm text-muted-foreground dark:text-muted-foreground">Total collected</span><span className="font-semibold text-green-700">{fmt(payments.filter(p => p.paymentMethod === "eft" || p.paymentMethod === "bank_transfer").reduce((s, p) => s + Number(p.amount ?? 0), 0))}</span></div>
- <div className="flex justify-between"><span className="text-sm text-muted-foreground dark:text-muted-foreground">Pending collection</span><span className="font-semibold text-amber-600">{fmt(totalPending)}</span></div>
+ <div className="flex justify-between"><span className="text-sm text-muted-foreground dark:text-muted-foreground">Pending collection</span><span className="font-semibold text-amber-700">{fmt(totalPending)}</span></div>
  <div className="pt-2 border-t border-border dark:border-gray-800 text-xs text-muted-foreground">
  Bank transfers tracked manually or via bank feeds
  </div>

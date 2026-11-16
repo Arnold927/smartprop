@@ -298,7 +298,7 @@ export default function AddTenantDialog({
               type="submit"
               size="sm"
               disabled={isSubmitting}
-              className="bg-blue-600 hover:bg-blue-700 text-white min-w-[110px]"
+              className="bg-emerald-700 hover:bg-emerald-800 text-white min-w-[110px]"
             >
               {isSubmitting && <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />}
               {isEditing ? "Update Tenant" : "Add Tenant"}

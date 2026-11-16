@@ -107,7 +107,7 @@ const fmt = (d: string | null | undefined) => d ? format(new Date(d), "dd MMM yy
 function expiryClass(cert: RegulatoryCert): string {
   if (cert.isExpired)                                   return "text-red-600 font-semibold";
   if (cert.daysUntilExpiry !== null && cert.daysUntilExpiry <= 7)  return "text-red-600 font-semibold";
-  if (cert.daysUntilExpiry !== null && cert.daysUntilExpiry <= 30) return "text-amber-600 font-semibold";
+  if (cert.daysUntilExpiry !== null && cert.daysUntilExpiry <= 30) return "text-amber-700 font-semibold";
   if (cert.daysUntilExpiry !== null && cert.daysUntilExpiry <= 90) return "text-amber-500";
   return "text-muted-foreground";
 }
@@ -479,7 +479,7 @@ export function RegulatoryCompliancePanel({ propertyId, propertyName, orgIdParam
       <div className="grid grid-cols-3 gap-3">
         {[
           { label: "Active",         value: active,        icon: ShieldCheck, cls: "text-emerald-600" },
-          { label: "Expiring ≤ 90d", value: expiringSoon,  icon: ShieldAlert, cls: "text-amber-600"   },
+          { label: "Expiring ≤ 90d", value: expiringSoon,  icon: ShieldAlert, cls: "text-amber-700"   },
           { label: "Expired",        value: expired,       icon: ShieldX,     cls: "text-red-600"     },
         ].map(s => (
           <Card key={s.label} className="text-center">
@@ -495,7 +495,7 @@ export function RegulatoryCompliancePanel({ propertyId, propertyName, orgIdParam
       {/* ── Expiry alert banner ── */}
       {expiringSoon > 0 && (
         <div className="flex items-start gap-3 rounded-lg border border-amber-200 bg-amber-50 dark:bg-amber-950/20 dark:border-amber-800 p-4">
-          <AlertTriangle className="h-5 w-5 text-amber-600 shrink-0 mt-0.5" />
+          <AlertTriangle className="h-5 w-5 text-amber-700 shrink-0 mt-0.5" />
           <div>
             <p className="text-sm font-semibold text-amber-800 dark:text-amber-300">
               {expiringSoon} certificate{expiringSoon > 1 ? "s" : ""} expiring within 90 days
@@ -516,7 +516,7 @@ export function RegulatoryCompliancePanel({ propertyId, propertyName, orgIdParam
               onClick={() => setFilterAuth(a)}
               className={`text-xs px-3 py-1.5 rounded-full border transition-colors ${
                 filterAuth === a
-                  ? "bg-blue-600 text-white border-blue-600"
+                  ? "bg-emerald-700 text-white border-emerald-600"
                   : "border-border text-muted-foreground hover:bg-muted"
               }`}
             >
@@ -613,7 +613,7 @@ export function RegulatoryCompliancePanel({ propertyId, propertyName, orgIdParam
 
                       {cert.conditions && (
                         <div className="flex items-start gap-1.5 rounded-md bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800 px-3 py-2">
-                          <Info className="h-3.5 w-3.5 text-amber-600 shrink-0 mt-0.5" />
+                          <Info className="h-3.5 w-3.5 text-amber-700 shrink-0 mt-0.5" />
                           <p className="text-xs text-amber-800 dark:text-amber-300 leading-relaxed">{cert.conditions}</p>
                         </div>
                       )}

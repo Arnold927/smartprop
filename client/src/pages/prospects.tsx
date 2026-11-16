@@ -74,7 +74,7 @@ const isProspectsKey = (q: { queryKey: readonly unknown[] }) => String(q.queryKe
 // ── Small reusable dialogs ─────────────────────────────────────────────────────
 
 function Busy({ on }: { on: boolean }) { return on ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" /> : null; }
-const GREEN = "bg-emerald-600 hover:bg-emerald-700 text-white";
+const GREEN = "bg-emerald-700 hover:bg-emerald-800 text-white";
 
 function ScheduleViewingDialog({ open, onClose, onConfirm, loading, reschedule }: { open: boolean; onClose: () => void; onConfirm: (date: string, notes: string) => void; loading: boolean; reschedule?: boolean }) {
   const [date, setDate] = useState("");

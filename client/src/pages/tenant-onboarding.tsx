@@ -419,7 +419,7 @@ export default function TenantOnboarding() {
                     <div>
                       <h3 className="text-sm font-semibold text-foreground/80 mb-2">Utility Default Rates (optional)</h3>
                       <div className="p-4 bg-amber-50 dark:bg-amber-950/30 rounded-xl border border-amber-100 dark:border-amber-900 flex gap-3 mb-4">
-                        <Info className="h-5 w-5 text-amber-600 shrink-0 mt-0.5" />
+                        <Info className="h-5 w-5 text-amber-700 shrink-0 mt-0.5" />
                         <p className="text-sm text-amber-800 dark:text-amber-200">
                           These are starting estimates only. The actual rate is set each month when you record utility readings in <strong>Utility Management</strong>, since provider tariffs can change.
                         </p>
@@ -495,7 +495,7 @@ export default function TenantOnboarding() {
               </Button>
               
               {currentStep < STEPS.length ? (
-                <Button type="button" onClick={nextStep} className="gap-2 bg-emerald-600 hover:bg-emerald-700 text-white">
+                <Button type="button" onClick={nextStep} className="gap-2 bg-emerald-700 hover:bg-emerald-800 text-white">
                   Next Step <ChevronRight className="h-4 w-4" />
                 </Button>
               ) : (

@@ -1,3 +1,5 @@
+import { SwipeRow } from "@/components/ui/swipe-row";
+import { contactSwipeActions } from "@/lib/swipe-contact";
 import { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest, ensureArray } from "@/lib/queryClient";
@@ -103,7 +105,7 @@ function PaginationBar({ page, totalPages, total, setPage, pageSize, setPageSize
       <div className="flex items-center gap-2">
         <span>Rows per page:</span>
         <select value={pageSize} onChange={e => { setPageSize(Number(e.target.value)); setPage(1); }}
-          className="border rounded px-2 py-1 text-sm bg-background text-foreground">
+          className="border rounded px-2 py-2 sm:py-1 text-sm bg-background text-foreground">
           {PAGE_SIZE_OPTIONS.map(n => <option key={n} value={n}>{n}</option>)}
         </select>
         <span>· {total} results · Page {page} of {totalPages}</span>
@@ -646,8 +648,19 @@ export default function ArrearsPage() {
                   const daysOverdue = calcDaysOverdue(arrear.nextDueDate, arrear.daysOverdue);
                   const amount      = safeAmount(arrear.outstandingAmount);
                   const currency    = arrear.currency ?? "KES";
+                  const tenantRec = tenants.find(t => t.id === arrear.tenantId);
                   return (
-                    <div key={arrear.id} className="border rounded-xl p-4 space-y-3">
+                    <SwipeRow
+                      key={arrear.id}
+                      peek={arrear.id === arrearsPag.paginated[0]?.id}
+                      className="rounded-xl border"
+                      trailing={[
+                        { key: "remind", label: "Remind", icon: Send, tone: "amber", hidden: !caps.canSendReminder, disabled: sendReminderMutation.isPending,
+                          onAction: () => sendReminderMutation.mutate({ tenantId: arrear.tenantId, arrearsId: arrear.id, arrear }) },
+                        ...contactSwipeActions(tenantRec?.phone, tenantRec?.firstName),
+                      ]}
+                    >
+                    <div className="p-4 space-y-3">
                       {/* Top row */}
                       <div className="flex items-start justify-between gap-3 flex-wrap">
                         <div className="flex items-center gap-2 flex-wrap">
@@ -710,6 +723,7 @@ export default function ArrearsPage() {
                         <p className="text-xs text-muted-foreground border-t pt-2">{arrear.notes}</p>
                       )}
                     </div>
+                    </SwipeRow>
                   );
                 })}
                 {arrearsPag.filtered.length === 0 && (

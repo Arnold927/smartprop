@@ -55,9 +55,9 @@ function StatusBadge({ status }: { status: string }) {
     status === "paid" || status === "compliant" || status === "approved" || status === "filed" || status === "acknowledged"
       ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
     : status === "pending" || status === "draft"
-      ? "bg-amber-100 text-amber-800 border-amber-200"
+      ? "bg-amber-100 text-amber-800 dark:bg-amber-500/20 dark:text-amber-300 border-amber-200"
     : status === "overdue" || status === "flagged"
-      ? "bg-red-100 text-red-800 border-red-200"
+      ? "bg-red-100 text-red-800 dark:bg-red-500/20 dark:text-red-300 border-red-200"
     : "bg-gray-100 text-muted-foreground border-gray-200";
   return <Badge variant="outline" className={color}>{status}</Badge>;
 }
@@ -323,7 +323,7 @@ function StampDutyTab() {
     <div className="space-y-4">
       {/* Legal basis notice */}
       <div className="flex items-start gap-3 p-3 rounded-lg bg-amber-50 border border-amber-200 text-sm">
-        <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
+        <AlertTriangle className="h-4 w-4 text-amber-700 shrink-0 mt-0.5" />
         <div className="text-amber-800 space-y-1">
           <p>
             <strong>Stamp Duty Act (Cap 480, Laws of Kenya)</strong> requires stamp duty on leases as follows:
@@ -399,7 +399,7 @@ function KraReturnCard({ r, MONTHS, filingRefs, setFilingRefs, markFiled }: any)
                       { label: "Gross Rental Income", value: fmtKES(r.grossRent), cls: "" },
                       ...(Number(r.allowableDeductions) > 0 ? [{ label: "Less: Allowable Deductions (s.15 ITA)", value: `-${fmtKES(r.allowableDeductions)}`, cls: "text-emerald-600" }] : []),
                       { label: "Net Taxable Income", value: fmtKES(r.netIncome), cls: "font-bold" },
-                      { label: `WHT Withheld at Source (${fmtPct(r.whtRate)})`, value: `-${fmtKES(r.whtAmount)}`, cls: "text-amber-600" },
+                      { label: `WHT Withheld at Source (${fmtPct(r.whtRate)})`, value: `-${fmtKES(r.whtAmount)}`, cls: "text-amber-700" },
                       { label: "Net Rental Income Received", value: fmtKES(Number(r.grossRent) - Number(r.whtAmount)), cls: "text-muted-foreground" },
                       ...(r.vatApplicable ? [{ label: "VAT Collected (16%)", value: fmtKES(r.vatAmount), cls: "" }] : []),
                     ].map(({ label, value, cls }) => (
@@ -968,7 +968,7 @@ function DepositInterestTab() {
             {[
               { label: "Total Accrued", value: fmtKES(data.totalAccrued), color: "text-foreground" },
               { label: "Settled", value: fmtKES(data.totalSettled), color: "text-emerald-600" },
-              { label: "Outstanding", value: fmtKES(data.totalOutstanding), color: data.totalOutstanding > 0 ? "text-amber-600" : "text-foreground" },
+              { label: "Outstanding", value: fmtKES(data.totalOutstanding), color: data.totalOutstanding > 0 ? "text-amber-700" : "text-foreground" },
             ].map(({ label, value, color }) => (
               <Card key={label}><CardContent className="pt-4 pb-3">
                 <p className="text-xs text-muted-foreground">{label}</p>
@@ -1099,8 +1099,8 @@ function ValuationCard({ v }: { v: any }) {
             <div className="flex items-center gap-2 flex-wrap">
               <span className="font-semibold">{fmt(v.valuationDate)}</span>
               <Badge variant="outline">{v.valuationType?.replace(/_/g, " ")}</Badge>
-              {v.isAcquisition && <Badge className="bg-blue-100 text-blue-800 border-0">Acquisition</Badge>}
-              {v.isDisposal   && <Badge className="bg-orange-100 text-orange-800 border-0">Disposal</Badge>}
+              {v.isAcquisition && <Badge className="bg-blue-100 text-blue-800 dark:bg-blue-500/20 dark:text-blue-300 border-0">Acquisition</Badge>}
+              {v.isDisposal   && <Badge className="bg-orange-100 text-orange-800 dark:bg-orange-500/20 dark:text-orange-300 border-0">Disposal</Badge>}
               {v.isDisposal && v.cgtRate && <Badge className="bg-red-50 text-red-700 border-red-200">CGT {v.cgtRate}%</Badge>}
             </div>
             <p className="text-lg font-bold mt-1">{fmtKES(v.marketValue)}</p>
@@ -1126,7 +1126,7 @@ function ValuationCard({ v }: { v: any }) {
                   <tbody>
                     {v.purchasePrice && <tr className="border-t"><td className="px-3 py-2 text-muted-foreground">Cost base (purchase)</td><td className="px-3 py-2 text-right font-mono">{fmtKES(v.purchasePrice)}</td></tr>}
                     {Number(v.improvementCosts) > 0 && <tr className="border-t"><td className="px-3 py-2 text-muted-foreground">Improvements</td><td className="px-3 py-2 text-right font-mono">{fmtKES(v.improvementCosts)}</td></tr>}
-                    {v.cgtGain !== null && v.cgtGain !== undefined && <tr className="border-t"><td className="px-3 py-2 text-muted-foreground">Net gain</td><td className={`px-3 py-2 text-right font-mono ${Number(v.cgtGain) > 0 ? "text-amber-600" : "text-emerald-600"}`}>{fmtKES(v.cgtGain)}</td></tr>}
+                    {v.cgtGain !== null && v.cgtGain !== undefined && <tr className="border-t"><td className="px-3 py-2 text-muted-foreground">Net gain</td><td className={`px-3 py-2 text-right font-mono ${Number(v.cgtGain) > 0 ? "text-amber-700" : "text-emerald-600"}`}>{fmtKES(v.cgtGain)}</td></tr>}
                     {v.cgtRate && <tr className="border-t"><td className="px-3 py-2 text-muted-foreground">CGT rate</td><td className="px-3 py-2 text-right">{fmtPct(v.cgtRate)}</td></tr>}
                     {v.cgtLiability !== null && v.cgtLiability !== undefined && <tr className="border-t bg-red-50/50"><td className="px-3 py-2 font-semibold text-red-700">CGT liability</td><td className="px-3 py-2 text-right font-bold font-mono text-red-700">{fmtKES(v.cgtLiability)}</td></tr>}
                   </tbody>
@@ -1207,7 +1207,7 @@ function ValuationsTab() {
     <div className="space-y-4">
       {/* CGT rate notice */}
       <div className="flex items-start gap-3 p-3 rounded-lg bg-amber-50 border border-amber-200 text-xs text-amber-800">
-        <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
+        <AlertTriangle className="h-4 w-4 text-amber-700 shrink-0 mt-0.5" />
         <div>
           <strong>Finance Act 2023 — CGT Rate Change:</strong> Capital Gains Tax on property disposals increased from{" "}
           <strong>5% to 15%</strong> effective <strong>1 January 2023</strong>. Disposals after this date use the 15% rate.
@@ -1252,7 +1252,7 @@ function ValuationsTab() {
                   <div><p className="text-xs text-muted-foreground">Disposal value</p><p className="font-medium">{fmtKES(cgt.disposalValue)}</p></div>
                   <div>
                     <p className="text-xs text-muted-foreground">Net gain</p>
-                    <p className={`font-medium ${cgt.gain > 0 ? "text-amber-600" : "text-emerald-600"}`}>{fmtKES(cgt.gain)}</p>
+                    <p className={`font-medium ${cgt.gain > 0 ? "text-amber-700" : "text-emerald-600"}`}>{fmtKES(cgt.gain)}</p>
                   </div>
                   <div>
                     <p className="text-xs text-muted-foreground">CGT @ {fmtPct(cgt.cgtRate ?? 15)}</p>
@@ -1845,7 +1845,7 @@ function EtimsTab() {
       )}
 
       <div className="flex items-start gap-3 p-3 rounded-lg bg-amber-50 border border-amber-200 text-xs text-amber-800">
-        <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
+        <AlertTriangle className="h-4 w-4 text-amber-700 shrink-0 mt-0.5" />
         <div>
           <strong>eTIMS mandatory for VAT-registered landlords</strong> from September 2023 per KRA notice.
           All invoices for commercial rent must be issued through eTIMS and include a KRA receipt number.
@@ -1897,7 +1897,7 @@ function EtimsTab() {
         {[
           { label: "Total submitted", value: stats.total,    color: "text-foreground"    },
           { label: "Accepted by KRA", value: stats.accepted, color: "text-emerald-600"   },
-          { label: "Pending",         value: stats.pending,  color: "text-amber-600"     },
+          { label: "Pending",         value: stats.pending,  color: "text-amber-700"     },
           { label: "Rejected/Error",  value: stats.rejected, color: "text-red-600"       },
         ].map(s => (
           <Card key={s.label} className="text-center py-3">
@@ -2160,7 +2160,7 @@ function RrtNoticesTab() {
   return (
     <div className="space-y-4">
       <div className="flex items-start gap-3 p-3 rounded-lg bg-amber-50 border border-amber-200 text-xs text-amber-800">
-        <Gavel className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
+        <Gavel className="h-4 w-4 text-amber-700 shrink-0 mt-0.5" />
         <div>
           <strong>Rent Restriction Act Cap 296 (Kenya):</strong>{" "}
           Rent increase notices require a minimum of <strong>30 days</strong> written notice (Cap 296 s.9).
@@ -2298,7 +2298,7 @@ function RrtNoticesTab() {
               <div className="flex gap-2">
                 <Button
                   size="sm"
-                  className="bg-emerald-600 hover:bg-emerald-700 text-white"
+                  className="bg-emerald-700 hover:bg-emerald-800 text-white"
                   onClick={() => downloadDocPdf(generatedHtml, generatedTitle)}
                 >
                   <Download className="h-3.5 w-3.5 mr-1.5" />Download PDF
@@ -2463,7 +2463,7 @@ export default function NairobiCompliance() {
               <button key={tab.id} onClick={() => handleTabChange(tab.id)}
                 className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium whitespace-nowrap shrink-0 transition-all ${
                   activeTab === tab.id
-                    ? "bg-emerald-600 text-white shadow-sm"
+                    ? "bg-emerald-700 text-white shadow-sm"
                     : "text-muted-foreground hover:text-foreground bg-muted/40"
                 }`}>
                 <tab.icon className="w-3.5 h-3.5" />

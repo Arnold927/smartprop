@@ -309,7 +309,7 @@ function BankTransferDetails({ config, hasPaybill }: { config: PaymentConfig; ha
     return (
       <div className="rounded-xl border border-amber-200 bg-amber-50 dark:bg-amber-950/30 p-4 space-y-2">
         <div className="flex items-start gap-2.5">
-          <Banknote className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+          <Banknote className="w-4 h-4 text-amber-700 shrink-0 mt-0.5" />
           <div className="space-y-1.5">
             <p className="text-sm font-semibold text-amber-900 dark:text-amber-200">
               Bank transfers require a Paybill number

@@ -556,7 +556,7 @@ export default function AddPropertyModal({ isOpen, onClose, onSuccess, property,
  <Button 
  type="submit" 
  disabled={addPropertyMutation.isPending || updatePropertyMutation.isPending}
- className="bg-blue-600 hover:bg-blue-700 text-white"
+ className="bg-emerald-700 hover:bg-emerald-800 text-white"
  >
  {isEditMode
  ? updatePropertyMutation.isPending

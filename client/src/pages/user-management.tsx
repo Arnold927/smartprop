@@ -364,7 +364,7 @@ function PermissionsTab() {
         </div>
       ) : (
         <div className="flex items-start gap-3 px-4 py-3 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900">
-          <Info className="w-4 h-4 text-amber-600 mt-0.5 flex-shrink-0" />
+          <Info className="w-4 h-4 text-amber-700 mt-0.5 flex-shrink-0" />
           <p className="text-xs text-amber-800 dark:text-amber-300 leading-relaxed">
             <strong>A guide to each role's default access.</strong> Access is currently fixed for each role by the system and
             can't yet be customised per organisation, so these can't be changed here. To change what someone can do, change their
@@ -394,7 +394,7 @@ function PermissionsTab() {
                       <span className="text-muted-foreground font-normal text-[10px]">
                         {roleCounts[roleKey]}/{PERMISSIONS.length} perms
                       </span>
-                      <span className="text-[9px] text-muted-foreground/60 leading-tight text-center max-w-[90px] hidden xl:block">
+                      <span className="text-[9px] text-muted-foreground leading-tight text-center max-w-[90px] hidden xl:block">
                         {ROLE_PORTAL[roleKey]}
                       </span>
                     </div>
@@ -410,7 +410,7 @@ function PermissionsTab() {
                     <div className="flex flex-col items-center gap-1">
                       <Button
                         size="sm"
-                        className="h-7 w-full max-w-[90px] text-xs gap-1 bg-emerald-600 hover:bg-emerald-700 text-white disabled:opacity-40"
+                        className="h-7 w-full max-w-[90px] text-xs gap-1 bg-emerald-700 hover:bg-emerald-800 text-white disabled:opacity-40"
                         disabled={!dirtyRoles.has(roleKey) || savingRole !== null}
                         onClick={() => saveRole(roleKey)}
                       >
@@ -787,9 +787,9 @@ export default function UserManagement() {
                       <div>
                         <SPBadge status={statusOf(u)} />
                         {statusOf(u) === "pending" && (!u.inviteExpiresAt
-                          ? <p className="text-[11px] text-amber-600 mt-1">No active link</p>
+                          ? <p className="text-[11px] text-amber-700 mt-1">No active link</p>
                           : new Date(u.inviteExpiresAt) < new Date()
-                            ? <p className="text-[11px] text-amber-600 mt-1">Link expired</p>
+                            ? <p className="text-[11px] text-amber-700 mt-1">Link expired</p>
                             : <p className="text-[11px] text-muted-foreground mt-1">Link valid to {fmtDate(u.inviteExpiresAt)}</p>)}
                       </div>
                     ),
@@ -912,7 +912,7 @@ export default function UserManagement() {
           <DialogFooter>
             <Button variant="outline" onClick={() => setEditingUser(null)}>Cancel</Button>
             <Button
-              className="bg-emerald-600 hover:bg-emerald-700 text-white"
+              className="bg-emerald-700 hover:bg-emerald-800 text-white"
               disabled={updateMutation.isPending || !editingUser || newRoleName === editingUser?.role}
               onClick={() => editingUser && updateMutation.mutate({ id: String(editingUser.id), data: { role: newRoleName } })}
             >

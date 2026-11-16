@@ -114,7 +114,7 @@ const FEATURES = [
     desc: "Digital tenancy agreements, deposit receipts, rent escalation clauses, and renewal reminders — generated and tracked without a single printout.",
   },
   {
-    icon: Wrench, color: "text-amber-600", bg: "bg-amber-50 dark:bg-amber-950/30",
+    icon: Wrench, color: "text-amber-700", bg: "bg-amber-50 dark:bg-amber-950/30",
     border: "hover:border-t-amber-500",
     title: "Maintenance & Work Orders",
     desc: "Tenants report issues over WhatsApp. You assign a fundi, track progress, close the ticket with a photo. The full job history stays on record per unit.",
@@ -295,7 +295,7 @@ const COMPLIANCE_MODULES = [
     icon: UserCheck,
     title: "Caretaker & Staff Roles",
     desc: "On-site caretakers and staff get access scoped to exactly their assigned property — nothing more. Assign, reassign, or disable access in seconds.",
-    color: "text-amber-600", bg: "bg-amber-50 dark:bg-amber-950/30",
+    color: "text-amber-700", bg: "bg-amber-50 dark:bg-amber-950/30",
   },
   {
     icon: Bell,
@@ -361,7 +361,7 @@ function DashboardMockup() {
             <div
               key={label}
               className={`flex items-center gap-2 px-2.5 py-2 rounded-lg text-xs transition-colors relative ${
-                active ? "bg-emerald-600 text-white shadow-sm" : "text-slate-400"
+                active ? "bg-emerald-700 text-white shadow-sm" : "text-slate-400"
               }`}
             >
               <Icon className="w-3.5 h-3.5 flex-shrink-0" />

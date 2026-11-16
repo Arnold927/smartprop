@@ -200,7 +200,7 @@ export default function InvoiceTemplate({ invoiceData, onPreview, onDownload, on
           <Button variant="outline" onClick={handlePrint}>
             <Printer className="h-4 w-4 mr-2" />Print
           </Button>
-          <Button onClick={handleDownload} className="bg-emerald-600 hover:bg-emerald-700">
+          <Button onClick={handleDownload} className="bg-emerald-700 hover:bg-emerald-800">
             <Download className="h-4 w-4 mr-2" />Download PDF
           </Button>
         </div>

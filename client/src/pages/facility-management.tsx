@@ -66,7 +66,7 @@ const STATUS_CFG: Record<string, { label: string; cls: string }> = {
 };
 
 function StatusBadge({ status }: { status: string }) {
-  const cfg = STATUS_CFG[status] ?? { label: status, cls: "bg-gray-100 text-gray-700" };
+  const cfg = STATUS_CFG[status] ?? { label: status, cls: "bg-gray-100 text-gray-700 dark:bg-gray-500/20 dark:text-gray-300" };
   return <Badge className={`text-xs px-2 py-0.5 ${cfg.cls}`}>{cfg.label}</Badge>;
 }
 
@@ -99,7 +99,7 @@ function KPICard({
         <div className="mt-3">
           <p className="text-2xl font-semibold text-foreground">{value}</p>
           <p className="text-xs text-muted-foreground mt-0.5">{title}</p>
-          <p className="text-[11px] text-muted-foreground/60 mt-0.5">{sub}</p>
+          <p className="text-[11px] text-muted-foreground mt-0.5">{sub}</p>
         </div>
       </CardContent>
     </Card>
@@ -336,7 +336,7 @@ const FacilityManagement = () => {
             </Button>
             <Button
               size="sm"
-              className="bg-emerald-600 hover:bg-emerald-700 text-white"
+              className="bg-emerald-700 hover:bg-emerald-800 text-white"
               onClick={() => setWoDialogOpen(true)}
             >
               <Plus className="w-4 h-4 mr-1.5" />
@@ -762,7 +762,7 @@ const FacilityManagement = () => {
                           {/* Quick status actions */}
                           <div className="mt-3 flex gap-2 flex-wrap">
                             {wo.status === "draft" && (
-                              <Button size="sm" className="h-7 text-xs bg-emerald-600 hover:bg-emerald-700 text-white"
+                              <Button size="sm" className="h-7 text-xs bg-emerald-700 hover:bg-emerald-800 text-white"
                                 onClick={() => updateWOMutation.mutate({ id: wo.id, status: "pending_approval" })}>
                                 Submit for Approval
                               </Button>
@@ -851,7 +851,7 @@ const FacilityManagement = () => {
                             <div className="flex items-center gap-2">
                               <Progress value={rate} className="h-2 flex-1" />
                               <span className={`text-xs font-medium w-8 text-right ${
-                                rate >= 85 ? "text-green-600" : rate >= 60 ? "text-amber-600" : "text-red-500"
+                                rate >= 85 ? "text-green-600" : rate >= 60 ? "text-amber-700" : "text-red-500"
                               }`}>{rate}%</span>
                             </div>
                           </div>

@@ -11,7 +11,7 @@ interface CurrencyDisplayProps {
 
 export function CurrencyDisplay({
   amount,
-  currency = "USD",
+  currency = "KES",
   locale = "en-US",
   className,
   animate = false,
@@ -23,8 +23,9 @@ export function CurrencyDisplay({
         currency: currency,
         // "KES 1,000" everywhere, never "Ksh 1,000" on one card and "KES" on the next.
         currencyDisplay: currency === "KES" ? "code" : "symbol",
-        minimumFractionDigits: 2,
-        maximumFractionDigits: 2,
+        // Whole shillings read cleaner without ".00"; keep cents when there are any (and for other currencies).
+        minimumFractionDigits: currency === "KES" && Number.isInteger(amount) ? 0 : 2,
+        maximumFractionDigits: currency === "KES" && Number.isInteger(amount) ? 0 : 2,
       }).format(amount);
     } catch (error) {
       // Fallback if currency or locale is not supported

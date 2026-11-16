@@ -22,6 +22,7 @@
  *   admin    → header says "All Messages", Broadcast shortcut shown
  */
 
+import { SwipeRow } from "@/components/ui/swipe-row";
 import { SearchableSelect } from "@/components/ui/searchable-select";
 import { useLocation } from "wouter";
 import { useState, useCallback } from "react";
@@ -33,7 +34,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useWsEvent } from "@/hooks/useWebSocket";
 import {
   Plus, Search, Send, X, Reply,
-  Inbox, SendHorizonal, Mail, ChevronLeft, Radio,
+  Inbox, SendHorizonal, Mail, MailCheck, ChevronLeft, Radio,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -187,21 +188,31 @@ function pageSubtitle(role: AppRole) {
 
 // ── MessageRow ────────────────────────────────────────────────────────────────
 
-function MessageRow({ message, isSelected, onSelect }: {
+function MessageRow({ message, isSelected, onSelect, onMarkRead, onReply, peek }: {
   message: Message; isSelected: boolean; onSelect: () => void;
+  /** Swipe shortcuts (phones): only offered where they apply. */
+  onMarkRead?: () => void; onReply?: () => void; peek?: boolean;
 }) {
   const counterpart = message.isSentByMe ? message.toName : message.fromName;
   const unread = !message.isRead && !message.isSentByMe;
 
   return (
-    <button
-      className={`w-full text-left px-4 py-3.5 transition-colors border-b border-border/50 dark:border-gray-800/60 last:border-0
+    <SwipeRow
+      peek={peek}
+      onTap={onSelect}
+      className="border-b border-border/50 dark:border-gray-800/60 last:border-0"
+      trailing={[
+        { key: "read", label: "Mark read", icon: MailCheck, tone: "blue", hidden: !unread || !onMarkRead, onAction: () => onMarkRead?.() },
+        { key: "reply", label: "Reply", icon: Reply, tone: "emerald", hidden: message.isSentByMe || !onReply, onAction: () => onReply?.() },
+      ]}
+    >
+    <div
+      className={`w-full text-left px-4 py-3.5 transition-colors cursor-pointer
         ${isSelected ? "bg-blue-50 dark:bg-blue-950/40" : "hover:bg-muted/60 dark:hover:bg-gray-900/60"}`}
-      onClick={onSelect}
     >
       <div className="flex items-start gap-3">
         <Avatar className="w-8 h-8 flex-shrink-0 mt-0.5">
-          <AvatarFallback className={`text-xs font-semibold ${message.isSentByMe ? "bg-blue-100 text-blue-700" : "bg-muted dark:bg-gray-700 text-muted-foreground"}`}>
+          <AvatarFallback className={`text-xs font-semibold ${message.isSentByMe ? "bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-300" : "bg-muted dark:bg-gray-700 text-muted-foreground"}`}>
             {initials(counterpart)}
           </AvatarFallback>
         </Avatar>
@@ -223,7 +234,8 @@ function MessageRow({ message, isSelected, onSelect }: {
         </div>
         {unread && <div className="w-2 h-2 bg-blue-500 rounded-full flex-shrink-0 mt-2" />}
       </div>
-    </button>
+    </div>
+    </SwipeRow>
   );
 }
 
@@ -528,8 +540,16 @@ export default function Messages({ embedded = false }: { embedded?: boolean } = 
                 </div>
               ) : filtered.length === 0 ? (
                 <EmptyState icon={<Mail />} title={search ? "No messages match" : `No messages in ${box}`} size="lg" />
-              ) : filtered.map(m => (
-                <MessageRow key={m.id} message={m} isSelected={selected?.id === m.id} onSelect={() => handleSelect(m)} />
+              ) : filtered.map((m, i) => (
+                <MessageRow
+                  key={m.id}
+                  peek={i === 0}
+                  message={m}
+                  isSelected={selected?.id === m.id}
+                  onSelect={() => handleSelect(m)}
+                  onMarkRead={() => markReadMutation.mutate(m.id)}
+                  onReply={replyPermitted(m) ? () => openReply(m.fromUserId, `Re: ${m.subject || ""}`.trim()) : undefined}
+                />
               ))}
             </Card>
           </div>
@@ -623,7 +643,7 @@ export default function Messages({ embedded = false }: { embedded?: boolean } = 
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setIsComposeOpen(false)}>Cancel</Button>
-            <Button className="bg-emerald-600 hover:bg-emerald-700 text-white"
+            <Button className="bg-emerald-700 hover:bg-emerald-800 text-white"
               disabled={!compose.toUserId || !compose.content.trim() || sendMutation.isPending}
               onClick={() => sendMutation.mutate(compose)}>
               {sendMutation.isPending ? "Sending…" : <><Send className="w-4 h-4 mr-1.5" />Send</>}

@@ -235,14 +235,14 @@ export function TenantAnalytics({ timeframe = '30d' }: TenantAnalyticsProps) {
  </div>
  </div>
  <div className="flex items-start gap-3">
- <Badge className="bg-orange-100 text-orange-800">Action</Badge>
+ <Badge className="bg-orange-100 text-orange-800 dark:bg-orange-500/20 dark:text-orange-300">Action</Badge>
  <div>
  <p className="font-medium">Renewal opportunities</p>
  <p className="text-sm text-muted-foreground">12 leases expiring in March - start renewal process</p>
  </div>
  </div>
  <div className="flex items-start gap-3">
- <Badge className="bg-blue-100 text-blue-800">Insight</Badge>
+ <Badge className="bg-blue-100 text-blue-800 dark:bg-blue-500/20 dark:text-blue-300">Insight</Badge>
  <div>
  <p className="font-medium">Communication preference</p>
  <p className="text-sm text-muted-foreground">WhatsApp shows highest engagement at 62 interactions</p>

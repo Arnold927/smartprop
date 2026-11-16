@@ -129,7 +129,7 @@ function fmtDate(d: string | null | undefined): string {
 
 function ScoreBadge({ score }: { score: number | null | undefined }) {
   if (score === null || score === undefined) return <span className="text-muted-foreground text-xs">—</span>;
-  const color = score >= 70 ? "text-emerald-600" : score >= 40 ? "text-amber-600" : "text-red-600";
+  const color = score >= 70 ? "text-emerald-600" : score >= 40 ? "text-amber-700" : "text-red-600";
   return <span className={`font-bold text-sm ${color}`}>{score}/100</span>;
 }
 
@@ -306,7 +306,7 @@ function AddMetricModal({ open, onClose, properties }: {
             <Button
               disabled={mut.isPending || !form.periodYear || !form.periodMonth}
               onClick={() => mut.mutate()}
-              className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white"
+              className="flex-1 bg-emerald-700 hover:bg-emerald-800 text-white"
             >
               {mut.isPending ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Saving…</> : "Save Metrics"}
             </Button>
@@ -386,7 +386,7 @@ function NewReportModal({ open, onClose }: { open: boolean; onClose: () => void 
             <Button
               disabled={mut.isPending || !form.title.trim()}
               onClick={() => mut.mutate()}
-              className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white"
+              className="flex-1 bg-emerald-700 hover:bg-emerald-800 text-white"
             >
               {mut.isPending ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Creating…</> : "Create Report"}
             </Button>
@@ -490,7 +490,7 @@ function AddMaterialModal({ open, onClose }: { open: boolean; onClose: () => voi
             <Button
               disabled={mut.isPending || !form.name.trim()}
               onClick={() => mut.mutate()}
-              className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white"
+              className="flex-1 bg-emerald-700 hover:bg-emerald-800 text-white"
             >
               {mut.isPending ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Saving…</> : "Add Material"}
             </Button>
@@ -662,7 +662,7 @@ function ReportEditorPanel({
           {report.status === "in_review" && canEdit && (
             <Button
               size="sm"
-              className="bg-emerald-600 hover:bg-emerald-700 text-white"
+              className="bg-emerald-700 hover:bg-emerald-800 text-white"
               onClick={() => statusMut.mutate("published")}
               disabled={statusMut.isPending}
             >
@@ -829,7 +829,7 @@ function ReportEditorPanel({
               {/* Score */}
               {avgPeriodScore !== null && (
                 <div className="rounded-lg bg-card border p-3 text-center">
-                  <div className={`text-2xl font-bold ${avgPeriodScore >= 70 ? "text-emerald-600" : avgPeriodScore >= 40 ? "text-amber-600" : "text-red-600"}`}>
+                  <div className={`text-2xl font-bold ${avgPeriodScore >= 70 ? "text-emerald-600" : avgPeriodScore >= 40 ? "text-amber-700" : "text-red-600"}`}>
                     {avgPeriodScore}/100
                   </div>
                   <div className="text-xs text-muted-foreground mt-0.5">ESG Score</div>
@@ -1141,7 +1141,7 @@ const SustainabilityESG = () => {
           <Button variant="outline" onClick={() => setNewReportOpen(true)}>
             <FileText className="w-4 h-4 mr-2" /> New Report
           </Button>
-          <Button className="bg-emerald-600 hover:bg-emerald-700 text-white" onClick={() => setAddMetricOpen(true)}>
+          <Button className="bg-emerald-700 hover:bg-emerald-800 text-white" onClick={() => setAddMetricOpen(true)}>
             <Plus className="w-4 h-4 mr-2" /> Record Metrics
           </Button>
         </div>
@@ -1223,7 +1223,7 @@ const SustainabilityESG = () => {
                 <p className="text-sm text-muted-foreground/70 mt-1">
                   Start by recording your first month's energy, water, and waste data.
                 </p>
-                <Button className="mt-4 bg-emerald-600 hover:bg-emerald-700 text-white" onClick={() => setAddMetricOpen(true)}>
+                <Button className="mt-4 bg-emerald-700 hover:bg-emerald-800 text-white" onClick={() => setAddMetricOpen(true)}>
                   <Plus className="w-4 h-4 mr-2" /> Record First Metrics
                 </Button>
               </CardContent>
@@ -1361,7 +1361,7 @@ const SustainabilityESG = () => {
               <h2 className="font-semibold">Sustainability Reports</h2>
               <p className="text-sm text-muted-foreground">Create and manage ESG reports aligned with GRI, CDP, and other frameworks</p>
             </div>
-            <Button className="bg-emerald-600 hover:bg-emerald-700 text-white" onClick={() => setNewReportOpen(true)}>
+            <Button className="bg-emerald-700 hover:bg-emerald-800 text-white" onClick={() => setNewReportOpen(true)}>
               <Plus className="w-4 h-4 mr-2" /> New Report
             </Button>
           </div>
@@ -1406,7 +1406,7 @@ const SustainabilityESG = () => {
                 <FileText className="w-10 h-10 text-muted-foreground/30 mx-auto mb-3" />
                 <p className="font-medium text-muted-foreground">No reports yet</p>
                 <p className="text-sm text-muted-foreground/70 mt-1">Create your first sustainability report.</p>
-                <Button className="mt-4 bg-emerald-600 hover:bg-emerald-700 text-white" onClick={() => setNewReportOpen(true)}>
+                <Button className="mt-4 bg-emerald-700 hover:bg-emerald-800 text-white" onClick={() => setNewReportOpen(true)}>
                   <Plus className="w-4 h-4 mr-2" /> Create First Report
                 </Button>
               </CardContent>
@@ -1478,7 +1478,7 @@ const SustainabilityESG = () => {
                           {report.status === "in_review" && (
                             <Button
                               size="sm"
-                              className="bg-emerald-600 hover:bg-emerald-700 text-white"
+                              className="bg-emerald-700 hover:bg-emerald-800 text-white"
                               onClick={() => updateReportStatus.mutate({ id: report.id, status: "published" })}
                               disabled={updateReportStatus.isPending}
                             >
@@ -1536,7 +1536,7 @@ const SustainabilityESG = () => {
               <h2 className="font-semibold">Green Materials Register</h2>
               <p className="text-sm text-muted-foreground">Track sustainable materials, certifications, and carbon footprint</p>
             </div>
-            <Button className="bg-emerald-600 hover:bg-emerald-700 text-white" onClick={() => setAddMaterialOpen(true)}>
+            <Button className="bg-emerald-700 hover:bg-emerald-800 text-white" onClick={() => setAddMaterialOpen(true)}>
               <Plus className="w-4 h-4 mr-2" /> Add Material
             </Button>
           </div>
@@ -1606,7 +1606,7 @@ const SustainabilityESG = () => {
                 <Recycle className="w-10 h-10 text-muted-foreground/30 mx-auto mb-3" />
                 <p className="font-medium text-muted-foreground">No green materials registered</p>
                 <p className="text-sm text-muted-foreground/70 mt-1">Add sustainable materials used in your properties.</p>
-                <Button className="mt-4 bg-emerald-600 hover:bg-emerald-700 text-white" onClick={() => setAddMaterialOpen(true)}>
+                <Button className="mt-4 bg-emerald-700 hover:bg-emerald-800 text-white" onClick={() => setAddMaterialOpen(true)}>
                   <Plus className="w-4 h-4 mr-2" /> Add First Material
                 </Button>
               </CardContent>
@@ -1642,7 +1642,7 @@ const SustainabilityESG = () => {
                             variant="outline"
                             onClick={() => approveMaterial.mutate({ id: m.id, isApproved: !m.isApproved })}
                             disabled={approveMaterial.isPending}
-                            className={m.isApproved ? "text-amber-600 border-amber-300" : "text-emerald-600 border-emerald-300"}
+                            className={m.isApproved ? "text-amber-700 border-amber-300" : "text-emerald-600 border-emerald-300"}
                           >
                             {m.isApproved ? "Revoke" : "Approve"}
                           </Button>
@@ -1666,7 +1666,7 @@ const SustainabilityESG = () => {
                         )}
                       </div>
                       {m.notes && <p className="text-xs text-muted-foreground">{m.notes}</p>}
-                      <p className="text-xs text-muted-foreground/60">Added {fmtDate(m.createdAt)}</p>
+                      <p className="text-xs text-muted-foreground">Added {fmtDate(m.createdAt)}</p>
                     </CardContent>
                   </Card>
                 ))}
@@ -1723,7 +1723,7 @@ const SustainabilityESG = () => {
                         <p className="text-xs text-muted-foreground mt-1">{intg.provider}</p>
                         <p className="text-xs text-muted-foreground mt-1">{intg.description}</p>
                         {intg.lastSync && (
-                          <p className="text-xs text-muted-foreground/60 mt-1">
+                          <p className="text-xs text-muted-foreground mt-1">
                             Last sync: {new Date(intg.lastSync).toLocaleString("en-KE")}
                           </p>
                         )}
@@ -1732,7 +1732,7 @@ const SustainabilityESG = () => {
                         {intg.status === "not_configured" && (
                           <Button
                             size="sm"
-                            className="bg-emerald-600 hover:bg-emerald-700 text-white"
+                            className="bg-emerald-700 hover:bg-emerald-800 text-white"
                             onClick={() => toast({
                               title: "Integration setup",
                               description: "Contact SmartProp support to connect this data source.",

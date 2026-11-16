@@ -153,7 +153,7 @@ function PaginationBar({
             p === "…"
               ? <span key={"e" + i} className="px-1 text-xs">…</span>
               : <button key={p} onClick={() => onPage(p as number)}
-                  className={`px-2.5 py-1 rounded border text-xs transition-colors ${page === p ? "bg-emerald-600 text-white border-emerald-600" : "hover:bg-muted"}`}
+                  className={`px-2.5 py-1 rounded border text-xs transition-colors ${page === p ? "bg-emerald-700 text-white border-emerald-600" : "hover:bg-muted"}`}
                 >{p}</button>
           )
         }
@@ -393,7 +393,7 @@ export default function DiasporaRentToOwn() {
   const completedProjects = contracts.filter((c: DiasporaContract) => c.constructionStatus === "completed").length;
   const totalValue = contracts.reduce((s: number, c: DiasporaContract) => s + (c.totalPropertyValue || 0), 0);
   const totalCollected = contracts.reduce((s: number, c: DiasporaContract) => s + (c.totalPaid || 0), 0);
-  const avgCompletion = contracts.reduce((s: number, c: DiasporaContract) => s + (c.completionPercentage || 0), 0) / (contracts.length || 1);
+  const avgCompletion = contracts.reduce((s: number, c: DiasporaContract) => s + (Number(c.completionPercentage) || 0), 0) / (contracts.length || 1);   // the API sends it as text, so + would glue strings together (NaN%)
   const uniqueCountries = [...new Set(contracts.map((c: DiasporaContract) => c.clientCountry).filter(Boolean))].length;
 
   const createContractMutation = useMutation({
@@ -667,7 +667,7 @@ export default function DiasporaRentToOwn() {
       <div className="flex items-center justify-center h-96">
         <div className="text-center space-y-3 max-w-sm">
           <div className="w-14 h-14 rounded-full bg-amber-50 border border-amber-200 flex items-center justify-center mx-auto">
-            <Building2Ic className="h-6 w-6 text-amber-600" />
+            <Building2Ic className="h-6 w-6 text-amber-700" />
           </div>
           <h2 className="text-lg font-semibold text-foreground">No organisation linked</h2>
           <p className="text-sm text-muted-foreground">Your account is not linked to an organisation. Contact your administrator.</p>
@@ -695,7 +695,9 @@ export default function DiasporaRentToOwn() {
         {/* Real aeroplane photo — Kenya Airways / commercial jet in flight */}
         <img
           src="https://images.unsplash.com/photo-1556388158-158ea5ccacbd?auto=format&fit=crop&w=1600&q=80"
-          alt="Kenya Airways aircraft representing diaspora investment"
+          alt=""
+          aria-hidden="true"
+          onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
           className="absolute inset-0 w-full h-full object-cover"
           style={{ objectPosition: "center 30%" }}
         />
@@ -796,11 +798,11 @@ export default function DiasporaRentToOwn() {
 
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label>Property Value (KSh) *</Label>
+                    <Label>Property Value (KES) *</Label>
                     <Input type="number" step="1000" name="totalPropertyValue" placeholder="5000000" required />
                   </div>
                   <div className="space-y-2">
-                    <Label>Down Payment (KSh) *</Label>
+                    <Label>Down Payment (KES) *</Label>
                     <Input type="number" step="1000" name="downPayment" placeholder="500000" required />
                   </div>
                 </div>
@@ -1229,7 +1231,7 @@ export default function DiasporaRentToOwn() {
                               <span className="text-muted-foreground">Mid-market rate</span>
                               <span className="font-mono">1 {fxForm.originalCurrency} = KES {breakdown.midMarketRate.toFixed(4)}</span>
                             </div>
-                            <div className={`flex justify-between font-medium ${breakdown.spreadPct > 3 ? "text-red-600" : breakdown.spreadPct > 1.5 ? "text-amber-600" : "text-emerald-600"}`}>
+                            <div className={`flex justify-between font-medium ${breakdown.spreadPct > 3 ? "text-red-600" : breakdown.spreadPct > 1.5 ? "text-amber-700" : "text-emerald-600"}`}>
                               <span>Spread vs mid-market</span>
                               <span>{breakdown.spreadPct >= 0 ? "+" : ""}{breakdown.spreadPct.toFixed(2)}%</span>
                             </div>
@@ -1478,7 +1480,7 @@ export default function DiasporaRentToOwn() {
                                 <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">Spread</p>
                                 <p className={`text-xs font-semibold mt-0.5 ${
                                   parseFloat(payment.spreadPct) > 3 ? "text-red-600" :
-                                  parseFloat(payment.spreadPct) > 1.5 ? "text-amber-600" : "text-emerald-600"
+                                  parseFloat(payment.spreadPct) > 1.5 ? "text-amber-700" : "text-emerald-600"
                                 }`}>
                                   {parseFloat(payment.spreadPct) >= 0 ? "+" : ""}{parseFloat(payment.spreadPct).toFixed(2)}%
                                 </p>

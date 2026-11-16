@@ -501,7 +501,7 @@ export default function AddMaintenanceModal({
  <Button 
  type="submit" 
  disabled={addMaintenanceMutation.isPending || !form.formState.isValid}
- className="px-6 bg-emerald-600 hover:bg-emerald-700 text-white"
+ className="px-6 bg-emerald-700 hover:bg-emerald-800 text-white"
  >
  {addMaintenanceMutation.isPending ? (
  <>

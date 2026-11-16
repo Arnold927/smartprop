@@ -305,7 +305,7 @@ export default function DiasporaContractDetail() {
           }`}>
             <p className={`text-[10px] font-bold uppercase tracking-wider mb-1 ${
               color === "emerald" ? "text-emerald-600 dark:text-emerald-400" :
-              color === "amber"   ? "text-amber-600 dark:text-amber-400" : "text-muted-foreground"
+              color === "amber"   ? "text-amber-700 dark:text-amber-400" : "text-muted-foreground"
             }`}>{label}</p>
             <p className={`text-base font-bold ${
               color === "emerald" ? "text-emerald-700 dark:text-emerald-300" :
@@ -404,7 +404,7 @@ export default function DiasporaContractDetail() {
               <Button
                 onClick={handleGenerateInvoice}
                 disabled={generatingInvoice}
-                className="bg-emerald-600 hover:bg-emerald-700 text-white gap-2"
+                className="bg-emerald-700 hover:bg-emerald-800 text-white gap-2"
               >
                 {generatingInvoice ? <RefreshCw className="h-4 w-4 animate-spin" /> : <FileText className="h-4 w-4" />}
                 {generatingInvoice ? "Generating..." : "Generate Invoice"}
@@ -425,7 +425,7 @@ export default function DiasporaContractDetail() {
             </div>
             <Dialog open={isPaymentOpen} onOpenChange={setIsPaymentOpen}>
               <DialogTrigger asChild>
-                <Button className="gap-2 bg-emerald-600 hover:bg-emerald-700 text-white" size="sm">
+                <Button className="gap-2 bg-emerald-700 hover:bg-emerald-800 text-white" size="sm">
                   <Plus className="h-3.5 w-3.5" /> Record Payment
                 </Button>
               </DialogTrigger>
@@ -520,7 +520,7 @@ export default function DiasporaContractDetail() {
                   </div>
                   <div className="space-y-1"><Label>Notes</Label><Input name="notes" placeholder="Any additional notes…" /></div>
                   <div className="flex gap-3 pt-1">
-                    <Button type="submit" className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white" disabled={paymentMutation.isPending}>
+                    <Button type="submit" className="flex-1 bg-emerald-700 hover:bg-emerald-800 text-white" disabled={paymentMutation.isPending}>
                       {paymentMutation.isPending ? <><RefreshCw className="h-4 w-4 animate-spin mr-2" />Recording...</> : "Record Payment"}
                     </Button>
                     <Button type="button" variant="outline" onClick={() => setIsPaymentOpen(false)}>Cancel</Button>
@@ -569,7 +569,7 @@ export default function DiasporaContractDetail() {
                       <div className="rounded-lg bg-muted/40 px-3 py-2 text-xs flex flex-wrap gap-x-4 gap-y-1 text-muted-foreground">
                         <span>Sent: <strong className="text-foreground">{p.originalAmount} {p.originalCurrency}</strong></span>
                         {p.exchangeRate && <span>Rate: <strong className="text-foreground font-mono">1 {p.originalCurrency} = {parseFloat(p.exchangeRate).toFixed(4)} KES</strong></span>}
-                        {p.spreadPct && <span className={`font-medium ${parseFloat(p.spreadPct) > 3 ? "text-rose-600" : parseFloat(p.spreadPct) > 1.5 ? "text-amber-600" : "text-emerald-600"}`}>Spread: {parseFloat(p.spreadPct) >= 0 ? "+" : ""}{parseFloat(p.spreadPct).toFixed(2)}%</span>}
+                        {p.spreadPct && <span className={`font-medium ${parseFloat(p.spreadPct) > 3 ? "text-rose-600" : parseFloat(p.spreadPct) > 1.5 ? "text-amber-700" : "text-emerald-600"}`}>Spread: {parseFloat(p.spreadPct) >= 0 ? "+" : ""}{parseFloat(p.spreadPct).toFixed(2)}%</span>}
                       </div>
                     )}
                     {p.notes && <p className="text-xs text-muted-foreground italic">{p.notes}</p>}
@@ -659,7 +659,7 @@ export default function DiasporaContractDetail() {
               if (!open) { stagedMedia.forEach(m => URL.revokeObjectURL(m.preview)); setStagedMedia([]); }
             }}>
               <DialogTrigger asChild>
-                <Button size="sm" className="gap-2 bg-emerald-600 hover:bg-emerald-700 text-white" onClick={() => setIsUploadOpen(true)}>
+                <Button size="sm" className="gap-2 bg-emerald-700 hover:bg-emerald-800 text-white" onClick={() => setIsUploadOpen(true)}>
                   <Plus className="h-3.5 w-3.5" /> Post Update
                 </Button>
               </DialogTrigger>
@@ -722,7 +722,7 @@ export default function DiasporaContractDetail() {
                   </div>
 
                   <div className="flex gap-3 pt-2">
-                    <Button type="submit" className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white" disabled={constructionMutation.isPending}>
+                    <Button type="submit" className="flex-1 bg-emerald-700 hover:bg-emerald-800 text-white" disabled={constructionMutation.isPending}>
                       {constructionMutation.isPending ? (stagedMedia.length ? "Posting & uploading…" : "Posting...") : "Post Update"}
                     </Button>
                     <Button type="button" variant="outline" onClick={() => setIsUploadOpen(false)}>Cancel</Button>
@@ -910,7 +910,7 @@ export default function DiasporaContractDetail() {
                 </div>
               </div>
             </div>
-            <Button type="submit" className="bg-emerald-600 hover:bg-emerald-700 text-white gap-2" disabled={editMutation.isPending}>
+            <Button type="submit" className="bg-emerald-700 hover:bg-emerald-800 text-white gap-2" disabled={editMutation.isPending}>
               {editMutation.isPending ? <><RefreshCw className="h-4 w-4 animate-spin" /> Saving...</> : "Save Changes"}
             </Button>
           </form>

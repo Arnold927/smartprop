@@ -155,19 +155,19 @@ const safeFormat = (ts: string | null | undefined) => {
 };
 
 const STATUS_META: Record<string, { color: string; label: string; icon: React.ReactNode }> = {
-  sent:      { color: "bg-blue-100 text-blue-800",   label: "Sent",      icon: <Send        className="h-3 w-3 mr-1 inline" /> },
+  sent:      { color: "bg-blue-100 text-blue-800 dark:bg-blue-500/20 dark:text-blue-300",   label: "Sent",      icon: <Send        className="h-3 w-3 mr-1 inline" /> },
   delivered: { color: "bg-emerald-50 text-emerald-700 border border-emerald-200", label: "Delivered", icon: <CheckCircle className="h-3 w-3 mr-1 inline" /> },
-  read:      { color: "bg-purple-100 text-purple-800",label: "Read",     icon: <Eye         className="h-3 w-3 mr-1 inline" /> },
-  failed:    { color: "bg-red-100 text-red-800",     label: "Failed",    icon: <XCircle     className="h-3 w-3 mr-1 inline" /> },
-  attended:  { color: "bg-teal-100 text-teal-800",   label: "Attended",  icon: <UserCheck   className="h-3 w-3 mr-1 inline" /> },
+  read:      { color: "bg-purple-100 text-purple-800 dark:bg-purple-500/20 dark:text-purple-300",label: "Read",     icon: <Eye         className="h-3 w-3 mr-1 inline" /> },
+  failed:    { color: "bg-red-100 text-red-800 dark:bg-red-500/20 dark:text-red-300",     label: "Failed",    icon: <XCircle     className="h-3 w-3 mr-1 inline" /> },
+  attended:  { color: "bg-teal-100 text-teal-800 dark:bg-teal-500/20 dark:text-teal-300",   label: "Attended",  icon: <UserCheck   className="h-3 w-3 mr-1 inline" /> },
 };
 
 const CATEGORY_COLORS: Record<string, string> = {
-  rent_reminder:        "bg-orange-100 text-orange-800",
-  maintenance_update:   "bg-blue-100 text-blue-800",
+  rent_reminder:        "bg-orange-100 text-orange-800 dark:bg-orange-500/20 dark:text-orange-300",
+  maintenance_update:   "bg-blue-100 text-blue-800 dark:bg-blue-500/20 dark:text-blue-300",
   payment_confirmation: "bg-emerald-50 text-emerald-700 border border-emerald-200",
-  emergency_alert:      "bg-red-100 text-red-800",
-  custom:               "bg-purple-100 text-purple-800",
+  emergency_alert:      "bg-red-100 text-red-800 dark:bg-red-500/20 dark:text-red-300",
+  custom:               "bg-purple-100 text-purple-800 dark:bg-purple-500/20 dark:text-purple-300",
 };
 
 const PAGE_SIZE_OPTIONS = [5, 10, 20, 50];
@@ -1292,7 +1292,7 @@ export default function WhatsAppIntegration({ embedded = false }: { embedded?: b
           {/* Send Message dialog */}
           <Dialog open={isMessageModalOpen} onOpenChange={setMessageModal}>
             <DialogTrigger asChild>
-              <Button className="bg-emerald-600 hover:bg-emerald-700 text-white">
+              <Button className="bg-emerald-700 hover:bg-emerald-800 text-white">
                 <Send className="h-4 w-4 mr-2" />Send Message
               </Button>
             </DialogTrigger>
@@ -1426,7 +1426,7 @@ export default function WhatsAppIntegration({ embedded = false }: { embedded?: b
 
               <DialogFooter>
                 <Button variant="outline" onClick={() => { setMessageModal(false); setSelectedTemplate(null); }} disabled={sendMessageMutation.isPending}>Cancel</Button>
-                <Button onClick={handleSendMessage} disabled={sendMessageMutation.isPending} className="bg-emerald-600 hover:bg-emerald-700 text-white">
+                <Button onClick={handleSendMessage} disabled={sendMessageMutation.isPending} className="bg-emerald-700 hover:bg-emerald-800 text-white">
                   {sendMessageMutation.isPending
                     ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Sending…</>
                     : <><Send className="h-4 w-4 mr-2" />Send</>}
@@ -1518,7 +1518,7 @@ export default function WhatsAppIntegration({ embedded = false }: { embedded?: b
                       {selectedPhones.size === 0
                         ? <span className="text-xs text-muted-foreground">No contacts selected yet</span>
                         : Array.from(selectedPhones).map(p => (
-                          <span key={p} className="inline-flex items-center gap-1 bg-blue-100 text-blue-800 text-xs rounded-full px-2 py-0.5">
+                          <span key={p} className="inline-flex items-center gap-1 bg-blue-100 text-blue-800 dark:bg-blue-500/20 dark:text-blue-300 text-xs rounded-full px-2 py-0.5">
                             {p}
                             <button onClick={() => togglePhone(p)} className="hover:text-blue-600">
                               <XCircle className="h-3 w-3" />
@@ -1555,7 +1555,7 @@ export default function WhatsAppIntegration({ embedded = false }: { embedded?: b
                 {/* ── Preview step overlay — covers the scrollable body ── */}
                 {bulkStep === "preview" && (
                   <div className="absolute inset-x-0 inset-y-0 z-10 bg-background flex flex-col gap-4 px-6 py-5 overflow-y-auto">
-                    <div className="flex items-center gap-2 text-amber-600">
+                    <div className="flex items-center gap-2 text-amber-700">
                       <AlertTriangle className="h-5 w-5 shrink-0" />
                       <h3 className="font-semibold">Confirm Bulk Send</h3>
                     </div>
@@ -1587,7 +1587,7 @@ export default function WhatsAppIntegration({ embedded = false }: { embedded?: b
                       <Button variant="outline" onClick={() => setBulkStep("compose")} disabled={bulkSendMutation.isPending}>
                         ← Edit
                       </Button>
-                      <Button onClick={confirmBulkSend} disabled={bulkSendMutation.isPending} className="bg-emerald-600 hover:bg-emerald-700 text-white">
+                      <Button onClick={confirmBulkSend} disabled={bulkSendMutation.isPending} className="bg-emerald-700 hover:bg-emerald-800 text-white">
                         {bulkSendMutation.isPending
                           ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Sending…</>
                           : <><Send className="h-4 w-4 mr-2" />Confirm — Send to {selectedPhones.size}</>}
@@ -1600,7 +1600,7 @@ export default function WhatsAppIntegration({ embedded = false }: { embedded?: b
                 {/* Sticky footer */}
                 <div className="shrink-0 flex justify-end gap-2 px-6 py-4 border-t border-border bg-background">
                   <Button variant="outline" onClick={() => setBulkModal(false)} disabled={bulkSendMutation.isPending}>Cancel</Button>
-                  <Button onClick={handleBulkSend} disabled={bulkSendMutation.isPending || selectedPhones.size === 0} className="bg-emerald-600 hover:bg-emerald-700 text-white">
+                  <Button onClick={handleBulkSend} disabled={bulkSendMutation.isPending || selectedPhones.size === 0} className="bg-emerald-700 hover:bg-emerald-800 text-white">
                     <Eye className="h-4 w-4 mr-2" />Preview &amp; Send ({selectedPhones.size})
                   </Button>
                 </div>
@@ -1723,7 +1723,7 @@ export default function WhatsAppIntegration({ embedded = false }: { embedded?: b
                 <Button variant="outline" onClick={() => { setTemplateModal(false); setNewTemplate(EMPTY_TEMPLATE); setVarInput(""); }} disabled={createTemplateMutation.isPending}>
                   Cancel
                 </Button>
-                <Button onClick={handleCreateTemplate} disabled={createTemplateMutation.isPending} className="bg-emerald-600 hover:bg-emerald-700 text-white">
+                <Button onClick={handleCreateTemplate} disabled={createTemplateMutation.isPending} className="bg-emerald-700 hover:bg-emerald-800 text-white">
                   {createTemplateMutation.isPending
                     ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Creating…</>
                     : <><Plus className="h-4 w-4 mr-2" />Create Template</>}
@@ -1738,7 +1738,7 @@ export default function WhatsAppIntegration({ embedded = false }: { embedded?: b
       {/* ── Configuration warning banner ── */}
       {configStatus && !configStatus.configured && !bannerDismissed && (
         <div className="flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 text-amber-900 px-4 py-3 text-sm">
-          <WifiOff className="h-4 w-4 shrink-0 mt-0.5 text-amber-600" />
+          <WifiOff className="h-4 w-4 shrink-0 mt-0.5 text-amber-700" />
           <div className="flex-1 min-w-0">
             <p className="font-semibold">WhatsApp API not configured — running in demo mode</p>
             <p className="text-amber-700 mt-0.5">
@@ -2401,7 +2401,7 @@ export default function WhatsAppIntegration({ embedded = false }: { embedded?: b
                         />
                         <Button
                           size="icon"
-                          className="h-9 w-9 shrink-0 bg-emerald-600 hover:bg-emerald-700 text-white"
+                          className="h-9 w-9 shrink-0 bg-emerald-700 hover:bg-emerald-800 text-white"
                           onClick={handleInlineSend}
                           disabled={!inlineReply.trim() || inlineReplyMutation.isPending}
                         >
@@ -2417,7 +2417,7 @@ export default function WhatsAppIntegration({ embedded = false }: { embedded?: b
                       <div className="flex justify-end px-3 pb-2.5">
                         <Button
                           size="sm"
-                          className="bg-emerald-600 hover:bg-emerald-700 text-white"
+                          className="bg-emerald-700 hover:bg-emerald-800 text-white"
                           onClick={handleInlineSend}
                           disabled={inlineReplyMutation.isPending || (
                             inlineType === "media" ? !inlineMediaUrl.trim() :
@@ -2509,8 +2509,8 @@ export default function WhatsAppIntegration({ embedded = false }: { embedded?: b
                           <TableCell>
                             <Badge className={
                               tmpl.status === "active"   ? "bg-emerald-50 text-emerald-700 border border-emerald-200" :
-                              tmpl.status === "rejected" ? "bg-red-100 text-red-800" :
-                                                           "bg-yellow-100 text-yellow-800"
+                              tmpl.status === "rejected" ? "bg-red-100 text-red-800 dark:bg-red-500/20 dark:text-red-300" :
+                                                           "bg-yellow-100 text-yellow-800 dark:bg-yellow-500/20 dark:text-yellow-300"
                             }>
                               {tmpl.status}
                             </Badge>

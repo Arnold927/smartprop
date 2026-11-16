@@ -60,11 +60,12 @@ export function EnhancedKPIGrid({ metrics, loading }: EnhancedKPIGridProps) {
     try {
       return new Intl.NumberFormat("en-KE", {
         style: "currency",
+        currencyDisplay: "code",
         currency: "KES",
         minimumFractionDigits: 0,
       }).format(amount);
     } catch {
-      return `KSh ${amount.toLocaleString()}`;
+      return `KES ${amount.toLocaleString()}`;
     }
   };
 

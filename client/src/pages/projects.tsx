@@ -141,11 +141,11 @@ export default function Projects() {
 
  const getStatusBadge = (status: string) => {
  const variants = {
- planning: "bg-blue-100 text-blue-800",
- in_progress: "bg-yellow-100 text-yellow-800",
+ planning: "bg-blue-100 text-blue-800 dark:bg-blue-500/20 dark:text-blue-300",
+ in_progress: "bg-yellow-100 text-yellow-800 dark:bg-yellow-500/20 dark:text-yellow-300",
  completed: "bg-emerald-50 text-emerald-700 border border-emerald-200",
  on_hold: "bg-muted text-foreground",
- cancelled: "bg-red-100 text-red-800",
+ cancelled: "bg-red-100 text-red-800 dark:bg-red-500/20 dark:text-red-300",
  };
  return (
  <Badge className={variants[status as keyof typeof variants] || variants.planning}>
@@ -156,9 +156,9 @@ export default function Projects() {
 
  const getTypeBadge = (type: string) => {
  const variants = {
- construction: "bg-orange-100 text-orange-800",
- renovation: "bg-purple-100 text-purple-800",
- maintenance: "bg-blue-100 text-blue-800",
+ construction: "bg-orange-100 text-orange-800 dark:bg-orange-500/20 dark:text-orange-300",
+ renovation: "bg-purple-100 text-purple-800 dark:bg-purple-500/20 dark:text-purple-300",
+ maintenance: "bg-blue-100 text-blue-800 dark:bg-blue-500/20 dark:text-blue-300",
  };
  const icons = {
  construction: <Building className="w-3 h-3 mr-1" />,
@@ -176,9 +176,9 @@ export default function Projects() {
  const getPriorityBadge = (priority: string) => {
  const variants = {
  low: "bg-muted text-foreground",
- medium: "bg-yellow-100 text-yellow-800",
- high: "bg-orange-100 text-orange-800",
- urgent: "bg-red-100 text-red-800",
+ medium: "bg-yellow-100 text-yellow-800 dark:bg-yellow-500/20 dark:text-yellow-300",
+ high: "bg-orange-100 text-orange-800 dark:bg-orange-500/20 dark:text-orange-300",
+ urgent: "bg-red-100 text-red-800 dark:bg-red-500/20 dark:text-red-300",
  };
  return (
  <Badge className={variants[priority as keyof typeof variants] || variants.medium}>

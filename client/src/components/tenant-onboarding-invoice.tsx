@@ -305,7 +305,7 @@ export default function TenantOnboardingInvoice({
  <div className="flex flex-col sm:flex-row gap-4 pt-6">
  <Button 
  onClick={handleDownloadPDF}
- className="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-3"
+ className="flex-1 bg-emerald-700 hover:bg-emerald-800 text-white py-3"
  >
  <Download className="h-5 w-5 mr-2" />
  Download PDF Invoice

@@ -603,7 +603,7 @@ function StatementsTab({ isReadOnly, onGoToAgreements }: { isReadOnly: boolean; 
             </div>
             {missingAgreement && (
               <div className="flex items-start gap-3 rounded-lg border border-amber-200 bg-amber-50 dark:bg-amber-950/30 px-4 py-3">
-                <AlertCircle className="h-4 w-4 text-amber-600 mt-0.5 shrink-0" />
+                <AlertCircle className="h-4 w-4 text-amber-700 mt-0.5 shrink-0" />
                 <div className="text-sm">
                   <p className="font-medium text-amber-800 dark:text-amber-300">No PM agreement for this property</p>
                   <p className="text-amber-700 dark:text-amber-400 mt-0.5">

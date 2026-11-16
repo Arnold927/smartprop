@@ -703,7 +703,7 @@ export default function BroadcastMessaging({ embedded = false }: { embedded?: bo
                         </div>
                       )}
                       {selectedPropertyIds.length === 0 && (
-                        <p className="text-xs text-amber-600 flex items-center gap-1">
+                        <p className="text-xs text-amber-700 flex items-center gap-1">
                           <AlertCircle className="h-3 w-3" />Select at least one property
                         </p>
                       )}
@@ -738,7 +738,7 @@ export default function BroadcastMessaging({ embedded = false }: { embedded?: bo
                         })}
                       </div>
                       {selectedRoles.length === 0 && (
-                        <p className="text-xs text-amber-600 flex items-center gap-1">
+                        <p className="text-xs text-amber-700 flex items-center gap-1">
                           <AlertCircle className="h-3 w-3" />Select at least one role
                         </p>
                       )}
@@ -800,7 +800,7 @@ export default function BroadcastMessaging({ embedded = false }: { embedded?: bo
                     </FormItem>
                   )} />
 
-                  <Button type="submit" className="w-full bg-emerald-600 hover:bg-emerald-700 text-white"
+                  <Button type="submit" className="w-full bg-emerald-700 hover:bg-emerald-800 text-white"
                     disabled={
                       createBroadcastMutation.isPending ||
                       (audienceType === "specific_properties" && selectedPropertyIds.length === 0) ||

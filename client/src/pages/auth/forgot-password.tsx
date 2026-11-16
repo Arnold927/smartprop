@@ -141,7 +141,7 @@ export default function ForgotPasswordPage() {
 
  <Button 
  type="submit" 
- className="w-full bg-emerald-600 hover:bg-emerald-700"
+ className="w-full bg-emerald-700 hover:bg-emerald-800"
  disabled={forgotPasswordMutation.isPending}
  data-testid="button-send-reset"
  >

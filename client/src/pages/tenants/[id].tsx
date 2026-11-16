@@ -495,7 +495,7 @@ export default function TenantDetails() {
                     </Button>
                   )}
                   {isManager && (
-                    <Button size="sm" className="h-8 bg-emerald-600 hover:bg-emerald-700 text-white" onClick={() => setIsEditTenantDialogOpen(true)}>
+                    <Button size="sm" className="h-8 bg-emerald-700 hover:bg-emerald-800 text-white" onClick={() => setIsEditTenantDialogOpen(true)}>
                       <Edit className="h-3.5 w-3.5 mr-1.5" />Edit
                     </Button>
                   )}

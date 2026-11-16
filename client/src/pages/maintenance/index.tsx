@@ -58,15 +58,15 @@ export default function MaintenancePage() {
 
  const priorityColors = {
  low: 'bg-muted text-foreground',
- medium: 'bg-blue-100 text-blue-800',
- high: 'bg-orange-100 text-orange-800',
- urgent: 'bg-red-100 text-red-800'
+ medium: 'bg-blue-100 text-blue-800 dark:bg-blue-500/20 dark:text-blue-300',
+ high: 'bg-orange-100 text-orange-800 dark:bg-orange-500/20 dark:text-orange-300',
+ urgent: 'bg-red-100 text-red-800 dark:bg-red-500/20 dark:text-red-300'
  };
 
  const statusColors: Record<string, string> = {
- pending: 'bg-orange-100 text-orange-800',
- in_progress: 'bg-blue-100 text-blue-800',
- completed: 'bg-emerald-100 text-emerald-800',
+ pending: 'bg-orange-100 text-orange-800 dark:bg-orange-500/20 dark:text-orange-300',
+ in_progress: 'bg-blue-100 text-blue-800 dark:bg-blue-500/20 dark:text-blue-300',
+ completed: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-500/20 dark:text-emerald-300',
  };
 
  const statusGroups = {
@@ -140,7 +140,7 @@ export default function MaintenancePage() {
  Refresh
  </button>
  <Link to="/maintenance/new">
- <button className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg flex items-center transition-colors">
+ <button className="bg-emerald-700 hover:bg-emerald-800 text-white px-4 py-2 rounded-lg flex items-center transition-colors">
  <Plus className="h-4 w-4 mr-2" />
  New Request
  </button>
@@ -311,7 +311,7 @@ export default function MaintenancePage() {
  }
  </p>
  <Link to="/maintenance/new">
- <button className="inline-flex items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-emerald-600 hover:bg-emerald-700">
+ <button className="inline-flex items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-emerald-700 hover:bg-emerald-800">
  <Plus className="h-4 w-4 mr-2" />
  New Maintenance Request
  </button>

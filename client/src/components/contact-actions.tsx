@@ -52,7 +52,7 @@ export function ContactActions({ phone, email, name, message, variant = "icons",
       )}
       {email && (
         <a href={`mailto:${email}`} className={base} aria-label={`Email ${name ?? "tenant"}`} title="Email">
-          <Mail className="h-4 w-4 text-amber-600" />{variant === "buttons" && "Email"}
+          <Mail className="h-4 w-4 text-amber-700" />{variant === "buttons" && "Email"}
         </a>
       )}
     </div>

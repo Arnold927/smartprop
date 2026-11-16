@@ -103,16 +103,16 @@ const MetricCard = ({ title, value, description, icon, trend, color = "blue" }: 
 const ApprovalStatusBadge = ({ status }: { status: string }) => {
   const statusConfig: Record<string, { color: string; label: string }> = {
     draft: { color: "bg-muted text-foreground", label: "Draft" },
-    pending_l1: { color: "bg-yellow-100 text-yellow-800", label: "L1 Pending" },
-    pending_l2: { color: "bg-orange-100 text-orange-800", label: "L2 Pending" },
-    pending_md: { color: "bg-purple-100 text-purple-800", label: "MD Approval" },
-    pending_approval: { color: "bg-yellow-100 text-yellow-800", label: "Pending Approval" },
+    pending_l1: { color: "bg-yellow-100 text-yellow-800 dark:bg-yellow-500/20 dark:text-yellow-300", label: "L1 Pending" },
+    pending_l2: { color: "bg-orange-100 text-orange-800 dark:bg-orange-500/20 dark:text-orange-300", label: "L2 Pending" },
+    pending_md: { color: "bg-purple-100 text-purple-800 dark:bg-purple-500/20 dark:text-purple-300", label: "MD Approval" },
+    pending_approval: { color: "bg-yellow-100 text-yellow-800 dark:bg-yellow-500/20 dark:text-yellow-300", label: "Pending Approval" },
     approved: { color: "bg-emerald-50 text-emerald-700 border border-emerald-200" , label: "Approved" },
-    processed: { color: "bg-blue-100 text-blue-800", label: "Processed" },
-    rejected: { color: "bg-red-100 text-red-800", label: "Rejected" },
+    processed: { color: "bg-blue-100 text-blue-800 dark:bg-blue-500/20 dark:text-blue-300", label: "Processed" },
+    rejected: { color: "bg-red-100 text-red-800 dark:bg-red-500/20 dark:text-red-300", label: "Rejected" },
     cancelled: { color: "bg-muted text-muted-foreground", label: "Cancelled" },
     paid: { color: "bg-emerald-50 text-emerald-700 border border-emerald-200", label: "Paid" },
-    failed: { color: "bg-red-100 text-red-800", label: "Failed" },
+    failed: { color: "bg-red-100 text-red-800 dark:bg-red-500/20 dark:text-red-300", label: "Failed" },
   };
   const config = statusConfig[status] ?? statusConfig.draft;
   return <Badge className={`${config.color} text-xs px-2 py-1`}>{config.label}</Badge>;
@@ -282,7 +282,7 @@ const AddAccountDialog = ({ open, onOpenChange, onSuccess }: AddAccountDialogPro
           </div>
           <div className="flex flex-wrap gap-2">
             <Button
-              className="flex-1 bg-emerald-600 hover:bg-emerald-700"
+              className="flex-1 bg-emerald-700 hover:bg-emerald-800"
               onClick={() => createMutation.mutate(form)}
               disabled={
                 createMutation.isPending ||
@@ -515,7 +515,7 @@ const PurchaseRequisitions = () => {
           <p className="text-sm text-muted-foreground">Manage procurement requests with 3-level approval workflow</p>
         </div>
         <Button
-          className="bg-emerald-600 hover:bg-emerald-700"
+          className="bg-emerald-700 hover:bg-emerald-800"
           onClick={() => setIsNewReqDialogOpen(true)}
           data-testid="button-new-requisition"
         >
@@ -804,7 +804,7 @@ const PurchaseRequisitions = () => {
             </div>
             <div className="flex flex-wrap gap-2">
               <Button
-                className="flex-1 bg-emerald-600 hover:bg-emerald-700"
+                className="flex-1 bg-emerald-700 hover:bg-emerald-800"
                 onClick={() => createRequisitionMutation.mutate(newRequisition)}
                 disabled={
                   createRequisitionMutation.isPending ||
@@ -1434,7 +1434,7 @@ const PayrollManagement = () => {
                 </Button>
                 <Button
                   size="sm"
-                  className="flex-1 sm:flex-none bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50"
+                  className="flex-1 sm:flex-none bg-emerald-700 hover:bg-emerald-800 disabled:opacity-50"
                   onClick={() => processPayrollMutation.mutate(period.id)}
                   disabled={processPayrollMutation.isPending || period.status !== "pending_approval"}
                   data-testid={`button-process-payroll-${period.id}`}
@@ -1523,7 +1523,7 @@ const PayrollManagement = () => {
 
               {viewPeriod.status === "pending_approval" && (
                 <Button
-                  className="w-full bg-emerald-600 hover:bg-emerald-700"
+                  className="w-full bg-emerald-700 hover:bg-emerald-800"
                   onClick={() => processPayrollMutation.mutate(viewPeriod.id)}
                   disabled={processPayrollMutation.isPending}
                 >
@@ -1707,7 +1707,7 @@ const GeneralLedger = ({ onNavigateToSettings }: { onNavigateToSettings?: () => 
             Export
           </Button>
           <Button
-            className="bg-emerald-600 hover:bg-emerald-700"
+            className="bg-emerald-700 hover:bg-emerald-800"
             onClick={() => setIsNewEntryDialogOpen(true)}
             data-testid="button-new-ledger-entry"
             disabled={(chartOfAccounts as any[]).length === 0 && !accountsLoading}
@@ -1908,7 +1908,7 @@ const GeneralLedger = ({ onNavigateToSettings }: { onNavigateToSettings?: () => 
             </div>
             <div className="flex flex-wrap gap-2">
               <Button
-                className="flex-1 bg-emerald-600 hover:bg-emerald-700"
+                className="flex-1 bg-emerald-700 hover:bg-emerald-800"
                 onClick={() => createEntryMutation.mutate(newEntry)}
                 disabled={
                   createEntryMutation.isPending ||
@@ -2701,11 +2701,11 @@ const FinanceSettings = () => {
     : (chartOfAccounts as any[]).filter((a: any) => a.accountType === accountTypeFilter);
 
   const accountTypeColor: Record<string, string> = {
-    asset: "bg-blue-100 text-blue-700",
-    liability: "bg-red-100 text-red-700",
-    equity: "bg-purple-100 text-purple-700",
+    asset: "bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-300",
+    liability: "bg-red-100 text-red-700 dark:bg-red-500/20 dark:text-red-300",
+    equity: "bg-purple-100 text-purple-700 dark:bg-purple-500/20 dark:text-purple-300",
     revenue: "bg-emerald-50 text-emerald-700 border border-emerald-200",
-    expense: "bg-orange-100 text-orange-700",
+    expense: "bg-orange-100 text-orange-700 dark:bg-orange-500/20 dark:text-orange-300",
   };
 
   return (
@@ -2753,7 +2753,7 @@ const FinanceSettings = () => {
               </div>
               <Button
                 size="sm"
-                className="bg-emerald-600 hover:bg-emerald-700"
+                className="bg-emerald-700 hover:bg-emerald-800"
                 onClick={() => setIsAddAccountOpen(true)}
                 data-testid="button-add-account"
               >
@@ -2763,7 +2763,7 @@ const FinanceSettings = () => {
             <CardDescription>
               {(chartOfAccounts as any[]).length} account{(chartOfAccounts as any[]).length !== 1 ? "s" : ""} defined
               {(chartOfAccounts as any[]).length === 0 && (
-                <span className="text-amber-600 ml-1">— Ledger uses built-in defaults</span>
+                <span className="text-amber-700 ml-1">— Ledger uses built-in defaults</span>
               )}
             </CardDescription>
           </CardHeader>

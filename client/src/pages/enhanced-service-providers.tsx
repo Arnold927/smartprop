@@ -129,9 +129,9 @@ const categoryIcons = {
 const getVettingStatusColor = (status: string) => {
   switch (status) {
     case 'approved': return 'bg-emerald-50 text-emerald-700 border border-emerald-200';
-    case 'pending': return 'bg-yellow-100 text-yellow-800';
-    case 'under_review': return 'bg-blue-100 text-blue-800';
-    case 'rejected': return 'bg-red-100 text-red-800';
+    case 'pending': return 'bg-yellow-100 text-yellow-800 dark:bg-yellow-500/20 dark:text-yellow-300';
+    case 'under_review': return 'bg-blue-100 text-blue-800 dark:bg-blue-500/20 dark:text-blue-300';
+    case 'rejected': return 'bg-red-100 text-red-800 dark:bg-red-500/20 dark:text-red-300';
     default: return 'bg-muted text-foreground';
   }
 };
@@ -943,7 +943,7 @@ export default function EnhancedServiceProviders() {
                             type="submit" 
                             size="sm"
                             disabled={createContractorMutation.isPending}
-                            className="h-7 px-3 text-xs bg-emerald-600 hover:bg-emerald-700 dark:bg-blue-700 dark:hover:bg-blue-800"
+                            className="h-7 px-3 text-xs bg-emerald-700 hover:bg-emerald-800 dark:bg-blue-700 dark:hover:bg-blue-800"
                           >
                             {createContractorMutation.isPending ? (
                               <>
@@ -1518,7 +1518,7 @@ export default function EnhancedServiceProviders() {
                               onClick={() => setCurrentPage(pageNum)}
                               className={`h-6 min-w-6 p-0 text-xs ${
                                 currentPage === pageNum 
-                                  ? "bg-blue-600 hover:bg-blue-700" 
+                                  ? "bg-emerald-700 hover:bg-emerald-800" 
                                   : "border-border hover:bg-muted"
                               }`}
                             >
@@ -1655,7 +1655,7 @@ export default function EnhancedServiceProviders() {
                             setIsCategoryDialogOpen(true);
                           }}
                           size="sm"
-                          className="h-7 text-xs bg-emerald-600 hover:bg-emerald-700"
+                          className="h-7 text-xs bg-emerald-700 hover:bg-emerald-800"
                         >
                           <Plus className="w-3 h-3 mr-1" />
                           Create Category

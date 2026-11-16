@@ -112,7 +112,7 @@ function KPICard({
         <div className="mt-3">
           <p className="text-2xl font-semibold text-foreground">{value}</p>
           <p className="text-xs text-muted-foreground mt-0.5">{title}</p>
-          <p className="text-[11px] text-muted-foreground/60 mt-0.5">{sub}</p>
+          <p className="text-[11px] text-muted-foreground mt-0.5">{sub}</p>
         </div>
       </CardContent>
     </Card>
@@ -458,7 +458,7 @@ export default function AIAnalytics() {
                         ins.type === "tenant_retention"       ? "bg-purple-50 dark:bg-purple-950" :
                         "bg-blue-50 dark:bg-blue-950"
                       }`}>
-                        {ins.type === "maintenance_prediction" ? <Wrench className="w-4 h-4 text-amber-600" /> :
+                        {ins.type === "maintenance_prediction" ? <Wrench className="w-4 h-4 text-amber-700" /> :
                          ins.type === "tenant_retention"       ? <Users  className="w-4 h-4 text-purple-600" /> :
                                                                  <Target className="w-4 h-4 text-blue-600" />}
                       </div>
@@ -541,7 +541,7 @@ export default function AIAnalytics() {
                     <div className="flex items-center justify-between">
                       <div>
                         <CardTitle className="text-base flex items-center gap-2">
-                          <Wrench className="w-4 h-4 text-amber-600" />
+                          <Wrench className="w-4 h-4 text-amber-700" />
                           Maintenance Overdue Risk
                         </CardTitle>
                         <CardDescription className="mt-0.5">
@@ -578,7 +578,7 @@ export default function AIAnalytics() {
                               <p className="text-sm font-medium">Unit {unit.unitNumber ?? unit.id} — {tenant!.firstName} {tenant!.lastName}</p>
                               <p className="text-xs text-muted-foreground">{fmtKES(Number(tenant!.monthlyRent ?? 0))}/mo</p>
                             </div>
-                            <Badge variant="outline" className="text-xs bg-amber-100 text-amber-800 border-amber-300" >No maint. logged</Badge>
+                            <Badge variant="outline" className="text-xs bg-amber-100 text-amber-800 dark:bg-amber-500/20 dark:text-amber-300 border-amber-300" >No maint. logged</Badge>
                           </div>
                         ))}
                         {dormantUnits.length > 6 && (
@@ -628,7 +628,7 @@ export default function AIAnalytics() {
                           <p className="text-[10px] text-muted-foreground mt-0.5 leading-tight">Currently vacant</p>
                         </div>
                         <div className="text-center p-3 bg-amber-50 dark:bg-amber-950/40 rounded-xl">
-                          <p className="text-xl font-semibold text-amber-600">{vacancyRiskLevel}</p>
+                          <p className="text-xl font-semibold text-amber-700">{vacancyRiskLevel}</p>
                           <p className="text-[10px] text-muted-foreground mt-0.5 leading-tight">Total at-risk units</p>
                         </div>
                       </div>
@@ -652,7 +652,7 @@ export default function AIAnalytics() {
                                   <p className="text-sm font-medium">{t.firstName} {t.lastName}</p>
                                   <p className="text-xs text-muted-foreground">Unit {t.unitNumber ?? "N/A"} · {fmtKES(Number(t.monthlyRent ?? 0))}/mo</p>
                                 </div>
-                                <Badge variant="outline" className={`text-xs ${daysLeft <= 14 ? "bg-red-100 text-red-800 border-red-300" : "bg-yellow-100 text-yellow-800 border-yellow-300"}`}>
+                                <Badge variant="outline" className={`text-xs ${daysLeft <= 14 ? "bg-red-100 text-red-800 dark:bg-red-500/20 dark:text-red-300 border-red-300" : "bg-yellow-100 text-yellow-800 dark:bg-yellow-500/20 dark:text-yellow-300 border-yellow-300"}`}>
                                   {daysLeft}d left
                                 </Badge>
                               </div>
@@ -888,7 +888,7 @@ export default function AIAnalytics() {
                 scores.growth      * weights.growth
               );
               const grade  = overall >= 85 ? "A" : overall >= 70 ? "B" : overall >= 55 ? "C" : "D";
-              const gradeColor = overall >= 85 ? "text-green-600" : overall >= 70 ? "text-blue-600" : overall >= 55 ? "text-amber-600" : "text-red-600";
+              const gradeColor = overall >= 85 ? "text-green-600" : overall >= 70 ? "text-blue-600" : overall >= 55 ? "text-amber-700" : "text-red-600";
               const gradeBg    = overall >= 85 ? "bg-green-50 dark:bg-green-950/30" : overall >= 70 ? "bg-blue-50 dark:bg-blue-950/30" : overall >= 55 ? "bg-amber-50 dark:bg-amber-950/30" : "bg-red-50 dark:bg-red-950/30";
 
               const dimensionLabels = [
@@ -932,7 +932,7 @@ export default function AIAnalytics() {
                     <div className="space-y-3">
                       {dimensionLabels.map(({ key, label, desc }) => {
                         const score = Math.round(Number(scores[key]) || 0);
-                        const scoreCls = score >= 80 ? "text-green-600" : score >= 60 ? "text-amber-600" : "text-red-600";
+                        const scoreCls = score >= 80 ? "text-green-600" : score >= 60 ? "text-amber-700" : "text-red-600";
                         return (
                           <div key={key} className="flex items-center gap-3">
                             <span className="text-xs text-muted-foreground w-36 shrink-0">{label}</span>
@@ -978,11 +978,11 @@ export default function AIAnalytics() {
                             <Progress value={p.rate} className="h-2 flex-1" />
                             <span className={`text-xs font-medium w-10 shrink-0 text-right tabular-nums ${
                               p.rate >= 85 ? "text-green-600" :
-                              p.rate >= 60 ? "text-amber-600" : "text-red-500"
+                              p.rate >= 60 ? "text-amber-700" : "text-red-500"
                             }`}>{Math.round(p.rate)}%</span>
                           </div>
                           {p.vacant > 0 && (
-                            <p className="text-xs text-amber-600">{p.vacant} vacant unit(s)</p>
+                            <p className="text-xs text-amber-700">{p.vacant} vacant unit(s)</p>
                           )}
                         </div>
                       ))}

@@ -198,14 +198,14 @@ export function PropertyAnalytics({ propertyId, timeframe = '30d' }: PropertyAna
  </div>
  </div>
  <div className="flex items-start gap-3">
- <Badge className="bg-blue-100 text-blue-800">Insight</Badge>
+ <Badge className="bg-blue-100 text-blue-800 dark:bg-blue-500/20 dark:text-blue-300">Insight</Badge>
  <div>
  <p className="font-medium">Maintenance efficiency improving</p>
  <p className="text-sm text-muted-foreground">12.4% reduction in maintenance costs compared to last month</p>
  </div>
  </div>
  <div className="flex items-start gap-3">
- <Badge className="bg-orange-100 text-orange-800">Opportunity</Badge>
+ <Badge className="bg-orange-100 text-orange-800 dark:bg-orange-500/20 dark:text-orange-300">Opportunity</Badge>
  <div>
  <p className="font-medium">Revenue growth potential</p>
  <p className="text-sm text-muted-foreground">Consider rent adjustment for 2-bedroom units based on market analysis</p>

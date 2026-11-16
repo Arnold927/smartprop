@@ -364,7 +364,7 @@ function InspectionEditor({ inspection, onClose }: { inspection: any; onClose: (
                 {diff.depositHeld != null && (
                   <p className="text-xs text-muted-foreground">
                     Deposit held for this tenancy: <span className="font-semibold text-foreground">{fmtKES(diff.depositHeld)}</span>
-                    {Number(diff.recommendedDeduction) > Number(diff.depositHeld) && <span className="text-amber-600 dark:text-amber-400"> — the recommended deduction is more than the deposit.</span>}
+                    {Number(diff.recommendedDeduction) > Number(diff.depositHeld) && <span className="text-amber-700 dark:text-amber-400"> — the recommended deduction is more than the deposit.</span>}
                     {" "}Settle it from Leases → the lease → Settle Deposit.
                   </p>
                 )}
@@ -565,7 +565,7 @@ export default function Inspections() {
                     {insp.conductedDate && <span>Conducted: {fmt(insp.conductedDate)}</span>}
                     {insp.managerSignedAt && <span className="flex items-center gap-0.5 text-emerald-600 dark:text-emerald-400"><CheckCircle2 className="h-3 w-3" />Manager</span>}
                     {insp.tenantSignedAt  && <span className="flex items-center gap-0.5 text-emerald-600 dark:text-emerald-400"><CheckCircle2 className="h-3 w-3" />Tenant</span>}
-                    {Number(insp.recommendedDeduction) > 0 && <span className="text-amber-600 dark:text-amber-400">Deduction: {fmtKES(insp.recommendedDeduction)}</span>}
+                    {Number(insp.recommendedDeduction) > 0 && <span className="text-amber-700 dark:text-amber-400">Deduction: {fmtKES(insp.recommendedDeduction)}</span>}
                   </div>
                 </div>
                 <ChevronRight className="h-5 w-5 text-muted-foreground shrink-0" />

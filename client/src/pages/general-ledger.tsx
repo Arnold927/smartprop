@@ -669,7 +669,7 @@ function JournalBook() {
                 </div>
                 {/* Finance: warn if only 1 account selected */}
                 {!hasMinLines && populatedLines.length > 0 && (
-                  <p className="text-xs text-amber-600">At least 2 accounts required</p>
+                  <p className="text-xs text-amber-700">At least 2 accounts required</p>
                 )}
               </div>
             </div>
@@ -1203,11 +1203,14 @@ export default function GeneralLedgerPage() {
 
   return (
     <div className="max-w-6xl mx-auto px-4 py-6 space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold text-foreground">General Ledger</h1>
-        <p className="text-sm text-muted-foreground mt-1">
-          Double-entry bookkeeping — every entry must balance before posting.
-        </p>
+      <div className="flex items-start gap-3">
+        <div className="w-10 h-10 rounded-xl bg-emerald-600 flex items-center justify-center flex-shrink-0 text-white"><BookOpen className="w-5 h-5" /></div>
+        <div className="min-w-0">
+          <h1 className="text-2xl font-bold tracking-tight text-foreground">General Ledger</h1>
+          <p className="text-sm text-muted-foreground mt-1">
+            Double-entry bookkeeping — every entry must balance before posting.
+          </p>
+        </div>
       </div>
 
       <Tabs defaultValue="journal">

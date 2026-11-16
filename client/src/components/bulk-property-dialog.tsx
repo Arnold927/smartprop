@@ -264,7 +264,7 @@ export function BulkPropertyDialog({
             <div className="inline-flex rounded-lg border border-border p-0.5 text-sm" role="tablist">
               {([["pattern", "Generate by floors", Wand2], ["paste", "Paste / upload a list", ClipboardPaste]] as const).map(([k, label, Icon]) => (
                 <button key={k} type="button" role="tab" aria-selected={tab === k} onClick={() => setTab(k)}
-                  className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 ${tab === k ? "bg-emerald-600 text-white" : "text-muted-foreground hover:text-foreground"}`}>
+                  className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 ${tab === k ? "bg-emerald-700 text-white" : "text-muted-foreground hover:text-foreground"}`}>
                   <Icon className="h-3.5 w-3.5" />{label}
                 </button>
               ))}
@@ -338,7 +338,7 @@ export function BulkPropertyDialog({
                 </Button>
                 <div className="grow" />
                 <Button type="button" variant="outline" size="sm" disabled={groupsTotal === 0} onClick={() => addRows(generateUnits(groups), false)}>Add to table</Button>
-                <Button type="button" size="sm" className="bg-emerald-600 hover:bg-emerald-700 text-white" disabled={groupsTotal === 0}
+                <Button type="button" size="sm" className="bg-emerald-700 hover:bg-emerald-800 text-white" disabled={groupsTotal === 0}
                   onClick={() => addRows(generateUnits(groups), true)} data-testid="generate-units">
                   <Wand2 className="mr-1 h-3.5 w-3.5" /> Generate {groupsTotal > 0 ? Math.min(groupsTotal, MAX_UNITS) : ""} units
                 </Button>
@@ -361,7 +361,7 @@ export function BulkPropertyDialog({
                 <Button type="button" variant="outline" size="sm" onClick={() => fileRef.current?.click()}><Upload className="mr-1 h-3.5 w-3.5" /> Upload .csv</Button>
                 <div className="grow" />
                 <Button type="button" variant="outline" size="sm" disabled={!pasteText.trim()} onClick={() => readPasted(pasteText, false)}>Add to table</Button>
-                <Button type="button" size="sm" className="bg-emerald-600 hover:bg-emerald-700 text-white" disabled={!pasteText.trim()} onClick={() => readPasted(pasteText, true)} data-testid="read-pasted">
+                <Button type="button" size="sm" className="bg-emerald-700 hover:bg-emerald-800 text-white" disabled={!pasteText.trim()} onClick={() => readPasted(pasteText, true)} data-testid="read-pasted">
                   Read these rows
                 </Button>
               </div>
@@ -482,7 +482,7 @@ export function BulkPropertyDialog({
           </p>
           <div className="flex gap-2">
             <Button type="button" variant="outline" onClick={() => close(false)}>Cancel</Button>
-            <Button type="button" className="bg-emerald-600 hover:bg-emerald-700 text-white" disabled={!canCreate} onClick={() => { setServerError(null); create.mutate(); }} data-testid="create-property">
+            <Button type="button" className="bg-emerald-700 hover:bg-emerald-800 text-white" disabled={!canCreate} onClick={() => { setServerError(null); create.mutate(); }} data-testid="create-property">
               {create.isPending ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Creating…</> : `Create property${rows.length ? ` with ${rows.length} unit${rows.length === 1 ? "" : "s"}` : ""}`}
             </Button>
           </div>

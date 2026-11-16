@@ -78,7 +78,7 @@ export function FinancialAnalytics({ timeframe = '30d', propertyId }: FinancialA
  <div>
  <p className="text-sm font-medium text-muted-foreground">Profit Margin</p>
  <p className="text-2xl font-bold text-foreground"><AnimatedNumber value={`${data.profitMargin}%`} /></p>
- <p className={`text-sm ${Number(data.profitMargin ?? 0) >= 60 ? "text-green-600" : Number(data.profitMargin ?? 0) >= 30 ? "text-amber-600" : "text-red-600"}`}>{Number(data.profitMargin ?? 0) >= 60 ? "Excellent" : Number(data.profitMargin ?? 0) >= 30 ? "Good" : "Needs attention"}</p>
+ <p className={`text-sm ${Number(data.profitMargin ?? 0) >= 60 ? "text-green-600" : Number(data.profitMargin ?? 0) >= 30 ? "text-amber-700" : "text-red-600"}`}>{Number(data.profitMargin ?? 0) >= 60 ? "Excellent" : Number(data.profitMargin ?? 0) >= 30 ? "Good" : "Needs attention"}</p>
  </div>
  <TrendingUp className="h-8 w-8 text-purple-600" />
  </div>
@@ -294,14 +294,14 @@ export function FinancialAnalytics({ timeframe = '30d', propertyId }: FinancialA
  </div>
  </div>
  <div className="flex items-start gap-3">
- <Badge className="bg-blue-100 text-blue-800">Opportunity</Badge>
+ <Badge className="bg-blue-100 text-blue-800 dark:bg-blue-500/20 dark:text-blue-300">Opportunity</Badge>
  <div>
  <p className="font-medium">M-PESA dominance</p>
  <p className="text-sm text-muted-foreground">87% of payments via M-PESA - consider M-PESA business integration</p>
  </div>
  </div>
  <div className="flex items-start gap-3">
- <Badge className="bg-orange-100 text-orange-800">Monitor</Badge>
+ <Badge className="bg-orange-100 text-orange-800 dark:bg-orange-500/20 dark:text-orange-300">Monitor</Badge>
  <div>
  <p className="font-medium">Maintenance costs rising</p>
  <p className="text-sm text-muted-foreground">32% of expenses on maintenance - schedule preventive maintenance review</p>

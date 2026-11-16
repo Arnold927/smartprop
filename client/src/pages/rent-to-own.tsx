@@ -153,14 +153,14 @@ interface ManagementAgreement {
 const statusConfig: Record<string, { label: string; variant: "default" | "secondary" | "destructive" | "outline"; color: string }> = {
   active:      { label: "Active",      variant: "default",     color: "text-emerald-600" },
   completed:   { label: "Completed",   variant: "default",     color: "text-blue-600" },
-  pending:     { label: "Pending",     variant: "secondary",   color: "text-amber-600" },
+  pending:     { label: "Pending",     variant: "secondary",   color: "text-amber-700" },
   overdue:     { label: "Overdue",     variant: "destructive", color: "text-red-600" },
   defaulted:   { label: "Defaulted",   variant: "destructive", color: "text-red-700" },
   cancelled:   { label: "Cancelled",   variant: "outline",     color: "text-gray-500" },
   terminated:  { label: "Terminated",  variant: "outline",     color: "text-gray-500" },
   suspended:   { label: "Suspended",   variant: "destructive", color: "text-orange-600" },
   paid:        { label: "Paid",        variant: "default",     color: "text-emerald-600" },
-  partial:     { label: "Partial",     variant: "secondary",   color: "text-amber-600" },
+  partial:     { label: "Partial",     variant: "secondary",   color: "text-amber-700" },
   waived:      { label: "Waived",      variant: "outline",     color: "text-gray-500" },
   confirmed:   { label: "Confirmed",   variant: "default",     color: "text-blue-600" },
   checked_in:  { label: "Checked In",  variant: "default",     color: "text-emerald-600" },
@@ -1453,7 +1453,7 @@ export default function RentToOwn() {
           {/* Expiring Options Alert */}
           {optionsExpiringThisMonth.length > 0 && (
             <div className="flex items-start gap-3 p-4 rounded-lg border border-amber-200 bg-amber-50 dark:bg-amber-950/20 dark:border-amber-800" >
-              <CalendarClock className="h-5 w-5 text-amber-600 mt-0.5 shrink-0" />
+              <CalendarClock className="h-5 w-5 text-amber-700 mt-0.5 shrink-0" />
               <div>
                 <p className="font-medium text-amber-800 dark:text-amber-400">
                   {optionsExpiringThisMonth.length} option{optionsExpiringThisMonth.length !== 1 ? "s" : ""} expiring this month
@@ -2100,7 +2100,7 @@ export default function RentToOwn() {
                     <CardHeader className="pb-3">
                       <div className="flex items-center gap-2">
                         <div className="h-8 w-8 rounded-full bg-amber-100 dark:bg-amber-950 flex items-center justify-center">
-                          <Award className="h-4 w-4 text-amber-600" />
+                          <Award className="h-4 w-4 text-amber-700" />
                         </div>
                         <div>
                           <CardTitle className="text-base">Certificate #{cert.certificateNumber?.split("-")[2] ?? cert.id}</CardTitle>

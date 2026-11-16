@@ -29,12 +29,12 @@ import { format } from "date-fns";
 const CURRENCIES = ["KES", "USD", "GBP", "EUR", "UGX", "TZS"];
 
 const roleColour: Record<string, string> = {
-  admin:    "bg-purple-100 text-purple-700",
-  manager:  "bg-blue-100 text-blue-700",
-  landlord: "bg-emerald-100 text-emerald-700",
-  staff:    "bg-amber-100 text-amber-700",
-  tenant:   "bg-sky-100 text-sky-700",
-  guard:    "bg-rose-100 text-rose-700",
+  admin:    "bg-purple-100 text-purple-700 dark:bg-purple-500/20 dark:text-purple-300",
+  manager:  "bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-300",
+  landlord: "bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300",
+  staff:    "bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-300",
+  tenant:   "bg-sky-100 text-sky-700 dark:bg-sky-500/20 dark:text-sky-300",
+  guard:    "bg-rose-100 text-rose-700 dark:bg-rose-500/20 dark:text-rose-300",
 };
 
 // ── Password strength rules ───────────────────────────────────────────────────
@@ -390,7 +390,7 @@ export default function ProfilePage() {
                   <div key={r.id} className="flex items-center gap-2">
                     {r.passed
                       ? <Check className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-                      : <X    className="w-3.5 h-3.5 text-muted-foreground/60 shrink-0" />}
+                      : <X    className="w-3.5 h-3.5 text-muted-foreground shrink-0" />}
                     <span className={`text-xs ${r.passed ? "text-foreground" : "text-muted-foreground"}`}>
                       {r.label}
                     </span>

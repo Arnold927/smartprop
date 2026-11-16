@@ -243,7 +243,7 @@ export default function TenantRentPayments({
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         {[
           { label: 'Collected', value: fmt(totalCollected, currency), sub: `${paid.length} paid`,    icon: <CheckCircle className="h-5 w-5 text-green-600" />,   bg: 'bg-green-50 dark:bg-green-950/40' },
-          { label: 'Pending',   value: fmt(totalPending, currency),   sub: `${pending.length} invoice${pending.length !== 1 ? 's' : ''}`, icon: <Clock className="h-5 w-5 text-amber-600" />, bg: 'bg-amber-50 dark:bg-amber-950/40' },
+          { label: 'Pending',   value: fmt(totalPending, currency),   sub: `${pending.length} invoice${pending.length !== 1 ? 's' : ''}`, icon: <Clock className="h-5 w-5 text-amber-700" />, bg: 'bg-amber-50 dark:bg-amber-950/40' },
           { label: 'Overdue',   value: fmt(totalOverdue, currency),   sub: `${overdue.length} unpaid`, icon: <AlertTriangle className="h-5 w-5 text-red-600" />, bg: 'bg-red-50 dark:bg-red-950/40' },
           { label: 'On-time',   value: `${onTimeRate}%`,              sub: `${payments.length} total`, icon: <Receipt className="h-5 w-5 text-blue-600" />,      bg: 'bg-blue-50 dark:bg-blue-950/40' },
         ].map(kpi => (
@@ -280,7 +280,7 @@ export default function TenantRentPayments({
                 <Button
                   variant="outline"
                   size="sm"
-                  className="h-8 text-amber-600 border-amber-300 hover:bg-amber-50"
+                  className="h-8 text-amber-700 border-amber-300 hover:bg-amber-50"
                   disabled={dedupMutation.isPending}
                   onClick={() => dedupMutation.mutate()}
                   title="Remove duplicate invoices for the same month"
@@ -464,7 +464,7 @@ export default function TenantRentPayments({
                             )}
                             {isActionable && payment.dueDate < today && (
                               <DropdownMenuItem
-                                className="text-amber-600"
+                                className="text-amber-700"
                                 onClick={() => openLateFee(payment)}
                               >
                                 <AlertTriangle className="h-4 w-4 mr-2" />Apply late fee…
@@ -624,7 +624,7 @@ export default function TenantRentPayments({
                 type="submit"
                 size="sm"
                 disabled={markPaidMutation.isPending}
-                className="bg-blue-600 hover:bg-blue-700 text-white"
+                className="bg-emerald-700 hover:bg-emerald-800 text-white"
               >
                 {markPaidMutation.isPending && <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />}
                 Record Payment
@@ -703,7 +703,7 @@ export default function TenantRentPayments({
                     <span>Original amount</span>
                     <span>{fmt(lateFeePayment.amount, currency)}</span>
                   </div>
-                  <div className="flex justify-between text-amber-600 dark:text-amber-400">
+                  <div className="flex justify-between text-amber-700 dark:text-amber-400">
                     <span>Late fee{lateFeeType === 'percentage' ? ` (${lateFeeValue}%)` : ''}</span>
                     <span>+ {fmt(computedLateFee, currency)}</span>
                   </div>

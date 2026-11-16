@@ -95,21 +95,21 @@ type Property = {
 const statusColors: Record<string, string> = {
  active: "bg-emerald-50 text-emerald-700 border border-emerald-200",
  inactive: "bg-muted text-foreground",
- terminated: "bg-red-100 text-red-800",
- on_leave: "bg-blue-100 text-blue-800"
+ terminated: "bg-red-100 text-red-800 dark:bg-red-500/20 dark:text-red-300",
+ on_leave: "bg-blue-100 text-blue-800 dark:bg-blue-500/20 dark:text-blue-300"
 };
 
 const timeStatusColors: Record<string, string> = {
- pending: "bg-yellow-100 text-yellow-800",
+ pending: "bg-yellow-100 text-yellow-800 dark:bg-yellow-500/20 dark:text-yellow-300",
  approved: "bg-emerald-50 text-emerald-700 border border-emerald-200",
- rejected: "bg-red-100 text-red-800"
+ rejected: "bg-red-100 text-red-800 dark:bg-red-500/20 dark:text-red-300"
 };
 
 const paymentStatusColors: Record<string, string> = {
- pending: "bg-yellow-100 text-yellow-800",
- processed: "bg-blue-100 text-blue-800",
+ pending: "bg-yellow-100 text-yellow-800 dark:bg-yellow-500/20 dark:text-yellow-300",
+ processed: "bg-blue-100 text-blue-800 dark:bg-blue-500/20 dark:text-blue-300",
  paid: "bg-emerald-50 text-emerald-700 border border-emerald-200",
- failed: "bg-red-100 text-red-800"
+ failed: "bg-red-100 text-red-800 dark:bg-red-500/20 dark:text-red-300"
 };
 
 /** Drizzle returns numeric DB columns as strings; coerce safely to number. */
@@ -839,7 +839,7 @@ export default function WorkforceManagement() {
    <div className="flex items-center gap-2 mb-1">
      <p className="text-sm font-medium text-muted-foreground truncate">{metric.title}</p>
      {index === 0 && isFiltered && (
-       <span className="inline-flex items-center gap-1 text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-blue-100 text-blue-700 whitespace-nowrap flex-shrink-0">
+       <span className="inline-flex items-center gap-1 text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-300 whitespace-nowrap flex-shrink-0">
          <Filter className="h-2.5 w-2.5" />
          Filtered
        </span>
@@ -1025,8 +1025,8 @@ export default function WorkforceManagement() {
  <Badge className={`text-xs whitespace-nowrap ${
  staff.status === 'active' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' :
  staff.status === 'inactive' ? 'bg-muted text-foreground' :
- staff.status === 'terminated' ? 'bg-red-100 text-red-800' :
- 'bg-blue-100 text-blue-800'
+ staff.status === 'terminated' ? 'bg-red-100 text-red-800 dark:bg-red-500/20 dark:text-red-300' :
+ 'bg-blue-100 text-blue-800 dark:bg-blue-500/20 dark:text-blue-300'
  }`}>
  {staff.status.replace('_', ' ')}
  </Badge>
@@ -1728,7 +1728,7 @@ const averageHours = filteredRecords.length > 0 ? toNum(totalHours / filteredRec
  className={
  clockAction === "in"
  ? "bg-green-600 hover:bg-green-700"
- : "bg-blue-600 hover:bg-blue-700"
+ : "bg-emerald-700 hover:bg-emerald-800"
  }
  >
  {isClockingIn || isClockingOut ? (
@@ -1821,7 +1821,7 @@ const averageHours = filteredRecords.length > 0 ? toNum(totalHours / filteredRec
  {staff.first_name} {staff.last_name}
  </span>
  {hasActiveSession ? (
- <Badge className="bg-red-100 text-red-800 hover:bg-red-100 text-xs ml-2">
+ <Badge className="bg-red-100 text-red-800 dark:bg-red-500/20 dark:text-red-300 hover:bg-red-100 text-xs ml-2">
  Clock Out
  </Badge>
  ) : (

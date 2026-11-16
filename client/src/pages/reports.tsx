@@ -357,7 +357,7 @@ export default function Reports() {
           <StatRow label="Rent received"    value={fmt(d.totalRevenue  ?? 0)} color="text-green-700" />
           <StatRow label="Total expenses"   value={fmt(d.totalExpenses ?? 0)} color="text-red-600" />
           <StatRow label="Net income"       value={fmt(d.netIncome     ?? 0)} color={(d.netIncome ?? 0) >= 0 ? "text-green-700" : "text-red-600"} />
-          <StatRow label="Still to collect" value={fmt(d.totalPending  ?? 0)} color="text-amber-600" />
+          <StatRow label="Still to collect" value={fmt(d.totalPending  ?? 0)} color="text-amber-700" />
           <StatRow label="Overdue amount"   value={fmt(d.totalOverdue  ?? 0)} color="text-red-500" />
           <StatRow label="Payments received" value={d.paymentCount     ?? 0} />
         </div>
@@ -374,10 +374,10 @@ export default function Reports() {
         <div className="space-y-1">
           <StatRow label="Total units"    value={d.totalUnits    ?? 0} />
           <StatRow label="Occupied units" value={d.occupiedUnits ?? 0} color="text-green-700" />
-          <StatRow label="Vacant units"   value={d.vacantUnits   ?? 0} color="text-amber-600" />
-          <StatRow label="Occupancy rate" value={`${d.occupancyRate ?? 0}%`} color={(d.occupancyRate ?? 0) >= 80 ? "text-green-700" : "text-amber-600"} />
+          <StatRow label="Vacant units"   value={d.vacantUnits   ?? 0} color="text-amber-700" />
+          <StatRow label="Occupancy rate" value={`${d.occupancyRate ?? 0}%`} color={(d.occupancyRate ?? 0) >= 80 ? "text-green-700" : "text-amber-700"} />
           <StatRow label={`Move-ins · ${periodLabel}`}  value={d.moveIns  ?? 0} color="text-green-700" />
-          <StatRow label={`Move-outs · ${periodLabel}`} value={d.moveOuts ?? 0} color="text-amber-600" />
+          <StatRow label={`Move-outs · ${periodLabel}`} value={d.moveOuts ?? 0} color="text-amber-700" />
           {d.byProperty?.slice(0, 3).map((p: any) => (
             <StatRow key={p.property} label={p.property} value={`${p.rate}% (${p.occupied}/${p.total})`} />
           ))}
@@ -390,12 +390,12 @@ export default function Reports() {
       description: `Request volumes & resolution times · ${periodLabel}`,
       icon: Wrench,
       color: "bg-amber-50 dark:bg-amber-950",
-      iconColor: "text-amber-600",
+      iconColor: "text-amber-700",
       renderResult: (d: any) => (
         <div className="space-y-1">
           <StatRow label="Total requests" value={d.totalRequests       ?? 0} />
           <StatRow label="Completed"      value={d.completedRequests   ?? 0} color="text-green-700" />
-          <StatRow label="Pending"        value={d.pendingRequests     ?? 0} color="text-amber-600" />
+          <StatRow label="Pending"        value={d.pendingRequests     ?? 0} color="text-amber-700" />
           <StatRow label="Avg resolution" value={`${d.averageResolutionHours ?? 0}h`} />
           {d.byPriority?.filter((p: any) => p.count > 0).map((p: any) => (
             <StatRow
@@ -418,7 +418,7 @@ export default function Reports() {
         <div className="space-y-1">
           <StatRow label="Rent received"   value={fmt(d.totalCollected ?? 0)} color="text-green-700" />
           <StatRow label="Overdue amount"  value={fmt(d.totalOverdue   ?? 0)} color="text-red-600" />
-          <StatRow label="Collection rate" value={`${d.collectionRate  ?? 0}%`} color={(d.collectionRate ?? 0) >= 90 ? "text-green-700" : "text-amber-600"} />
+          <StatRow label="Collection rate" value={`${d.collectionRate  ?? 0}%`} color={(d.collectionRate ?? 0) >= 90 ? "text-green-700" : "text-amber-700"} />
           <StatRow label="Payments received" value={d.paymentCount     ?? 0} />
           {d.totalBilled != null && <StatRow label="Billed (due in period)" value={fmt(d.totalBilled)} />}
           <StatRow label="Overdue count"   value={d.overdueCount       ?? 0} color={(d.overdueCount ?? 0) > 0 ? "text-red-500" : "text-foreground"} />
@@ -527,7 +527,7 @@ export default function Reports() {
             {Object.values(reportResults).some(
               v => v !== null && v.forPeriod !== periodLabel
             ) && (
-              <p className="text-xs text-amber-600 flex items-center gap-1">
+              <p className="text-xs text-amber-700 flex items-center gap-1">
                 <RefreshCw className="w-3 h-3" />
                 Date range changed — re-generate reports to update
               </p>
@@ -578,7 +578,7 @@ export default function Reports() {
                     </>
                   )}
                   {isStale && (
-                    <p className="text-xs text-amber-600 mb-2 flex items-center gap-1">
+                    <p className="text-xs text-amber-700 mb-2 flex items-center gap-1">
                       <RefreshCw className="w-3 h-3" />
                       Showing <span className="font-medium">{resultPeriodLabel}</span> — click Refresh for <span className="font-medium">{periodLabel}</span>
                     </p>
@@ -586,7 +586,7 @@ export default function Reports() {
                   <div className="flex items-center gap-2 mt-4">
                     <Button
                       size="sm"
-                      className="bg-emerald-600 hover:bg-emerald-700 text-white flex-1"
+                      className="bg-emerald-700 hover:bg-emerald-800 text-white flex-1"
                       onClick={() => handleGenerate(type)}
                       disabled={isLoading || !customRangeValid}
                       title={!customRangeValid ? "Please select a valid date range first" : undefined}

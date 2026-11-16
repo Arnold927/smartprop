@@ -307,15 +307,15 @@ interface ServiceContract {
 
 const CategoryBadge = ({ category }: { category: string }) => {
   const colors: Record<string, string> = {
-    maintenance: "bg-blue-100 text-blue-800",
+    maintenance: "bg-blue-100 text-blue-800 dark:bg-blue-500/20 dark:text-blue-300",
     utilities:   "bg-emerald-50 text-emerald-700 border border-emerald-200",
-    supplies:    "bg-purple-100 text-purple-800",
-    services:    "bg-orange-100 text-orange-800",
-    insurance:   "bg-red-100 text-red-800",
+    supplies:    "bg-purple-100 text-purple-800 dark:bg-purple-500/20 dark:text-purple-300",
+    services:    "bg-orange-100 text-orange-800 dark:bg-orange-500/20 dark:text-orange-300",
+    insurance:   "bg-red-100 text-red-800 dark:bg-red-500/20 dark:text-red-300",
     taxes:       "bg-muted text-foreground",
-    legal:       "bg-indigo-100 text-indigo-800",
-    marketing:   "bg-pink-100 text-pink-800",
-    other:       "bg-yellow-100 text-yellow-800",
+    legal:       "bg-indigo-100 text-indigo-800 dark:bg-indigo-500/20 dark:text-indigo-300",
+    marketing:   "bg-pink-100 text-pink-800 dark:bg-pink-500/20 dark:text-pink-300",
+    other:       "bg-yellow-100 text-yellow-800 dark:bg-yellow-500/20 dark:text-yellow-300",
   };
   return (
     <Badge className={colors[category] || colors.other}>
@@ -659,7 +659,7 @@ export default function ExpenseManagement() {
           <ExportMenu disabled={filteredExpenses.length === 0} onPdf={exportExpPdf} onExcel={exportExpExcel} />
           <Dialog open={isAddExpenseOpen} onOpenChange={(open) => { setIsAddExpenseOpen(open); if (!open) resetForm(); }}>
             <DialogTrigger asChild>
-              <Button className="bg-emerald-600 hover:bg-emerald-700">
+              <Button className="bg-emerald-700 hover:bg-emerald-800">
                 <Plus className="h-4 w-4 mr-2" />
                 Add Expense
               </Button>
@@ -704,7 +704,7 @@ export default function ExpenseManagement() {
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label htmlFor="amount">Amount (KSh) *</Label>
+                    <Label htmlFor="amount">Amount (KES) *</Label>
                     <Input type="number" step="0.01" id="amount" name="amount" required />
                   </div>
                   <div className="space-y-2">
@@ -1229,7 +1229,7 @@ export default function ExpenseManagement() {
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="edit-amount">Amount (KSh) *</Label>
+                  <Label htmlFor="edit-amount">Amount (KES) *</Label>
                   <Input type="number" step="0.01" id="edit-amount" name="amount" defaultValue={String(editingExpense.amount)} required />
                 </div>
                 <div className="space-y-2">

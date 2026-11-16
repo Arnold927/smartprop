@@ -58,7 +58,7 @@ const MAINT_STATUS: Record<string, { label: string; color: string; bg: string; b
   pending_approval: { label: "Awaiting approval", color: "text-violet-600 dark:text-violet-400", bg: "bg-violet-50 dark:bg-violet-950/30", border: "border-violet-200 dark:border-violet-800", icon: Clock },
   pending:     { label: "Open",        color: "text-blue-600 dark:text-blue-400",   bg: "bg-blue-50 dark:bg-blue-950/30",   border: "border-blue-200 dark:border-blue-800",   icon: Clock },
   assigned:    { label: "Assigned",    color: "text-purple-600 dark:text-purple-400", bg: "bg-purple-50 dark:bg-purple-950/30", border: "border-purple-200 dark:border-purple-800", icon: User },
-  in_progress: { label: "In Progress", color: "text-amber-600 dark:text-amber-400", bg: "bg-amber-50 dark:bg-amber-950/30",  border: "border-amber-200 dark:border-amber-800",  icon: Play },
+  in_progress: { label: "In Progress", color: "text-amber-700 dark:text-amber-400", bg: "bg-amber-50 dark:bg-amber-950/30",  border: "border-amber-200 dark:border-amber-800",  icon: Play },
   completed:   { label: "Completed",   color: "text-green-600 dark:text-green-400", bg: "bg-green-50 dark:bg-green-950/30",  border: "border-green-200 dark:border-green-800",  icon: CheckCircle2 },
   cancelled:   { label: "Cancelled",   color: "text-muted-foreground",              bg: "bg-muted",                           border: "border-border",                           icon: X },
 };
@@ -131,7 +131,7 @@ function MaintenancePanel() {
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         {[
           { label: "Pending",     value: counts.pending,    color: "text-blue-600 dark:text-blue-400",   bg: "bg-blue-50 dark:bg-blue-950/30 border-blue-200 dark:border-blue-800",   icon: Clock },
-          { label: "In Progress", value: counts.inProgress, color: "text-amber-600 dark:text-amber-400", bg: "bg-amber-50 dark:bg-amber-950/30 border-amber-200 dark:border-amber-800",  icon: Play },
+          { label: "In Progress", value: counts.inProgress, color: "text-amber-700 dark:text-amber-400", bg: "bg-amber-50 dark:bg-amber-950/30 border-amber-200 dark:border-amber-800",  icon: Play },
           { label: "Urgent",      value: counts.urgent,     color: "text-red-600 dark:text-red-400",     bg: "bg-red-50 dark:bg-red-950/30 border-red-200 dark:border-red-800",         icon: AlertTriangle },
           { label: "Done Today",  value: counts.doneToday,  color: "text-green-600 dark:text-green-400", bg: "bg-green-50 dark:bg-green-950/30 border-green-200 dark:border-green-800",  icon: CheckCircle2 },
         ].map(s => (
@@ -700,7 +700,7 @@ export default function PropertyManagerDashboard() {
                       <div className="flex-1 min-w-0">
                         <p className="text-xs font-semibold text-foreground">{n.title}</p>
                         <p className="text-xs text-muted-foreground mt-0.5">{n.message}</p>
-                        <p className="text-xs text-muted-foreground/60 mt-1">{timeAgo(n.ts)}</p>
+                        <p className="text-xs text-muted-foreground mt-1">{timeAgo(n.ts)}</p>
                       </div>
                       {!n.read&&<span className="h-2 w-2 rounded-full bg-primary shrink-0 mt-1"/>}
                     </div>

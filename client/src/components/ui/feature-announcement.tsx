@@ -153,9 +153,9 @@ export function FeatureAnnouncementCenter({ userRole = 'manager', position = 'mo
       case 'new':        return 'bg-emerald-50 text-emerald-700 border border-emerald-200';
       case 'beta':       return 'bg-orange-50 text-orange-700 border border-orange-200';
       case 'announced':  return 'bg-blue-50 text-blue-700 border border-blue-200';
-      case 'stable':     return 'bg-gray-100 text-gray-700 border border-gray-200';
+      case 'stable':     return 'bg-gray-100 text-gray-700 dark:bg-gray-500/20 dark:text-gray-300 border border-gray-200';
       case 'deprecated': return 'bg-red-50 text-red-700 border border-red-200';
-      default:           return 'bg-gray-100 text-gray-700 border border-gray-200';
+      default:           return 'bg-gray-100 text-gray-700 dark:bg-gray-500/20 dark:text-gray-300 border border-gray-200';
     }
   };
 

@@ -28,6 +28,7 @@
  *   - Everything else: org-scoped (existing APIs), shown as read-only view
  */
 
+import { SwipeRow } from "@/components/ui/swipe-row";
 import { AnimatedNumber } from "@/components/ui/motion";
 import { timeGreeting } from "@/lib/feel";
 import { Building2 as Building2Ic, Lock as LockIc } from "lucide-react";
@@ -226,7 +227,7 @@ function MaintenancePanel({ user, staffProfile }: { user: any; staffProfile: any
     <div className="space-y-4">
       <div className="grid grid-cols-3 gap-3">
         {[
-          { label: "My Active",   value: mine.filter((r:any) => !["completed","cancelled"].includes(r.status)).length, color: "text-amber-600" },
+          { label: "My Active",   value: mine.filter((r:any) => !["completed","cancelled"].includes(r.status)).length, color: "text-amber-700" },
           { label: "In Progress", value: mine.filter((r:any) => r.status === "in_progress").length,                    color: "text-blue-600"  },
           { label: "Done Today",  value: mine.filter((r:any) => r.status === "completed" && r.completedAt && isToday(new Date(r.completedAt))).length, color: "text-green-600" },
         ].map(s => (
@@ -261,8 +262,8 @@ function MaintenancePanel({ user, staffProfile }: { user: any; staffProfile: any
         </div>
       ) : (
         <div className="space-y-3">
-          {displayed.map((req: any) => (
-            <WorkOrderCard key={req.id} req={req} busy={updateMutation.isPending}
+          {displayed.map((req: any, i: number) => (
+            <WorkOrderCard key={req.id} req={req} peek={i === 0} busy={updateMutation.isPending}
               onAction={(id, action) => action === "complete" ? setCompleting(req) : updateMutation.mutate({ id, action })}
               onSaveNotes={(id, notes) => updateMutation.mutate({ id, patch: { technicianNotes: notes } })} />
           ))}
@@ -275,7 +276,7 @@ function MaintenancePanel({ user, staffProfile }: { user: any; staffProfile: any
   );
 }
 
-function WorkOrderCard({ req, onAction, onSaveNotes, busy }: { req: any; onAction: (id: number, action: "start" | "pause" | "complete") => void; onSaveNotes: (id: number, notes: string) => void; busy?: boolean }) {
+function WorkOrderCard({ req, onAction, onSaveNotes, busy, peek }: { req: any; onAction: (id: number, action: "start" | "pause" | "complete") => void; onSaveNotes: (id: number, notes: string) => void; busy?: boolean; peek?: boolean }) {
   const [expanded, setExpanded] = useState(false);
   const [notes, setNotes] = useState(req.technicianNotes ?? "");
   const status = MAINT_STATUS[req.status] ?? MAINT_STATUS.pending;
@@ -286,14 +287,26 @@ function WorkOrderCard({ req, onAction, onSaveNotes, busy }: { req: any; onActio
 
   return (
     <div className={`rounded-xl border-2 transition-all ${status.bg} ${status.border} ${isOverdue ? "ring-2 ring-red-400" : ""}`}>
-      <button className="w-full text-left p-4" onClick={() => setExpanded(!expanded)}>
+      <SwipeRow
+        peek={peek}
+        disabled={expanded || isDone}
+        onTap={() => setExpanded(!expanded)}
+        className="rounded-[10px]"
+        contentClassName="bg-card"
+        trailing={[
+          { key: "start", label: "Start", icon: Play, tone: "blue", hidden: req.status !== "assigned", disabled: busy, onAction: () => onAction(req.id, "start") },
+          { key: "pause", label: "Pause", icon: Pause, tone: "amber", hidden: req.status !== "in_progress", disabled: busy, onAction: () => onAction(req.id, "pause") },
+          { key: "complete", label: "Complete", icon: Check, tone: "green", disabled: busy, onAction: () => onAction(req.id, "complete") },
+        ]}
+      >
+      <div className={`w-full text-left p-4 rounded-[10px] ${status.bg}`}>
         <div className="flex items-start justify-between gap-3">
           <div className="flex items-start gap-3 flex-1 min-w-0">
             <div className="p-2 rounded-lg bg-card shadow-sm shrink-0 border border-border"><CategoryIcon className={`h-4 w-4 ${status.color}`} /></div>
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2 flex-wrap">
                 <span className="font-semibold text-foreground text-sm">{req.title ?? "Work Order #" + req.id}</span>
-                {isOverdue && <Badge className="bg-red-100 text-red-700 border-red-200 text-xs py-0">Overdue</Badge>}
+                {isOverdue && <Badge className="bg-red-100 text-red-700 dark:bg-red-500/20 dark:text-red-300 border-red-200 text-xs py-0">Overdue</Badge>}
               </div>
               <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground flex-wrap">
                 {(req.property?.name ?? req.propertyName) && <span className="flex items-center gap-1"><Building className="h-3 w-3" />{req.property?.name ?? req.propertyName}</span>}
@@ -308,7 +321,8 @@ function WorkOrderCard({ req, onAction, onSaveNotes, busy }: { req: any; onActio
             {expanded ? <ChevronUp className="h-3.5 w-3.5 text-muted-foreground mt-1" /> : <ChevronDown className="h-3.5 w-3.5 text-muted-foreground mt-1" />}
           </div>
         </div>
-      </button>
+      </div>
+      </SwipeRow>
       {expanded && (
         <div className="px-4 pb-4 space-y-4 border-t border-border/40 pt-4">
           {req.description && <p className="text-sm text-foreground/80">{req.description}</p>}
@@ -391,7 +405,7 @@ function SecurityPanel() {
         {[
           { label: "Today's Visitors", value: todayVisitors.length,                                          color: "text-blue-600",  icon: UserCheck },
           { label: "Active / In",      value: todayVisitors.filter((v:any) => v.status === "arrived").length, color: "text-green-600", icon: ShieldCheck },
-          { label: "Expected",         value: todayVisitors.filter((v:any) => v.status === "expected").length,color: "text-amber-600", icon: Clock },
+          { label: "Expected",         value: todayVisitors.filter((v:any) => v.status === "expected").length,color: "text-amber-700", icon: Clock },
         ].map(s => (
           <div key={s.label} className="bg-card rounded-xl border border-border p-3 text-center shadow-sm">
             <s.icon className={`h-5 w-5 ${s.color} mx-auto mb-1`} />
@@ -537,7 +551,7 @@ function FinancePanel() {
         {[
           { label: "Collected",  value: fmtKES(totalCollected), color: "text-green-600", icon: CircleDollarSign },
           { label: "Arrears",    value: fmtKES(totalArrears),   color: "text-red-600",   icon: AlertTriangle },
-          { label: "Expenses",   value: fmtKES(totalExpenses),  color: "text-amber-600", icon: Receipt },
+          { label: "Expenses",   value: fmtKES(totalExpenses),  color: "text-amber-700", icon: Receipt },
           { label: "Pending",    value: String(pendingCount),   color: "text-blue-600",  icon: Clock },
         ].map(s => (
           <div key={s.label} className="bg-card rounded-xl border border-border p-3 shadow-sm flex items-center gap-3">
@@ -682,7 +696,7 @@ function LeasingPanel() {
       <div className="grid grid-cols-3 gap-3">
         {[
           { label: "Active Tenants",  value: activeLeases.length, color: "text-green-600",  icon: Users },
-          { label: "Vacant Units",    value: vacantUnits.length,  color: "text-amber-600",  icon: Building },
+          { label: "Vacant Units",    value: vacantUnits.length,  color: "text-amber-700",  icon: Building },
           { label: "Broadcasts Sent", value: broadcasts.length,   color: "text-purple-600", icon: Megaphone },
         ].map(s => (
           <div key={s.label} className="bg-card rounded-xl border border-border p-3 text-center shadow-sm">
@@ -852,7 +866,7 @@ function AdminPanel() {
           {maintenance.filter((r:any) => ["urgent","critical"].includes(r.priority) && !["completed","cancelled"].includes(r.status)).slice(0,3).map((r:any) => (
             <div key={r.id} className="flex items-center justify-between text-xs py-1 border-t border-red-100 first:border-0">
               <span className="text-red-800 font-medium">{r.title ?? r.description?.slice(0,50) ?? "Ticket #"+r.id}</span>
-              <Badge className="text-xs py-0 bg-red-100 text-red-700 border-red-300 capitalize">{String(r.status ?? "").replace(/_/g, " ")}</Badge>
+              <Badge className="text-xs py-0 bg-red-100 text-red-700 dark:bg-red-500/20 dark:text-red-300 border-red-300 capitalize">{String(r.status ?? "").replace(/_/g, " ")}</Badge>
             </div>
           ))}
         </div>
@@ -1006,7 +1020,7 @@ const NOTIF_ICON: Record<string, any> = {
 };
 
 const NOTIF_COLOR: Record<string, string> = {
-  work_order:  "text-amber-600 bg-amber-50 border-amber-200",
+  work_order:  "text-amber-700 bg-amber-50 border-amber-200",
   message:     "text-blue-600 bg-blue-50 border-blue-200",
   assignment:  "text-purple-600 bg-purple-50 border-purple-200",
   payment:     "text-green-600 bg-green-50 border-green-200",
@@ -1633,7 +1647,7 @@ function ProfilePanel({ staffProfile }: { staffProfile: any }) {
                     )}
                   </div>
                 ) : (
-                  <p className="text-sm text-amber-600 italic">No emergency contact set — please add one.</p>
+                  <p className="text-sm text-amber-700 italic">No emergency contact set — please add one.</p>
                 )}
               </div>
             </div>
@@ -1904,10 +1918,10 @@ export default function StaffPortal() {
 
   const STAFF_ROLES = ["staff", "caretaker", "admin", "manager"];
   if (!authLoading && user && !STAFF_ROLES.includes(user.role)) {
-    return (<div className="flex items-center justify-center min-h-[60vh] p-6"><div className="text-center max-w-sm space-y-3"><div className="w-14 h-14 rounded-full bg-amber-50 border border-amber-200 flex items-center justify-center mx-auto"><LockIc className="h-6 w-6 text-amber-600" /></div><h2 className="text-lg font-semibold text-foreground">Access restricted</h2><p className="text-sm text-muted-foreground">The staff portal is for property staff and caretakers.</p></div></div>);
+    return (<div className="flex items-center justify-center min-h-[60vh] p-6"><div className="text-center max-w-sm space-y-3"><div className="w-14 h-14 rounded-full bg-amber-50 border border-amber-200 flex items-center justify-center mx-auto"><LockIc className="h-6 w-6 text-amber-700" /></div><h2 className="text-lg font-semibold text-foreground">Access restricted</h2><p className="text-sm text-muted-foreground">The staff portal is for property staff and caretakers.</p></div></div>);
   }
   if (!authLoading && user && !user.organizationId) {
-    return (<div className="flex items-center justify-center min-h-[60vh] p-6"><div className="text-center max-w-sm space-y-3"><div className="w-14 h-14 rounded-full bg-amber-50 border border-amber-200 flex items-center justify-center mx-auto"><Building2Ic className="h-6 w-6 text-amber-600" /></div><h2 className="text-lg font-semibold text-foreground">No organisation linked</h2><p className="text-sm text-muted-foreground">Your account is not linked to an organisation.</p></div></div>);
+    return (<div className="flex items-center justify-center min-h-[60vh] p-6"><div className="text-center max-w-sm space-y-3"><div className="w-14 h-14 rounded-full bg-amber-50 border border-amber-200 flex items-center justify-center mx-auto"><Building2Ic className="h-6 w-6 text-amber-700" /></div><h2 className="text-lg font-semibold text-foreground">No organisation linked</h2><p className="text-sm text-muted-foreground">Your account is not linked to an organisation.</p></div></div>);
   }
 
   return (

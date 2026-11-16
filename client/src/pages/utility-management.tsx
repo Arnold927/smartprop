@@ -956,7 +956,7 @@ function AnalyticsTab({ bills, providers }: { bills: UtilityBill[]; providers: U
           <CardContent className="p-6">
             <p className="text-sm text-muted-foreground">Average Bill Amount</p>
             <p className="text-2xl font-semibold mt-1">
-              KSh {bills.length > 0 ? (totalAmount / bills.length).toLocaleString(undefined, { maximumFractionDigits: 2 }) : "0"}
+              KES {bills.length > 0 ? (totalAmount / bills.length).toLocaleString(undefined, { maximumFractionDigits: 2 }) : "0"}
             </p>
           </CardContent>
         </Card>

@@ -94,7 +94,7 @@ export default function SeniorManagerDashboard() {
   const monthlyRev = Number(md.monthlyRevenue ?? 0);
   const complianceScore = Math.max(0, 100 - Math.round((Number(md.overdueRent ?? 0) / Math.max(Number(md.totalUnits ?? 1), 1)) * 20));
   const riskLevel = md.overdueRent > 3 ? "High" : md.overdueRent > 0 ? "Medium" : "Low";
-  const riskColor = riskLevel === "High" ? "text-red-600" : riskLevel === "Medium" ? "text-amber-600" : "text-emerald-600";
+  const riskColor = riskLevel === "High" ? "text-red-600" : riskLevel === "Medium" ? "text-amber-700" : "text-emerald-600";
 
   const portfolioChart = props.slice(0, 8).map((p: any) => ({
     name: (p.name ?? "Property").slice(0, 14),

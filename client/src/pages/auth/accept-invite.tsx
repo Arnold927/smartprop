@@ -137,7 +137,7 @@ export default function AcceptInvitePage() {
         <Card className="shadow-xl border-0">
           <CardHeader className="text-center">
             <div className={`mx-auto w-12 h-12 rounded-full flex items-center justify-center mb-4 ${expired ? "bg-amber-100" : "bg-red-100"}`}>
-              {expired ? <Clock className="h-6 w-6 text-amber-600" /> : <AlertCircle className="h-6 w-6 text-red-600" />}
+              {expired ? <Clock className="h-6 w-6 text-amber-700" /> : <AlertCircle className="h-6 w-6 text-red-600" />}
             </div>
             <CardTitle>{expired ? "This invitation has expired" : "Invalid invitation"}</CardTitle>
             <CardDescription>

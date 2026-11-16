@@ -455,7 +455,7 @@ const CategoryManagementModal = ({
  <Button 
  type="submit" 
  disabled={createCategoryMutation.isPending || updateCategoryMutation.isPending}
- className="h-9 px-4 text-sm bg-blue-600 hover:bg-blue-700 dark:bg-blue-700 dark:hover:bg-blue-800"
+ className="h-9 px-4 text-sm bg-emerald-700 hover:bg-emerald-800 dark:bg-blue-700 dark:hover:bg-blue-800"
  >
  {createCategoryMutation.isPending || updateCategoryMutation.isPending ? (
  <>

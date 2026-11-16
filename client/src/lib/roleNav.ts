@@ -477,7 +477,6 @@ export const ROLE_ALLOWED_ROUTES: Record<string, string[]> = {
     "/staff-portal",
     "/properties", "/tenants",
     "/maintenance", "/maintenance-request", "/contractors", "/inspections",
-    "/visitor-management",
     "/prospects",
     "/utility-management", "/utility-bill-sender",
     "/messages", "/profile",
@@ -486,8 +485,7 @@ export const ROLE_ALLOWED_ROUTES: Record<string, string[]> = {
 
   caretaker: [
     "/caretaker-portal",
-    "/properties",
-    "/maintenance", "/maintenance-request", "/inspections",
+    "/maintenance", "/maintenance-request",
     "/visitor-management", "/guard-checkin",
     "/messages", "/profile",
     "/not-found",

@@ -416,12 +416,13 @@ export default function MaintenanceDetails() {
   });
 
   // Format currency
-  const formatCurrency = (amount?: string, currency = "Ksh") => {
+  const formatCurrency = (amount?: string, currency = "KES") => {
     if (!amount) return "Not specified";
     const numericAmount = parseFloat(amount);
     if (isNaN(numericAmount)) return amount;
     return new Intl.NumberFormat('en-KE', {
       style: 'currency',
+      currencyDisplay: 'code',
       currency: currency,
       minimumFractionDigits: 0,
       maximumFractionDigits: 0,
@@ -840,7 +841,7 @@ export default function MaintenanceDetails() {
                   <Button
                     onClick={handleAddComment}
                     disabled={!newComment.trim() || addCommentMutation.isPending}
-                    className="bg-emerald-600 hover:bg-emerald-700"
+                    className="bg-emerald-700 hover:bg-emerald-800"
                   >
                     <Send className="h-4 w-4 mr-2" />
                     Post Comment

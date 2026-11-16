@@ -23,7 +23,7 @@ import {
   Plus, Search, Droplets, DollarSign, Clock, Repeat,
   AlertCircle, CheckCircle, Loader2, PlayCircle, Settings, Send,
   ToggleLeft, ToggleRight, Edit2, XCircle, Trash2,
-  ChevronLeft, ChevronRight, Download,
+  ChevronLeft, ChevronRight, Download, Receipt,
 } from "lucide-react";
 import StatusBadge from "@/components/ui/status-badge";
 import { format } from "date-fns";
@@ -48,7 +48,7 @@ interface BillingCycle    { id: number; propertyId: number; cycleName?: string; 
 const PAGE_SIZES = [5, 10, 25, 50];
 
 const fmtMoney = (v: string | number) =>
-  `KSh ${Number(v || 0).toLocaleString("en-KE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  `KES ${Number(v || 0).toLocaleString("en-KE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
 const fmtDate = (d?: string | null) => {
   if (!d) return "—";
@@ -334,11 +334,14 @@ export default function Billing() {
 
       {/* ── Page header ── */}
       <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight">Billing &amp; Utilities</h1>
-          <p className="text-sm text-muted-foreground mt-0.5">Utility bills · recurring charges · invoices · billing cycles</p>
+        <div className="flex items-start gap-3 min-w-0">
+          <div className="w-10 h-10 rounded-xl bg-emerald-600 flex items-center justify-center flex-shrink-0 text-white"><Receipt className="w-5 h-5" /></div>
+          <div className="min-w-0">
+            <h1 className="text-2xl font-bold tracking-tight">Billing &amp; Utilities</h1>
+            <p className="text-sm text-muted-foreground mt-0.5">Utility bills · recurring charges · invoices · billing cycles</p>
+          </div>
         </div>
-        <Button onClick={() => generateMut.mutate()} disabled={generateMut.isPending} className="bg-emerald-600 hover:bg-emerald-700 text-white gap-2">
+        <Button onClick={() => generateMut.mutate()} disabled={generateMut.isPending} className="bg-emerald-700 hover:bg-emerald-800 text-white gap-2">
           {generateMut.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <PlayCircle className="w-4 h-4" />}
           Run billing cycle
         </Button>
@@ -461,7 +464,7 @@ export default function Billing() {
                     <div><Label>Type</Label><Select value={chargeForm.chargeType} onValueChange={v=>setChargeForm(f=>({...f,chargeType:v}))}><SelectTrigger><SelectValue/></SelectTrigger><SelectContent><SelectItem value="service_charge">Service charge</SelectItem><SelectItem value="utility">Utility</SelectItem><SelectItem value="maintenance">Maintenance</SelectItem><SelectItem value="insurance">Insurance</SelectItem><SelectItem value="other">Other</SelectItem></SelectContent></Select></div>
                     <div><Label>Frequency</Label><Select value={chargeForm.frequency} onValueChange={v=>setChargeForm(f=>({...f,frequency:v}))}><SelectTrigger><SelectValue/></SelectTrigger><SelectContent><SelectItem value="weekly">Weekly</SelectItem><SelectItem value="monthly">Monthly</SelectItem><SelectItem value="quarterly">Quarterly</SelectItem><SelectItem value="annually">Annually</SelectItem></SelectContent></Select></div>
                   </div>
-                  <div><Label>Amount (KSh) <span className="text-red-500">*</span></Label><Input type="number" placeholder="0.00" value={chargeForm.amount} onChange={e=>setChargeForm(f=>({...f,amount:e.target.value}))}/></div>
+                  <div><Label>Amount (KES) <span className="text-red-500">*</span></Label><Input type="number" placeholder="0.00" value={chargeForm.amount} onChange={e=>setChargeForm(f=>({...f,amount:e.target.value}))}/></div>
                   <div className="grid grid-cols-2 gap-3">
                     <div><Label>Start date <span className="text-red-500">*</span></Label><Input type="date" value={chargeForm.startDate} onChange={e=>setChargeForm(f=>({...f,startDate:e.target.value}))}/></div>
                     <div><Label>First charge date <span className="text-red-500">*</span></Label><Input type="date" value={chargeForm.nextChargeDate} onChange={e=>setChargeForm(f=>({...f,nextChargeDate:e.target.value}))}/></div>
@@ -539,7 +542,7 @@ export default function Billing() {
                   </div>
                   <div><Label>Tenant <span className="text-red-500">*</span></Label><SearchableSelect value={invoiceForm.tenantId} onValueChange={v=>setInvoiceForm(f=>({...f,tenantId:v}))} placeholder="Select tenant" searchPlaceholder="Search by name, unit, property or email…" emptyText="No tenants" options={tenantOptions((tenants as any[]).filter((t:any)=>!invoiceForm.propertyId||!(t.property?.id)||String(t.property.id)===String(invoiceForm.propertyId)))} /></div>
                   <div className="grid grid-cols-2 gap-3">
-                    <div><Label>Amount (KSh) <span className="text-red-500">*</span></Label><Input type="number" placeholder="0.00" value={invoiceForm.amount} onChange={e=>setInvoiceForm(f=>({...f,amount:e.target.value}))}/></div>
+                    <div><Label>Amount (KES) <span className="text-red-500">*</span></Label><Input type="number" placeholder="0.00" value={invoiceForm.amount} onChange={e=>setInvoiceForm(f=>({...f,amount:e.target.value}))}/></div>
                     <div><Label>Due date <span className="text-red-500">*</span></Label><Input type="date" value={invoiceForm.dueDate} onChange={e=>setInvoiceForm(f=>({...f,dueDate:e.target.value}))}/></div>
                   </div>
                   <div><Label>Description</Label><Input placeholder="e.g. January 2025 rent" value={invoiceForm.description} onChange={e=>setInvoiceForm(f=>({...f,description:e.target.value}))}/></div>
@@ -691,7 +694,7 @@ export default function Billing() {
           {editCharge && <div className="space-y-3 pt-2">
             <div><Label>Name</Label><Input value={editCharge.chargeName} onChange={e=>setEditCharge(c=>c?{...c,chargeName:e.target.value}:c)}/></div>
             <div className="grid grid-cols-2 gap-3">
-              <div><Label>Amount (KSh)</Label><Input type="number" value={editCharge.amount} onChange={e=>setEditCharge(c=>c?{...c,amount:parseFloat(e.target.value)}:c)}/></div>
+              <div><Label>Amount (KES)</Label><Input type="number" value={editCharge.amount} onChange={e=>setEditCharge(c=>c?{...c,amount:parseFloat(e.target.value)}:c)}/></div>
               <div><Label>Frequency</Label><Select value={editCharge.frequency} onValueChange={v=>setEditCharge(c=>c?{...c,frequency:v}:c)}><SelectTrigger><SelectValue/></SelectTrigger><SelectContent><SelectItem value="weekly">Weekly</SelectItem><SelectItem value="monthly">Monthly</SelectItem><SelectItem value="quarterly">Quarterly</SelectItem><SelectItem value="annually">Annually</SelectItem></SelectContent></Select></div>
             </div>
             <div className="grid grid-cols-2 gap-3">
@@ -716,7 +719,7 @@ export default function Billing() {
           <DialogHeader><DialogTitle>Edit Invoice {editInv?.invoiceNumber}</DialogTitle><DialogDescription>{editInv?.status!=="pending"?"Amount locked for non-pending invoices.":"Edit invoice details."}</DialogDescription></DialogHeader>
           {editInv && <div className="space-y-3 pt-2">
             <div className="grid grid-cols-2 gap-3">
-              <div><Label>Amount (KSh)</Label><Input type="number" value={editInv.amount} disabled={editInv.status!=="pending"} onChange={e=>setEditInv(i=>i?{...i,amount:parseFloat(e.target.value)}:i)}/></div>
+              <div><Label>Amount (KES)</Label><Input type="number" value={editInv.amount} disabled={editInv.status!=="pending"} onChange={e=>setEditInv(i=>i?{...i,amount:parseFloat(e.target.value)}:i)}/></div>
               <div><Label>Due date</Label><Input type="date" value={editInv.dueDate?.slice(0,10)||""} onChange={e=>setEditInv(i=>i?{...i,dueDate:e.target.value}:i)}/></div>
             </div>
             <div><Label>Status</Label><Select value={editInv.status} onValueChange={v=>setEditInv(i=>i?{...i,status:v}:i)}><SelectTrigger><SelectValue/></SelectTrigger><SelectContent><SelectItem value="pending">Pending</SelectItem><SelectItem value="sent">Sent</SelectItem><SelectItem value="paid">Paid</SelectItem><SelectItem value="overdue">Overdue</SelectItem><SelectItem value="cancelled">Cancelled</SelectItem></SelectContent></Select></div>

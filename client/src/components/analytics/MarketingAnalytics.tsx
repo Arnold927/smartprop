@@ -266,14 +266,14 @@ export function MarketingAnalytics({ timeframe = '30d' }: MarketingAnalyticsProp
  </div>
  </div>
  <div className="flex items-start gap-3">
- <Badge className="bg-blue-100 text-blue-800">Opportunity</Badge>
+ <Badge className="bg-blue-100 text-blue-800 dark:bg-blue-500/20 dark:text-blue-300">Opportunity</Badge>
  <div>
  <p className="font-medium">Diaspora segment potential</p>
  <p className="text-sm text-muted-foreground">8.9% conversion rate suggests expanding diaspora-focused campaigns</p>
  </div>
  </div>
  <div className="flex items-start gap-3">
- <Badge className="bg-orange-100 text-orange-800">Action</Badge>
+ <Badge className="bg-orange-100 text-orange-800 dark:bg-orange-500/20 dark:text-orange-300">Action</Badge>
  <div>
  <p className="font-medium">Email optimization needed</p>
  <p className="text-sm text-muted-foreground">24.5% open rate below WhatsApp - consider A/B testing subject lines</p>

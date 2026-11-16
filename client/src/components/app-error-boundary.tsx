@@ -120,7 +120,7 @@ export class AppErrorBoundary extends Component<Props, State> {
             <Button variant="outline" size="sm" onClick={this.handleReset} className="flex-1">
               Try again
             </Button>
-            <Button size="sm" onClick={this.handleReload} className="flex-1 bg-emerald-600 text-white hover:bg-emerald-700">
+            <Button size="sm" onClick={this.handleReload} className="flex-1 bg-emerald-700 text-white hover:bg-emerald-700">
               <RefreshCw className="w-3.5 h-3.5 mr-1.5" />
               Reload page
             </Button>

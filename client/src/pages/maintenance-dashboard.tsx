@@ -21,7 +21,7 @@ const STATUS_CONFIG: Record<string, { label: string; color: string; bg: string }
   pending:     { label: "Pending",     color: "text-blue-600 dark:text-blue-400",   bg: "bg-blue-500/10"   },
   pending_approval: { label: "Awaiting approval", color: "text-violet-600 dark:text-violet-400", bg: "bg-violet-500/10" },
   assigned:    { label: "Assigned",    color: "text-violet-600 dark:text-violet-400", bg: "bg-violet-500/10" },
-  in_progress: { label: "In Progress", color: "text-amber-600 dark:text-amber-400", bg: "bg-amber-500/10"  },
+  in_progress: { label: "In Progress", color: "text-amber-700 dark:text-amber-400", bg: "bg-amber-500/10"  },
   completed:   { label: "Completed",   color: "text-emerald-600 dark:text-emerald-400", bg: "bg-emerald-500/10" },
   cancelled:   { label: "Cancelled",   color: "text-muted-foreground",              bg: "bg-muted"         },
   on_hold:     { label: "On Hold",     color: "text-orange-600 dark:text-orange-400", bg: "bg-orange-500/10" },

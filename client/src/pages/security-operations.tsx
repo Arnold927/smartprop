@@ -349,7 +349,7 @@ export default function SecurityOperations() {
            </Button>
            <Dialog>
              <DialogTrigger asChild>
-               <Button size="sm" className="bg-emerald-500 hover:bg-emerald-600 text-white">
+               <Button size="sm" className="bg-emerald-500 hover:bg-emerald-700 text-white">
                  <UserCheck className="h-4 w-4 mr-2" />
                  New Registration
                </Button>
@@ -397,7 +397,7 @@ export default function SecurityOperations() {
                    />
                  </div>
                  <Button 
-                   className="w-full bg-emerald-500 hover:bg-emerald-600 text-white"
+                   className="w-full bg-emerald-500 hover:bg-emerald-700 text-white"
                    onClick={() => {
                      preRegisterVisitor.mutate({
                        fullName: "Quick Registration",
@@ -647,7 +647,7 @@ export default function SecurityOperations() {
                    {handleQrScan.isPending ? "Scanning..." : "Scan with Camera"}
                  </Button>
                  <Button 
-                   className="bg-emerald-500 hover:bg-emerald-600 text-white"
+                   className="bg-emerald-500 hover:bg-emerald-700 text-white"
                    onClick={() => {
                      const visitorQrCode = `VISITOR-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
                      handleQrScan.mutate({ type: "visitor_scan", code: visitorQrCode });
@@ -699,7 +699,7 @@ export default function SecurityOperations() {
                      className="bg-card border-border"
                    />
                    <Button 
-                     className="bg-emerald-500 hover:bg-emerald-600 text-white"
+                     className="bg-emerald-500 hover:bg-emerald-700 text-white"
                      onClick={() => {
                        if (manualQrCode.trim()) {
                          handleQrScan.mutate({ type: "manual", code: manualQrCode });
@@ -737,7 +737,7 @@ export default function SecurityOperations() {
                  />
                </div>
                <Button 
-                 className="bg-emerald-500 hover:bg-emerald-600 text-white"
+                 className="bg-emerald-500 hover:bg-emerald-700 text-white"
                  onClick={() => handleQrScan.mutate({ type: "visitor_scan" })}
                  disabled={handleQrScan.isPending}
                >
@@ -746,7 +746,7 @@ export default function SecurityOperations() {
                </Button>
                <Dialog>
                  <DialogTrigger asChild>
-                   <Button className="bg-emerald-500 hover:bg-emerald-600 text-white">
+                   <Button className="bg-emerald-500 hover:bg-emerald-700 text-white">
                      <Plus className="h-4 w-4 mr-2" />
                      Quick Register
                    </Button>
@@ -834,7 +834,7 @@ export default function SecurityOperations() {
                        />
                      </div>
                      <Button 
-                       className="w-full bg-emerald-500 hover:bg-emerald-600 text-white"
+                       className="w-full bg-emerald-500 hover:bg-emerald-700 text-white"
                        onClick={() => {
                          if (visitorForm.fullName && visitorForm.hostName && visitorForm.mobile && visitorForm.email) {
                            preRegisterVisitor.mutate(visitorForm);
@@ -972,7 +972,7 @@ export default function SecurityOperations() {
                    />
                  </div>
                  <Button 
-                   className="w-full bg-emerald-500 hover:bg-emerald-600 text-white"
+                   className="w-full bg-emerald-500 hover:bg-emerald-700 text-white"
                    onClick={() => {
                      createGatePass.mutate({
                        passType: "visitor",
@@ -1096,7 +1096,7 @@ export default function SecurityOperations() {
                    />
                  </div>
                  <Button 
-                   className="w-full bg-emerald-500 hover:bg-emerald-600 text-white"
+                   className="w-full bg-emerald-500 hover:bg-emerald-700 text-white"
                    onClick={() => {
                      registerVehicle.mutate({
                        fullName: "John Doe",

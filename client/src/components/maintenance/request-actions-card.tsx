@@ -166,12 +166,12 @@ export function RequestActionsCard({
         {(acts.includes("start") || acts.includes("complete") || acts.includes("pause")) && (
           <div className="grid gap-2">
             {acts.includes("start") && (
-              <Button onClick={() => act.mutate({ action: "start" })} disabled={act.isPending} className="w-full bg-blue-600 hover:bg-blue-700" data-testid="act-start">
+              <Button onClick={() => act.mutate({ action: "start" })} disabled={act.isPending} className="w-full bg-emerald-700 hover:bg-emerald-800" data-testid="act-start">
                 <Play className="h-4 w-4 mr-2" /> Start work
               </Button>
             )}
             {acts.includes("complete") && (
-              <Button onClick={() => setCompleteOpen(true)} disabled={act.isPending} className="w-full bg-emerald-600 hover:bg-emerald-700" data-testid="act-complete">
+              <Button onClick={() => setCompleteOpen(true)} disabled={act.isPending} className="w-full bg-emerald-700 hover:bg-emerald-800" data-testid="act-complete">
                 <CheckCircle className="h-4 w-4 mr-2" /> Mark complete
               </Button>
             )}
@@ -315,7 +315,7 @@ export function CompleteDialog({ open, onOpenChange, onConfirm, busy, currency, 
         </div>
         <DialogFooter className="gap-2 sm:gap-0">
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={busy}>Back</Button>
-          <Button className="bg-emerald-600 hover:bg-emerald-700" disabled={busy} onClick={() => onConfirm(notes.trim(), cost.trim())} data-testid="complete-confirm">{busy ? "Saving…" : "Mark complete"}</Button>
+          <Button className="bg-emerald-700 hover:bg-emerald-800" disabled={busy} onClick={() => onConfirm(notes.trim(), cost.trim())} data-testid="complete-confirm">{busy ? "Saving…" : "Mark complete"}</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
@@ -343,7 +343,7 @@ function ApprovalDialog({ open, onOpenChange, onDecide, busy, estimated, currenc
         <DialogFooter className="gap-2 sm:gap-0">
           <Button variant="outline" className="border-red-200 text-red-700 hover:bg-red-50" disabled={busy || !comments.trim()}
             onClick={() => onDecide({ approvalStatus: "rejected", comments: comments.trim() })} data-testid="approve-reject">Reject</Button>
-          <Button disabled={busy} className="bg-emerald-600 hover:bg-emerald-700"
+          <Button disabled={busy} className="bg-emerald-700 hover:bg-emerald-800"
             onClick={() => onDecide({ approvalStatus: "approved", comments: comments.trim() || undefined, approvedAmount: amount ? Number(amount) : undefined })} data-testid="approve-confirm">Approve</Button>
         </DialogFooter>
       </DialogContent>

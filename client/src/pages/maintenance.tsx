@@ -1,3 +1,4 @@
+import { SwipeRow } from "@/components/ui/swipe-row";
 import { AssignTechnicianDialog } from "@/components/technician-picker";
 import { EntityMedia } from "@/components/entity-media";
 import { downloadExcel } from "@/lib/excel";
@@ -66,9 +67,9 @@ interface MaintenanceRequest {
 
 function PriorityBadge({ p }: { p: string }) {
  const m: Record<string,string> = {
- urgent: "bg-red-100 text-red-700 border border-red-200",
- high: "bg-orange-100 text-orange-700 border border-orange-200",
- medium: "bg-amber-100 text-amber-700 border border-amber-200",
+ urgent: "bg-red-100 text-red-700 dark:bg-red-500/20 dark:text-red-300 border border-red-200",
+ high: "bg-orange-100 text-orange-700 dark:bg-orange-500/20 dark:text-orange-300 border border-orange-200",
+ medium: "bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-300 border border-amber-200",
  low: "bg-emerald-50 text-emerald-700 border border-emerald-200",
  };
  return <span className={`text-xs px-2 py-0.5 rounded-full font-medium capitalize ${m[p] ?? m.low}`}>{p}</span>;
@@ -76,10 +77,10 @@ function PriorityBadge({ p }: { p: string }) {
 
 function StatusBadge({ s }: { s: string }) {
  const m: Record<string,string> = {
- pending: "bg-amber-100 text-amber-700",
- pending_approval: "bg-violet-100 text-violet-700 border border-violet-200",
- assigned: "bg-blue-100 text-blue-700",
- in_progress: "bg-purple-100 text-purple-700",
+ pending: "bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-300",
+ pending_approval: "bg-violet-100 text-violet-700 dark:bg-violet-500/20 dark:text-violet-300 border border-violet-200",
+ assigned: "bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-300",
+ in_progress: "bg-purple-100 text-purple-700 dark:bg-purple-500/20 dark:text-purple-300",
  completed: "bg-emerald-50 text-emerald-700 border border-emerald-200",
  cancelled: "bg-muted text-muted-foreground",
  };
@@ -94,7 +95,7 @@ function PriorityDot({ p }: { p: string }) {
 const formatCost = (cost?: string | null) => {
   if (!cost) return "—";
   const n = parseFloat(cost);
-  return isNaN(n) ? "—" : `KSh ${n.toLocaleString()}`;
+  return isNaN(n) ? "—" : `KES ${n.toLocaleString()}`;
 };
 
 // ── Approve/Reject Dialog ────────────────────────────────────────────────────
@@ -283,6 +284,7 @@ function MobileMaintenanceCard({
   onAssign,
   canActProp,
   viewer,
+  peek,
 }: {
   r: MaintenanceRequest;
   onView: () => void;
@@ -292,6 +294,7 @@ function MobileMaintenanceCard({
   onAssign: () => void;
   canActProp: boolean;
   viewer: { role?: string | null; userId?: string | null };
+  peek?: boolean;
 }) {
   const [isSheetOpen, setIsSheetOpen] = useState(false);
   const acts = canActProp ? availableActions(r, viewer) : [];
@@ -307,10 +310,18 @@ function MobileMaintenanceCard({
 
   return (
     <>
-      <div
-        className="relative bg-card border-b border-border px-4 py-3.5 active:bg-muted transition-colors cursor-pointer"
-        onClick={() => setIsSheetOpen(true)}
+      <SwipeRow
+        peek={peek}
+        onTap={() => setIsSheetOpen(true)}
+        trailing={[
+          { key: "approve", label: "Approve", icon: ShieldCheck, tone: "violet", hidden: !acts.includes("approve"), onAction: onApprove },
+          { key: "assign", label: "Assign", icon: Wrench, tone: "blue", hidden: !acts.includes("assign"), onAction: onAssign },
+          { key: "start", label: "Start", icon: Wrench, tone: "blue", hidden: !acts.includes("start"), onAction: () => onAction("start") },
+          { key: "complete", label: "Done", icon: CheckCircle, tone: "green", hidden: !acts.includes("complete"), onAction: () => onAction("complete") },
+          { key: "more", label: "More", icon: MoreVertical, tone: "slate", onAction: () => setIsSheetOpen(true) },
+        ]}
       >
+      <div className="border-b border-border px-4 py-3.5 active:bg-muted transition-colors cursor-pointer">
         <div className="flex items-start gap-3">
           <div className="flex items-center justify-center w-8 h-8 rounded-lg flex-shrink-0 mt-0.5"
             style={{ background: r.priority === "urgent" ? "#fee2e2" : r.priority === "high" ? "#ffedd5" : r.priority === "medium" ? "#fef3c7" : "#dcfce7" }}>
@@ -333,6 +344,7 @@ function MobileMaintenanceCard({
           <MoreVertical className="w-4 h-4 text-muted-foreground flex-shrink-0 mt-1" />
         </div>
       </div>
+      </SwipeRow>
 
       <MobileActionSheet
         open={isSheetOpen}
@@ -510,7 +522,7 @@ export default function Maintenance() {
  <div className="flex items-center gap-2">
  <ExportMenu disabled={filtered.length === 0} onPdf={() => exportPdf(filtered)} onExcel={() => exportExcel(filtered)} />
  {canCreate && (
- <Button size="sm" className="bg-emerald-600 hover:bg-emerald-700 text-white" onClick={() => setIsAddOpen(true)}>
+ <Button size="sm" className="bg-emerald-700 hover:bg-emerald-800 text-white" onClick={() => setIsAddOpen(true)}>
    <Plus className="w-4 h-4 mr-1.5" />
    <span className="hidden sm:inline">New request</span>
    <span className="sm:hidden">New</span>
@@ -608,11 +620,12 @@ export default function Maintenance() {
  ) : (
  <>
  <div className="px-4 py-2 bg-muted dark:bg-gray-950 border-b border-border dark:border-gray-800" >
- <p className="text-xs text-muted-foreground">Tap a request for quick actions</p>
+ <p className="text-xs text-muted-foreground">Tap a request for all actions · swipe left for the next step</p>
  </div>
- {paginated.map(r => (
+ {paginated.map((r, i) => (
  <MobileMaintenanceCard
  key={r.id}
+ peek={i === 0}
  r={r}
  onView={() => { setSelected(r); setIsViewOpen(true); }}
  onEdit={() => { setSelected(r); setIsEditOpen(true); }}

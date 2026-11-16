@@ -79,7 +79,7 @@ function calcTotal(prev: string, curr: string, rate: string): number | null {
 }
 
 function fmtMoney(amount: number, currency = "KES"): string {
-  return new Intl.NumberFormat("en-KE", { style: "currency", currency, minimumFractionDigits: 2 }).format(amount);
+  return new Intl.NumberFormat("en-KE", { style: "currency", currencyDisplay: "code", currency, minimumFractionDigits: 2 }).format(amount);
 }
 
 function firstOfMonth(): string {
@@ -476,7 +476,7 @@ export default function UtilityBillSender() {
                   )}
 
                   <Button
-                    className="w-full bg-emerald-600 hover:bg-emerald-700 text-white"
+                    className="w-full bg-emerald-700 hover:bg-emerald-800 text-white"
                     disabled={!canSendSingle || sendSingle.isPending}
                     onClick={() => sendSingle.mutate()}
                   >
@@ -647,7 +647,7 @@ export default function UtilityBillSender() {
               )}
 
               <Button
-                className="w-full bg-emerald-600 hover:bg-emerald-700 text-white"
+                className="w-full bg-emerald-700 hover:bg-emerald-800 text-white"
                 disabled={!canSendBulk || sendBulk.isPending}
                 onClick={() => sendBulk.mutate()}
               >

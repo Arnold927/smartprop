@@ -59,7 +59,7 @@ export function ProjectAnalytics() {
  <div className="p-3 bg-emerald-50 rounded-lg border border-emerald-200">
  <h4 className="font-medium text-emerald-900">Meeting with Arc Company</h4>
  <p className="text-sm text-emerald-700 mt-1">Time: 10:00 pm - 04:00 pm</p>
- <Button size="sm" className="mt-2 bg-emerald-600 hover:bg-emerald-700">
+ <Button size="sm" className="mt-2 bg-emerald-700 hover:bg-emerald-800">
  <Calendar className="h-3 w-3 mr-1" />
  Start Meeting
  </Button>

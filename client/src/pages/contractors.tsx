@@ -214,7 +214,7 @@ export default function ContractorsManagement() {
         actions={
           <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
             <DialogTrigger asChild>
-              <Button className="bg-emerald-600 hover:bg-emerald-700 text-white">
+              <Button className="bg-emerald-700 hover:bg-emerald-800 text-white">
                 <Plus className="h-4 w-4 mr-1.5" />
                 Register Contractor
               </Button>
@@ -280,7 +280,7 @@ export default function ContractorsManagement() {
                   </div>
                 </div>
                 <DialogFooter>
-                  <Button type="submit" disabled={createMutation.isPending} className="bg-emerald-600 hover:bg-emerald-700 text-white">
+                  <Button type="submit" disabled={createMutation.isPending} className="bg-emerald-700 hover:bg-emerald-800 text-white">
                     {createMutation.isPending ? "Registering..." : "Register"}
                   </Button>
                 </DialogFooter>
@@ -447,7 +447,7 @@ export default function ContractorsManagement() {
                   {[
                     { label: "Rating", value: <div className="flex items-center justify-center gap-1"><Star className="h-3.5 w-3.5 fill-yellow-300 text-yellow-300" /><span>{parseRating(selectedContractor.rating).toFixed(1)}</span></div> },
                     { label: "Jobs Done", value: selectedContractor.completedJobs || selectedContractor.totalJobs || 0 },
-                    { label: "Hourly Rate", value: `KSh ${parseFloat(selectedContractor.rate || selectedContractor.hourlyRate || "0").toLocaleString()}/hr` },
+                    { label: "Hourly Rate", value: `KES ${parseFloat(selectedContractor.rate || selectedContractor.hourlyRate || "0").toLocaleString()}/hr` },
                   ].map(({ label, value }) => (
                     <div key={label} className="bg-white/10 rounded-lg px-3 py-2.5 text-center">
                       <p className="font-semibold text-sm text-white">{value}</p>
@@ -482,7 +482,7 @@ export default function ContractorsManagement() {
                     <p className="text-[11px] text-muted-foreground uppercase tracking-wide font-medium">Verification</p>
                     {selectedContractor.isVerified
                       ? <p className="text-sm font-medium text-emerald-600 flex items-center gap-1"><CheckCircle className="w-3.5 h-3.5" />Verified contractor</p>
-                      : <p className="text-sm text-amber-600 font-medium">Not yet verified</p>
+                      : <p className="text-sm text-amber-700 font-medium">Not yet verified</p>
                     }
                   </div>
                   {!selectedContractor.isVerified && (
@@ -582,7 +582,7 @@ export default function ContractorsManagement() {
                 </div>
               </div>
               <DialogFooter>
-                <Button type="submit" disabled={updateMutation.isPending} className="bg-emerald-600 hover:bg-emerald-700 text-white">
+                <Button type="submit" disabled={updateMutation.isPending} className="bg-emerald-700 hover:bg-emerald-800 text-white">
                   {updateMutation.isPending ? "Saving..." : "Save Changes"}
                 </Button>
               </DialogFooter>

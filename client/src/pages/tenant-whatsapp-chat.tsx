@@ -227,7 +227,7 @@ function PhoneLookup({ initialPhone = "", onFound }: PhoneLookupProps) {
           )}
         </div>
         <Button
-          className="w-full h-11 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold"
+          className="w-full h-11 bg-emerald-700 hover:bg-emerald-800 text-white font-semibold"
           onClick={handleLookup}
           disabled={loading || !phone.trim()}
         >
@@ -326,7 +326,7 @@ function AttachmentBar({ onAttach, onClose }: AttachmentBarProps) {
           <div className="flex gap-2 p-2 border-t border-border">
             <Button
               size="sm"
-              className="flex-1 h-8 text-xs bg-emerald-600 hover:bg-emerald-700 text-white"
+              className="flex-1 h-8 text-xs bg-emerald-700 hover:bg-emerald-800 text-white"
               onClick={() => { onAttach(preview.url, preview.name); setPreview(null); }}
             >
               Send this file
@@ -620,7 +620,7 @@ export default function TenantWhatsAppChat({ tenantId, initialPhone }: TenantCha
 
       {/* ── Info notice ── */}
       <div className="shrink-0 flex items-start gap-2 bg-amber-50 border-b border-amber-100 px-4 py-2 text-xs text-amber-800">
-        <Info className="h-3.5 w-3.5 mt-0.5 shrink-0 text-amber-600" />
+        <Info className="h-3.5 w-3.5 mt-0.5 shrink-0 text-amber-700" />
         <span>
           Messages here are forwarded via WhatsApp. Your property manager will reply from their dashboard.
           For emergencies, please call directly.
@@ -675,7 +675,7 @@ export default function TenantWhatsAppChat({ tenantId, initialPhone }: TenantCha
                         isMine
                           ? isFailed
                             ? "bg-red-100 text-red-900 border border-red-300 rounded-br-sm"
-                            : "bg-emerald-600 text-white rounded-br-sm"
+                            : "bg-emerald-700 text-white rounded-br-sm"
                           : "bg-background text-foreground border border-border rounded-bl-sm"
                       } ${isPending ? "opacity-70" : ""}`}
                     >
@@ -832,7 +832,7 @@ export default function TenantWhatsAppChat({ tenantId, initialPhone }: TenantCha
         <button
           onClick={handleSend}
           disabled={(!text.trim() && !mediaUrl) || sendMutation.isPending}
-          className="shrink-0 h-9 w-9 rounded-full flex items-center justify-center bg-emerald-600 hover:bg-emerald-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+          className="shrink-0 h-9 w-9 rounded-full flex items-center justify-center bg-emerald-700 hover:bg-emerald-800 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
           title="Send message"
         >
           {sendMutation.isPending

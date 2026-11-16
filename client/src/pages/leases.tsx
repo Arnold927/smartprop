@@ -176,10 +176,10 @@ function parseErr(e: unknown): { message: string; code?: string; data: any } {
 
 function urgencyTag(days: number) {
   if (days <= 0)  return <Badge className="bg-red-600 text-white text-[10px]">Expired</Badge>;
-  if (days <= 14) return <Badge className="bg-red-100 text-red-700 text-[10px]">{days}d left</Badge>;
-  if (days <= 30) return <Badge className="bg-orange-100 text-orange-700 text-[10px]">{days}d left</Badge>;
-  if (days <= 60) return <Badge className="bg-amber-100 text-amber-700 text-[10px]">{days}d left</Badge>;
-  return              <Badge className="bg-sky-100 text-sky-700 text-[10px]">{days}d left</Badge>;
+  if (days <= 14) return <Badge className="bg-red-100 text-red-700 dark:bg-red-500/20 dark:text-red-300 text-[10px]">{days}d left</Badge>;
+  if (days <= 30) return <Badge className="bg-orange-100 text-orange-700 dark:bg-orange-500/20 dark:text-orange-300 text-[10px]">{days}d left</Badge>;
+  if (days <= 60) return <Badge className="bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-300 text-[10px]">{days}d left</Badge>;
+  return              <Badge className="bg-sky-100 text-sky-700 dark:bg-sky-500/20 dark:text-sky-300 text-[10px]">{days}d left</Badge>;
 }
 
 // ─── Lease row card ───────────────────────────────────────────────────────────
@@ -385,7 +385,7 @@ function CreateLeaseDialog({ open, onClose }: { open: boolean; onClose: () => vo
             if (isResidentialTenancy && rent > 0 && deposit > rent * 2) {
               return (
                 <div className="flex items-start gap-2 rounded-md border border-amber-300 bg-amber-50 dark:bg-amber-950/30 dark:border-amber-700 px-3 py-2 text-xs text-amber-800 dark:text-amber-300">
-                  <AlertTriangleIc className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
+                  <AlertTriangleIc className="mt-0.5 h-4 w-4 shrink-0 text-amber-700" />
                   <span>
                     <strong>Deposit exceeds legal cap.</strong> The Landlord and Tenant Act limits security deposits to
                     2 months' rent for residential tenancies (<strong>KES {(rent * 2).toLocaleString()}</strong>). Entered amount may expose the landlord
@@ -1006,7 +1006,7 @@ function LeaseDetailSheet({ lease: listLease, open, onClose }: { lease: Lease | 
                     if (days < 30) {
                       return (
                         <div className="flex items-start gap-2 rounded-md border border-amber-300 bg-amber-50 dark:bg-amber-950/30 dark:border-amber-700 px-3 py-2 text-xs text-amber-800 dark:text-amber-300">
-                          <AlertTriangleIc className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
+                          <AlertTriangleIc className="mt-0.5 h-4 w-4 shrink-0 text-amber-700" />
                           <span>
                             <strong>Less than 30 days' notice.</strong> The Landlord and Tenant Act requires
                             30 days' notice for tenancy termination. Ensure you have a legal basis

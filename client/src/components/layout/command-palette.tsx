@@ -72,7 +72,7 @@ function PinButton({ pinned, onToggle }: { pinned: boolean; onToggle: () => void
       aria-pressed={pinned}
       onMouseDown={e => e.preventDefault()}
       onClick={e => { e.stopPropagation(); e.preventDefault(); onToggle(); }}
-      className="ml-2 shrink-0 rounded p-1 text-muted-foreground/60 hover:text-amber-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring"
+      className="ml-2 shrink-0 rounded p-1 text-muted-foreground hover:text-amber-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring"
     >
       <Star className={pinned ? "h-4 w-4 fill-amber-400 text-amber-500" : "h-4 w-4"} />
     </button>
@@ -263,7 +263,7 @@ export function CommandPalette({ open, onOpenChange, enableShortcut = true }: Co
                 <Compass className="mr-2 h-4 w-4 text-muted-foreground" />
                 <span className="truncate">{p.name}</span>
                 {p.parent && <span className="ml-2 text-xs text-muted-foreground truncate">{p.parent}</span>}
-                <CornerDownLeft className="ml-auto h-3.5 w-3.5 text-muted-foreground/60 hidden sm:block" />
+                <CornerDownLeft className="ml-auto h-3.5 w-3.5 text-muted-foreground hidden sm:block" />
               </CommandItem>
             ))}
           </CommandGroup>

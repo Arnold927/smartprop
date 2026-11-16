@@ -114,9 +114,9 @@ const AMENITY_ICONS: Record<string, React.ReactNode> = {
 
 const StatusBadge = ({ status }: { status: string }) => {
   const variants: Record<string, { label: string; color: string }> = {
-    pending: { label: "Pending Approval", color: "bg-amber-100 text-amber-800 border-amber-200" },
+    pending: { label: "Pending Approval", color: "bg-amber-100 text-amber-800 dark:bg-amber-500/20 dark:text-amber-300 border-amber-200" },
     approved: { label: "Approved", color: "bg-emerald-50 text-emerald-700 border border-emerald-200" },
-    rejected: { label: "Rejected", color: "bg-red-100 text-red-800 border-red-200" },
+    rejected: { label: "Rejected", color: "bg-red-100 text-red-800 dark:bg-red-500/20 dark:text-red-300 border-red-200" },
     suspended: { label: "Suspended", color: "bg-slate-100 text-muted-foreground border-slate-200" },
   };
   const config = variants[status] || variants.pending;
@@ -247,7 +247,7 @@ function Pagination({
                 key={pageNum}
                 variant={currentPage === pageNum ? "default" : "outline"}
                 size="sm"
-                className={currentPage === pageNum ? "bg-blue-600 hover:bg-blue-700" : ""}
+                className={currentPage === pageNum ? "bg-emerald-700 hover:bg-emerald-800" : ""}
                 onClick={() => onPageChange(pageNum)}
               >
                 {pageNum}
@@ -911,7 +911,7 @@ export default function TenantSubletting() {
                   </p>
                 </div>
                 <Button
-                  className="w-full bg-emerald-600 hover:bg-emerald-700"
+                  className="w-full bg-emerald-700 hover:bg-emerald-800"
                   disabled={markRefundedMutation.isPending}
                   onClick={() => {
                     const notes = prompt("Optional note (e.g. M-Pesa confirmation code):") ?? undefined;
@@ -933,7 +933,7 @@ export default function TenantSubletting() {
             {isManager && booking.paymentStatus !== "paid" && ["pending", "confirmed"].includes(booking.bookingStatus) && (
               <div className="pt-2 border-t">
                 <Button
-                  className="w-full bg-emerald-600 hover:bg-emerald-700"
+                  className="w-full bg-emerald-700 hover:bg-emerald-800"
                   disabled={markPaidMutation.isPending}
                   onClick={() => {
                     if (confirm(`Record that ${formatCurrency(Number(booking.totalAmount), booking.currency)} has been received for this stay (cash or bank transfer)?`)) {
@@ -1046,7 +1046,7 @@ export default function TenantSubletting() {
               </div>
               <Input placeholder="Reason (optional) — e.g. personal use, maintenance" value={blockReason} onChange={e => setBlockReason(e.target.value)} />
               <Button
-                className="w-full bg-emerald-600 hover:bg-emerald-700"
+                className="w-full bg-emerald-700 hover:bg-emerald-800"
                 disabled={!blockStart || !blockEnd || addBlockMutation.isPending}
                 onClick={() => addBlockMutation.mutate()}
               >
@@ -1172,7 +1172,7 @@ export default function TenantSubletting() {
                 </Select>
                 <Input className="col-span-2" placeholder="Paste their calendar export URL" value={feedUrl} onChange={e => setFeedUrl(e.target.value)} />
               </div>
-              <Button className="w-full bg-emerald-600 hover:bg-emerald-700" disabled={!feedUrl || addFeedMutation.isPending} onClick={() => addFeedMutation.mutate()}>
+              <Button className="w-full bg-emerald-700 hover:bg-emerald-800" disabled={!feedUrl || addFeedMutation.isPending} onClick={() => addFeedMutation.mutate()}>
                 {addFeedMutation.isPending ? "Adding…" : "Add calendar"}
               </Button>
             </div>
@@ -1187,9 +1187,12 @@ export default function TenantSubletting() {
     <div className="max-w-7xl mx-auto w-full px-4 sm:px-6 py-6 space-y-6 min-w-0">
       {/* Header */}
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="min-w-0">
-          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Short-Term Rental Listings</h1>
-          <p className="text-muted-foreground">Short-term rental listings — tenant sublets and owner-managed properties</p>
+        <div className="flex items-start gap-3 min-w-0">
+          <div className="w-10 h-10 rounded-xl bg-emerald-600 flex items-center justify-center flex-shrink-0 text-white"><Home className="w-5 h-5" /></div>
+          <div className="min-w-0">
+            <h1 className="text-2xl font-bold tracking-tight">Short-Term Rental Listings</h1>
+            <p className="text-sm text-muted-foreground mt-0.5">Short-term rental listings — tenant sublets and owner-managed properties</p>
+          </div>
         </div>
         <Dialog open={isAddListingOpen || !!editingListing} onOpenChange={(open) => {
           if (!open) {
@@ -1211,7 +1214,7 @@ export default function TenantSubletting() {
           }
         }}>
           <DialogTrigger asChild>
-            <Button className="bg-emerald-600 hover:bg-emerald-700 text-white" onClick={() => setIsAddListingOpen(true)}>
+            <Button className="bg-emerald-700 hover:bg-emerald-800 text-white" onClick={() => setIsAddListingOpen(true)}>
               <Plus className="h-4 w-4 mr-2" /> Create Listing
             </Button>
           </DialogTrigger>
@@ -1232,12 +1235,12 @@ export default function TenantSubletting() {
                   <Label>Listing type *</Label>
                   <div className="flex flex-col sm:flex-row gap-2">
                     <Button type="button" variant={listingMode === "tenant" ? "default" : "outline"}
-                      className={"h-auto min-h-10 whitespace-normal text-center " + (listingMode === "tenant" ? "bg-emerald-600 hover:bg-emerald-700" : "")}
+                      className={"h-auto min-h-10 whitespace-normal text-center " + (listingMode === "tenant" ? "bg-emerald-700 hover:bg-emerald-800" : "")}
                       onClick={() => setListingMode("tenant")}>
                       Tenant subletting their unit
                     </Button>
                     <Button type="button" variant={listingMode === "owner" ? "default" : "outline"}
-                      className={"h-auto min-h-10 whitespace-normal text-center " + (listingMode === "owner" ? "bg-emerald-600 hover:bg-emerald-700" : "")}
+                      className={"h-auto min-h-10 whitespace-normal text-center " + (listingMode === "owner" ? "bg-emerald-700 hover:bg-emerald-800" : "")}
                       onClick={() => setListingMode("owner")}>
                       Owner-managed property
                     </Button>
@@ -1315,7 +1318,7 @@ export default function TenantSubletting() {
 
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="nightlyRate">Nightly Rate (KSh) *</Label>
+                  <Label htmlFor="nightlyRate">Nightly Rate (KES) *</Label>
                   <Input type="number" step="0.01" id="nightlyRate" name="nightlyRate" required defaultValue={editingListing?.nightlyRate} />
                 </div>
                 <div className="space-y-2">
@@ -1408,7 +1411,7 @@ export default function TenantSubletting() {
               </div>
 
               <div className="flex gap-2 pt-4">
-                <Button type="submit" disabled={createListingMutation.isPending || updateListingMutation.isPending} className="flex-1 bg-emerald-600 hover:bg-emerald-700">
+                <Button type="submit" disabled={createListingMutation.isPending || updateListingMutation.isPending} className="flex-1 bg-emerald-700 hover:bg-emerald-800">
                   {createListingMutation.isPending || updateListingMutation.isPending ? "Saving..." : (editingListing ? "Update Listing" : "Create Listing")}
                 </Button>
                 <Button type="button" variant="outline" onClick={() => {
@@ -1487,7 +1490,7 @@ export default function TenantSubletting() {
                   </div>
                   <h3 className="text-lg font-semibold mb-2">No listings found</h3>
                   <p className="text-muted-foreground text-center text-sm mb-4">No short-term rental listings match your current filters.</p>
-                  <Button onClick={() => setIsAddListingOpen(true)} className="bg-emerald-600 hover:bg-emerald-700 text-white">
+                  <Button onClick={() => setIsAddListingOpen(true)} className="bg-emerald-700 hover:bg-emerald-800 text-white">
                     <Plus className="h-4 w-4 mr-2" /> Create your first listing
                   </Button>
                 </CardContent>
@@ -1557,7 +1560,7 @@ export default function TenantSubletting() {
                               {listing.calendarSyncEnabled && <span className="flex items-center gap-1 text-blue-600"><RefreshCw className="h-3 w-3" /> Calendar Sync</span>}
                               {listing.autoPricingEnabled && <span className="flex items-center gap-1 text-violet-600"><TrendingUp className="h-3 w-3" /> Smart Pricing</span>}
                               <span className="flex items-center gap-1"><Bed className="h-3 w-3" /> {listingBookings.length} booking{listingBookings.length !== 1 ? "s" : ""}</span>
-                              <span className="text-muted-foreground/60">Created {format(parseISO(listing.createdAt), "dd MMM yyyy")}</span>
+                              <span className="text-muted-foreground">Created {format(parseISO(listing.createdAt), "dd MMM yyyy")}</span>
                               <button
                                 className="flex items-center gap-1 text-rose-500 hover:text-rose-700 font-medium transition-colors ml-auto"
                                 onClick={(e) => { e.stopPropagation(); setSelectedCalendarListingId(listing.id); setActiveTab("calendar"); }}
@@ -2177,7 +2180,7 @@ export default function TenantSubletting() {
                                 <p className="text-sm font-medium truncate">{b.guestName}</p>
                                 <p className="text-xs text-muted-foreground">{format(parseISO(b.checkInDate), "dd MMM")} · {b.numberOfNights} nights</p>
                               </div>
-                              <Badge className={`text-xs flex-shrink-0 border ${daysUntil <= 3 ? "bg-amber-100 text-amber-700 border-amber-200" : "bg-blue-50 text-blue-700 border-blue-200"}`}>
+                              <Badge className={`text-xs flex-shrink-0 border ${daysUntil <= 3 ? "bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-300 border-amber-200" : "bg-blue-50 text-blue-700 border-blue-200"}`}>
                                 {daysUntil === 0 ? "Today" : daysUntil === 1 ? "Tomorrow" : `in ${daysUntil}d`}
                               </Badge>
                             </div>
@@ -2210,7 +2213,7 @@ export default function TenantSubletting() {
                           <div key={b.id} className="rounded-lg bg-emerald-50 border border-emerald-200 p-3 cursor-pointer hover:bg-emerald-100 transition-colors" onClick={() => setSelectedBooking(b)}>
                             <div className="flex items-center justify-between">
                               <p className="text-sm font-medium text-emerald-800">{b.guestName}</p>
-                              <Badge className="bg-emerald-100 text-emerald-700 border-emerald-200 border text-xs">
+                              <Badge className="bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300 border-emerald-200 border text-xs">
                                 <Unlock className="h-3 w-3 mr-1" /> In
                               </Badge>
                             </div>

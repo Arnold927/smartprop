@@ -104,7 +104,7 @@ export function PropertyUnitCard({ unit, propertyName, tenant, onClick, onToggle
             <Button
               variant="outline"
               size="sm"
-              className={`w-full h-8 text-xs gap-1.5 ${unit.isOccupied ? "text-amber-600 border-amber-200 hover:bg-amber-50 dark:hover:bg-amber-950/40" : "text-green-600 border-green-200 hover:bg-green-50 dark:hover:bg-green-950/40"}`}
+              className={`w-full h-8 text-xs gap-1.5 ${unit.isOccupied ? "text-amber-700 border-amber-200 hover:bg-amber-50 dark:hover:bg-amber-950/40" : "text-green-600 border-green-200 hover:bg-green-50 dark:hover:bg-green-950/40"}`}
               disabled={isTogglingVacancy}
               onClick={e => { e.stopPropagation(); onToggleVacancy(unit.id, !unit.isOccupied); }}
             >

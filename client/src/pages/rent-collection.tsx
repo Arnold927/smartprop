@@ -222,9 +222,10 @@ export default function RentCollection() {
         {/* Payment list */}
         <SectionCard padding="none">
           <div className="divide-y divide-border">
-            {payments.map((payment: any) => (
+            {payments.map((payment: any, i: number) => (
               <RentPaymentCard
                 key={payment.id}
+                peek={i === 0}
                 payment={payment}
                 onMarkPaid={(id, onDone) => markPaidMutation.mutate({ id, onDone })}
                 onReminder={(id, onDone) => sendReminderMutation.mutate({ id, onDone })}
@@ -391,7 +392,7 @@ export default function RentCollection() {
             <Button
               onClick={() => createPaymentMutation.mutate(form)}
               disabled={!form.tenantId || !form.amount || !form.dueDate || createPaymentMutation.isPending}
-              className="bg-emerald-600 hover:bg-emerald-700 text-white"
+              className="bg-emerald-700 hover:bg-emerald-800 text-white"
             >
               {createPaymentMutation.isPending ? "Saving…" : "Record Payment"}
             </Button>

@@ -25,6 +25,7 @@
  *   POST /messages                  — send message
  */
 
+import { SwipeRow } from "@/components/ui/swipe-row";
 import { AnimatedNumber } from "@/components/ui/motion";
 import { timeGreeting } from "@/lib/feel";
 import { Building2 as Building2Ic, Lock as LockIc } from "lucide-react";
@@ -276,7 +277,7 @@ function CompleteModal({ workOrderId, currency, onClose, onDone }: { workOrderId
         </div>
         <DialogFooter>
           <Button variant="ghost" onClick={onClose} className="text-muted-foreground/70">Cancel</Button>
-          <Button className="bg-emerald-600 hover:bg-emerald-700 text-white" disabled={!notes.trim() || mut.isPending} onClick={() => mut.mutate()}>
+          <Button className="bg-emerald-700 hover:bg-emerald-800 text-white" disabled={!notes.trim() || mut.isPending} onClick={() => mut.mutate()}>
             {mut.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <CheckCircle className="w-4 h-4 mr-2" />} {mut.isPending && proof.length ? "Uploading…" : "Submit Completion"}
           </Button>
         </DialogFooter>
@@ -323,7 +324,7 @@ function InvoiceModal({ workOrderId, currency, onClose, onDone }: { workOrderId:
         </div>
         <DialogFooter>
           <Button variant="ghost" onClick={onClose} className="text-muted-foreground/70">Cancel</Button>
-          <Button className="bg-emerald-600 hover:bg-emerald-700 text-white" disabled={!amount || isNaN(Number(amount)) || mut.isPending} onClick={() => mut.mutate()}>
+          <Button className="bg-emerald-700 hover:bg-emerald-800 text-white" disabled={!amount || isNaN(Number(amount)) || mut.isPending} onClick={() => mut.mutate()}>
             {mut.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Receipt className="w-4 h-4 mr-2" />} Submit Invoice
           </Button>
         </DialogFooter>
@@ -334,15 +335,39 @@ function InvoiceModal({ workOrderId, currency, onClose, onDone }: { workOrderId:
 
 // ─── Work Order Card ─────────────────────────────────────────────────────────
 
-function WorkOrderCard({ row, onSelect }: { row: WorkOrderRow; onSelect: (row: WorkOrderRow) => void }) {
+function WorkOrderCard({ row, onSelect, peek }: { row: WorkOrderRow; onSelect: (row: WorkOrderRow) => void; peek?: boolean }) {
   const { workOrder, property, unit } = row;
+  const { toast } = useToast();
+  const qc = useQueryClient();
+  // Swipe shortcut for the most common first step. Rejecting needs a reason, so it stays inside the job screen.
+  const quickAccept = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest(`/api/contractor-portal/work-orders/${workOrder.id}/accept`, { method: "PATCH" });
+      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).message ?? "Failed");
+    },
+    onSuccess: () => {
+      toast({ title: "Work order accepted!", description: "You can now begin work." });
+      qc.invalidateQueries({ queryKey: ["/api/contractor-portal/work-orders"] });
+    },
+    onError: (err: any) => toast({ title: "Error", description: err.message, variant: "destructive" }),
+  });
+  const canQuickAccept = ["assigned", "approved", "pending_approval"].includes(workOrder.status);
   const cfg = STATUS_CONFIG[workOrder.status] ?? STATUS_CONFIG["draft"];
   const Icon = cfg.icon;
   const priCls = PRIORITY_COLOR[workOrder.priority] ?? PRIORITY_COLOR["medium"];
   const isUrgent = ["urgent", "critical"].includes(workOrder.priority);
 
   return (
-    <button onClick={() => onSelect(row)} className={`w-full text-left rounded-2xl border p-4 transition-all hover:border-muted-foreground/40 active:scale-[0.99] ${cfg.bg} ${isUrgent ? "ring-1 ring-orange-500/30" : ""}`}>
+    <SwipeRow
+      peek={peek && canQuickAccept}
+      onTap={() => onSelect(row)}
+      className="rounded-2xl"
+      disabled={!canQuickAccept}
+      trailing={[
+        { key: "accept", label: "Accept", icon: CheckCircle, tone: "green", disabled: quickAccept.isPending, onAction: () => quickAccept.mutate() },
+      ]}
+    >
+    <div className={`w-full text-left rounded-2xl border p-4 transition-all hover:border-muted-foreground/40 active:scale-[0.99] ${cfg.bg} ${isUrgent ? "ring-1 ring-orange-500/30" : ""}`}>
       <div className="flex items-start justify-between gap-3">
         <div className="flex items-start gap-3 flex-1 min-w-0">
           <div className={`mt-0.5 shrink-0 w-8 h-8 rounded-lg flex items-center justify-center bg-muted ${cfg.color}`}>
@@ -378,7 +403,8 @@ function WorkOrderCard({ row, onSelect }: { row: WorkOrderRow; onSelect: (row: W
         </div>
         <ChevronRight className="w-4 h-4 text-muted-foreground/70 shrink-0 mt-2" />
       </div>
-    </button>
+    </div>
+    </SwipeRow>
   );
 }
 
@@ -550,7 +576,7 @@ function WorkOrderDetail({ row, onBack }: { row: WorkOrderRow; onBack: () => voi
               />
               <Button
                 size="sm"
-                className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-semibold h-9"
+                className="w-full bg-emerald-700 hover:bg-emerald-800 text-white font-semibold h-9"
                 disabled={!commentText.trim() || commentMut.isPending}
                 onClick={() => commentMut.mutate(commentText)}
               >
@@ -614,12 +640,12 @@ function WorkOrderDetail({ row, onBack }: { row: WorkOrderRow; onBack: () => voi
       {(canAccept || canReject || canComplete || canInvoice) && (
         <div className="space-y-2">
           {canAccept && (
-            <Button className="w-full bg-emerald-600 hover:bg-emerald-700 text-white h-12 font-semibold rounded-xl" disabled={acceptMut.isPending} onClick={() => acceptMut.mutate()}>
+            <Button className="w-full bg-emerald-700 hover:bg-emerald-800 text-white h-12 font-semibold rounded-xl" disabled={acceptMut.isPending} onClick={() => acceptMut.mutate()}>
               {acceptMut.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <CheckCircle className="w-4 h-4 mr-2" />} Accept & Start Work
             </Button>
           )}
           {canComplete && (
-            <Button className="w-full bg-emerald-600 hover:bg-emerald-700 text-white h-12 font-semibold rounded-xl" onClick={() => setModal("complete")}>
+            <Button className="w-full bg-emerald-700 hover:bg-emerald-800 text-white h-12 font-semibold rounded-xl" onClick={() => setModal("complete")}>
               <Trophy className="w-4 h-4 mr-2" /> Mark as Completed
             </Button>
           )}
@@ -847,7 +873,7 @@ function JobsTab({ workOrders, profile }: { workOrders: WorkOrderRow[]; profile:
         {FILTER_OPTIONS.map(f => {
           const count = f === "all" ? workOrders.length : workOrders.filter(r => r.workOrder.status === f).length;
           return (
-            <button key={f} onClick={() => setFilter(f)} className={`shrink-0 rounded-full px-3 py-1.5 text-xs font-medium transition-all ${filter === f ? "bg-emerald-600 text-white" : "bg-muted text-muted-foreground hover:bg-muted/70"}`}>
+            <button key={f} onClick={() => setFilter(f)} className={`shrink-0 rounded-full px-3 py-1.5 text-xs font-medium transition-all ${filter === f ? "bg-emerald-700 text-white" : "bg-muted text-muted-foreground hover:bg-muted/70"}`}>
               {FILTER_LABELS[f]}
               {count > 0 && <span className={`ml-1 ${filter === f ? "text-white/80" : "text-muted-foreground"}`}>({count})</span>}
             </button>
@@ -863,7 +889,7 @@ function JobsTab({ workOrders, profile }: { workOrders: WorkOrderRow[]; profile:
         </div>
       ) : (
         <div className="space-y-2">
-          {filtered.map(row => <WorkOrderCard key={row.workOrder.id} row={row} onSelect={setSelected} />)}
+          {filtered.map((row, i) => <WorkOrderCard key={row.workOrder.id} row={row} onSelect={setSelected} peek={i === 0} />)}
         </div>
       )}
     </div>
@@ -1209,7 +1235,7 @@ function MessagesTab({ userId }: { userId: string }) {
   return (
     <div className="space-y-4">
       {/* Compose button */}
-      <Button className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-semibold h-11 rounded-xl" onClick={() => setComposeOpen(true)}>
+      <Button className="w-full bg-emerald-700 hover:bg-emerald-800 text-white font-semibold h-11 rounded-xl" onClick={() => setComposeOpen(true)}>
         <MessageSquare className="w-4 h-4 mr-2" /> New Message to Property Manager
       </Button>
 
@@ -1221,7 +1247,7 @@ function MessagesTab({ userId }: { userId: string }) {
           <Textarea placeholder="Write your message…" value={content} onChange={e => setContent(e.target.value)} className="bg-background border-border text-foreground placeholder:text-muted-foreground min-h-[100px]" />
           <div className="flex gap-2">
             <Button variant="ghost" className="text-muted-foreground/70" onClick={() => setComposeOpen(false)}>Cancel</Button>
-            <Button className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold flex-1" disabled={!content.trim() || sendMut.isPending} onClick={() => sendMut.mutate()}>
+            <Button className="bg-emerald-700 hover:bg-emerald-800 text-white font-semibold flex-1" disabled={!content.trim() || sendMut.isPending} onClick={() => sendMut.mutate()}>
               {sendMut.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Send className="w-4 h-4 mr-2" />} Send
             </Button>
           </div>
@@ -1242,7 +1268,7 @@ function MessagesTab({ userId }: { userId: string }) {
             <div key={msg.id} className={`rounded-2xl border p-4 ${msg.isOwn ? "bg-emerald-50 dark:bg-emerald-950/30 border-emerald-200 dark:border-emerald-800/40 ml-4" : "bg-card border-border mr-4"}`}>
               <div className="flex items-start justify-between gap-3 mb-2">
                 <div className="flex items-center gap-2">
-                  <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold ${msg.isOwn ? "bg-emerald-600 text-white" : "bg-muted-foreground/30 text-muted-foreground"}`}>
+                  <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold ${msg.isOwn ? "bg-emerald-700 text-white" : "bg-muted-foreground/30 text-muted-foreground"}`}>
                     {(msg.isOwn ? msg.fromName : msg.fromName).charAt(0).toUpperCase()}
                   </div>
                   <div>
@@ -1392,10 +1418,10 @@ export default function ContractorPortal() {
 
 
   if (!authLoading && user && user.role !== "contractor") {
-    return (<div className="flex items-center justify-center min-h-[60vh] p-6"><div className="text-center max-w-sm space-y-3"><div className="w-14 h-14 rounded-full bg-amber-50 border border-amber-200 flex items-center justify-center mx-auto"><LockIc className="h-6 w-6 text-amber-600" /></div><h2 className="text-lg font-semibold text-foreground">Access restricted</h2><p className="text-sm text-muted-foreground">This portal is for contractors only.</p></div></div>);
+    return (<div className="flex items-center justify-center min-h-[60vh] p-6"><div className="text-center max-w-sm space-y-3"><div className="w-14 h-14 rounded-full bg-amber-50 border border-amber-200 flex items-center justify-center mx-auto"><LockIc className="h-6 w-6 text-amber-700" /></div><h2 className="text-lg font-semibold text-foreground">Access restricted</h2><p className="text-sm text-muted-foreground">This portal is for contractors only.</p></div></div>);
   }
   if (!authLoading && user && !user.organizationId) {
-    return (<div className="flex items-center justify-center min-h-[60vh] p-6"><div className="text-center max-w-sm space-y-3"><div className="w-14 h-14 rounded-full bg-amber-50 border border-amber-200 flex items-center justify-center mx-auto"><Building2Ic className="h-6 w-6 text-amber-600" /></div><h2 className="text-lg font-semibold text-foreground">No organisation linked</h2><p className="text-sm text-muted-foreground">Your account is not linked to an organisation.</p></div></div>);
+    return (<div className="flex items-center justify-center min-h-[60vh] p-6"><div className="text-center max-w-sm space-y-3"><div className="w-14 h-14 rounded-full bg-amber-50 border border-amber-200 flex items-center justify-center mx-auto"><Building2Ic className="h-6 w-6 text-amber-700" /></div><h2 className="text-lg font-semibold text-foreground">No organisation linked</h2><p className="text-sm text-muted-foreground">Your account is not linked to an organisation.</p></div></div>);
   }
 
   return (

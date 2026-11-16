@@ -168,7 +168,7 @@ function ManagerWelcome({
           icon={DollarSign}
           label="Finances & M-Pesa"
           description="Collect rent via M-Pesa STK push, track arrears, manage expenses, and generate owner statements."
-          accent="bg-amber-50 dark:bg-amber-950/60 text-amber-600"
+          accent="bg-amber-50 dark:bg-amber-950/60 text-amber-700"
         />
         <StepCard
           icon={Wrench}
@@ -270,7 +270,7 @@ function LandlordWelcome({
           icon={Wrench}
           label="Maintenance visibility"
           description="See all open repair requests across your properties and approve costs above your threshold."
-          accent="bg-amber-50 dark:bg-amber-950/60 text-amber-600"
+          accent="bg-amber-50 dark:bg-amber-950/60 text-amber-700"
         />
         <StepCard
           icon={Shield}
@@ -340,7 +340,7 @@ function StaffWelcome({
           icon={ClipboardList}
           label="Your work queue"
           description="Jobs and tasks assigned to you appear here. Update status as you go — the manager sees it live."
-          accent="bg-amber-50 dark:bg-amber-950/60 text-amber-600"
+          accent="bg-amber-50 dark:bg-amber-950/60 text-amber-700"
         />
         <StepCard
           icon={MessageSquare}
@@ -378,7 +378,7 @@ function ContractorWelcome({
   return (
     <>
       <div className="w-16 h-16 lg:w-20 lg:h-20 rounded-2xl bg-amber-500/10 flex items-center justify-center mx-auto mb-5 sp-pop-spring">
-        <Wrench className="w-8 h-8 text-amber-600" />
+        <Wrench className="w-8 h-8 text-amber-700" />
       </div>
 
       <div className="text-center mb-6">
@@ -395,7 +395,7 @@ function ContractorWelcome({
           icon={ClipboardList}
           label="Work orders"
           description="Accept or decline new jobs. Mark work in progress, then completed — with notes and photos."
-          accent="bg-amber-50 dark:bg-amber-950/60 text-amber-600"
+          accent="bg-amber-50 dark:bg-amber-950/60 text-amber-700"
         />
         <StepCard
           icon={Receipt}
@@ -412,7 +412,7 @@ function ContractorWelcome({
       </div>
 
       <div className="flex items-start gap-2.5 p-3.5 rounded-2xl bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 mb-5">
-        <Bell className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" />
+        <Bell className="w-4 h-4 text-amber-700 flex-shrink-0 mt-0.5" />
         <p className="text-xs text-amber-800 dark:text-amber-200 leading-relaxed">
           You'll receive a WhatsApp or email notification whenever a new work order is assigned to you.
         </p>

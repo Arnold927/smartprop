@@ -254,7 +254,7 @@ function TenantPortalWrapper({ user }: { user: any }) {
       <div className="min-h-screen flex items-center justify-center p-6 bg-background">
         <div className="text-center max-w-sm space-y-3">
           <div className="w-14 h-14 rounded-full bg-amber-50 border border-amber-200 flex items-center justify-center mx-auto">
-            <HomeIc className="h-6 w-6 text-amber-600" />
+            <HomeIc className="h-6 w-6 text-amber-700" />
           </div>
           <p className="text-lg font-semibold text-foreground">No tenant profile found</p>
           <p className="text-sm text-muted-foreground">

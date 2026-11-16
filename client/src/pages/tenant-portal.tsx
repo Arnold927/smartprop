@@ -156,7 +156,7 @@ function QuickAction({ icon: Icon, label, description, onClick, color = "blue", 
     blue:   "bg-blue-50   dark:bg-blue-950/60  text-blue-600",
     green:  "bg-green-50  dark:bg-green-950/60 text-green-600",
     purple: "bg-purple-50 dark:bg-purple-950/60 text-purple-600",
-    amber:  "bg-amber-50  dark:bg-amber-950/60 text-amber-600",
+    amber:  "bg-amber-50  dark:bg-amber-950/60 text-amber-700",
   };
   return (
     <button onClick={onClick}
@@ -195,7 +195,7 @@ function NoticeCard({ notice }: { notice: { title: string; content: string; type
       <div className="min-w-0">
         <p className="text-sm font-semibold text-foreground">{notice.title}</p>
         <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed">{notice.content}</p>
-        {notice.date && <p className="text-[11px] text-muted-foreground/60 mt-1">{notice.date}</p>}
+        {notice.date && <p className="text-[11px] text-muted-foreground mt-1">{notice.date}</p>}
       </div>
     </div>
   );
@@ -676,7 +676,7 @@ function MaintenanceCard({ req, onViewBills }: { req: any; onViewBills?: () => v
                     <>
                       <p className="font-semibold text-orange-900 dark:text-orange-200">
                         Charged to you: {money(Number(req.tenantChargeBilledAmount ?? req.tenantChargeAmount) || 0)}
-                        <span className={`ml-2 rounded-full px-2 py-0.5 text-[10px] font-medium ${unpaid ? "bg-yellow-100 text-yellow-800" : "bg-emerald-100 text-emerald-800"}`}>{unpaid ? "Unpaid" : "Paid"}</span>
+                        <span className={`ml-2 rounded-full px-2 py-0.5 text-[10px] font-medium ${unpaid ? "bg-yellow-100 text-yellow-800 dark:bg-yellow-500/20 dark:text-yellow-300" : "bg-emerald-100 text-emerald-800 dark:bg-emerald-500/20 dark:text-emerald-300"}`}>{unpaid ? "Unpaid" : "Paid"}</span>
                       </p>
                       {req.tenantChargeReason && <p className="mt-1 text-orange-800 dark:text-orange-300">{req.tenantChargeReason}</p>}
                       {unpaid && onViewBills && (
@@ -1657,7 +1657,7 @@ function DocumentsPanel({
       {/* Lease agreement prompt — shown when no lease doc is found */}
       {!isLoading && !hasLeaseDoc && (
         <div className="flex items-start gap-3 rounded-2xl border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/30 p-4">
-          <FileText className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+          <FileText className="w-5 h-5 text-amber-700 shrink-0 mt-0.5" />
           <div className="flex-1 min-w-0">
             <p className="text-sm font-semibold text-amber-800 dark:text-amber-200">No lease agreement on file</p>
             <p className="text-xs text-amber-700 dark:text-amber-300 mt-1 leading-relaxed">
@@ -1720,7 +1720,7 @@ function DocumentsPanel({
             <Upload className="w-3.5 h-3.5" />
             {uploading ? "Uploading…" : "Choose files"}
           </Button>
-          <p className="text-[11px] text-muted-foreground/60">
+          <p className="text-[11px] text-muted-foreground">
             PDF, Word, Excel, JPG, PNG — or drag and drop
           </p>
         </div>
@@ -2012,7 +2012,7 @@ function MessagesPanel({
                   {lastMsg.isSentByMe ? "You: " : `${lastMsg.fromName ?? "Manager"}: `}
                   {lastMsg.content}
                 </p>
-                <p className="text-[11px] text-muted-foreground/60 mt-0.5">
+                <p className="text-[11px] text-muted-foreground mt-0.5">
                   {thread.messages.length} message{thread.messages.length !== 1 ? "s" : ""}
                 </p>
               </div>
@@ -2963,7 +2963,7 @@ export default function TenantPortal({ tenantId, initialTenantData }: TenantPort
                   }`}>
                     <Wrench className={`w-4.5 h-4.5 ${
                       urgentRequests.length > 0 ? "text-red-600" :
-                      openRequests.length > 0 ? "text-amber-600" : "text-muted-foreground"
+                      openRequests.length > 0 ? "text-amber-700" : "text-muted-foreground"
                     }`} />
                   </div>
                   <p className="text-lg font-bold text-foreground leading-tight">{openRequests.length}</p>
@@ -3521,7 +3521,7 @@ export default function TenantPortal({ tenantId, initialTenantData }: TenantPort
                               </div>
                             )}
                             {bill.billNumber && (
-                              <p className="text-[11px] text-muted-foreground/60 mt-1 font-mono">Ref: {bill.billNumber}</p>
+                              <p className="text-[11px] text-muted-foreground mt-1 font-mono">Ref: {bill.billNumber}</p>
                             )}
                             {(bill.status === "pending" || bill.status === "overdue") && (
                               <div className="mt-2">
@@ -3655,7 +3655,7 @@ export default function TenantPortal({ tenantId, initialTenantData }: TenantPort
                         style={{ width: `${leasePct}%` }}
                       />
                     </div>
-                    <div className="flex justify-between text-[11px] text-muted-foreground/60 mt-1">
+                    <div className="flex justify-between text-[11px] text-muted-foreground mt-1">
                       <span>{fmtDate(tenant.leaseStartDate)}</span>
                       <span>{fmtDate(tenant.leaseEndDate)}</span>
                     </div>

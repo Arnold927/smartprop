@@ -117,7 +117,7 @@ export function TitleVerificationPanel({
           Title Deed Number
         </Label>
         {isLive === false && (
-          <span className="flex items-center gap-1 text-[10px] text-amber-600 bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-700 rounded-full px-2 py-0.5">
+          <span className="flex items-center gap-1 text-[10px] text-amber-700 bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-700 rounded-full px-2 py-0.5">
             <FlaskConical className="h-3 w-3" /> Sandbox mode
           </span>
         )}

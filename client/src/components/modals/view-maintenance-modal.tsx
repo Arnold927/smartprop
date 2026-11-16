@@ -47,7 +47,7 @@ interface ViewMaintenanceModalProps {
 const PRIORITY: Record<string, { bg: string; dot: string; text: string; badge: string; label: string }> = {
   urgent: { bg: "bg-red-500",    dot: "bg-red-500",    text: "text-red-600",    badge: "bg-red-50 text-red-700 border-red-200",       label: "Urgent"  },
   high:   { bg: "bg-orange-500", dot: "bg-orange-500", text: "text-orange-600", badge: "bg-orange-50 text-orange-700 border-orange-200", label: "High"  },
-  medium: { bg: "bg-amber-400",  dot: "bg-amber-400",  text: "text-amber-600",  badge: "bg-amber-50 text-amber-700 border-amber-200",   label: "Medium" },
+  medium: { bg: "bg-amber-400",  dot: "bg-amber-400",  text: "text-amber-700",  badge: "bg-amber-50 text-amber-700 border-amber-200",   label: "Medium" },
   low:    { bg: "bg-emerald-500",dot: "bg-emerald-500",text: "text-emerald-600",badge: "bg-emerald-50 text-emerald-700 border-emerald-200",label: "Low" },
 };
 
@@ -216,7 +216,7 @@ export default function ViewMaintenanceModal({ isOpen, onClose, request }: ViewM
           <div className="grid grid-cols-4 divide-x divide-border border-b border-border bg-muted/30 flex-shrink-0">
             {[
               { label: "Age",      value: `${ageDays}d`,                                                                    Icon: Clock      },
-              { label: "Estimate", value: request.estimatedCost ? `KSh ${parseFloat(request.estimatedCost).toLocaleString()}` : "TBD", Icon: DollarSign },
+              { label: "Estimate", value: request.estimatedCost ? `KES ${parseFloat(request.estimatedCost).toLocaleString()}` : "TBD", Icon: DollarSign },
               { label: "Assignee", value: request.assignedTo ?? "—",                                                        Icon: Wrench, truncate: true },
               { label: "Unit",     value: request.unit?.unitNumber ?? "—",                                                  Icon: MapPin     },
             ].map(({ label, value, Icon, truncate }) => (
@@ -273,7 +273,7 @@ export default function ViewMaintenanceModal({ isOpen, onClose, request }: ViewM
                       <div className="rounded-xl border border-border bg-muted/20 p-4">
                         <div className="flex items-center gap-3 mb-3">
                           <Avatar className="w-10 h-10 flex-shrink-0">
-                            <AvatarFallback className="bg-emerald-100 text-emerald-700 text-sm font-bold">
+                            <AvatarFallback className="bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300 text-sm font-bold">
                               {tenantInitials}
                             </AvatarFallback>
                           </Avatar>
@@ -334,7 +334,7 @@ export default function ViewMaintenanceModal({ isOpen, onClose, request }: ViewM
                       <div className="rounded-xl border border-border bg-muted/30 p-4">
                         <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-1">Estimated</p>
                         <p className="text-2xl font-bold text-foreground">
-                          KSh {parseFloat(request.estimatedCost).toLocaleString("en-KE", { minimumFractionDigits: 2 })}
+                          KES {parseFloat(request.estimatedCost).toLocaleString("en-KE", { minimumFractionDigits: 2 })}
                         </p>
                       </div>
                     )}
@@ -342,7 +342,7 @@ export default function ViewMaintenanceModal({ isOpen, onClose, request }: ViewM
                       <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4">
                         <p className="text-[10px] font-bold uppercase tracking-widest text-emerald-600 mb-1">Actual</p>
                         <p className="text-2xl font-bold text-emerald-700">
-                          KSh {parseFloat(request.actualCost).toLocaleString("en-KE", { minimumFractionDigits: 2 })}
+                          KES {parseFloat(request.actualCost).toLocaleString("en-KE", { minimumFractionDigits: 2 })}
                         </p>
                       </div>
                     )}
@@ -366,9 +366,9 @@ export default function ViewMaintenanceModal({ isOpen, onClose, request }: ViewM
                           costDiff > 0 ? "text-red-700" : costDiff < 0 ? "text-emerald-700" : "text-foreground"
                         )}>
                           {costDiff > 0
-                            ? `KSh ${Math.abs(costDiff).toLocaleString("en-KE")} over budget`
+                            ? `KES ${Math.abs(costDiff).toLocaleString("en-KE")} over budget`
                             : costDiff < 0
-                            ? `KSh ${Math.abs(costDiff).toLocaleString("en-KE")} under budget`
+                            ? `KES ${Math.abs(costDiff).toLocaleString("en-KE")} under budget`
                             : "On budget"
                           }
                         </p>
@@ -402,7 +402,7 @@ export default function ViewMaintenanceModal({ isOpen, onClose, request }: ViewM
               )}
               <Button
                 size="sm"
-                className="h-8 bg-emerald-600 hover:bg-emerald-700 text-white text-xs"
+                className="h-8 bg-emerald-700 hover:bg-emerald-800 text-white text-xs"
                 onClick={() => setIsEditOpen(true)}
               >
                 <Pencil className="w-3.5 h-3.5 mr-1.5" />

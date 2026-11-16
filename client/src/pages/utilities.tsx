@@ -480,7 +480,7 @@ export default function Utilities() {
  <div className="flex items-center justify-between">
  <div>
  <p className="text-sm text-muted-foreground">Total Amount</p>
- <p className="text-2xl font-semibold">KSh {totalAmount.toLocaleString()}</p>
+ <p className="text-2xl font-semibold">KES {totalAmount.toLocaleString()}</p>
  </div>
  <DollarSign className="h-8 w-8 text-green-600" />
  </div>
@@ -491,7 +491,7 @@ export default function Utilities() {
  <div className="flex items-center justify-between">
  <div>
  <p className="text-sm text-muted-foreground">Paid Amount</p>
- <p className="text-2xl font-semibold">KSh {paidAmount.toLocaleString()}</p>
+ <p className="text-2xl font-semibold">KES {paidAmount.toLocaleString()}</p>
  </div>
  <TrendingUp className="h-8 w-8 text-purple-600" />
  </div>
@@ -1161,7 +1161,7 @@ export default function Utilities() {
  <div>
  <p className="text-sm text-muted-foreground">Average Bill Amount</p>
  <p className="text-2xl font-semibold">
- KSh {bills.length > 0 ? (totalAmount / bills.length).toLocaleString(undefined, { maximumFractionDigits: 2 }) : "0"}
+ KES {bills.length > 0 ? (totalAmount / bills.length).toLocaleString(undefined, { maximumFractionDigits: 2 }) : "0"}
  </p>
  </div>
  </CardContent>

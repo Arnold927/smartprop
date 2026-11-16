@@ -227,7 +227,7 @@ export default function Properties() {
             <ExportMenu disabled={filtered.length === 0} onPdf={handleExportPdf} onExcel={handleExport} />
             {/* Same roles the server allows for /api/property-setup (staff can view properties, not create them this way). */}
             {(canEdit || guard.isLandlord) && (
-              <Button size="sm" className="h-9 bg-emerald-600 hover:bg-emerald-700 text-white px-4"
+              <Button size="sm" className="h-9 bg-emerald-700 hover:bg-emerald-800 text-white px-4"
                 onClick={() => setBulkOpen(true)} data-testid="add-property-with-units">
                 <Layers className="w-4 h-4 mr-1.5" /> Add property with units
               </Button>
@@ -248,7 +248,7 @@ export default function Properties() {
           {[
             { icon: Building2, label: "Properties",  value: properties.length,          bg: "bg-emerald-50 dark:bg-emerald-950/40", fg: "text-emerald-600" },
             { icon: Home,      label: "Total units",  value: allUnits.length || totalUnits, bg: "bg-sky-50 dark:bg-sky-950/40",     fg: "text-sky-600" },
-            { icon: TrendingUp,label: "Occupancy",    value: `${overallOcc}%`,           bg: overallOcc >= 80 ? "bg-emerald-50 dark:bg-emerald-950/40" : "bg-amber-50 dark:bg-amber-950/40", fg: overallOcc >= 80 ? "text-emerald-600" : "text-amber-600" },
+            { icon: TrendingUp,label: "Occupancy",    value: `${overallOcc}%`,           bg: overallOcc >= 80 ? "bg-emerald-50 dark:bg-emerald-950/40" : "bg-amber-50 dark:bg-amber-950/40", fg: overallOcc >= 80 ? "text-emerald-600" : "text-amber-700" },
           ].map(({ icon: Icon, label, value, bg, fg }) => (
             <Card key={label} className="rounded-2xl border border-border/60 shadow-none hover:shadow-sm transition-shadow">
               <CardContent className="p-3 sm:p-6 flex flex-col sm:flex-row items-start sm:items-center gap-2 sm:gap-5">

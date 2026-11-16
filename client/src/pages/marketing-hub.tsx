@@ -75,9 +75,9 @@ const STATUS_ICONS: Record<string, React.ReactNode> = {
 };
 
 const MEDIUM_COLORS: Record<string, string> = {
-  app_notification: "bg-purple-100 text-purple-800",
-  email:            "bg-orange-100 text-orange-800",
-  sms:              "bg-red-100 text-red-800",
+  app_notification: "bg-purple-100 text-purple-800 dark:bg-purple-500/20 dark:text-purple-300",
+  email:            "bg-orange-100 text-orange-800 dark:bg-orange-500/20 dark:text-orange-300",
+  sms:              "bg-red-100 text-red-800 dark:bg-red-500/20 dark:text-red-300",
   whatsapp:         "bg-emerald-50 text-emerald-700 border border-emerald-200",
 };
 
@@ -342,7 +342,7 @@ export default function MarketingHub() {
           >
             <RefreshCw className="h-4 w-4 mr-1" />Refresh
           </Button>
-          <Button className="bg-emerald-600 hover:bg-emerald-700 text-white" onClick={() => setIsCreateOpen(true)}>
+          <Button className="bg-emerald-700 hover:bg-emerald-800 text-white" onClick={() => setIsCreateOpen(true)}>
             <Plus className="h-4 w-4 mr-2" />New Campaign
           </Button>
         </div>
@@ -608,7 +608,7 @@ export default function MarketingHub() {
                 <Button
                   onClick={handleSubmit}
                   disabled={createMutation.isPending}
-                  className="bg-emerald-600 hover:bg-emerald-700 text-white"
+                  className="bg-emerald-700 hover:bg-emerald-800 text-white"
                 >
                   {createMutation.isPending
                     ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Sending…</>
@@ -635,7 +635,7 @@ export default function MarketingHub() {
             <Button
               onClick={handleSubmit}
               disabled={createMutation.isPending}
-              className="bg-emerald-600 hover:bg-emerald-700 text-white"
+              className="bg-emerald-700 hover:bg-emerald-800 text-white"
             >
               {createMutation.isPending
                 ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Sending…</>

@@ -104,17 +104,17 @@ interface Role {
 /* ─── Status / plan display helpers ─────────────────────────────────────────── */
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; icon: React.ReactNode }> = {
-  trial:     { label: "Trial",     color: "bg-blue-100 text-blue-700 border-blue-200" ,         icon: <Clock className="h-3 w-3" /> },
-  active:    { label: "Active",    color: "bg-emerald-100 text-emerald-700 border-emerald-200" , icon: <CheckCircle2 className="h-3 w-3" /> },
-  past_due:  { label: "Past Due",  color: "bg-amber-100 text-amber-700 border-amber-200" ,       icon: <AlertTriangle className="h-3 w-3" /> },
-  suspended: { label: "Suspended", color: "bg-red-100 text-red-700 border-red-200" ,             icon: <XCircle className="h-3 w-3" /> },
+  trial:     { label: "Trial",     color: "bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-300 border-blue-200" ,         icon: <Clock className="h-3 w-3" /> },
+  active:    { label: "Active",    color: "bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300 border-emerald-200" , icon: <CheckCircle2 className="h-3 w-3" /> },
+  past_due:  { label: "Past Due",  color: "bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-300 border-amber-200" ,       icon: <AlertTriangle className="h-3 w-3" /> },
+  suspended: { label: "Suspended", color: "bg-red-100 text-red-700 dark:bg-red-500/20 dark:text-red-300 border-red-200" ,             icon: <XCircle className="h-3 w-3" /> },
   cancelled: { label: "Cancelled", color: "bg-muted text-muted-foreground border-border",       icon: <XCircle className="h-3 w-3" /> },
 };
 
 const PLAN_COLOR: Record<string, string> = {
   starter:    "bg-slate-100 text-muted-foreground border-slate-200" ,
-  growth:     "bg-blue-100 text-blue-700 border-blue-200" ,
-  enterprise: "bg-violet-100 text-violet-700 border-violet-200" ,
+  growth:     "bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-300 border-blue-200" ,
+  enterprise: "bg-violet-100 text-violet-700 dark:bg-violet-500/20 dark:text-violet-300 border-violet-200" ,
 };
 
 /* ─── Small reusable components ─────────────────────────────────────────────── */

@@ -143,6 +143,7 @@ const getStatusColor = (status: string) => {
 const formatCurrency = (amount: number, currency: string = 'KES') => {
  return new Intl.NumberFormat('en-KE', {
  style: 'currency',
+ currencyDisplay: 'code',
  currency: currency,
  minimumFractionDigits: 0,
  maximumFractionDigits: 0,
@@ -898,7 +899,7 @@ const { data: contractor, isLoading, error } = useQuery<ServiceContractor>({
  <div className="w-2 h-2 rounded-full bg-red-500"></div>
  <span className="text-sm font-medium text-foreground">Emergency Service</span>
  </div>
- <Badge className="bg-red-100 text-red-700 border-red-200 font-medium">
+ <Badge className="bg-red-100 text-red-700 dark:bg-red-500/20 dark:text-red-300 border-red-200 font-medium">
  24/7 Available
  </Badge>
  </div>
@@ -907,7 +908,7 @@ const { data: contractor, isLoading, error } = useQuery<ServiceContractor>({
  <div className="w-2 h-2 rounded-full bg-emerald-500"></div>
  <span className="text-sm font-medium text-foreground">Response Time</span>
  </div>
- <Badge className="bg-emerald-100 text-emerald-700 border-emerald-200 font-medium">
+ <Badge className="bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300 border-emerald-200 font-medium">
  ≤ 2 hours
  </Badge>
  </div>
@@ -1721,7 +1722,7 @@ const { data: contractor, isLoading, error } = useQuery<ServiceContractor>({
  <Button 
  type="submit" 
  disabled={editContractorMutation.isPending}
- className="h-9 px-4 text-sm bg-emerald-600 hover:bg-emerald-700"
+ className="h-9 px-4 text-sm bg-emerald-700 hover:bg-emerald-800"
  >
  {editContractorMutation.isPending ? (
  <>

@@ -121,7 +121,7 @@ export default function OrganizationOnboarding() {
           <Button
             onClick={() => createOrg.mutate()}
             disabled={!canSubmit}
-            className="w-full h-11 bg-emerald-600 hover:bg-emerald-700 text-white font-medium rounded-lg"
+            className="w-full h-11 bg-emerald-700 hover:bg-emerald-800 text-white font-medium rounded-lg"
           >
             {createOrg.isPending ? (
               <>

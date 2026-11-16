@@ -307,7 +307,7 @@ export default function VirtualAssistant() {
         </CardContent></Card>
         <Card><CardContent className="pt-4 pb-3">
           <p className="text-xs text-muted-foreground">Pending maintenance</p>
-          <p className="text-xl font-semibold text-amber-600">{dm?.pendingRequests ?? "—"}</p>
+          <p className="text-xl font-semibold text-amber-700">{dm?.pendingRequests ?? "—"}</p>
           <p className="text-xs text-muted-foreground">open requests</p>
         </CardContent></Card>
         <Card><CardContent className="pt-4 pb-3">

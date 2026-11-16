@@ -107,15 +107,15 @@ const deriveLeaseStatus = (startDate?: string, endDate?: string, tenantStatus?: 
 
 const statusColors: Record<string, string> = {
   draft: "bg-muted text-foreground",
-  pending: "bg-yellow-100 text-yellow-800",
+  pending: "bg-yellow-100 text-yellow-800 dark:bg-yellow-500/20 dark:text-yellow-300",
   active: "bg-emerald-50 text-emerald-700 border border-emerald-200",
-  expired: "bg-red-100 text-red-800",
+  expired: "bg-red-100 text-red-800 dark:bg-red-500/20 dark:text-red-300",
 };
 
 const kycStatusColors: Record<string, string> = {
-  pending: "bg-yellow-100 text-yellow-800",
+  pending: "bg-yellow-100 text-yellow-800 dark:bg-yellow-500/20 dark:text-yellow-300",
   verified: "bg-emerald-50 text-emerald-700 border border-emerald-200",
-  rejected: "bg-red-100 text-red-800",
+  rejected: "bg-red-100 text-red-800 dark:bg-red-500/20 dark:text-red-300",
   incomplete: "bg-muted text-foreground",
 };
 

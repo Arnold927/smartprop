@@ -38,16 +38,16 @@ interface ApprovalRequest {
 }
 
 const PRIORITY_STYLES: Record<string, string> = {
-  urgent: "bg-red-100 text-red-700 border border-red-200",
-  high: "bg-orange-100 text-orange-700 border border-orange-200",
-  medium: "bg-amber-100 text-amber-700 border border-amber-200",
+  urgent: "bg-red-100 text-red-700 dark:bg-red-500/20 dark:text-red-300 border border-red-200",
+  high: "bg-orange-100 text-orange-700 dark:bg-orange-500/20 dark:text-orange-300 border border-orange-200",
+  medium: "bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-300 border border-amber-200",
   low: "bg-emerald-50 text-emerald-700 border border-emerald-200",
 };
 
 const STATUS_STYLES: Record<string, { pill: string; icon: any }> = {
-  pending: { pill: "bg-amber-100 text-amber-700", icon: Clock },
+  pending: { pill: "bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-300", icon: Clock },
   approved: { pill: "bg-emerald-50 text-emerald-700 border border-emerald-200", icon: CheckCircle },
-  rejected: { pill: "bg-red-100 text-red-700", icon: XCircle },
+  rejected: { pill: "bg-red-100 text-red-700 dark:bg-red-500/20 dark:text-red-300", icon: XCircle },
 };
 
 const BG_COLOR_MAP: Record<string, string> = {
@@ -59,7 +59,7 @@ const BG_COLOR_MAP: Record<string, string> = {
 };
 
 const ICON_COLOR_MAP: Record<string, string> = {
-  amber: "text-amber-600",
+  amber: "text-amber-700",
   blue: "text-blue-600",
   red: "text-red-600",
   purple: "text-purple-600",
@@ -98,7 +98,7 @@ const safeFormatDate = (date: string | null | undefined): string => {
 const formatCost = (cost?: string | null) => {
   if (!cost) return "—";
   const n = parseFloat(cost);
-  return isNaN(n) ? "—" : `KSh ${n.toLocaleString()}`;
+  return isNaN(n) ? "—" : `KES ${n.toLocaleString()}`;
 };
 
 export default function MaintenanceApprovals() {
@@ -186,7 +186,7 @@ export default function MaintenanceApprovals() {
 
   const kpiItems = [
     { label: "Pending", value: pending.length, icon: Clock, color: "amber" },
-    { label: "Total value", value: `KSh ${totalPendingCost.toLocaleString()}`, icon: DollarSign, color: "blue", small: true },
+    { label: "Total value", value: `KES ${totalPendingCost.toLocaleString()}`, icon: DollarSign, color: "blue", small: true },
     { label: "Urgent", value: urgentCount, icon: AlertTriangle, color: urgentCount > 0 ? "red" : "gray" },
     { label: "Total received", value: raw.length, icon: FileText, color: "purple" },
   ];

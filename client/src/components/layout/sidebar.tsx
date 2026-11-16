@@ -43,7 +43,7 @@ function NavItemComponent({
           <Link href={item.href}>
             <div className={`flex items-center justify-center w-10 h-10 rounded-lg cursor-pointer transition-all mx-auto relative ${
               active
-                ? "bg-emerald-600 text-white shadow-sm"
+                ? "bg-emerald-700 text-white shadow-sm"
                 : "text-muted-foreground hover:bg-muted hover:text-foreground"
             }`}>
               <Icon className="w-4 h-4 flex-shrink-0" />
@@ -73,7 +73,7 @@ function NavItemComponent({
     <Link href={item.href}>
       <div className={`flex items-center gap-2.5 px-3 py-2 rounded-lg cursor-pointer transition-all text-sm group ${
         active
-          ? "bg-emerald-600 text-white shadow-sm"
+          ? "bg-emerald-700 text-white shadow-sm"
           : "text-muted-foreground hover:bg-muted hover:text-foreground"
       }`}>
         <Icon className="w-4 h-4 flex-shrink-0" />

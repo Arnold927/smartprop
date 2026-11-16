@@ -82,7 +82,7 @@ function StepBadge({
           done
             ? "bg-green-500 text-white"
             : active
-            ? "bg-blue-600 text-white"
+            ? "bg-emerald-700 text-white"
             : "bg-slate-200 text-muted-foreground"
         }`}
       >
@@ -573,7 +573,7 @@ export default function QuickSetup() {
               <Button
                 onClick={() => createProperty.mutate()}
                 disabled={!propName.trim() || !propAddress.trim() || createProperty.isPending}
-                className="bg-emerald-600 hover:bg-emerald-700 text-white gap-2"
+                className="bg-emerald-700 hover:bg-emerald-800 text-white gap-2"
               >
                 {createProperty.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
                 Save property
@@ -643,7 +643,7 @@ export default function QuickSetup() {
               <Button
                 onClick={() => saveUnits.mutate(units)}
                 disabled={!canSaveUnits || saveUnits.isPending}
-                className="bg-emerald-600 hover:bg-emerald-700 text-white gap-2"
+                className="bg-emerald-700 hover:bg-emerald-800 text-white gap-2"
               >
                 {saveUnits.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
                 Save {units.length} unit{units.length !== 1 ? "s" : ""}
@@ -705,7 +705,7 @@ export default function QuickSetup() {
                 </div>
                 <Button
                   onClick={handleGoToDashboard}
-                  className="w-full h-11 bg-emerald-600 hover:bg-emerald-700 text-white gap-2"
+                  className="w-full h-11 bg-emerald-700 hover:bg-emerald-800 text-white gap-2"
                 >
                   Go to dashboard
                   <ArrowRight className="w-4 h-4" />

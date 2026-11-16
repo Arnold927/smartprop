@@ -396,7 +396,7 @@ export const WorkOrderCostModal: React.FC<Props> = ({ workOrderId, isOpen, setIs
           <Button
             onClick={handleSave}
             disabled={isSaving}
-            className="bg-blue-600 hover:bg-blue-700 text-white min-w-[140px]"
+            className="bg-emerald-700 hover:bg-emerald-800 text-white min-w-[140px]"
           >
             {isSaving ? (
               <>

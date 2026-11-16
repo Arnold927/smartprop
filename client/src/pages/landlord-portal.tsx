@@ -11,6 +11,8 @@
  *   POST /api/landlord-portal/reports/:id/email
  */
 
+import { SwipeRow } from "@/components/ui/swipe-row";
+import { contactSwipeActions } from "@/lib/swipe-contact";
 import { AnimatedNumber } from "@/components/ui/motion";
 import { Building2 as Building2Ic, Lock as LockIc, PieChart as PieChartIcon } from "lucide-react";
 import { EntityMedia } from "@/components/entity-media";
@@ -419,7 +421,7 @@ function EmptyState({ icon: Icon, title, description, action }: {
       <p className="text-muted-foreground text-sm mt-1.5 max-w-xs leading-relaxed">{description}</p>
       {action && (
         <button onClick={action.onClick}
-          className="mt-5 inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold transition-colors">
+          className="mt-5 inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white text-sm font-semibold transition-colors">
           <Plus className="h-4 w-4" />
           {action.label}
         </button>
@@ -1186,7 +1188,7 @@ function LandlordMessagesPanel({
                           </p>
                         </div>
                         <p className="text-xs text-muted-foreground truncate mt-0.5">{thread.subject}</p>
-                        <p className="text-xs text-muted-foreground/60 truncate mt-0.5">
+                        <p className="text-xs text-muted-foreground truncate mt-0.5">
                           {thread.messages[thread.messages.length - 1]?.content?.slice(0, 60)}…
                         </p>
                       </div>
@@ -2295,7 +2297,7 @@ export default function LandlordPortal({ ownerId }: LandlordPortalProps) {
       <div className="flex items-center justify-center min-h-[60vh] p-6">
         <div className="text-center max-w-sm space-y-3">
           <div className="w-14 h-14 rounded-full bg-amber-50 border border-amber-200 flex items-center justify-center mx-auto">
-            <LockIc className="h-6 w-6 text-amber-600" />
+            <LockIc className="h-6 w-6 text-amber-700" />
           </div>
           <h2 className="text-lg font-semibold text-foreground">Access restricted</h2>
           <p className="text-sm text-muted-foreground">This portal is for landlords only.</p>
@@ -2308,7 +2310,7 @@ export default function LandlordPortal({ ownerId }: LandlordPortalProps) {
       <div className="flex items-center justify-center min-h-[60vh] p-6">
         <div className="text-center max-w-sm space-y-3">
           <div className="w-14 h-14 rounded-full bg-amber-50 border border-amber-200 flex items-center justify-center mx-auto">
-            <Building2Ic className="h-6 w-6 text-amber-600" />
+            <Building2Ic className="h-6 w-6 text-amber-700" />
           </div>
           <h2 className="text-lg font-semibold text-foreground">No organisation linked</h2>
           <p className="text-sm text-muted-foreground">Your account is not linked to an organisation. Contact your administrator.</p>
@@ -2501,14 +2503,16 @@ export default function LandlordPortal({ ownerId }: LandlordPortalProps) {
                     {(dashboardData?.cashFlowSchedule ?? [])
                       .filter((t: any) => !t.paid)
                       .slice(0, 5)
-                      .map((t: any) => (
-                        <div key={t.tenantId} className="flex items-center justify-between py-2 text-sm">
+                      .map((t: any, i: number) => (
+                        <SwipeRow key={t.tenantId} peek={i === 0} trailing={contactSwipeActions(t.phone, String(t.name ?? "").split(" ")[0])}>
+                        <div className="flex items-center justify-between py-2 text-sm">
                           <div>
                             <p className="font-medium">{t.name}</p>
                             <p className="text-xs text-muted-foreground">{t.property} · Unit {t.unit}</p>
                           </div>
                           <p className="font-semibold text-red-600">KES {t.monthlyRent.toLocaleString("en-KE")}</p>
                         </div>
+                        </SwipeRow>
                       ))}
                     {(dashboardData?.cashFlowSchedule ?? []).filter((t: any) => !t.paid).length > 5 && (
                       <p className="text-xs text-muted-foreground pt-2 text-center">
@@ -2881,7 +2885,7 @@ export default function LandlordPortal({ ownerId }: LandlordPortalProps) {
                                 </div>
                                 <div className="flex items-center gap-2 flex-wrap">
                                   {isExpiring && (
-                                    <Badge className="text-[10px] bg-orange-100 text-orange-800 border-orange-200" >Lease expiring in {daysLeft}d</Badge>
+                                    <Badge className="text-[10px] bg-orange-100 text-orange-800 dark:bg-orange-500/20 dark:text-orange-300 border-orange-200" >Lease expiring in {daysLeft}d</Badge>
                                   )}
                                   <Badge variant="secondary" className="text-[10px] capitalize">{String(t.status ?? "").replace(/_/g, " ")}</Badge>
                                 </div>
@@ -3691,9 +3695,9 @@ export default function LandlordPortal({ ownerId }: LandlordPortalProps) {
                               <td className="py-3 pr-4">
                                 <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full capitalize ${
                                   e.status === "paid" ? "bg-emerald-50 text-emerald-700 border border-emerald-200" :
-                                  e.status === "approved" ? "bg-blue-100 text-blue-800" :
-                                  e.status === "rejected" ? "bg-red-100 text-red-700" :
-                                  "bg-yellow-100 text-yellow-800"
+                                  e.status === "approved" ? "bg-blue-100 text-blue-800 dark:bg-blue-500/20 dark:text-blue-300" :
+                                  e.status === "rejected" ? "bg-red-100 text-red-700 dark:bg-red-500/20 dark:text-red-300" :
+                                  "bg-yellow-100 text-yellow-800 dark:bg-yellow-500/20 dark:text-yellow-300"
                                 }`}>{e.status ?? "pending"}</span>
                               </td>
                               <td className="py-3">
@@ -3817,7 +3821,7 @@ export default function LandlordPortal({ ownerId }: LandlordPortalProps) {
                       {filtered.map((doc: any) => {
                         const rawExt = (doc.name ?? "").includes(".") ? (doc.name as string).split(".").pop()!.trim() : "";
                         const ext = /^[A-Za-z0-9]{1,5}$/.test(rawExt) ? rawExt.toUpperCase() : "FILE";
-                        const EXT_COLORS: Record<string, string> = { PDF: "bg-red-100 text-red-700", DOCX: "bg-blue-100 text-blue-700", DOC: "bg-blue-100 text-blue-700", XLSX: "bg-emerald-50 text-emerald-700 border border-emerald-200", JPG: "bg-purple-100 text-purple-700", JPEG: "bg-purple-100 text-purple-700", PNG: "bg-purple-100 text-purple-700" };
+                        const EXT_COLORS: Record<string, string> = { PDF: "bg-red-100 text-red-700 dark:bg-red-500/20 dark:text-red-300", DOCX: "bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-300", DOC: "bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-300", XLSX: "bg-emerald-50 text-emerald-700 border border-emerald-200", JPG: "bg-purple-100 text-purple-700 dark:bg-purple-500/20 dark:text-purple-300", JPEG: "bg-purple-100 text-purple-700 dark:bg-purple-500/20 dark:text-purple-300", PNG: "bg-purple-100 text-purple-700 dark:bg-purple-500/20 dark:text-purple-300" };
                         return (
                           <div key={doc.id} className="flex items-center gap-3 p-3 rounded-xl border border-border hover:border-primary/30 hover:shadow-sm transition-all group">
                             <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-bold text-[11px] shrink-0 ${EXT_COLORS[ext] ?? "bg-muted text-muted-foreground"}`}>
@@ -3898,7 +3902,7 @@ export default function LandlordPortal({ ownerId }: LandlordPortalProps) {
                                   )}
                                   <Badge variant="secondary" className={`text-[10px] capitalize ${prio.text}`}>{prio.label} priority</Badge>
                                   {alreadyActioned && (
-                                    <Badge className={`text-[10px] ${req.status === "assigned" ? "bg-emerald-50 text-emerald-700 border border-emerald-200" : "bg-red-100 text-red-700"}`}>
+                                    <Badge className={`text-[10px] ${req.status === "assigned" ? "bg-emerald-50 text-emerald-700 border border-emerald-200" : "bg-red-100 text-red-700 dark:bg-red-500/20 dark:text-red-300"}`}>
                                       {req.status === "assigned" ? "Approved" : "Rejected"}
                                     </Badge>
                                   )}

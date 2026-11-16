@@ -470,7 +470,7 @@ function HardwarePanel({ propertyId: externalPropertyId }: HardwarePanelProps) {
           </div>
 
           <Button
-            className="w-full bg-blue-600 hover:bg-blue-700 h-11"
+            className="w-full bg-emerald-700 hover:bg-emerald-800 h-11"
             disabled={saveMutation.isPending || isGuardSession}
             onClick={() => {
               if (isGuardSession) return;
@@ -755,7 +755,7 @@ function GatePassPanel({ propertyId }: { propertyId: number | null }) {
         </div>
         <button
           onClick={() => setSubmitted(search)}
-          className="rounded-xl bg-emerald-600 hover:bg-emerald-700 px-4 py-2.5 text-sm font-medium text-white transition-colors"
+          className="rounded-xl bg-emerald-700 hover:bg-emerald-800 px-4 py-2.5 text-sm font-medium text-white transition-colors"
         >
           Search
         </button>
@@ -962,7 +962,7 @@ function BlacklistPanel({ propertyId }: { propertyId: number | null }) {
           <button
             onClick={() => setCheckPlate(plate.trim())}
             disabled={!plate.trim()}
-            className="rounded-xl bg-emerald-600 hover:bg-emerald-700 disabled:opacity-40 px-4 py-2.5 text-sm font-medium text-white transition-colors"
+            className="rounded-xl bg-emerald-700 hover:bg-emerald-800 disabled:opacity-40 px-4 py-2.5 text-sm font-medium text-white transition-colors"
           >
             Check
           </button>
@@ -1290,7 +1290,7 @@ export default function GuardCheckin() {
                   onClick={() => setMode("camera")}
                   className={`flex items-center justify-center gap-2 rounded-xl py-3 px-4 text-sm font-medium transition-all ${
                     mode === "camera"
-                      ? "bg-blue-600 text-white shadow-lg shadow-blue-900/50"
+                      ? "bg-emerald-700 text-white shadow-lg shadow-emerald-900/40"
                       : "bg-muted text-muted-foreground hover:bg-muted/70"
                   }`}
                 >
@@ -1301,7 +1301,7 @@ export default function GuardCheckin() {
                   onClick={() => setMode("manual")}
                   className={`flex items-center justify-center gap-2 rounded-xl py-3 px-4 text-sm font-medium transition-all ${
                     mode === "manual"
-                      ? "bg-blue-600 text-white shadow-lg shadow-blue-900/50"
+                      ? "bg-emerald-700 text-white shadow-lg shadow-emerald-900/40"
                       : "bg-muted text-muted-foreground hover:bg-muted/70"
                   }`}
                 >
@@ -1416,7 +1416,7 @@ export default function GuardCheckin() {
 
                 <Button
                   className={`w-full h-12 font-semibold ${
-                    isCheckout ? "bg-orange-600 hover:bg-orange-700" : "bg-blue-600 hover:bg-blue-700"
+                    isCheckout ? "bg-orange-600 hover:bg-orange-700" : "bg-emerald-700 hover:bg-emerald-800"
                   }`}
                   onClick={handleManualSubmit}
                   disabled={!manualCode.trim() || isPending}
@@ -1531,7 +1531,7 @@ export default function GuardCheckin() {
                 </button>
 
                 <Button
-                  className="w-full bg-emerald-600 hover:bg-emerald-700 h-12 font-semibold"
+                  className="w-full bg-emerald-700 hover:bg-emerald-800 h-12 font-semibold"
                   onClick={async () => {
                     if (vehicleForm.plate.trim()) {
                       try {
@@ -1724,7 +1724,7 @@ export default function GuardCheckin() {
 
                 {selectedSpaceId && (
                   <Button
-                    className="w-full bg-emerald-600 hover:bg-emerald-700 h-12"
+                    className="w-full bg-emerald-700 hover:bg-emerald-800 h-12"
                     disabled={assignSpaceMutation.isPending}
                     onClick={() => {
                       if (!result?.visitor || !selectedSpaceId) return;

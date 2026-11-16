@@ -129,8 +129,8 @@ interface PendingPayment {
 
 const MATCH_STATUS_CONFIG = {
   matched:   { label: "Matched",   cls: "bg-emerald-50 text-emerald-700 border border-emerald-200",  icon: CheckCircle2 },
-  suggested: { label: "Suggested", cls: "bg-blue-100 text-blue-800 border-blue-200",     icon: AlertTriangle },
-  unmatched: { label: "Unmatched", cls: "bg-amber-100 text-amber-800 border-amber-200" ,  icon: AlertCircle  },
+  suggested: { label: "Suggested", cls: "bg-blue-100 text-blue-800 dark:bg-blue-500/20 dark:text-blue-300 border-blue-200",     icon: AlertTriangle },
+  unmatched: { label: "Unmatched", cls: "bg-amber-100 text-amber-800 dark:bg-amber-500/20 dark:text-amber-300 border-amber-200" ,  icon: AlertCircle  },
   ignored:   { label: "Ignored",   cls: "bg-gray-100 text-gray-600 border-gray-200",     icon: X            },
 };
 
@@ -310,7 +310,7 @@ export default function BankReconciliation() {
             Import bank statements from any Kenyan bank and auto-match transactions to rent invoices
           </p>
         </div>
-        <Button onClick={() => setTab("upload")} className="bg-blue-600 hover:bg-blue-700 text-white">
+        <Button onClick={() => setTab("upload")} className="bg-emerald-700 hover:bg-emerald-800 text-white">
           <Upload className="h-4 w-4 mr-2" />
           Import Statement
         </Button>
@@ -369,7 +369,7 @@ export default function BankReconciliation() {
                         <div className="flex items-center gap-3 mt-1.5 flex-wrap">
                           <span className="text-xs text-muted-foreground">{imp.rowCount} transactions</span>
                           <span className="text-xs text-green-600">{imp.matchedCount} matched</span>
-                          <span className="text-xs text-amber-600">{imp.unmatchedCount} unmatched</span>
+                          <span className="text-xs text-amber-700">{imp.unmatchedCount} unmatched</span>
                           <span className="text-xs text-muted-foreground">{imp.fileName}</span>
                         </div>
                         {/* Progress bar */}
@@ -500,7 +500,7 @@ export default function BankReconciliation() {
                   <Button type="button" variant="outline" onClick={() => setTab("imports")}>Cancel</Button>
                   <Button
                     type="submit"
-                    className="bg-blue-600 hover:bg-blue-700 text-white"
+                    className="bg-emerald-700 hover:bg-emerald-800 text-white"
                     disabled={uploadMutation.isPending}
                   >
                     {uploadMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
@@ -536,7 +536,7 @@ export default function BankReconciliation() {
                   </div>
                   <div>
                     <p className="text-xs text-muted-foreground">Unmatched</p>
-                    <p className="font-medium text-sm text-amber-600">{selectedImport.unmatchedCount}</p>
+                    <p className="font-medium text-sm text-amber-700">{selectedImport.unmatchedCount}</p>
                   </div>
                   <div className="ml-auto flex gap-2">
                     <Button
@@ -684,7 +684,7 @@ export default function BankReconciliation() {
                                   <Button
                                     size="sm"
                                     variant="ghost"
-                                    className="h-7 px-2 text-[11px] text-amber-600 hover:text-amber-700"
+                                    className="h-7 px-2 text-[11px] text-amber-700 hover:text-amber-700"
                                     onClick={() => unmatchMutation.mutate(row.id)}
                                     disabled={unmatchMutation.isPending}
                                   >
@@ -762,7 +762,7 @@ export default function BankReconciliation() {
                   </p>
                   <Button
                     size="sm"
-                    className="mt-2 h-7 text-xs bg-blue-600 hover:bg-blue-700 text-white"
+                    className="mt-2 h-7 text-xs bg-emerald-700 hover:bg-emerald-800 text-white"
                     onClick={() => matchMutation.mutate({
                       rowId:         matchDialogRow.id,
                       rentPaymentId: matchDialogRow.matchedPayment!.id,

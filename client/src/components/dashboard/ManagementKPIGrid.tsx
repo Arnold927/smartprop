@@ -49,11 +49,12 @@ const fmt = (n: number) => {
   try {
     return new Intl.NumberFormat("en-KE", {
       style: "currency",
+      currencyDisplay: "code",
       currency: "KES",
       minimumFractionDigits: 0,
     }).format(n);
   } catch {
-    return `KSh ${n.toLocaleString()}`;
+    return `KES ${n.toLocaleString()}`;
   }
 };
 

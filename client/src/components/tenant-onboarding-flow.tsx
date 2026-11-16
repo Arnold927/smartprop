@@ -274,7 +274,7 @@ export function TenantOnboardingFlow({ tenantId, tenantName, phone = "", rentAmo
           icon={Wrench}
           label="Maintenance"
           description="Log a repair request with a photo. Track its status until it's resolved."
-          color="bg-amber-50 dark:bg-amber-950/60 text-amber-600"
+          color="bg-amber-50 dark:bg-amber-950/60 text-amber-700"
         />
         <TourCard
           icon={MessageSquare}

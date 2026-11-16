@@ -531,7 +531,7 @@ export default function AddUnitDialog({
  <Button 
  type="submit"
  disabled={createUnitMutation.isPending || updateUnitMutation.isPending}
- className="bg-blue-600 hover:bg-blue-700 text-white border border-blue-600"
+ className="bg-emerald-700 hover:bg-emerald-800 text-white border border-blue-600"
  >
  {(createUnitMutation.isPending || updateUnitMutation.isPending) && (
  <Loader2 className="mr-2 h-4 w-4 animate-spin" />

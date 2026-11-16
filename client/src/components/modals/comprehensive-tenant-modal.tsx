@@ -448,7 +448,7 @@ export default function ComprehensiveTenantModal({ isOpen, onClose, properties: 
             <Button type="button" variant="outline" onClick={handleClose}>Cancel</Button>
             <Button
               type="submit"
-              className="px-8 bg-emerald-600 hover:bg-emerald-700 text-white"
+              className="px-8 bg-emerald-700 hover:bg-emerald-800 text-white"
               disabled={isSubmitting}
             >
               <Save className="h-4 w-4 mr-2" />

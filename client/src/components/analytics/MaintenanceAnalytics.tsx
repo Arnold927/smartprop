@@ -268,14 +268,14 @@ export function MaintenanceAnalytics({ timeframe = '30d' }: MaintenanceAnalytics
  </div>
  </div>
  <div className="flex items-start gap-3">
- <Badge className="bg-orange-100 text-orange-800">Opportunity</Badge>
+ <Badge className="bg-orange-100 text-orange-800 dark:bg-orange-500/20 dark:text-orange-300">Opportunity</Badge>
  <div>
  <p className="font-medium">Plumbing cost optimization</p>
  <p className="text-sm text-muted-foreground">42 plumbing requests suggest potential infrastructure upgrades</p>
  </div>
  </div>
  <div className="flex items-start gap-3">
- <Badge className="bg-blue-100 text-blue-800">Insight</Badge>
+ <Badge className="bg-blue-100 text-blue-800 dark:bg-blue-500/20 dark:text-blue-300">Insight</Badge>
  <div>
  <p className="font-medium">Technician utilization</p>
  <p className="text-sm text-muted-foreground">Samuel Ochieng shows highest efficiency with 28 completions</p>

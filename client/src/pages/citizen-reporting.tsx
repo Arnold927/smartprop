@@ -107,7 +107,7 @@ function KPICard({
         <div className="mt-3">
           <p className="text-2xl font-semibold text-foreground">{value}</p>
           <p className="text-xs text-muted-foreground mt-0.5">{title}</p>
-          <p className="text-[11px] text-muted-foreground/60 mt-0.5">{sub}</p>
+          <p className="text-[11px] text-muted-foreground mt-0.5">{sub}</p>
         </div>
       </CardContent>
     </Card>

@@ -101,7 +101,7 @@ export function EntityMedia({
               {labels.map(l => (
                 <button key={l} type="button" role="radio" aria-checked={label === l} onClick={() => setLabel(l)} disabled={busy}
                   className={cn("rounded-full border px-3 py-1 text-xs font-medium transition-colors",
-                    label === l ? "border-emerald-600 bg-emerald-600 text-white" : "border-border bg-card text-muted-foreground hover:bg-muted")}>
+                    label === l ? "border-emerald-600 bg-emerald-700 text-white" : "border-border bg-card text-muted-foreground hover:bg-muted")}>
                   {LABEL_TEXT[l]}
                 </button>
               ))}

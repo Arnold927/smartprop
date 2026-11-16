@@ -69,7 +69,7 @@ export function InviteStatusChip({ email, className = "" }: { email?: string | n
             type="button"
             data-no-touch-target
             onClick={(e) => e.stopPropagation()}
-            className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-medium transition-colors ${
+            className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 [@media(pointer:coarse)]:min-h-8 text-[11px] font-medium transition-colors ${
               expired
                 ? "border-red-200 bg-red-50 text-red-700 hover:bg-red-100"
                 : "border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100"

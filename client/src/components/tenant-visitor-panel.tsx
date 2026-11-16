@@ -204,7 +204,7 @@ function InviteForm({ onSuccess }: { onSuccess: () => void }) {
           </div>
 
           <Button
-            className="w-full bg-blue-600 hover:bg-blue-700 text-white"
+            className="w-full bg-emerald-700 hover:bg-emerald-800 text-white"
             disabled={!canSubmit || invite.isPending}
             onClick={() => invite.mutate()}
           >

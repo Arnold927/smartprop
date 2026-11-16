@@ -45,11 +45,11 @@ const fmtDay = (v?: string | null) => (v ? new Date(v).toLocaleDateString("en-KE
 
 const STATUS_COLORS: Record<string, string> = {
   active: "bg-emerald-50 text-emerald-700 border border-emerald-200",
-  trial: "bg-blue-100 text-blue-800",
-  past_due: "bg-yellow-100 text-yellow-800",
-  cancelled: "bg-red-100 text-red-800",
+  trial: "bg-blue-100 text-blue-800 dark:bg-blue-500/20 dark:text-blue-300",
+  past_due: "bg-yellow-100 text-yellow-800 dark:bg-yellow-500/20 dark:text-yellow-300",
+  cancelled: "bg-red-100 text-red-800 dark:bg-red-500/20 dark:text-red-300",
   inactive: "bg-gray-100 text-muted-foreground",
-  expired: "bg-red-100 text-red-800",
+  expired: "bg-red-100 text-red-800 dark:bg-red-500/20 dark:text-red-300",
 };
 
 const PLAN_ICONS: Record<string, React.ReactNode> = {

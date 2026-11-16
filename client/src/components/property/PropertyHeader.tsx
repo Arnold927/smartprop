@@ -51,7 +51,7 @@ export function PropertyHeader({ property, onAddUnit, onAddTenant, onEdit, onDel
 
   const occupancyColor =
     occupancyRate >= 90 ? "text-green-600 dark:text-green-400" :
-    occupancyRate >= 70 ? "text-amber-600 dark:text-amber-400" :
+    occupancyRate >= 70 ? "text-amber-700 dark:text-amber-400" :
                           "text-red-500 dark:text-red-400";
 
   const occupancyBarColor =
@@ -120,7 +120,7 @@ export function PropertyHeader({ property, onAddUnit, onAddTenant, onEdit, onDel
             {isManager && (
               <Button
                 size="sm"
-                className="bg-blue-600 hover:bg-blue-700 text-white"
+                className="bg-emerald-700 hover:bg-emerald-800 text-white"
                 onClick={onAddUnit}
               >
                 <Plus className="h-4 w-4 mr-1.5" />

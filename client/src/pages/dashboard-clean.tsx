@@ -295,7 +295,7 @@ function Empty({ icon: Icon, title, desc, cta }: { icon: any; title: string; des
         <p className="text-xs text-muted-foreground mt-0.5 max-w-40 leading-relaxed">{desc}</p>
       </div>
       {cta && (
-        <button onClick={cta.onClick} className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-medium transition-colors">
+        <button onClick={cta.onClick} className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-medium transition-colors">
           <Plus className="w-3.5 h-3.5" /> {cta.label}
         </button>
       )}
@@ -406,7 +406,7 @@ export default function DashboardClean() {
               </button>
             )}
             {m.expiringCount > 0 && (
-              <button onClick={() => navigate("/tenants")} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-500/10 border border-amber-200 dark:border-amber-900 text-amber-600 dark:text-amber-400 text-xs font-medium hover:bg-amber-500/20 transition-colors">
+              <button onClick={() => navigate("/tenants")} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-500/10 border border-amber-200 dark:border-amber-900 text-amber-700 dark:text-amber-400 text-xs font-medium hover:bg-amber-500/20 transition-colors">
                 <Bell className="w-3.5 h-3.5" />{m.expiringCount} expiring
               </button>
             )}
@@ -516,7 +516,7 @@ export default function DashboardClean() {
                   {[
                     { label: "Collected", val: m.revenueThisMonth, color: "text-emerald-600 dark:text-emerald-400", bg: "bg-emerald-500/8 dark:bg-emerald-500/15" },
                     { label: "Overdue",   val: m.overdueAmount,    color: "text-red-600 dark:text-red-400",       bg: "bg-red-500/8 dark:bg-red-500/15"         },
-                    { label: "Pending",   val: m.pendingAmount,    color: "text-amber-600 dark:text-amber-400",   bg: "bg-amber-500/8 dark:bg-amber-500/15"     },
+                    { label: "Pending",   val: m.pendingAmount,    color: "text-amber-700 dark:text-amber-400",   bg: "bg-amber-500/8 dark:bg-amber-500/15"     },
                   ].map(({ label, val, color, bg }) => (
                     <div key={label} className={`${bg} rounded-xl px-3 py-3 text-center`}>
                       <p className={`text-sm font-bold ${color} leading-tight`}>{fmtKES(val)}</p>
@@ -616,7 +616,7 @@ export default function DashboardClean() {
             <div className="grid grid-cols-3 gap-2 mb-5">
               {[
                 { label: "Active",   value: m.activeTenants,        color: "text-emerald-600 dark:text-emerald-400", bg: "bg-emerald-500/8 dark:bg-emerald-500/15" },
-                { label: "Pending",  value: m.pendingTenants,       color: "text-amber-600 dark:text-amber-400",     bg: "bg-amber-500/8 dark:bg-amber-500/15"     },
+                { label: "Pending",  value: m.pendingTenants,       color: "text-amber-700 dark:text-amber-400",     bg: "bg-amber-500/8 dark:bg-amber-500/15"     },
                 { label: "Expiring", value: m.expiringCount, color: "text-red-600 dark:text-red-400",        bg: "bg-red-500/8 dark:bg-red-500/15"         },
               ].map(({ label, value, color, bg }) => (
                 <div key={label} className={`${bg} rounded-xl py-3 text-center`}>
@@ -664,7 +664,7 @@ export default function DashboardClean() {
         {(m.urgentMaint > 0 || m.overdueCount > 0 || m.expiringCount > 0) && (
           <div className="rounded-2xl border border-amber-200 dark:border-amber-900 bg-amber-500/5 px-5 py-4">
             <div className="flex items-center gap-2 mb-3">
-              <Activity className="w-4 h-4 text-amber-600 dark:text-amber-400" />
+              <Activity className="w-4 h-4 text-amber-700 dark:text-amber-400" />
               <p className="text-sm font-semibold text-amber-800 dark:text-amber-300">Attention required</p>
             </div>
             <div className="flex flex-wrap gap-2">

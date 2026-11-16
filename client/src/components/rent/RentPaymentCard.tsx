@@ -2,6 +2,8 @@ import { CheckCircle, Bell, MoreVertical } from "lucide-react";
 import { format, parseISO, differenceInDays, isValid } from "date-fns";
 import { MobileActionSheet } from "@/components/ui/mobile-action-sheet";
 import { useState } from "react";
+import { SwipeRow } from "@/components/ui/swipe-row";
+import { contactSwipeActions } from "@/lib/swipe-contact";
 
 interface RentPaymentCardProps {
   payment: any;
@@ -9,6 +11,7 @@ interface RentPaymentCardProps {
   onReminder: (id: number, onDone: () => void) => void;
   isMarkingPaid?: boolean;
   isSendingReminder?: boolean;
+  peek?: boolean;
 }
 
 export function RentPaymentCard({
@@ -17,6 +20,7 @@ export function RentPaymentCard({
   onReminder,
   isMarkingPaid = false,
   isSendingReminder = false,
+  peek,
 }: RentPaymentCardProps) {
   const [isSheetOpen, setIsSheetOpen] = useState(false);
   const canAct = payment.status === "pending" || payment.status === "overdue";
@@ -33,7 +37,7 @@ export function RentPaymentCard({
       label: isSendingReminder ? "Sending…" : "Send Reminder",
       icon: Bell,
       onClick: () => onReminder(payment.id, () => setIsSheetOpen(false)),
-      className: "text-amber-600",
+      className: "text-amber-700",
       disabled: isSendingReminder,
     },
   ];
@@ -82,9 +86,19 @@ export function RentPaymentCard({
 
   return (
     <>
+      <SwipeRow
+        peek={peek}
+        disabled={!canAct}
+        onTap={() => canAct && setIsSheetOpen(true)}
+        className="border-b border-border"
+        trailing={[
+          { key: "remind", label: "Remind", icon: Bell, tone: "amber", disabled: isSendingReminder, onAction: () => onReminder(payment.id, () => setIsSheetOpen(false)) },
+          ...contactSwipeActions(payment.tenant?.phone, payment.tenant?.firstName),
+          { key: "paid", label: "Paid", icon: CheckCircle, tone: "green", disabled: isMarkingPaid, onAction: () => onMarkPaid(payment.id, () => setIsSheetOpen(false)) },
+        ]}
+      >
       <div
-        className="relative bg-card border-b border-border px-4 py-3.5 active:bg-muted transition-colors cursor-pointer"
-        onClick={() => canAct && setIsSheetOpen(true)}
+        className="px-4 py-3.5 active:bg-muted transition-colors cursor-pointer"
       >
         <div className="flex items-center justify-between gap-2">
           <div className="min-w-0 flex-1">
@@ -110,6 +124,7 @@ export function RentPaymentCard({
           </div>
         </div>
       </div>
+      </SwipeRow>
 
       <MobileActionSheet
         open={isSheetOpen}

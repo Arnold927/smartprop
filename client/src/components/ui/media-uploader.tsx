@@ -215,7 +215,7 @@ export function MediaUploader({ onUploaded, onClear, className }: MediaUploaderP
         onChange={handleInputChange}
       />
       <div className="flex flex-col items-center justify-center gap-1.5 py-5 px-4 text-muted-foreground">
-        <Upload className={cn("h-7 w-7 transition-colors", dragging ? "text-blue-500" : "text-muted-foreground/60")} />
+        <Upload className={cn("h-7 w-7 transition-colors", dragging ? "text-blue-500" : "text-muted-foreground")} />
         <p className="text-sm font-medium text-foreground">
           {dragging ? "Drop to upload" : "Click or drag a file here"}
         </p>

@@ -538,7 +538,7 @@ export default function GatePortal() {
             )}
 
             <Button
-              className="w-full h-12 bg-blue-600 hover:bg-blue-700 font-semibold"
+              className="w-full h-12 bg-emerald-700 hover:bg-emerald-800 font-semibold"
               onClick={handleLogin}
               disabled={loginLoading || !propertyId || pinDigits.join("").length < 4}
             >
@@ -560,7 +560,7 @@ export default function GatePortal() {
                 <button key={m} onClick={() => setCheckinMode(m)}
                   className={`flex items-center justify-center gap-2 rounded-xl py-3 text-sm font-medium transition-all ${
                     checkinMode === m
-                      ? "bg-blue-600 text-white shadow-lg shadow-blue-900/40"
+                      ? "bg-emerald-700 text-white shadow-lg shadow-emerald-900/30"
                       : "bg-slate-800 text-slate-400 hover:bg-slate-700"
                   }`}
                 >
@@ -652,7 +652,7 @@ export default function GatePortal() {
                   autoFocus
                 />
                 <Button
-                  className={`w-full h-12 font-semibold ${isCheckout ? "bg-orange-600 hover:bg-orange-700" : "bg-blue-600 hover:bg-blue-700"}`}
+                  className={`w-full h-12 font-semibold ${isCheckout ? "bg-orange-600 hover:bg-orange-700" : "bg-emerald-700 hover:bg-emerald-800"}`}
                   disabled={!manualCode.trim() || checkinLoading}
                   onClick={() => isCheckout ? doCheckout(manualCode) : doCheckin(manualCode)}
                 >
@@ -804,7 +804,7 @@ export default function GatePortal() {
               Visitor has no vehicle — skip
             </button>
 
-            <Button className="w-full bg-blue-600 hover:bg-blue-700 h-12 font-semibold"
+            <Button className="w-full bg-emerald-700 hover:bg-emerald-800 h-12 font-semibold"
               onClick={async () => {
                 if (vehicleForm.plate.trim() && session) {
                   try {
@@ -966,7 +966,7 @@ export default function GatePortal() {
             )}
 
             {selectedSpaceId && (
-              <Button className="w-full bg-blue-600 hover:bg-blue-700 h-12" onClick={assignSpace}>
+              <Button className="w-full bg-emerald-700 hover:bg-emerald-800 h-12" onClick={assignSpace}>
                 <CheckCircle className="w-4 h-4 mr-2" /> Confirm Space
               </Button>
             )}
@@ -1063,7 +1063,7 @@ export default function GatePortal() {
                 </div>
 
                 <Button
-                  className="w-full bg-blue-600 hover:bg-blue-700 h-12 font-semibold"
+                  className="w-full bg-emerald-700 hover:bg-emerald-800 h-12 font-semibold"
                   disabled={!adhocForm.visitorName.trim() || !adhocForm.purpose.trim() || adhocLoading}
                   onClick={async () => {
                     if (!session) return;

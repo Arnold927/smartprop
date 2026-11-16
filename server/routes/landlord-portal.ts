@@ -281,7 +281,7 @@ router.get("/dashboard", authenticateJWT, requireOrg, requireOwner, async (req: 
     const thisMonthEnd   = endOfMonth(now);
     const activeTenants = await db
       .select({ id: tenants.id, firstName: tenants.firstName, lastName: tenants.lastName,
-                monthlyRent: tenants.monthlyRent, unitNumber: units.unitNumber, propertyName: properties.name })
+                monthlyRent: tenants.monthlyRent, phone: tenants.phone, unitNumber: units.unitNumber, propertyName: properties.name })
       .from(tenants)
       .leftJoin(units,      eq(tenants.unitId,    units.id))
       .leftJoin(properties, eq(units.propertyId,  properties.id))
@@ -304,6 +304,7 @@ router.get("/dashboard", authenticateJWT, requireOrg, requireOwner, async (req: 
       property: t.propertyName,
       unit: t.unitNumber,
       monthlyRent: Number(t.monthlyRent ?? 0),
+      phone: t.phone ?? null,        // so the landlord can call / WhatsApp a late payer straight from the list
       paid: paidSet.has(t.id),
     }));
     const expectedThisMonth  = activeTenants.reduce((s, t) => s + Number(t.monthlyRent ?? 0), 0);

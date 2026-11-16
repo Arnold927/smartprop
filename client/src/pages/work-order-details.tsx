@@ -201,7 +201,7 @@ export default function WorkOrderDetailsPage() {
         </div>
         <h2 className="text-xl font-semibold mb-2">Work Order Not Found</h2>
         <p className="text-muted-foreground mb-6">This work order doesn't exist or has been removed.</p>
-        <Button className="bg-emerald-600 hover:bg-emerald-700 text-white" onClick={() => setLocation("/maintenance")}>
+        <Button className="bg-emerald-700 hover:bg-emerald-800 text-white" onClick={() => setLocation("/maintenance")}>
           <ArrowLeft className="w-4 h-4 mr-2" />Back to Maintenance
         </Button>
       </div>
@@ -324,7 +324,7 @@ export default function WorkOrderDetailsPage() {
                       <TabsTrigger key={value} value={value}
                         className="data-[state=active]:text-emerald-700 data-[state=active]:border-b-2 data-[state=active]:border-emerald-600 rounded-none pb-3 text-sm font-medium text-muted-foreground gap-1.5">
                         <Icon className="w-3.5 h-3.5" />{label}
-                        {count ? <span className="ml-1 inline-flex items-center justify-center w-4 h-4 rounded-full bg-emerald-100 text-emerald-700 text-[9px] font-bold">{count}</span> : null}
+                        {count ? <span className="ml-1 inline-flex items-center justify-center w-4 h-4 rounded-full bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300 text-[9px] font-bold">{count}</span> : null}
                       </TabsTrigger>
                     ))}
                   </TabsList>
@@ -410,7 +410,7 @@ export default function WorkOrderDetailsPage() {
                                 <div className="rounded-xl border border-border bg-muted/20 p-4">
                                   <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
                                     <div className="flex items-center gap-2">
-                                      <Avatar className="w-6 h-6"><AvatarFallback className="bg-emerald-100 text-emerald-700 text-[10px]">{u.updatedBy[0]?.toUpperCase()}</AvatarFallback></Avatar>
+                                      <Avatar className="w-6 h-6"><AvatarFallback className="bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300 text-[10px]">{u.updatedBy[0]?.toUpperCase()}</AvatarFallback></Avatar>
                                       <span className="text-sm font-medium">{u.updatedBy}</span>
                                     </div>
                                     <div className="flex items-center gap-1.5">
@@ -443,7 +443,7 @@ export default function WorkOrderDetailsPage() {
                             </FormItem>
                           )} />
                           <div className="flex justify-end">
-                            <Button type="submit" size="sm" disabled={commentMut.isPending} className="bg-emerald-600 hover:bg-emerald-700 text-white h-8 text-xs">
+                            <Button type="submit" size="sm" disabled={commentMut.isPending} className="bg-emerald-700 hover:bg-emerald-800 text-white h-8 text-xs">
                               {commentMut.isPending ? <RefreshCw className="w-3 h-3 mr-1.5 animate-spin" /> : <Send className="w-3 h-3 mr-1.5" />}
                               Post Comment
                             </Button>
@@ -461,7 +461,7 @@ export default function WorkOrderDetailsPage() {
                       ) : (comments as WorkOrderComment[]).map(c => (
                         <div key={c.id} className="rounded-xl border border-border bg-muted/20 p-4">
                           <div className="flex items-start gap-3">
-                            <Avatar className="w-8 h-8 flex-shrink-0"><AvatarFallback className="bg-emerald-100 text-emerald-700 text-xs">{c.userName[0]?.toUpperCase()}</AvatarFallback></Avatar>
+                            <Avatar className="w-8 h-8 flex-shrink-0"><AvatarFallback className="bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300 text-xs">{c.userName[0]?.toUpperCase()}</AvatarFallback></Avatar>
                             <div className="flex-1 min-w-0">
                               <div className="flex items-center justify-between gap-2 mb-1">
                                 <span className="text-sm font-semibold">{c.userName}</span>
@@ -505,7 +505,7 @@ export default function WorkOrderDetailsPage() {
                 ) : (
                   <div className="space-y-3">
                     <div className="flex items-center gap-3">
-                      <Avatar className="w-10 h-10"><AvatarFallback className="bg-emerald-100 text-emerald-700 font-bold">{(contractor.companyName || contractor.name || "C")[0].toUpperCase()}</AvatarFallback></Avatar>
+                      <Avatar className="w-10 h-10"><AvatarFallback className="bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300 font-bold">{(contractor.companyName || contractor.name || "C")[0].toUpperCase()}</AvatarFallback></Avatar>
                       <div>
                         <p className="font-semibold text-sm">{contractor.companyName || contractor.name}</p>
                         {contractor.specialty && <p className="text-xs text-muted-foreground">{contractor.specialty}</p>}
@@ -600,7 +600,7 @@ export default function WorkOrderDetailsPage() {
               <FormField control={form.control} name="estimatedCost" render={({ field }) => (<FormItem><FormLabel>Estimated Cost ({cur})</FormLabel><FormControl><Input type="number" {...field} onChange={e => field.onChange(e.target.value === "" ? undefined : Number(e.target.value))} /></FormControl><FormMessage /></FormItem>)} />
               <DialogFooter className="pt-2">
                 <Button type="button" variant="outline" onClick={() => setIsEditOpen(false)}>Cancel</Button>
-                <Button type="submit" disabled={updateMut.isPending} className="bg-emerald-600 hover:bg-emerald-700 text-white">
+                <Button type="submit" disabled={updateMut.isPending} className="bg-emerald-700 hover:bg-emerald-800 text-white">
                   {updateMut.isPending ? <><RefreshCw className="w-3.5 h-3.5 mr-1.5 animate-spin" />Saving…</> : <><CheckCircle className="w-3.5 h-3.5 mr-1.5" />Save Changes</>}
                 </Button>
               </DialogFooter>
@@ -638,7 +638,7 @@ export default function WorkOrderDetailsPage() {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setIsStatusOpen(false)}>Cancel</Button>
-            <Button disabled={!selectedStatus || statusMut.isPending} onClick={() => statusMut.mutate(selectedStatus)} className="bg-emerald-600 hover:bg-emerald-700 text-white">
+            <Button disabled={!selectedStatus || statusMut.isPending} onClick={() => statusMut.mutate(selectedStatus)} className="bg-emerald-700 hover:bg-emerald-800 text-white">
               {statusMut.isPending ? <><RefreshCw className="w-3.5 h-3.5 mr-1.5 animate-spin" />Updating…</> : "Update Status"}
             </Button>
           </DialogFooter>

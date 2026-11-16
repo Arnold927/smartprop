@@ -254,7 +254,7 @@ export function ViewTenantDialog({
           )}
           <Button
             size="sm"
-            className="bg-blue-600 hover:bg-blue-700 text-white"
+            className="bg-emerald-700 hover:bg-emerald-800 text-white"
             onClick={() => { onOpenChange(false); navigate(`/tenants/${tenant.id}`); }}
           >
             <ExternalLink className="h-3.5 w-3.5 mr-1.5" />

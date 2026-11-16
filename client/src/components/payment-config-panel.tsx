@@ -123,17 +123,17 @@ function PaymentMethodSection({
         <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: color + "20", color }}>
           <Icon className="w-4 h-4" />
         </div>
-        <h3 className="font-semibold text-gray-900">{title}</h3>
+        <h3 className="font-semibold text-foreground">{title}</h3>
         {filledCount > 0 && (
-          <Badge className="text-xs bg-emerald-50 text-emerald-700 border border-emerald-200">
+          <Badge className="text-xs bg-emerald-50 text-emerald-700 border border-emerald-200 dark:bg-emerald-500/10 dark:text-emerald-300 dark:border-emerald-500/30">
             {filledCount} method{filledCount > 1 ? "s" : ""} configured
           </Badge>
         )}
       </div>
 
       {/* M-Pesa Paybill */}
-      <div className={`rounded-xl border p-4 space-y-3 ${paybillChanged ? "border-red-300 bg-red-50/60" : "border-gray-100 bg-gray-50/50"}`}>
-        <div className="flex items-center gap-2 text-sm font-medium text-gray-700">
+      <div className={`rounded-xl border p-4 space-y-3 ${paybillChanged ? "border-red-300 bg-red-50/60 dark:border-red-500/40 dark:bg-red-500/10" : "border-border bg-muted/40"}`}>
+        <div className="flex items-center gap-2 text-sm font-medium text-foreground">
           <Smartphone className="w-4 h-4 text-green-600" />
           M-Pesa Paybill
         </div>
@@ -149,16 +149,16 @@ function PaymentMethodSection({
             {/* Show the server .env value so the user can see if they match */}
             {serverShortcode && (
               <div className="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-[11px]">
-                <span className="text-gray-400">Server shortcode (.env):</span>
+                <span className="text-muted-foreground">Server shortcode (.env):</span>
                 <span className={`font-mono font-semibold px-1.5 py-0.5 rounded text-[11px] ${
                   account.mpesaPaybill && account.mpesaPaybill !== serverShortcode
-                    ? "bg-red-100 text-red-700"
-                    : "bg-gray-100 text-gray-600"
+                    ? "bg-red-100 text-red-700 dark:bg-red-500/20 dark:text-red-300"
+                    : "bg-muted text-muted-foreground"
                 }`}>
                   {serverShortcode}
                 </span>
                 {account.mpesaPaybill === serverShortcode && (
-                  <span className="text-emerald-600 flex items-center gap-0.5">
+                  <span className="text-emerald-700 dark:text-emerald-400 flex items-center gap-0.5">
                     <CheckCircle2 className="w-3 h-3" /> matches server
                   </span>
                 )}
@@ -206,12 +206,12 @@ function PaymentMethodSection({
           </div>
         )}
 
-        <p className="text-xs text-gray-500">Tenant will be told: Lipa na M-Pesa → Pay Bill → Business No → their unit number as account</p>
+        <p className="text-xs text-muted-foreground">Tenant will be told: Lipa na M-Pesa → Pay Bill → Business No → their unit number as account</p>
       </div>
 
       {/* M-Pesa Till */}
-      <div className={`rounded-xl border p-4 space-y-3 ${tillChanged ? "border-red-300 bg-red-50/60" : "border-gray-100 bg-gray-50/50"}`}>
-        <div className="flex items-center gap-2 text-sm font-medium text-gray-700">
+      <div className={`rounded-xl border p-4 space-y-3 ${tillChanged ? "border-red-300 bg-red-50/60 dark:border-red-500/40 dark:bg-red-500/10" : "border-border bg-muted/40"}`}>
+        <div className="flex items-center gap-2 text-sm font-medium text-foreground">
           <CreditCard className="w-4 h-4 text-green-600" />
           M-Pesa Till (Buy Goods)
         </div>
@@ -251,19 +251,19 @@ function PaymentMethodSection({
           </div>
         )}
 
-        <p className="text-xs text-gray-500">Tenant will use Lipa na M-Pesa → Buy Goods → Till No.</p>
+        <p className="text-xs text-muted-foreground">Tenant will use Lipa na M-Pesa → Buy Goods → Till No.</p>
       </div>
 
       {/* Bank Transfer */}
-      <div className="rounded-xl border border-gray-100 bg-gray-50/50 p-4 space-y-3">
-        <div className="flex items-center gap-2 text-sm font-medium text-gray-700">
+      <div className="rounded-xl border border-border bg-muted/40 p-4 space-y-3">
+        <div className="flex items-center gap-2 text-sm font-medium text-foreground">
           <Banknote className="w-4 h-4 text-blue-600" />
           Bank Transfer
         </div>
 
         {/* Advisory note about bank vs M-Pesa */}
-        <div className="flex items-start gap-2.5 rounded-lg bg-amber-50 border border-amber-200 p-3 text-xs text-amber-900">
-          <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-0.5 text-amber-600" />
+        <div className="flex items-start gap-2.5 rounded-lg bg-amber-50 border border-amber-200 p-3 text-xs text-amber-900 dark:bg-amber-500/10 dark:border-amber-500/30 dark:text-amber-200">
+          <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-0.5 text-amber-700 dark:text-amber-300" />
           <div className="space-y-1.5">
             <p className="font-bold">Bank details are for display only — no STK Push</p>
             <p>
@@ -619,7 +619,7 @@ export default function PaymentConfigPanel({ scope = "org", landlordOwnerId, ext
 
   if (isLoading) {
     return (
-      <div className="flex items-center gap-2 text-sm text-gray-500 py-6">
+      <div className="flex items-center gap-2 text-sm text-muted-foreground py-6">
         <Loader2 className="w-4 h-4 animate-spin" /> Loading payment config...
       </div>
     );
@@ -659,7 +659,7 @@ export default function PaymentConfigPanel({ scope = "org", landlordOwnerId, ext
                     contact your system administrator first.
                   </p>
                 </div>
-                <p className="text-gray-600 text-xs">
+                <p className="text-muted-foreground text-xs">
                   Manual Paybill and Till payments shown to tenants will update immediately.
                   STK Push will only work correctly once the server credentials match.
                 </p>
@@ -670,7 +670,7 @@ export default function PaymentConfigPanel({ scope = "org", landlordOwnerId, ext
             <Button
               variant="outline"
               onClick={() => setShowConfirm(false)}
-              className="border-gray-300"
+              className="border-input"
             >
               Cancel — Do Not Save
             </Button>
@@ -693,11 +693,11 @@ export default function PaymentConfigPanel({ scope = "org", landlordOwnerId, ext
       {/* Scope-specific status banner */}
       {(scope === "mine" || scope === "landlord") && (
         <div className={`flex items-start gap-3 rounded-xl border p-4 ${
-          config?.configured ? "border-emerald-100 bg-emerald-50" : "border-amber-200 bg-amber-50"
+          config?.configured ? "border-emerald-100 bg-emerald-50 dark:border-emerald-500/30 dark:bg-emerald-500/10" : "border-amber-200 bg-amber-50 dark:border-amber-500/30 dark:bg-amber-500/10"
         }`}>
           {config?.configured
             ? <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" />
-            : <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+            : <AlertTriangle className="w-5 h-5 text-amber-700 dark:text-amber-300 shrink-0 mt-0.5" />
           }
           <div className="text-sm">
             {config?.configured ? (
@@ -713,10 +713,10 @@ export default function PaymentConfigPanel({ scope = "org", landlordOwnerId, ext
               </>
             ) : (
               <>
-                <p className="font-semibold text-amber-800">
+                <p className="font-semibold text-amber-800 dark:text-amber-200">
                   {scope === "mine" ? "You haven't set up your own payment details yet" : "This landlord hasn't set up their own payment details yet"}
                 </p>
-                <p className="mt-1 text-amber-700">
+                <p className="mt-1 text-amber-700 dark:text-amber-300">
                   {scope === "mine"
                     ? "Your tenants are currently seeing the organisation's default payment details. Save the form below to use your own instead."
                     : "Their tenants are currently seeing the organisation's default payment details. Save the form below to set up their own instead."}
@@ -794,7 +794,7 @@ export default function PaymentConfigPanel({ scope = "org", landlordOwnerId, ext
         )}
         {sameAsRent && (
           <CardContent>
-            <div className="flex items-center gap-3 rounded-xl bg-green-50 border border-green-100 p-4 text-sm text-green-800">
+            <div className="flex items-center gap-3 rounded-xl bg-green-50 border border-green-100 p-4 text-sm text-green-800 dark:bg-green-500/10 dark:border-green-500/30 dark:text-green-300">
               <CheckCircle2 className="w-4 h-4 text-green-600 shrink-0" />
               Utility bills will use the same payment details as rent.
             </div>
