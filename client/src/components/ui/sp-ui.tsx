@@ -24,6 +24,8 @@
  */
 
 import React, { useState } from "react";
+import { AnimatedNumber } from "@/components/ui/motion";
+import { haptic } from "@/lib/feel";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -159,7 +161,13 @@ export function StatsGrid({ children, cols = 4, className = "" }: {
   children: React.ReactNode; cols?: 2 | 3 | 4; className?: string;
 }) {
   const gridCols = { 2: "grid-cols-2", 3: "grid-cols-2 sm:grid-cols-3", 4: "grid-cols-2 lg:grid-cols-4" }[cols];
-  return <div className={cn(`grid gap-4 ${gridCols}`, className)}>{children}</div>;
+  return (
+    <div className={cn(`grid gap-4 ${gridCols}`, className)}>
+      {React.Children.toArray(children).map((child, i) => (
+        <div key={i} className="sp-rise min-w-0 [&>*]:h-full [&>*]:w-full" style={{ ["--i" as any]: i }}>{child}</div>
+      ))}
+    </div>
+  );
 }
 
 // ── StatTile ──────────────────────────────────────────────────────────────────
@@ -188,10 +196,10 @@ export function StatTile({ label, value, sub, icon, accent = "emerald", trend, o
   const Wrapper = onClick ? "button" : "div";
   return (
     <Wrapper
-      onClick={onClick}
+      onClick={onClick ? () => { haptic("tap"); onClick(); } : undefined}
       className={cn(
         "group relative bg-card rounded-xl border border-border shadow-sm p-4 sm:p-5 text-left overflow-hidden min-w-0",
-        onClick && "hover:border-muted hover:shadow-md transition-all duration-200 w-full cursor-pointer",
+        onClick && "sp-lift sp-press w-full cursor-pointer",
       )}
     >
       <div className={`absolute left-0 top-0 bottom-0 w-1 ${c.bar} rounded-l-xl`} />
@@ -208,7 +216,7 @@ export function StatTile({ label, value, sub, icon, accent = "emerald", trend, o
         )}
       </div>
       <div className="ml-2 mt-3 min-w-0">
-        <p className="text-xl sm:text-2xl font-bold text-foreground tracking-tight tabular-nums leading-tight break-words">{value}</p>
+        <p className="text-xl sm:text-2xl font-bold text-foreground tracking-tight tabular-nums leading-tight break-words"><AnimatedNumber value={value} /></p>
         {sub && <p className="text-xs text-muted-foreground mt-1.5 leading-relaxed">{sub}</p>}
       </div>
       {onClick && (
@@ -329,8 +337,8 @@ export function EmptyState({ icon, title, description, action, size = "md" }: Em
   const iSize = { sm: "w-10 h-10", md: "w-14 h-14", lg: "w-16 h-16" }[size];
   const iIcon = { sm: "w-5 h-5", md: "w-7 h-7", lg: "w-8 h-8" }[size];
   return (
-    <div className={cn("flex flex-col items-center text-center px-4 space-y-3", py)}>
-      <div className={cn(iSize, "rounded-2xl bg-muted border border-border flex items-center justify-center text-muted-foreground")}>
+    <div className={cn("sp-pop flex flex-col items-center text-center px-4 space-y-3", py)}>
+      <div className={cn(iSize, "sp-float rounded-2xl bg-gradient-to-b from-emerald-50 to-muted dark:from-emerald-950/40 dark:to-muted border border-border flex items-center justify-center text-emerald-600/80 dark:text-emerald-400/80 shadow-sm")}>
         {React.isValidElement(icon)
           ? React.cloneElement(icon as any, { className: iIcon })
           : icon}
@@ -344,7 +352,7 @@ export function EmptyState({ icon, title, description, action, size = "md" }: Em
       {action && (
         <button
           onClick={action.onClick}
-          className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-medium transition-colors"
+          className="sp-press inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-medium shadow-sm shadow-emerald-600/20"
         >
           {action.icon ?? <Plus className="w-3.5 h-3.5" />}
           {action.label}
@@ -639,13 +647,13 @@ export function SectionDivider({ label }: { label: string }) {
 
 export function LoadingRow() {
   return (
-    <div className="flex items-center gap-4 px-5 py-4 border-b border-border animate-pulse">
-      <div className="w-9 h-9 rounded-full bg-muted flex-shrink-0" />
+    <div className="flex items-center gap-4 px-5 py-4 border-b border-border">
+      <div className="sp-skeleton w-9 h-9 rounded-full flex-shrink-0" />
       <div className="flex-1 space-y-2">
-        <div className="h-4 bg-muted rounded w-1/3" />
-        <div className="h-3 bg-muted rounded w-1/2" />
+        <div className="sp-skeleton h-4 rounded w-1/3" />
+        <div className="sp-skeleton h-3 rounded w-1/2" />
       </div>
-      <div className="h-5 w-16 bg-muted rounded-full" />
+      <div className="sp-skeleton h-5 w-16 rounded-full" />
     </div>
   );
 }
@@ -664,7 +672,7 @@ export function PrimaryButton({
       onClick={onClick}
       disabled={disabled || loading}
       className={cn(
-        "inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-medium whitespace-nowrap shrink-0 transition-colors disabled:opacity-50 disabled:cursor-not-allowed",
+        "sp-press inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-medium whitespace-nowrap shrink-0 shadow-sm shadow-emerald-600/20 hover:shadow-md hover:shadow-emerald-600/25 disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-none",
         className,
       )}
     >
@@ -687,7 +695,7 @@ export function SecondaryButton({
       onClick={onClick}
       disabled={disabled}
       className={cn(
-        "inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-background border border-border hover:bg-muted text-foreground text-sm font-medium whitespace-nowrap transition-colors disabled:opacity-50",
+        "sp-press inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-background border border-border hover:bg-muted text-foreground text-sm font-medium whitespace-nowrap disabled:opacity-50",
         className,
       )}
     >

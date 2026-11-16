@@ -21,6 +21,7 @@
  *   />
  */
 
+import { haptic } from "@/lib/feel";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -291,8 +292,8 @@ export function TenantOnboardingFlow({ tenantId, tenantName, phone = "", rentAmo
 
   return (
     // Backdrop
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40 backdrop-blur-sm p-4">
-      <div className="w-full max-w-sm bg-background rounded-3xl shadow-2xl overflow-hidden">
+    <div className="sp-fade fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+      <div className="sp-pop w-full max-w-sm bg-background rounded-3xl shadow-2xl overflow-hidden">
 
         {/* Header bar */}
         <div className="flex items-center justify-between px-5 pt-5 pb-3">
@@ -313,13 +314,13 @@ export function TenantOnboardingFlow({ tenantId, tenantName, phone = "", rentAmo
         <Progress value={((step + 1) / TOTAL_STEPS) * 100} className="h-0.5 rounded-none" />
 
         {/* Step content */}
-        <div className="px-5 py-6">
+        <div key={step} className="sp-rise px-5 py-6">
           {steps[step]}
         </div>
 
         {/* Footer */}
         <div className="px-5 pb-6">
-          <Button onClick={handleNext} className="w-full h-11 text-sm font-medium rounded-xl">
+          <Button onClick={() => { haptic("select"); handleNext(); }} className="w-full h-11 text-sm font-medium rounded-xl">
             {step === TOTAL_STEPS - 1 ? (
               <>Go to my portal <CheckCircle className="w-4 h-4 ml-1.5" /></>
             ) : (

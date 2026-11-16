@@ -25,6 +25,7 @@
  *   POST /messages                  — send message
  */
 
+import { timeGreeting } from "@/lib/feel";
 import { Building2 as Building2Ic, Lock as LockIc } from "lucide-react";
 import { PortalHeader, PortalChip, PortalMeta } from "@/components/portal-header";
 import { MediaPicker, type StagedMedia } from "@/components/ui/media-picker";
@@ -1410,7 +1411,7 @@ export default function ContractorPortal() {
       {/* ── Contractor header ─────────────────────────────────────────── */}
       <PortalHeader
         icon={Briefcase}
-        eyebrow="Contractor Portal"
+        eyebrow={`${timeGreeting()} · Contractor Portal`}
         title={profile.name ?? user?.firstName ?? "Contractor"}
         meta={profile.specialty ? <PortalMeta className="capitalize">{profile.specialty}</PortalMeta> : undefined}
         actions={<>

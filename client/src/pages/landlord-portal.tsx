@@ -11,6 +11,7 @@
  *   POST /api/landlord-portal/reports/:id/email
  */
 
+import { AnimatedNumber } from "@/components/ui/motion";
 import { Building2 as Building2Ic, Lock as LockIc } from "lucide-react";
 import { EntityMedia } from "@/components/entity-media";
 import { PortalHeader, PortalChip, PortalMeta } from "@/components/portal-header";
@@ -382,7 +383,7 @@ function KPICard({
         <h3 className="text-2xl font-bold mt-1 text-foreground tabular-nums">
           {isCurrency
             ? <CurrencyDisplay amount={Number(value ?? 0)} currency="KES" locale="en-KE" />
-            : String(value ?? "—")}
+            : <AnimatedNumber value={String(value ?? "—")} />}
         </h3>
         {sparkData && sparkData.length > 1 && (
           <div className="mt-3 h-8">

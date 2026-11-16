@@ -165,11 +165,28 @@ function PageSkeleton() {
   );
 }
 
+// ── Page entrance ─────────────────────────────────────────────────────────────
+// Rendered inside the same Suspense boundary as the page, so it mounts at the moment the page's
+// content appears (after its chunk has loaded) and replays the "ease in" on <main>'s page content.
+// It animates what is already there instead of wrapping the page in another element, so pages that
+// size themselves against <main> (h-full chat panes, portals) keep their layout.
+function EnterFx() {
+  React.useLayoutEffect(() => {
+    const main = document.querySelector("main");
+    if (!main) return;
+    main.classList.remove("sp-route");
+    void (main as HTMLElement).offsetWidth;
+    main.classList.add("sp-route");
+  }, []);
+  return <span hidden aria-hidden="true" />;
+}
+
 // ── Lazy wrapper: ProtectedRoute + Suspense in one ────────────────────────────
 function P({ children }: { children: React.ReactNode }) {
   return (
     <ProtectedRoute>
       <Suspense fallback={<PageSkeleton />}>
+        <EnterFx />
         {children}
       </Suspense>
     </ProtectedRoute>

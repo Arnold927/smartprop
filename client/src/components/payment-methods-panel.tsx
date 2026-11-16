@@ -23,6 +23,7 @@
 
 import { useState, useRef, useEffect } from "react";
 import { Button } from "@/components/ui/button";
+import { SuccessBurst, AnimatedNumber } from "@/components/ui/motion";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
@@ -163,12 +164,12 @@ function StkPushPanel({
 
   if (stkState.phase === "success") {
     return (
-      <div className="rounded-xl border border-green-200 bg-green-50 dark:bg-green-950/40 p-4 text-center space-y-2">
-        <CheckCircle className="w-8 h-8 text-green-600 mx-auto" />
-        <p className="font-bold text-green-800 dark:text-green-200 text-sm">Payment Confirmed!</p>
-        <p className="text-xs text-green-700 dark:text-green-300">{fmtKES(stkState.amount!, currency)} received</p>
+      <div className="sp-pop rounded-2xl border border-emerald-200 dark:border-emerald-800 bg-gradient-to-b from-emerald-50 to-white dark:from-emerald-950/50 dark:to-emerald-950/20 p-5 text-center space-y-2" role="status">
+        <SuccessBurst size={56} />
+        <p className="font-bold text-emerald-900 dark:text-emerald-100 text-base pt-1">Payment received. Thank you!</p>
+        <p className="text-xl font-bold tabular-nums text-emerald-700 dark:text-emerald-300"><AnimatedNumber value={fmtKES(stkState.amount!, currency)} duration={1100} /></p>
         {stkState.receipt && (
-          <p className="text-xs font-mono bg-white dark:bg-green-900/40 border border-green-200 rounded-lg px-3 py-1.5">Receipt: {stkState.receipt}</p>
+          <p className="sp-rise text-xs font-mono bg-white dark:bg-emerald-900/40 border border-emerald-200 dark:border-emerald-700 rounded-lg px-3 py-1.5" style={{ ["--i" as any]: 3 }}>Receipt: {stkState.receipt}</p>
         )}
       </div>
     );
@@ -177,7 +178,7 @@ function StkPushPanel({
   if (stkState.phase === "waiting") {
     return (
       <div className="rounded-xl border border-blue-200 bg-blue-50 dark:bg-blue-950/40 p-4 text-center space-y-2">
-        <Smartphone className="w-6 h-6 text-blue-600 mx-auto animate-pulse" />
+        <span className="relative mx-auto flex h-10 w-10 items-center justify-center"><span className="absolute inset-0 rounded-full bg-blue-400/30 animate-ping" aria-hidden="true" /><Smartphone className="relative w-6 h-6 text-blue-600" /></span>
         <p className="font-semibold text-blue-800 dark:text-blue-200 text-sm">Waiting for your PIN…</p>
         <p className="text-xs text-blue-600 dark:text-blue-400 flex items-center justify-center gap-1"><Loader2 className="w-3 h-3 animate-spin" /> Checking status…</p>
         <Button size="sm" variant="outline" className="text-xs h-7" onClick={reset}>Cancel</Button>

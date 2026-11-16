@@ -38,6 +38,7 @@
 import { useState } from "react";
 import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
+import { haptic } from "@/lib/feel";
 import {
   LayoutDashboard, Building2, Users, DollarSign, Wrench,
   FileText, Shield, ArrowRight, CheckCircle, Briefcase,
@@ -129,7 +130,7 @@ function ManagerWelcome({
   return (
     <>
       {/* Icon */}
-      <div className="w-16 h-16 lg:w-20 lg:h-20 rounded-2xl bg-emerald-500/10 flex items-center justify-center mx-auto mb-5">
+      <div className="w-16 h-16 lg:w-20 lg:h-20 rounded-2xl bg-emerald-500/10 flex items-center justify-center mx-auto mb-5 sp-pop-spring">
         <LayoutDashboard className="w-8 h-8 lg:w-10 lg:h-10 text-emerald-600" />
       </div>
 
@@ -144,7 +145,7 @@ function ManagerWelcome({
       </div>
 
       {/* Steps */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-2.5 mb-6">
+      <div className="sp-stagger grid grid-cols-1 lg:grid-cols-2 gap-2.5 mb-6">
         <StepCard
           icon={Building2}
           label="1. Add a property"
@@ -252,7 +253,7 @@ function LandlordWelcome({
         </p>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-2.5 mb-6">
+      <div className="sp-stagger grid grid-cols-1 lg:grid-cols-2 gap-2.5 mb-6">
         <StepCard
           icon={LayoutDashboard}
           label="Portfolio dashboard"
@@ -284,7 +285,7 @@ function LandlordWelcome({
         <InfoRow icon={MessageSquare} text="Message your property manager directly from the portal." />
       </div>
 
-      <Button className="w-full h-11 rounded-xl text-sm font-medium" onClick={onDismiss}>
+      <Button className="w-full h-11 rounded-xl text-sm font-medium" onClick={() => { haptic("select"); onDismiss(); }}>
         View my portfolio <CheckCircle className="w-4 h-4 ml-1.5" />
       </Button>
     </>
@@ -334,7 +335,7 @@ function StaffWelcome({
         <p className="text-sm text-muted-foreground mt-2 leading-relaxed">{roleHint}</p>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-2.5 mb-6">
+      <div className="sp-stagger grid grid-cols-1 lg:grid-cols-2 gap-2.5 mb-6">
         <StepCard
           icon={ClipboardList}
           label="Your work queue"
@@ -360,7 +361,7 @@ function StaffWelcome({
         Ask your manager to update your job title in Staff Management — the portal adapts automatically.
       </div>
 
-      <Button className="w-full h-11 rounded-xl text-sm font-medium" onClick={onDismiss}>
+      <Button className="w-full h-11 rounded-xl text-sm font-medium" onClick={() => { haptic("select"); onDismiss(); }}>
         Go to my dashboard <CheckCircle className="w-4 h-4 ml-1.5" />
       </Button>
     </>
@@ -376,7 +377,7 @@ function ContractorWelcome({
 }) {
   return (
     <>
-      <div className="w-16 h-16 lg:w-20 lg:h-20 rounded-2xl bg-amber-500/10 flex items-center justify-center mx-auto mb-5">
+      <div className="w-16 h-16 lg:w-20 lg:h-20 rounded-2xl bg-amber-500/10 flex items-center justify-center mx-auto mb-5 sp-pop-spring">
         <Wrench className="w-8 h-8 text-amber-600" />
       </div>
 
@@ -389,7 +390,7 @@ function ContractorWelcome({
         </p>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-2.5 mb-6">
+      <div className="sp-stagger grid grid-cols-1 lg:grid-cols-2 gap-2.5 mb-6">
         <StepCard
           icon={ClipboardList}
           label="Work orders"
@@ -417,7 +418,7 @@ function ContractorWelcome({
         </p>
       </div>
 
-      <Button className="w-full h-11 rounded-xl text-sm font-medium" onClick={onDismiss}>
+      <Button className="w-full h-11 rounded-xl text-sm font-medium" onClick={() => { haptic("select"); onDismiss(); }}>
         See my work orders <CheckCircle className="w-4 h-4 ml-1.5" />
       </Button>
     </>
@@ -441,8 +442,8 @@ export function FirstRunOverlay({
 
   return (
     // Backdrop
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40 backdrop-blur-sm p-4 sm:p-6 lg:p-8">
-      <div className="w-full max-w-sm sm:max-w-lg lg:max-w-2xl bg-background rounded-3xl shadow-2xl overflow-hidden">
+    <div className="sp-fade fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40 backdrop-blur-sm p-4 sm:p-6 lg:p-8">
+      <div className="sp-pop w-full max-w-sm sm:max-w-lg lg:max-w-2xl bg-background rounded-3xl shadow-2xl overflow-hidden">
         {/* Dismiss X */}
         <div className="flex justify-end px-5 sm:px-8 pt-5 sm:pt-6 pb-0">
           <button

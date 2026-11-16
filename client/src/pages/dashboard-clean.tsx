@@ -9,6 +9,7 @@ import { MpesaStatusAlert } from "@/components/MpesaStatusAlert";
 import { FirstRunOverlay, needsFirstRun, markFirstRunDone } from "@/components/first-run-overlay";
 import { useQuery } from "@tanstack/react-query";
 import { GettingStarted } from "@/components/getting-started";
+import { AnimatedNumber } from "@/components/ui/motion";
 import { useLocation } from "wouter";
 import { apiRequest, ensureArray } from "@/lib/queryClient";
 import { useDashboardSummary } from "@/hooks/useDashboardSummary";
@@ -137,7 +138,7 @@ function MetricCard({
   return (
     <Wrapper
       onClick={onClick}
-      className={`group relative bg-card border border-border rounded-2xl p-5 text-left w-full overflow-hidden transition-all duration-200 ${onClick ? "hover:border-emerald-300 hover:shadow-md cursor-pointer" : ""}`}
+      className={`group relative bg-card border border-border rounded-2xl p-5 text-left w-full overflow-hidden ${onClick ? "sp-lift sp-press hover:border-emerald-300 cursor-pointer" : ""}`}
     >
       {/* accent strip */}
       <div className={`absolute top-0 left-0 right-0 h-0.5 ${accent} rounded-t-2xl`} />
@@ -156,12 +157,12 @@ function MetricCard({
         )}
       </div>
 
-      <p className="text-xl sm:text-2xl font-bold text-foreground tracking-tight tabular-nums leading-tight break-words">{value}</p>
+      <p className="text-xl sm:text-2xl font-bold text-foreground tracking-tight tabular-nums leading-tight break-words"><AnimatedNumber value={value} /></p>
       <p className="text-xs text-muted-foreground mt-1.5">{detail}</p>
 
       <div className="flex items-end justify-between mt-3">
-        <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-widest">{label}</p>
-        <div className="flex items-end gap-2">
+        <p className="min-w-0 text-[10px] font-semibold text-muted-foreground uppercase tracking-widest">{label}</p>
+        <div className="flex shrink-0 items-end gap-2">
           {sparkData && sparkData.length > 1 && (
             <Sparkline data={sparkData} color={sparkColor ?? "#10b981"} />
           )}
@@ -213,8 +214,8 @@ function Sparkline({ data, color = "#10b981", height = 32 }: { data: number[]; c
     return `${x},${y}`;
   }).join(" ");
   return (
-    <svg width={w} height={height} className="opacity-60">
-      <polyline points={pts} fill="none" stroke={color} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+    <svg viewBox={`0 0 ${w} ${height}`} height={height} className="opacity-60 shrink-0 w-14 sm:w-20" preserveAspectRatio="none" aria-hidden="true">
+      <polyline className="sp-spark" pathLength={1} points={pts} fill="none" stroke={color} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   );
 }
@@ -432,7 +433,7 @@ export default function DashboardClean() {
         <MpesaStatusAlert />
 
         {/* ── 4 metric cards ── */}
-        <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
+        <div className="sp-stagger grid grid-cols-2 xl:grid-cols-4 gap-4">
           <MetricCard
             label="Properties"
             value={String(m.totalProperties)}
@@ -487,7 +488,7 @@ export default function DashboardClean() {
               <>
                 <div className="h-52">
                   <ResponsiveContainer width="100%" height="100%">
-                    <AreaChart data={m.chartMonths} margin={{ top: 4, right: 0, left: -28, bottom: 0 }}>
+                    <AreaChart data={m.chartMonths} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
                       <defs>
                         <linearGradient id="gIncome" x1="0" y1="0" x2="0" y2="1">
                           <stop offset="0%"   stopColor="#10b981" stopOpacity={0.2} />
@@ -500,7 +501,7 @@ export default function DashboardClean() {
                       </defs>
                       <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
                       <XAxis dataKey="month" tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} axisLine={false} tickLine={false} />
-                      <YAxis tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} axisLine={false} tickLine={false} tickFormatter={v => v >= 1000 ? `${(v/1000).toFixed(0)}K` : String(v)} />
+                      <YAxis width={48} tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} axisLine={false} tickLine={false} tickFormatter={v => v >= 1000 ? `${(v/1000).toFixed(0)}K` : String(v)} />
                       <Tooltip content={<ChartTip />} />
                       <Area type="monotone" dataKey="income"  stroke="#10b981" strokeWidth={2} fill="url(#gIncome)"  dot={false} name="Revenue"  />
                       <Area type="monotone" dataKey="expense" stroke="#ef4444" strokeWidth={2} fill="url(#gExpense)" dot={false} name="Expenses" />

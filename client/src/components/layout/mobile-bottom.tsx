@@ -15,6 +15,7 @@ import { useQuery } from "@tanstack/react-query";
 import { apiRequest, ensureArray } from "@/lib/queryClient";
 import { useAuth } from "@/hooks/useAuth";
 import { useIsCompact } from "@/hooks/use-mobile";
+import { haptic } from "@/lib/feel";
 import {
   LayoutDashboard, Home, Users, DollarSign, Wrench, FileText,
   MessageSquare, BarChart2, Truck, Settings, X,
@@ -265,8 +266,8 @@ export default function MobileBottomNav() {
               return (
                 <button
                   key="more"
-                  onClick={() => setSheetOpen(true)}
-                  className={`flex-1 basis-0 min-w-0 min-h-[44px] flex flex-col items-center justify-center gap-1 py-2 text-[11px] font-medium transition-colors ${
+                  onClick={() => { haptic("tap"); setSheetOpen(true); }}
+                  className={`sp-press flex-1 basis-0 min-w-0 min-h-[44px] flex flex-col items-center justify-center gap-1 py-2 text-[11px] font-medium ${
                     sheetOpen ? "text-primary" : "text-muted-foreground hover:text-foreground"
                   }`}
                 >
@@ -277,15 +278,15 @@ export default function MobileBottomNav() {
             }
 
             return (
-              <Link key={tab.href! + idx} href={tab.href!} className="flex-1 basis-0 min-w-0 flex">
-                <div className={`flex-1 min-w-0 min-h-[44px] flex flex-col items-center justify-center gap-1 py-2 text-[11px] font-medium transition-colors cursor-pointer relative ${
+              <Link key={tab.href! + idx} href={tab.href!} className="flex-1 basis-0 min-w-0 flex" onClick={() => { if (!active) haptic("tap"); }}>
+                <div className={`sp-press flex-1 min-w-0 min-h-[44px] flex flex-col items-center justify-center gap-1 py-2 text-[11px] font-medium cursor-pointer relative ${
                   active ? "text-primary" : "text-muted-foreground hover:text-foreground"
                 }`}>
                   {active && (
-                    <div className="absolute top-0 left-1/2 -translate-x-1/2 w-8 h-0.5 bg-primary rounded-b-full" />
+                    <div className="sp-pop absolute top-0 left-1/2 -translate-x-1/2 w-8 h-0.5 bg-primary rounded-b-full" />
                   )}
                   <div className="relative shrink-0">
-                    <Icon className={`w-5 h-5 ${active ? "stroke-[2.5]" : ""}`} />
+                    <Icon className={`w-5 h-5 transition-transform duration-200 ${active ? "stroke-[2.5] scale-110" : ""}`} />
                     {badge > 0 && (
                       <span className="absolute -top-1.5 -right-2 min-w-[16px] h-4 bg-red-500 text-white text-[9px] font-bold rounded-full flex items-center justify-center px-0.5">
                         {badge > 99 ? "99+" : badge}
@@ -304,10 +305,10 @@ export default function MobileBottomNav() {
       {sheetOpen && (
         <>
           <div
-            className="fixed inset-0 bg-black/40 z-[55] backdrop-blur-sm"
+            className="sp-fade fixed inset-0 bg-black/40 z-[55] backdrop-blur-sm"
             onClick={() => setSheetOpen(false)}
           />
-          <div className="fixed bottom-0 left-0 right-0 z-[60] chrome-scope bg-background rounded-t-2xl border-t border-border pb-safe max-h-[75vh] overflow-y-auto">
+          <div className="sp-sheet-up fixed bottom-0 left-0 right-0 z-[60] chrome-scope bg-background rounded-t-2xl border-t border-border pb-safe max-h-[75vh] overflow-y-auto shadow-2xl">
             {/* Handle */}
             <div className="flex justify-center pt-3 pb-1">
               <div className="w-10 h-1 bg-muted-foreground/30 rounded-full" />
@@ -335,8 +336,8 @@ export default function MobileBottomNav() {
                       return (
                         <Link key={item.href} href={item.href}>
                           <div
-                            onClick={() => setSheetOpen(false)}
-                            className={`flex items-center gap-3 px-4 py-3 rounded-xl cursor-pointer transition-colors ${
+                            onClick={() => { haptic("tap"); setSheetOpen(false); }}
+                            className={`sp-press flex items-center gap-3 px-4 py-3 rounded-xl cursor-pointer ${
                               active
                                 ? "bg-primary/10 text-primary"
                                 : "bg-muted/50 text-foreground hover:bg-muted"

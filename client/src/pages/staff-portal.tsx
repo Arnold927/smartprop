@@ -28,6 +28,7 @@
  *   - Everything else: org-scoped (existing APIs), shown as read-only view
  */
 
+import { timeGreeting } from "@/lib/feel";
 import { Building2 as Building2Ic, Lock as LockIc } from "lucide-react";
 import { PortalHeader, PortalMeta } from "@/components/portal-header";
 import { tenantOptions, unitOptions, propertyOptions, userOptions, byId } from "@/lib/pickerOptions";
@@ -1927,7 +1928,7 @@ export default function StaffPortal() {
 
       <PortalHeader
         icon={meta.icon}
-        eyebrow={meta.label}
+        eyebrow={`${timeGreeting()} · ${meta.label}`}
         title={fullName}
         maxWidth="max-w-4xl"
         meta={<PortalMeta className="capitalize">{[position, department].filter(Boolean).join(" · ")}</PortalMeta>}

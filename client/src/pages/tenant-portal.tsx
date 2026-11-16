@@ -15,6 +15,7 @@
  *   PATCH /api/maintenance-requests/:id/feedback — rate resolved request
  */
 
+import { SuccessBurst, AnimatedNumber } from "@/components/ui/motion";
 import { Wrench as WrenchIc, Zap as ZapIc, Snowflake as SnowflakeIc, Hammer as HammerIc, Paintbrush as PaintbrushIc, Sparkles as SparklesIc, Leaf as LeafIc, Plug as PlugIc, Lock as LockIc, ClipboardList as ClipboardListIc, Moon as MoonIc } from "lucide-react";
 import { PortalHeader, PortalChip, PortalMeta } from "@/components/portal-header";
 import { renderWhatsAppText } from "@/lib/whatsapp-text";
@@ -337,19 +338,17 @@ function MpesaSTKPush({
   // ── Success screen ──────────────────────────────────────────────────────────
   if (stkState.phase === "success") {
     return (
-      <div className="rounded-2xl border border-green-200 dark:border-green-800 bg-green-50 dark:bg-green-950/40 p-6 text-center space-y-3">
-        <div className="w-14 h-14 rounded-full bg-green-100 dark:bg-green-900 flex items-center justify-center mx-auto">
-          <CheckCircle className="w-7 h-7 text-green-600" />
+      <div className="sp-pop rounded-2xl border border-emerald-200 dark:border-emerald-800 bg-gradient-to-b from-emerald-50 to-white dark:from-emerald-950/50 dark:to-emerald-950/20 p-6 text-center space-y-3" role="status">
+        <SuccessBurst size={68} />
+        <div className="pt-1">
+          <p className="font-bold text-emerald-900 dark:text-emerald-100 text-lg">Payment received. Thank you!</p>
+          <p className="text-2xl font-bold tabular-nums text-emerald-700 dark:text-emerald-300 mt-1"><AnimatedNumber value={fmtKES(stkState.amount)} duration={1100} /></p>
         </div>
-        <div>
-          <p className="font-bold text-green-800 dark:text-green-200 text-base">Payment Confirmed!</p>
-          <p className="text-sm text-green-700 dark:text-green-300 mt-1">{fmtKES(stkState.amount)} received successfully</p>
-        </div>
-        <div className="bg-white dark:bg-green-900/40 rounded-xl border border-green-200 dark:border-green-700 p-3 text-left">
-          <p className="text-[11px] text-muted-foreground">M-Pesa Receipt No.</p>
+        <div className="sp-rise bg-white dark:bg-emerald-900/40 rounded-xl border border-emerald-200 dark:border-emerald-700 p-3 text-left" style={{ ["--i" as any]: 3 }}>
+          <p className="text-xs text-muted-foreground">M-Pesa receipt number</p>
           <p className="text-sm font-mono font-bold text-foreground">{stkState.receipt}</p>
         </div>
-        <p className="text-xs text-green-700 dark:text-green-400">Keep this receipt number for your records.</p>
+        <p className="text-xs text-emerald-800 dark:text-emerald-300">Keep this receipt number for your records.</p>
       </div>
     );
   }

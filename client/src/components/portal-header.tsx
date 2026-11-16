@@ -81,12 +81,12 @@ export function PortalHeader({
   className?: string;
 }) {
   return (
-    <header className={cn("border-b border-border bg-card px-4 py-4 sm:px-6 sm:py-5", sticky && "sticky top-0 z-10", className)}>
+    <header className={cn("sp-fade border-b border-border bg-card px-4 py-4 sm:px-6 sm:py-5", sticky && "sticky top-0 z-10", className)}>
       <div className={cn("mx-auto w-full", maxWidth)}>
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex min-w-0 items-center gap-3 sm:gap-4">
             {(Icon || avatar) && (
-              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-emerald-100 bg-emerald-50 text-emerald-700 dark:border-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-300 sm:h-12 sm:w-12">
+              <div className="sp-pop flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-emerald-100 bg-emerald-50 text-emerald-700 dark:border-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-300 sm:h-12 sm:w-12">
                 {avatar ? <span className="text-base font-semibold sm:text-lg">{avatar}</span> : Icon && <Icon className="h-5 w-5 sm:h-6 sm:w-6" />}
               </div>
             )}

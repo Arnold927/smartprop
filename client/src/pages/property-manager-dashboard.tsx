@@ -10,6 +10,7 @@
  *  ✅ Mobile responsive (sm: breakpoints throughout)
  */
 
+import { timeGreeting } from "@/lib/feel";
 import { TechnicianSelect, useAssignTechnician } from "@/components/technician-picker";
 import { PortalHeader, PortalMeta } from "@/components/portal-header";
 import { tenantOptions, unitOptions, propertyOptions, userOptions, byId } from "@/lib/pickerOptions";
@@ -642,7 +643,7 @@ export default function PropertyManagerDashboard() {
       <PortalHeader
         icon={Building}
         eyebrow="Property Manager"
-        title={user?.firstName ? `Welcome, ${user.firstName}` : "Operations Dashboard"}
+        title={user?.firstName ? `${timeGreeting()}, ${user.firstName}` : "Operations Dashboard"}
         meta={<>
           <PortalMeta>{format(new Date(),"EEE, dd MMM yyyy")}</PortalMeta>
           <PortalMeta>{occupancyRate}% occupancy</PortalMeta>
