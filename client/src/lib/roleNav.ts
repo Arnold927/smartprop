@@ -57,6 +57,7 @@ const getCoreManagerItems = (t: (k: string) => string) => [
       // reachable directly at /tenant-onboarding if needed.
       // { name: t("nav.onboarding"),       href: "/tenant-onboarding" },
       { name: t("nav.short_term_rentals"), href: "/tenant-subletting" },
+      { name: "Rent-to-Own",             href: "/rent-to-own" },
       { name: "Diaspora Rent-to-Own",    href: "/diaspora-rent-to-own" },
     ],
   },
@@ -452,7 +453,7 @@ export const ROLE_ALLOWED_ROUTES: Record<string, string[]> = {
   manager: [
     "/", "/dashboard", "/property-manager-dashboard", "/finance-dashboard", "/maintenance-dashboard",
     "/properties", "/parking-management", "/visitor-management", "/inspections", "/caretakers",
-    "/tenants", "/leases", "/prospects", "/tenant-onboarding", "/tenant-subletting", "/diaspora-rent-to-own", "/diaspora-rent-to-own/:id",
+    "/tenants", "/leases", "/prospects", "/tenant-onboarding", "/tenant-subletting", "/rent-to-own", "/diaspora-rent-to-own", "/diaspora-rent-to-own/:id",
     "/finances", "/rent-collection", "/arrears", "/expense-management", "/bank-reconciliation",
     "/utility-management", "/utility-bill-sender", "/owner-statements", "/general-ledger",
     "/maintenance", "/maintenance-request", "/contractors", "/work-orders", "/construction-projects",

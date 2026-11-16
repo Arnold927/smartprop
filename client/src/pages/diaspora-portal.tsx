@@ -20,6 +20,7 @@ import { useSearch } from "wouter";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/useAuth";
 import { useDarkModeContext } from "@/context/DarkModeContext";
+import { apiErrorMessage } from "@/lib/maintenance-flow";
 import { apiRequest, ensureArray } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useWsEvent } from "@/hooks/useWebSocket";
@@ -739,7 +740,7 @@ export default function DiasporaBuyerPortal() {
       setComposeOpen(false);
       qc.invalidateQueries({ queryKey: ["/api/diaspora-portal/messages"] });
     },
-    onError: (err: any) => toast({ title: "Error", description: err.message, variant: "destructive" }),
+    onError: (err: any) => toast({ title: "Error", description: apiErrorMessage(err), variant: "destructive" }),
   });
 
   // ── Real-time WebSocket events ───────────────────────────────────────────────
@@ -898,6 +899,9 @@ export default function DiasporaBuyerPortal() {
                             <span>Paid: <strong className="text-foreground">{fmtMoney(contract.totalPaid, contract.currency)}</strong></span>
                             <span>Remaining: <strong className="text-foreground">{fmtMoney(contract.remainingBalance, contract.currency)}</strong></span>
                             <span>Next due: <strong className={overdue ? "text-red-600" : "text-foreground"}>{fmt(due)}</strong></span>
+                            {contract.constructionProgress != null && (
+                              <span>Built: <strong className="text-foreground">{fmtPct(contract.constructionProgress)}</strong></span>
+                            )}
                           </div>
                         </div>
                         <ChevronRight className="h-5 w-5 text-muted-foreground shrink-0 mt-1" />
@@ -938,7 +942,7 @@ export default function DiasporaBuyerPortal() {
                   <CardContent className="p-4 flex items-center justify-between">
                     <div>
                       <p className="font-medium">{c.propertyName ?? `Contract #${c.id}`}</p>
-                      <p className="text-xs text-muted-foreground">{c.constructionStatus} · {fmtPct(c.completionPercentage)} complete</p>
+                      <p className="text-xs text-muted-foreground">{c.constructionStatus} · {fmtPct(c.constructionProgress ?? 0)} built</p>
                     </div>
                     <ChevronRight className="h-4 w-4 text-muted-foreground" />
                   </CardContent>

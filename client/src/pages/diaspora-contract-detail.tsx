@@ -33,6 +33,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
+import { apiErrorMessage } from "@/lib/maintenance-flow";
 import { apiRequest } from "@/lib/queryClient";
 import { formatCurrency } from "@shared/currency";
 import {
@@ -137,7 +138,7 @@ export default function DiasporaContractDetail() {
   const { data: payments = [], refetch: refetchPayments } = useQuery<any[]>({
     queryKey: ["/api/diaspora-payments", { contractId }],
     queryFn: async () => {
-      const r = await apiRequest(`/api/diaspora-payments?contractId=${contractId}`);
+      const r = await apiRequest(`/api/diaspora-payments?diasporaContractId=${contractId}`);
       if (!r.ok) return [];
       const d = await r.json();
       return (Array.isArray(d) ? d : d.results ?? []).filter((p: any) => p.diasporaContractId === contractId);
@@ -183,7 +184,7 @@ export default function DiasporaContractDetail() {
       setActiveTab("payments");
       toast({ title: "Payment recorded", description: "The payment has been logged and posted to the general ledger." });
     },
-    onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
+    onError: (e: any) => toast({ title: "Error", description: apiErrorMessage(e), variant: "destructive" }),
   });
 
   const editMutation = useMutation({
@@ -193,7 +194,7 @@ export default function DiasporaContractDetail() {
       setActiveTab("details");
       toast({ title: "Contract updated" });
     },
-    onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
+    onError: (e: any) => toast({ title: "Error", description: apiErrorMessage(e), variant: "destructive" }),
   });
 
   const constructionMutation = useMutation({
@@ -218,7 +219,7 @@ export default function DiasporaContractDetail() {
         ? { title: "Update posted", description: `${created.mediaFailed} file${created.mediaFailed > 1 ? "s" : ""} didn't upload. Open the update and add ${created.mediaFailed > 1 ? "them" : "it"} again.`, variant: "destructive" }
         : { title: "Update posted", description: "Construction progress shared with the client." });
     },
-    onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
+    onError: (e: any) => toast({ title: "Error", description: apiErrorMessage(e), variant: "destructive" }),
   });
 
   const handleGenerateInvoice = async () => {
@@ -230,7 +231,7 @@ export default function DiasporaContractDetail() {
       setActiveTab("invoices");
       toast({ title: "Invoice generated" });
     } catch (e: any) {
-      toast({ title: "Error", description: e.message, variant: "destructive" });
+      toast({ title: "Error", description: apiErrorMessage(e), variant: "destructive" });
     } finally {
       setGeneratingInvoice(false);
     }
@@ -457,7 +458,6 @@ export default function DiasporaContractDetail() {
                       confirmationCode:  data.confirmationCode,
                       paymentDate:       data.paymentDate,
                       dueDate:           data.dueDate,
-                      paymentNumber:     parseInt(data.paymentNumber) || (payments.length + 1),
                       status:            data.status,
                       notes:             data.notes,
                       currency:          "KES",
@@ -487,7 +487,7 @@ export default function DiasporaContractDetail() {
                   </div>
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-1"><Label>Payment Date *</Label><Input type="date" name="paymentDate" required /></div>
-                    <div className="space-y-1"><Label>Payment #</Label><Input type="number" name="paymentNumber" defaultValue={payments.length + 1} /></div>
+                    <div className="space-y-1"><Label>Payment #</Label><Input type="number" value={payments.length + 1} readOnly disabled title="Numbered automatically" /></div>
                   </div>
                   <div className="rounded-lg border border-border p-3 space-y-3">
                     <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">International Transfer (optional)</p>
@@ -861,9 +861,6 @@ export default function DiasporaContractDetail() {
                 internationalProvider: data.internationalProvider,
                 totalPropertyValue:    String(data.totalPropertyValue),
                 downPayment:           String(data.downPayment),
-                totalPaid:             String(data.totalPaid),
-                remainingBalance:      String(data.remainingBalance),
-                paymentsMade:          Number(data.paymentsMade),
                 contractSignedAt:      data.contractSignedAt       || null,
                 constructionStartDate: data.constructionStartDate  || null,
                 expectedCompletionDate:data.expectedCompletionDate || null,
@@ -885,15 +882,15 @@ export default function DiasporaContractDetail() {
                   </SelectContent>
                 </Select>
               </div>
-              <div className="space-y-1"><Label>Payments Made (#)</Label><Input type="number" name="paymentsMade" defaultValue={contract.paymentsMade} /></div>
+              <div className="space-y-1"><Label>Payments Made (#)</Label><Input type="number" value={contract.paymentsMade ?? 0} readOnly disabled /></div>
             </div>
             <div className="border-t border-border pt-4">
-              <p className="text-xs font-semibold uppercase text-muted-foreground mb-3">Financial (Manual Correction)</p>
+              <p className="text-xs font-semibold uppercase text-muted-foreground mb-3">Financial terms (paid and balance follow the recorded payments)</p>
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-1"><Label>Total Property Value</Label><Input type="number" name="totalPropertyValue" defaultValue={contract.totalPropertyValue} /></div>
                 <div className="space-y-1"><Label>Down Payment</Label><Input type="number" name="downPayment" defaultValue={contract.downPayment} /></div>
-                <div className="space-y-1"><Label>Total Paid to Date</Label><Input type="number" name="totalPaid" defaultValue={contract.totalPaid} /></div>
-                <div className="space-y-1"><Label>Remaining Balance</Label><Input type="number" name="remainingBalance" defaultValue={contract.remainingBalance} /></div>
+                <div className="space-y-1"><Label>Total Paid to Date</Label><Input type="number" value={contract.totalPaid} readOnly disabled /></div>
+                <div className="space-y-1"><Label>Remaining Balance</Label><Input type="number" value={contract.remainingBalance} readOnly disabled /></div>
               </div>
             </div>
             <div className="border-t border-border pt-4">

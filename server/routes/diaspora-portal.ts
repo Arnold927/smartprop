@@ -28,7 +28,7 @@ import {
   diasporaPaymentSchedule,
   properties,
 } from "@shared/schema";
-import { eq, and, asc, desc } from "drizzle-orm";
+import { eq, and, asc, desc, inArray } from "drizzle-orm";
 import { authenticateJWT } from "../middleware/auth";
 import { requireOrg } from "../middleware/requireOrg";
 import { logger } from "../lib/logger";
@@ -101,8 +101,17 @@ router.get("/contracts", ...auth, async (req: any, res: any) => {
       .where(eq(diasporaContracts.buyerUserId, buyerUserId))
       .orderBy(desc(diasporaContracts.createdAt));
 
+    const latest = rows.length
+      ? await db.select({ cid: constructionUpdates.diasporaContractId, pct: constructionUpdates.progressPercentage })
+          .from(constructionUpdates).where(inArray(constructionUpdates.diasporaContractId, rows.map((r: any) => r.id))).orderBy(desc(constructionUpdates.id))
+      : [];
+    const progress = new Map<number, number>();
+    for (const u of latest) if (!progress.has(u.cid)) progress.set(u.cid, Number(u.pct ?? 0));
+
     res.json(rows.map((r: any) => ({
       ...r,
+      propertySiteSettings: undefined,
+      constructionProgress: progress.get(r.id) ?? 0,
       titleVerificationStatus: (r.propertySiteSettings as any)?.titleVerification?.status ?? "unverified",
       titleVerificationIsSandbox: (r.propertySiteSettings as any)?.titleVerification?.isSandbox ?? false,
     })));
@@ -128,7 +137,10 @@ router.get("/contracts/:id", ...auth, async (req: any, res: any) => {
       .where(eq(properties.id, contract.propertyId))
       .limit(1);
 
-    res.json({ ...contract, property: prop ?? null });
+    const { createdBy: _cb, assignedManager: _am, buyerUserId: _bu, localBankAccount: _lb, ...safe } = contract as any;
+    const [latest] = await db.select({ pct: constructionUpdates.progressPercentage }).from(constructionUpdates)
+      .where(eq(constructionUpdates.diasporaContractId, id)).orderBy(desc(constructionUpdates.id)).limit(1);
+    res.json({ ...safe, constructionProgress: Number(latest?.pct ?? 0), property: prop ?? null });
   } catch (err) {
     logger.error("GET /api/diaspora-portal/contracts/:id error:", err);
     res.status(500).json({ message: "Failed to fetch contract" });
@@ -150,7 +162,8 @@ router.get("/contracts/:id/payments", ...auth, async (req: any, res: any) => {
       .where(eq(diasporaPayments.diasporaContractId, id))
       .orderBy(desc(diasporaPayments.paymentDate));
 
-    res.json(payments);
+    // staff-only fields (who processed it, internal notes) are not the buyer's business
+    res.json(payments.map(({ processedBy: _pb, notes: _n, ...p }: any) => p));
   } catch (err) {
     logger.error("GET /api/diaspora-portal/contracts/:id/payments error:", err);
     res.status(500).json({ message: "Failed to fetch payment history" });
@@ -172,7 +185,7 @@ router.get("/contracts/:id/construction", ...auth, async (req: any, res: any) =>
       .where(eq(constructionUpdates.diasporaContractId, id))
       .orderBy(desc(constructionUpdates.createdAt));
 
-    res.json(updates);
+    res.json(updates.map(({ updatedBy: _ub, approvedBy: _ab, ...u }: any) => u));
   } catch (err) {
     logger.error("GET /api/diaspora-portal/contracts/:id/construction error:", err);
     res.status(500).json({ message: "Failed to fetch construction updates" });
@@ -194,7 +207,7 @@ router.get("/contracts/:id/certificates", ...auth, async (req: any, res: any) =>
       .where(eq(diasporaCertificates.diasporaContractId, id))
       .orderBy(desc(diasporaCertificates.createdAt));
 
-    res.json(certs);
+    res.json(certs.map(({ issuedBy: _ib, verifiedBy: _vb, ...c }: any) => c));
   } catch (err) {
     logger.error("GET /api/diaspora-portal/contracts/:id/certificates error:", err);
     res.status(500).json({ message: "Failed to fetch certificates" });
@@ -282,7 +295,15 @@ router.post("/messages", ...auth, async (req: any, res: any) => {
     const { notifyNewMessage } = await import("../ws");
     const { pushNotification } = await import("./notifications");
 
+    if (content.length > 5000) return res.status(400).json({ message: "Message is too long (5,000 characters at most)." });
     let recipientId = toUserId;
+    if (recipientId) {
+      // A buyer may only write to staff of their own organisation — not to any user id they care to type.
+      const { inArray: inArr } = await import("drizzle-orm");
+      const [staff] = await db.select({ id: users.id }).from(users)
+        .where(and(eq(users.id, String(recipientId)), eq(users.organizationId, orgId), inArr(users.role as any, ["admin", "manager"]))).limit(1);
+      if (!staff) return res.status(403).json({ message: "You can only send messages to your property manager." });
+    }
     if (!recipientId) {
       // Find the admin first, fall back to any manager in the org
       const { inArray } = await import("drizzle-orm");

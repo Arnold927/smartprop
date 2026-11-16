@@ -13,6 +13,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSepara
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { apiErrorMessage } from "@/lib/maintenance-flow";
 import { apiRequest, ensureArray } from "@/lib/queryClient";
 import {
   Plus,
@@ -1100,7 +1101,7 @@ export default function RentToOwn() {
         nextPaymentDue: new Date().toISOString().split("T")[0], terms: "" });
     },
     onError: (error: any) => {
-      toast({ title: "Error", description: error.message || "Failed to create agreement", variant: "destructive" });
+      toast({ title: "Error", description: apiErrorMessage(error, "Failed to create agreement"), variant: "destructive" });
     },
   });
 
@@ -1118,7 +1119,7 @@ export default function RentToOwn() {
         paymentMethod: "bank_transfer", transactionId: "", notes: "" });
     },
     onError: (error: any) => {
-      toast({ title: "Error", description: error.message || "Failed to record payment", variant: "destructive" });
+      toast({ title: "Error", description: apiErrorMessage(error, "Failed to record payment"), variant: "destructive" });
     },
   });
 
@@ -1127,13 +1128,35 @@ export default function RentToOwn() {
       await apiRequest(`/api/rent-to-own-payments/${data.paymentId}/process`, { method: "POST", data });
     },
     onSuccess: () => {
-      toast({ title: "Payment Processed", description: "Payment recorded and rent credit updated." });
+      toast({ title: "Payment recorded", description: "The balance owing and rent credit have been updated." });
       queryClient.invalidateQueries({ queryKey: ["/api/rent-to-own-payments"] });
       queryClient.invalidateQueries({ queryKey: ["/api/rent-to-own-agreements"] });
     },
     onError: (error: any) => {
-      toast({ title: "Error", description: error.message || "Failed to process payment", variant: "destructive" });
+      toast({ title: "Error", description: apiErrorMessage(error, "Failed to process payment"), variant: "destructive" });
     },
+  });
+
+  const [confirmAction, setConfirmAction] = useState<{ title: string; description: string; confirmLabel: string; destructive?: boolean; run: () => void } | null>(null);
+
+  const generateScheduleMutation = useMutation({
+    mutationFn: async (agreementId: number) => { const r = await apiRequest(`/api/rent-to-own-agreements/${agreementId}/generate-schedule`, { method: "POST", data: {} }); return r.json(); },
+    onSuccess: (r: any) => {
+      toast({ title: "Schedule created", description: `${r?.created ?? 0} monthly payments have been scheduled.` });
+      queryClient.invalidateQueries({ queryKey: ["/api/rent-to-own-payments"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/rent-to-own-agreements"] });
+    },
+    onError: (error: any) => toast({ title: "Error", description: apiErrorMessage(error, "Could not create the schedule"), variant: "destructive" }),
+  });
+
+  const agreementStatusMutation = useMutation({
+    mutationFn: async ({ id, status }: { id: number; status: string }) => { const r = await apiRequest(`/api/rent-to-own-agreements/${id}`, { method: "PATCH", data: { status } }); return r.json(); },
+    onSuccess: () => {
+      toast({ title: "Agreement updated" });
+      queryClient.invalidateQueries({ queryKey: ["/api/rent-to-own-agreements"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/rent-to-own-payments"] });
+    },
+    onError: (error: any) => toast({ title: "Error", description: apiErrorMessage(error, "Could not update the agreement"), variant: "destructive" }),
   });
 
   const generateCertificateMutation = useMutation({
@@ -1146,7 +1169,7 @@ export default function RentToOwn() {
       setIssueCertOpen(false);
     },
     onError: (error: any) => {
-      toast({ title: "Error", description: error.message || "Failed to generate certificate", variant: "destructive" });
+      toast({ title: "Error", description: apiErrorMessage(error, "Failed to generate certificate"), variant: "destructive" });
     },
   });
 
@@ -1554,6 +1577,27 @@ export default function RentToOwn() {
                                   <DropdownMenuItem onClick={() => setSelectedAgreement(agreement)}>
                                     <Eye className="h-3.5 w-3.5 mr-2" /> View Details
                                   </DropdownMenuItem>
+                                  {agreement.status === "active" && !payments.some(p => p.agreementId === agreement.id) && (
+                                    <DropdownMenuItem onClick={() => generateScheduleMutation.mutate(agreement.id)} disabled={generateScheduleMutation.isPending}>
+                                      <Calendar className="h-3.5 w-3.5 mr-2" /> Create payment schedule
+                                    </DropdownMenuItem>
+                                  )}
+                                  {agreement.status === "active" && (
+                                    <>
+                                      <DropdownMenuSeparator />
+                                      <DropdownMenuItem onClick={() => setConfirmAction({ title: "Mark as defaulted?", description: "The buyer has missed their obligations. No further payments can be recorded until you set it back to active.", confirmLabel: "Mark defaulted", destructive: true, run: () => agreementStatusMutation.mutate({ id: agreement.id, status: "defaulted" }) })}>
+                                        <AlertTriangle className="h-3.5 w-3.5 mr-2" /> Mark defaulted
+                                      </DropdownMenuItem>
+                                      <DropdownMenuItem className="text-destructive" onClick={() => setConfirmAction({ title: "Cancel this agreement?", description: "The agreement ends and no further payments can be recorded. Money already received stays on record.", confirmLabel: "Cancel agreement", destructive: true, run: () => agreementStatusMutation.mutate({ id: agreement.id, status: "cancelled" }) })}>
+                                        <AlertCircle className="h-3.5 w-3.5 mr-2" /> Cancel agreement
+                                      </DropdownMenuItem>
+                                    </>
+                                  )}
+                                  {(agreement.status === "defaulted" || agreement.status === "cancelled") && (
+                                    <DropdownMenuItem onClick={() => agreementStatusMutation.mutate({ id: agreement.id, status: "active" })}>
+                                      <CheckCircle2 className="h-3.5 w-3.5 mr-2" /> Reactivate
+                                    </DropdownMenuItem>
+                                  )}
                                   {agreement.status === "completed" && (
                                     <>
                                       <DropdownMenuSeparator />
@@ -1716,6 +1760,16 @@ export default function RentToOwn() {
             </Dialog>
           </div>
 
+          <ConfirmDialog
+            open={!!confirmAction}
+            onClose={() => setConfirmAction(null)}
+            onConfirm={() => { const a = confirmAction; setConfirmAction(null); a?.run(); }}
+            title={confirmAction?.title ?? ""}
+            description={confirmAction?.description}
+            confirmLabel={confirmAction?.confirmLabel}
+            destructive={confirmAction?.destructive}
+          />
+
           {/* Payment Summary */}
           <div className="grid gap-3 grid-cols-2 lg:grid-cols-4">
             <StatCard
@@ -1851,9 +1905,14 @@ export default function RentToOwn() {
                                 </Button>
                               </DropdownMenuTrigger>
                               <DropdownMenuContent align="end">
-                                {(payment.status === "pending" || payment.status === "overdue") && (
+                                {(payment.status === "pending" || payment.status === "overdue" || payment.status === "partial") && (
                                   <DropdownMenuItem
-                                    onClick={() => processPaymentMutation.mutate({ paymentId: payment.id, paidAmount: payment.scheduledAmount, paymentMethod: "bank_transfer", transactionId: `TXN-${Date.now()}` })}
+                                    onClick={() => setConfirmAction({
+                                      title: "Record this payment?",
+                                      description: `Marks payment #${payment.paymentNumber} (${`Ksh ${(Number(payment.scheduledAmount) - Number(payment.paidAmount || 0)).toLocaleString("en-KE", { maximumFractionDigits: 0 })}`}) as received and lowers the balance owing. This is posted to the books and cannot be undone here.`,
+                                      confirmLabel: "Record payment",
+                                      run: () => processPaymentMutation.mutate({ paymentId: payment.id, paymentMethod: "bank_transfer" }),
+                                    })}
                                     disabled={processPaymentMutation.isPending}
                                     className={payment.status === "overdue" ? "text-destructive" : ""}
                                   >

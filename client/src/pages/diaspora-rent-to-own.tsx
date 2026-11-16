@@ -17,6 +17,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Progress } from "@/components/ui/progress";
 import { useToast } from "@/hooks/use-toast";
+import { apiErrorMessage } from "@/lib/maintenance-flow";
 import { apiRequest, ensureArray } from "@/lib/queryClient";
 import { formatCurrency } from "@shared/currency";
 import { PageShell, PageHeader, SectionCard, SPBadge, EmptyState, PrimaryButton, SecondaryButton, FilterBar, SPTable, SPAvatar, StatTile, StatsGrid, KESAmount, ActionMenu, ConfirmDialog } from "@/components/ui/sp-ui";
@@ -415,7 +416,7 @@ export default function DiasporaRentToOwn() {
       if (meta?.buyerInvited) announceInvite({ status: "created", link: meta.inviteLink, emailSent: !!meta.emailSent }, result?.clientEmail, result?.clientName);
     },
     onError: (error: any) => {
-      toast({ title: "Error", description: error?.message || "Failed to create contract.", variant: "destructive" });
+      toast({ title: "Error", description: apiErrorMessage(error, "Failed to create contract."), variant: "destructive" });
     },
   });
 
@@ -442,7 +443,7 @@ export default function DiasporaRentToOwn() {
         description: `${freq} invoice ${invoice.invoiceNumber} for ${formatCurrency(Number(amt), invoice.currency ?? "KES")} created for ${invoice.clientName}.`,
       });
     } catch (err: any) {
-      toast({ title: "Error", description: err.message || "Could not generate invoice.", variant: "destructive" });
+      toast({ title: "Error", description: apiErrorMessage(err, "Could not generate invoice."), variant: "destructive" });
     } finally {
       setGeneratingInvoice(false);
     }
@@ -460,7 +461,7 @@ export default function DiasporaRentToOwn() {
       toast({ title: "Contract updated", description: "Contract details have been saved." });
     },
     onError: (error: any) => {
-      toast({ title: "Error", description: error?.message || "Failed to update contract.", variant: "destructive" });
+      toast({ title: "Error", description: apiErrorMessage(error, "Failed to update contract."), variant: "destructive" });
     },
   });
 
@@ -478,7 +479,7 @@ export default function DiasporaRentToOwn() {
       toast({ title: "Update posted", description: "Construction progress has been shared with the client." });
     },
     onError: (error: any) => {
-      toast({ title: "Error", description: error?.message || "Failed to post update.", variant: "destructive" });
+      toast({ title: "Error", description: apiErrorMessage(error, "Failed to post update."), variant: "destructive" });
     },
   });
 
@@ -496,7 +497,7 @@ export default function DiasporaRentToOwn() {
       toast({ title: "Payment recorded", description: "International payment has been logged successfully." });
     },
     onError: (error: any) => {
-      toast({ title: "Error", description: error?.message || "Failed to record payment.", variant: "destructive" });
+      toast({ title: "Error", description: apiErrorMessage(error, "Failed to record payment."), variant: "destructive" });
     },
   });
 
@@ -565,7 +566,7 @@ export default function DiasporaRentToOwn() {
       toast({ title: "Certificate Issued", description: "Digital ownership certificate has been created." });
     },
     onError: (error: any) => {
-      toast({ title: "Error", description: error?.message || "Failed to issue certificate.", variant: "destructive" });
+      toast({ title: "Error", description: apiErrorMessage(error, "Failed to issue certificate."), variant: "destructive" });
     },
   });
 
@@ -581,7 +582,7 @@ export default function DiasporaRentToOwn() {
       toast({ title: "Certificate Verified", description: "Certificate status has been updated to verified." });
     },
     onError: (error: any) => {
-      toast({ title: "Error", description: error?.message || "Failed to verify certificate.", variant: "destructive" });
+      toast({ title: "Error", description: apiErrorMessage(error, "Failed to verify certificate."), variant: "destructive" });
     },
   });
 
@@ -1078,7 +1079,6 @@ export default function DiasporaRentToOwn() {
                       data.processingFee     = parseFloat(fxForm.processingFee) || 0;
                       data.exchangeFee       = parseFloat(fxForm.exchangeFee)   || 0;
                       data.diasporaContractId = parseInt(data.diasporaContractId) || null;
-                      data.paymentNumber      = parseInt(data.paymentNumber)    || 1;
                       createPaymentMutation.mutate(data);
                     }}
                   >
@@ -1099,8 +1099,8 @@ export default function DiasporaRentToOwn() {
 
                     <div className="grid grid-cols-2 gap-4">
                       <div className="space-y-2">
-                        <Label>Payment Number *</Label>
-                        <Input type="number" name="paymentNumber" placeholder="1" min="1" required />
+                        <Label>Payment Number</Label>
+                        <Input type="text" value="Assigned automatically" readOnly disabled />
                       </div>
                       <div className="space-y-2">
                         <Label>Status *</Label>
@@ -1558,13 +1558,7 @@ export default function DiasporaRentToOwn() {
                       const fd = new FormData(e.currentTarget);
                       const data: any = Object.fromEntries(fd.entries());
                       data.diasporaContractId = parseInt(data.diasporaContractId);
-                      // Generate unique identifiers client-side as placeholders (server can override)
-                      const ts = Date.now().toString(36).toUpperCase();
-                      data.certificateNumber = data.certificateNumber || `CERT-DSP-${ts}`;
-                      data.qrCode = `QR-${ts}`;
-                      data.blockchainHash = `0x${Array.from({length: 40}, () => Math.floor(Math.random()*16).toString(16)).join("")}`;
-                      data.verificationUrl = `https://verify.smartprop.co/cert/${ts}`;
-                      data.certificateData = JSON.stringify({ issuedVia: "SmartProp", timestamp: new Date().toISOString() });
+                      // The certificate number, QR code and fingerprint are generated by the server from the contract's own details.
                       createCertificateMutation.mutate(data);
                     }}
                   >
